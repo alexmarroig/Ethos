@@ -1,0 +1,14 @@
+{
+  "name": "ethos",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:desktop": "npm --workspace apps/ethos-desktop run dev",
+    "dev:transcriber": "npm --workspace apps/ethos-transcriber run dev",
+    "build": "npm --workspace apps/ethos-desktop run build && npm --workspace apps/ethos-transcriber run build",
+    "lint": "echo 'lint placeholder'"
+  }
+}
