@@ -1,0 +1,14 @@
+{
+  "name": "ethos-desktop",
+  "version": "0.1.0",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "echo 'run electron + vite in real setup'",
+    "build": "echo 'build placeholder'"
+  },
+  "dependencies": {
+    "@ethos/shared": "*",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  }
+}
