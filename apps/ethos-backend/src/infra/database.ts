@@ -39,6 +39,19 @@ export const verifyPassword = (password: string, stored: string) => {
 export const hashInviteToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
 export const encrypt = (raw: string) => `enc:${Buffer.from(raw).toString("base64")}`;
 
+const DEFAULT_IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_IDEMPOTENCY_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
+
+export type IdempotencyRecord = {
+  statusCode: number;
+  body: unknown;
+  createdAt: string;
+  expiresAt: number;
+};
+
+export const IDEMPOTENCY_TTL_MS = Number(process.env.IDEMPOTENCY_TTL_MS ?? DEFAULT_IDEMPOTENCY_TTL_MS);
+const IDEMPOTENCY_CLEANUP_INTERVAL_MS = Number(process.env.IDEMPOTENCY_CLEANUP_INTERVAL_MS ?? DEFAULT_IDEMPOTENCY_CLEANUP_INTERVAL_MS);
+
 export const db = {
   users: new Map<string, User>(),
   invites: new Map<string, Invite>(),
@@ -61,8 +74,32 @@ export const db = {
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
-  idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+  idempotency: new Map<string, IdempotencyRecord>(),
 };
+
+export const cleanupExpiredIdempotency = (at = Date.now()) => {
+  for (const [key, entry] of db.idempotency.entries()) {
+    if (entry.expiresAt <= at) db.idempotency.delete(key);
+  }
+};
+
+export const getIdempotencyEntry = (key: string, at = Date.now()) => {
+  cleanupExpiredIdempotency(at);
+  const entry = db.idempotency.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= at) {
+    db.idempotency.delete(key);
+    return null;
+  }
+  return entry;
+};
+
+export const setIdempotencyEntry = (key: string, value: Omit<IdempotencyRecord, "expiresAt">, ttlMs = IDEMPOTENCY_TTL_MS, at = Date.now()) => {
+  cleanupExpiredIdempotency(at);
+  db.idempotency.set(key, { ...value, expiresAt: at + ttlMs });
+};
+
+setInterval(() => cleanupExpiredIdempotency(), IDEMPOTENCY_CLEANUP_INTERVAL_MS).unref();
 
 const camilaId = uid();
 db.users.set(camilaId, {

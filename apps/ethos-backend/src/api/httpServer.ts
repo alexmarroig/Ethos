@@ -37,7 +37,7 @@ import {
   validateClinicalNote,
 } from "../application/service";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
-import { db } from "../infra/database";
+import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
 const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
@@ -78,6 +78,9 @@ const parsePagination = (url: URL) => ({
   page: Number(url.searchParams.get("page") ?? 1),
   pageSize: Number(url.searchParams.get("page_size") ?? 20),
 });
+
+const hashRequestBody = (body: Record<string, unknown>) => crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
+const idempotencyCacheKey = (userId: string, method: string, pathname: string, idempotencyKey: string, bodyHash: string) => `${userId}:${method}:${pathname}:${idempotencyKey}:${bodyHash}`;
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -146,17 +149,24 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     const idemKey = req.headers["idempotency-key"]?.toString();
-    if (method === "POST" && url.pathname === "/sessions" && idemKey) {
-      const existing = db.idempotency.get(idemKey);
-      if (existing) return ok(res, requestId, existing.statusCode, existing.body);
-    }
 
     if (method === "POST" && url.pathname === "/sessions") {
       if (!canUseFeature(auth.user.id, "new_session")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Subscription required to create new sessions");
       const body = await readJson(req);
       if (typeof body.patient_id !== "string" || typeof body.scheduled_at !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and scheduled_at required");
+
+      const idemCacheKey = idemKey
+        ? idempotencyCacheKey(auth.user.id, method, url.pathname, idemKey, hashRequestBody(body))
+        : null;
+      if (idemCacheKey) {
+        const existing = getIdempotencyEntry(idemCacheKey);
+        if (existing) return ok(res, requestId, existing.statusCode, existing.body);
+      }
+
       const session = createSession(auth.user.id, body.patient_id, body.scheduled_at);
-      if (idemKey) db.idempotency.set(idemKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
+      if (idemCacheKey) {
+        setIdempotencyEntry(idemCacheKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
+      }
       return ok(res, requestId, 201, session);
     }
 

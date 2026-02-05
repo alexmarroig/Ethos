@@ -71,8 +71,9 @@ test("state machine: nota draft -> validated e report depende de validação", a
 
 test("jobs async + webhook + idempotency", async () => {
   const { server, base, userToken } = await bootstrap();
-  const session = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
-  const session2 = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
+  const payload = { patient_id: "p3", scheduled_at: new Date().toISOString() };
+  const session = await req(base, "/sessions", "POST", payload, userToken, "idem-1");
+  const session2 = await req(base, "/sessions", "POST", payload, userToken, "idem-1");
   assert.equal(session.json.data.id, session2.json.data.id);
 
   const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "texto" }, userToken);
