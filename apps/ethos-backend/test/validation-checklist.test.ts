@@ -114,6 +114,33 @@ test("checklist: fluxo completo sessão→áudio→transcrição→rascunho→va
   server.close();
 });
 
+
+test("checklist: relatório exige nota validada do mesmo paciente (não aceita outro paciente)", async () => {
+  const { server, base, userAToken } = await setup();
+
+  const sessionA = await req(base, "/sessions", "POST", { patient_id: "patient-a", scheduled_at: new Date().toISOString() }, userAToken);
+  const noteA = await req(base, `/sessions/${sessionA.json.data.id}/clinical-note`, "POST", { content: "nota paciente A" }, userAToken);
+  await req(base, `/clinical-notes/${noteA.json.data.id}/validate`, "POST", {}, userAToken);
+
+  const blocked = await req(base, "/reports", "POST", { patient_id: "patient-b", purpose: "profissional", content: "relatório" }, userAToken);
+  assert.equal(blocked.status, 422);
+  assert.equal(blocked.json.error.message, "A validated note for the patient is required before creating reports");
+
+  server.close();
+});
+
+test("checklist: relatório aceita nota validada vinculada diretamente ao patient_id", async () => {
+  const { server, base, userAToken } = await setup();
+
+  const directNote = await req(base, "/sessions/patient-direct/clinical-note", "POST", { content: "nota direta" }, userAToken);
+  await req(base, `/clinical-notes/${directNote.json.data.id}/validate`, "POST", {}, userAToken);
+
+  const report = await req(base, "/reports", "POST", { patient_id: "patient-direct", purpose: "profissional", content: "relatório direto" }, userAToken);
+  assert.equal(report.status, 201);
+
+  server.close();
+});
+
 test("checklist: kill de worker não corrompe estado (simulação de falha de job)", async () => {
   const { server, base, userAToken } = await setup();
 
