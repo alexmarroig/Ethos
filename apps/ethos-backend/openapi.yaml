@@ -1,0 +1,116 @@
+openapi: 3.0.3
+info:
+  title: ETHOS Backend API
+  version: 1.0.0
+servers:
+  - url: http://localhost:8787
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+        code: { type: string }
+paths:
+  /auth/invite:
+    post:
+      summary: Create invite (admin)
+  /auth/accept-invite:
+    post:
+      summary: Accept invite and activate user
+  /auth/login:
+    post:
+      summary: Login
+  /auth/logout:
+    post:
+      summary: Logout
+  /me:
+    get:
+      summary: Current user
+    patch:
+      summary: Update profile
+  /sessions:
+    post: { summary: Create session }
+    get: { summary: List sessions }
+  /sessions/{id}:
+    get: { summary: Get session }
+  /sessions/{id}/status:
+    patch: { summary: Update status }
+  /sessions/{id}/audio:
+    post: { summary: Register audio }
+  /sessions/{id}/transcribe:
+    post: { summary: Create transcription job }
+  /jobs/{job_id}:
+    get: { summary: Job status }
+  /sessions/{id}/clinical-note:
+    post: { summary: Create draft note }
+  /sessions/{id}/clinical-notes:
+    get: { summary: List session notes }
+  /clinical-notes/{id}:
+    get: { summary: Get note }
+  /clinical-notes/{id}/validate:
+    post: { summary: Validate note }
+  /reports:
+    post: { summary: Create report }
+    get: { summary: List reports }
+  /reports/{id}:
+    get: { summary: Get report }
+  /anamnesis:
+    post: { summary: Create anamnesis response }
+    get: { summary: List anamnesis responses }
+  /scales:
+    get: { summary: List scales }
+  /scales/record:
+    post: { summary: Record scale }
+  /scales/records:
+    get: { summary: List scale records }
+  /forms:
+    get: { summary: List forms }
+  /forms/entry:
+    post: { summary: Create form entry }
+  /financial/entry:
+    post: { summary: Create financial entry }
+  /financial/entries:
+    get: { summary: List financial entries }
+  /financial/reminder:
+    post: { summary: Generate reminder text }
+  /export/pdf:
+    post: { summary: Export PDF }
+  /export/docx:
+    post: { summary: Export DOCX }
+  /backup:
+    post: { summary: Backup by user }
+  /restore:
+    post: { summary: Restore by user }
+  /purge:
+    post: { summary: Purge all user data }
+  /ai/organize:
+    post: { summary: AI textual organization only }
+  /api/webhook:
+    post: { summary: Technical webhook telemetry ingest }
+  /admin/users:
+    get: { summary: Admin list users }
+  /admin/users/{id}:
+    get: { summary: Admin user details }
+    patch: { summary: Admin update role/status }
+  /admin/users/{id}/disable:
+    post: { summary: Admin disable user }
+  /admin/users/{id}/enable:
+    post: { summary: Admin enable user }
+  /admin/metrics/overview:
+    get: { summary: Admin aggregated metrics }
+  /admin/metrics/user-usage:
+    get: { summary: Admin per-user usage metrics }
+  /admin/metrics/errors:
+    get: { summary: Admin technical errors }
+  /admin/audit:
+    get: { summary: Admin audit trail }
+  /contracts:
+    get: { summary: API contracts }
+  /openapi.yaml:
+    get: { summary: OpenAPI spec file }
