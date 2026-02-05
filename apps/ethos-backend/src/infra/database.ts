@@ -18,6 +18,7 @@ import type {
   User,
   LocalEntitlementSnapshot,
   ScaleTemplate,
+  ObservabilityAlert,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -61,6 +62,7 @@ export const db = {
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
+  observabilityAlerts: new Map<string, ObservabilityAlert>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
 };
 
