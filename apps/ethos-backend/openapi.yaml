@@ -59,6 +59,33 @@ paths:
     get:
       summary: List sessions
       security: [{ bearerAuth: [] }]
+  /auth/login:
+    post:
+      summary: Login
+  /auth/invite:
+    post:
+      summary: Invite user (admin)
+      security: [{ bearerAuth: [] }]
+  /auth/accept-invite:
+    post:
+      summary: Accept invite
+  /sessions:
+    get:
+      summary: List sessions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: patient_id
+          schema: { type: string }
+    post:
+      summary: Create session
+      security: [{ bearerAuth: [] }]
   /sessions/{id}:
     get:
       summary: Session detail
@@ -163,4 +190,25 @@ paths:
   /ai/organize:
     post:
       summary: Sanitize and structure free text
+  /sessions/{id}/transcribe:
+    post:
+      summary: Create transcription job
+      security: [{ bearerAuth: [] }]
+  /jobs/{job_id}:
+    get:
+      summary: Job status
+      security: [{ bearerAuth: [] }]
+  /reports:
+    get:
+      summary: List reports
+      security: [{ bearerAuth: [] }]
+    post:
+      summary: Create report
+      security: [{ bearerAuth: [] }]
+  /contracts:
+    get:
+      summary: API contracts and examples
+  /admin/metrics/overview:
+    get:
+      summary: Sanitized admin metrics
       security: [{ bearerAuth: [] }]
