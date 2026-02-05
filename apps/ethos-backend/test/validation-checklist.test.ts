@@ -193,11 +193,77 @@ test("checklist: purge apaga tudo do usuário", async () => {
 
   assert.equal((await req(base, "/purge", "POST", {}, userAToken)).status, 202);
 
-  const after = await req(base, "/sessions", "GET", undefined, userAToken);
+  const afterWithPurgedToken = await req(base, "/sessions", "GET", undefined, userAToken);
+  assert.equal(afterWithPurgedToken.status, 401);
+
+  const relogin = await req(base, "/auth/login", "POST", { email: "user-a@ethos.local", password: "secretA123" });
+  assert.equal(relogin.status, 200);
+  const after = await req(base, "/sessions", "GET", undefined, relogin.json.data.token as string);
   assert.equal(after.json.data.total, 0);
 
   server.close();
 });
+
+test("checklist: purge remove todos os vínculos do usuário (incluindo estruturas derivadas)", async () => {
+  const { server, base, userAToken, userBToken } = await setup();
+
+  const ownerId = db.sessionsTokens.get(userAToken)?.user_id;
+  const otherOwnerId = db.sessionsTokens.get(userBToken)?.user_id;
+  assert.ok(ownerId);
+  assert.ok(otherOwnerId);
+
+  const session = await req(base, "/sessions", "POST", { patient_id: "patient-purge-scope", scheduled_at: new Date().toISOString() }, userAToken);
+  const sid = session.json.data.id as string;
+  await req(base, `/sessions/${sid}/audio`, "POST", { file_path: "vault://audio.enc", consent_confirmed: true }, userAToken);
+  const note = await req(base, `/sessions/${sid}/clinical-note`, "POST", { content: "conteúdo purgável" }, userAToken);
+  await req(base, `/clinical-notes/${note.json.data.id}/validate`, "POST", {}, userAToken);
+  await req(base, "/reports", "POST", { patient_id: "patient-purge-scope", purpose: "profissional", content: "relatório" }, userAToken);
+  await req(base, "/anamnesis", "POST", { patient_id: "patient-purge-scope", template_id: "tpl-1", content: { q1: "ok" } }, userAToken);
+  await req(base, "/scales/record", "POST", { scale_id: "phq9", patient_id: "patient-purge-scope", score: 9 }, userAToken);
+  await req(base, "/forms/entry", "POST", { form_id: "f1", patient_id: "patient-purge-scope", content: { a: 1 } }, userAToken);
+  await req(base, "/financial/entry", "POST", { patient_id: "patient-purge-scope", type: "receivable", amount: 150, due_date: new Date().toISOString() }, userAToken);
+  await req(base, "/export/pdf", "POST", {}, userAToken);
+
+  db.audit.set(uid(), { id: uid(), actor_user_id: ownerId as string, target_user_id: otherOwnerId as string, event: "MANUAL_OWNER_A", ts: new Date().toISOString() });
+  db.audit.set(uid(), { id: uid(), actor_user_id: otherOwnerId as string, target_user_id: ownerId as string, event: "MANUAL_TARGET_A", ts: new Date().toISOString() });
+  db.telemetry.set(uid(), { id: uid(), user_id: ownerId as string, event_type: "MANUAL_OWNER_A", ts: new Date().toISOString() });
+  db.telemetryQueue.set("mixed", [
+    { id: uid(), user_id: ownerId as string, event_type: "QUEUE_OWNER_A", ts: new Date().toISOString() },
+    { id: uid(), user_id: otherOwnerId as string, event_type: "QUEUE_OWNER_B", ts: new Date().toISOString() },
+  ]);
+
+  assert.equal((await req(base, "/purge", "POST", {}, userAToken)).status, 202);
+
+  const ownedCollections = [
+    db.patients,
+    db.sessions,
+    db.audioRecords,
+    db.transcripts,
+    db.clinicalNotes,
+    db.reports,
+    db.anamnesis,
+    db.scales,
+    db.forms,
+    db.financial,
+    db.jobs,
+  ];
+
+  for (const map of ownedCollections) {
+    assert.equal(Array.from(map.values()).some((entry) => entry.owner_user_id === ownerId), false);
+  }
+
+  assert.equal(Array.from(db.telemetry.values()).some((entry) => entry.user_id === ownerId), false);
+  assert.equal(Array.from(db.audit.values()).some((entry) => entry.actor_user_id === ownerId || entry.target_user_id === ownerId), false);
+  assert.equal(Array.from(db.sessionsTokens.values()).some((entry) => entry.user_id === ownerId), false);
+  assert.equal(db.localEntitlements.has(ownerId as string), false);
+
+  const telemetryQueue = db.telemetryQueue.get("mixed") ?? [];
+  assert.equal(telemetryQueue.some((entry) => entry.user_id === ownerId), false);
+  assert.equal(telemetryQueue.some((entry) => entry.user_id === otherOwnerId), true);
+
+  server.close();
+});
+
 
 test("checklist: OpenAPI cobre rotas reais principais", async () => {
   const { server, base } = await setup();

@@ -385,6 +385,28 @@ export const purgeUserData = (owner: string) => {
       if (item.owner_user_id === owner) map.delete(id);
     }
   }
+
+  for (const [id, item] of db.telemetry.entries()) {
+    if (item.user_id === owner) db.telemetry.delete(id);
+  }
+
+  for (const [id, item] of db.audit.entries()) {
+    if (item.actor_user_id === owner || item.target_user_id === owner) db.audit.delete(id);
+  }
+
+  for (const [token, item] of db.sessionsTokens.entries()) {
+    if (item.user_id === owner) db.sessionsTokens.delete(token);
+  }
+
+  db.localEntitlements.delete(owner);
+
+  for (const [queueOwner, queue] of db.telemetryQueue.entries()) {
+    if (queueOwner === owner) {
+      db.telemetryQueue.delete(queueOwner);
+      continue;
+    }
+    db.telemetryQueue.set(queueOwner, queue.filter((event) => event.user_id !== owner));
+  }
 };
 
 export const adminOverviewMetrics = () => ({
