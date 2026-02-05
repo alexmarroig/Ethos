@@ -18,6 +18,7 @@ import type {
   User,
   LocalEntitlementSnapshot,
   ScaleTemplate,
+  ObservabilityAlert,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -74,13 +75,8 @@ export const db = {
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
-  idempotency: new Map<string, IdempotencyRecord>(),
-};
-
-export const cleanupExpiredIdempotency = (at = Date.now()) => {
-  for (const [key, entry] of db.idempotency.entries()) {
-    if (entry.expiresAt <= at) db.idempotency.delete(key);
-  }
+  observabilityAlerts: new Map<string, ObservabilityAlert>(),
+  idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
 };
 
 export const getIdempotencyEntry = (key: string, at = Date.now()) => {

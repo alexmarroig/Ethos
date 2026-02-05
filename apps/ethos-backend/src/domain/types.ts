@@ -160,6 +160,19 @@ export type AuditEvent = {
   ts: string;
 };
 
+export type ObservabilityAlert = {
+  id: UUID;
+  source: "detectBottlenecks" | "predictFailureRisk" | "detectAnomalousBehavior" | "suggestRootCauseFromLogs";
+  severity: "low" | "medium" | "high";
+  title: string;
+  message: string;
+  fingerprint: string;
+  first_seen_at: string;
+  last_seen_at: string;
+  occurrences: number;
+  context: Record<string, unknown>;
+};
+
 export type ApiEnvelope<T> = {
   request_id: string;
   data: T;
