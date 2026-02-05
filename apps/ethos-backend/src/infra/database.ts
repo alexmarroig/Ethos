@@ -15,6 +15,8 @@ import type {
   TelemetryEvent,
   Transcript,
   User,
+  LocalEntitlementSnapshot,
+  ScaleTemplate,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -51,6 +53,8 @@ export const db = {
   forms: new Map<string, FormEntry>(),
   financial: new Map<string, FinancialEntry>(),
   jobs: new Map<string, Job>(),
+  localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
+  scaleTemplates: new Map<string, ScaleTemplate>(),
 
   telemetry: new Map<string, TelemetryEvent>(),
   audit: new Map<string, AuditEvent>(),
@@ -69,3 +73,7 @@ db.users.set(camilaId, {
 });
 
 export const seeds = { camilaId, now };
+
+
+db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
+db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });

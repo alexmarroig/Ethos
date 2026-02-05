@@ -193,3 +193,43 @@ export const adminOverviewMetrics = () => ({
   jobs_total: db.jobs.size,
   error_events: Array.from(db.telemetry.values()).filter((e) => e.error_code).length,
 });
+
+
+export const syncLocalEntitlements = (owner: string, snapshot: {
+  features?: Record<string, boolean>;
+  limits?: Record<string, number>;
+  source_subscription_status?: "none" | "trialing" | "active" | "past_due" | "canceled";
+  grace_until?: string;
+}) => {
+  const value = {
+    user_id: owner,
+    features: snapshot.features ?? { transcription: false, export: true, backup: true },
+    limits: snapshot.limits ?? { sessions_per_month: 10 },
+    source_subscription_status: snapshot.source_subscription_status ?? "none",
+    synced_at: now(),
+    grace_until: snapshot.grace_until,
+  };
+  db.localEntitlements.set(owner, value);
+  return value;
+};
+
+export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, {});
+
+export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup") => {
+  const ent = resolveLocalEntitlements(owner);
+  const withinGrace = !!ent.grace_until && Date.parse(ent.grace_until) > Date.now();
+  if (feature === "new_session") {
+    const createdThisMonth = byOwner(db.sessions.values(), owner).filter((s) => new Date(s.created_at).getMonth() === new Date().getMonth()).length;
+    if (createdThisMonth >= (ent.limits.sessions_per_month ?? 10) && !withinGrace) return false;
+    if (ent.source_subscription_status === "canceled" && !withinGrace) return false;
+    return true;
+  }
+  if (feature === "transcription") return !!ent.features.transcription || withinGrace;
+  if (feature === "export") return true;
+  if (feature === "backup") return true;
+  return false;
+};
+
+export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((n) => n.session_id === sessionId);
+export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
+export const listScales = () => Array.from(db.scaleTemplates.values());

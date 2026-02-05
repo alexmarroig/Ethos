@@ -99,6 +99,22 @@ export type FinancialEntry = Owned & {
 export type JobType = "transcription" | "export" | "backup";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
+
+export type LocalEntitlementSnapshot = {
+  user_id: UUID;
+  features: Record<string, boolean>;
+  limits: Record<string, number>;
+  source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
+  synced_at: string;
+  grace_until?: string;
+};
+
+export type ScaleTemplate = {
+  id: string;
+  name: string;
+  description: string;
+};
+
 export type Job = {
   id: UUID;
   owner_user_id: UUID;

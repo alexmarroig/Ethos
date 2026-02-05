@@ -1,22 +1,29 @@
-# ETHOS
+# ETHOS V1
 
-Plataforma clínica offline para Windows com fluxo de agenda, sessões, transcrição local e prontuário em rascunho. A IA é usada apenas como apoio documental, sem diagnóstico ou conduta automática.
+Plataforma clínica multi-plataforma com duas camadas:
 
-## Estrutura do monorepo
+1. **Control Plane (cloud)**: auth/convites, billing, entitlements, telemetria sanitizada e admin global.
+2. **Clinical Plane (local/offline)**: prontuário e operações clínicas locais com isolamento por usuário.
 
-- `apps/ethos-desktop`: Electron + React (UI). Fluxo clínico completo, com consentimento, rascunho e validação.
-- `apps/ethos-transcriber`: Worker local para transcrição (faster-whisper + ffmpeg) via IPC.
-- `packages/shared`: Tipos e DTOs compartilhados.
+## Apps
+- `apps/ethos-control-plane`
+- `apps/ethos-backend`
+- `apps/ethos-desktop`
+- `apps/ethos-mobile`
+- `apps/ethos-transcriber`
 
-## Fluxo MVP (offline)
+## Pacotes
+- `packages/ethos-sdk`: SDK para control + clinical plane.
 
-1. Agenda semanal simples.
-2. Sessão → importar/gravar áudio (com consentimento).
-3. Worker local transcreve com timestamps.
-4. Gerar prontuário automático como **rascunho** (texto descritivo, sem inferências).
-5. Edição manual e validação explícita.
-6. Exportação DOCX/PDF.
+## Docs
+- `docs/architecture-v1.md`
+- `docs/billing-flow.md`
+- `docs/offline-grace.md`
+- `docs/mobile-v1.md`
+- `docs/troubleshooting.md`
 
-## Execução (placeholder)
-
-Este repositório contém a base do monorepo e pontos de integração. Scripts reais de build/electron-builder devem ser adicionados conforme o empacotamento Windows.
+## Comandos
+```bash
+npm run test
+npm run build
+```

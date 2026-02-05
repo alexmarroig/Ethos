@@ -28,6 +28,7 @@ const bootstrap = async () => {
   const invite = await req(base, "/auth/invite", "POST", { email: "user1@ethos.local" }, adminToken);
   await req(base, "/auth/accept-invite", "POST", { token: invite.json.data.invite_token, name: "User 1", password: "secret123" });
   const login = await req(base, "/auth/login", "POST", { email: "user1@ethos.local", password: "secret123" });
+  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, login.json.data.token as string);
   return { server, base, adminToken, userToken: login.json.data.token as string };
 };
 

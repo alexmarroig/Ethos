@@ -18,6 +18,12 @@ import {
   createScaleRecord,
   createSession,
   getByOwner,
+  getClinicalNote,
+  getJob,
+  getUserFromToken,
+  handleTranscriberWebhook,
+  listScales,
+  listSessionClinicalNotes,
   getJob,
   getUserFromToken,
   handleTranscriberWebhook,
@@ -26,6 +32,10 @@ import {
   paginate,
   patchSessionStatus,
   purgeUserData,
+  resolveLocalEntitlements,
+  runJob,
+  syncLocalEntitlements,
+  canUseFeature,
   runJob,
   validateClinicalNote,
 } from "../application/service";
@@ -100,6 +110,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         openapi: "/openapi.yaml",
         response_envelope: { request_id: "string", data: "any" },
         error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
+        examples: { idempotency: "Idempotency-Key: 5b5a-...", entitlement_sync: "POST /local/entitlements/sync" },
         examples: { idempotency: "Idempotency-Key: 5b5a-..." },
       });
     }
@@ -134,6 +145,19 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     const auth = requireAuth(req, res, requestId); if (!auth) return;
     if (auth.user.role === "admin" && CLINICAL_PATHS.some((r) => r.test(url.pathname))) return error(res, requestId, 403, "FORBIDDEN", "Admin cannot access clinical content");
 
+    if (method === "GET" && url.pathname === "/local/entitlements") return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
+    if (method === "POST" && url.pathname === "/local/entitlements/sync") {
+      const body = await readJson(req);
+      const snapshot = typeof body.snapshot === "object" && body.snapshot ? body.snapshot as Record<string, unknown> : {};
+      const synced = syncLocalEntitlements(auth.user.id, {
+        features: typeof snapshot.features === "object" && snapshot.features ? snapshot.features as Record<string, boolean> : undefined,
+        limits: typeof snapshot.limits === "object" && snapshot.limits ? snapshot.limits as Record<string, number> : undefined,
+        source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
+        grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
+      });
+      return ok(res, requestId, 200, synced);
+    }
+
     if (method === "GET" && url.pathname === "/admin/metrics/overview") {
       if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
       return ok(res, requestId, 200, adminOverviewMetrics());
@@ -151,6 +175,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "POST" && url.pathname === "/sessions") {
+      if (!canUseFeature(auth.user.id, "new_session")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Subscription required to create new sessions");
       const body = await readJson(req);
       if (typeof body.patient_id !== "string" || typeof body.scheduled_at !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and scheduled_at required");
       const created = createSession(auth.user.id, body.patient_id, body.scheduled_at);
@@ -191,6 +216,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     const transcribe = url.pathname.match(/^\/sessions\/([^/]+)\/transcribe$/);
     if (method === "POST" && transcribe) {
+      if (!canUseFeature(auth.user.id, "transcription")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Transcription is not available for current subscription");
       const body = await readJson(req);
       if (!getByOwner(db.sessions, auth.user.id, transcribe[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
       const job = createJob(auth.user.id, "transcription", transcribe[1]);
@@ -209,6 +235,18 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     const noteValidate = url.pathname.match(/^\/clinical-notes\/([^/]+)\/validate$/);
     if (method === "POST" && noteValidate) {
       const note = validateClinicalNote(auth.user.id, noteValidate[1]);
+      if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
+      return ok(res, requestId, 200, note);
+    }
+
+    const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
+    if (method === "GET" && sessionNotes) {
+      return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), ...Object.values(parsePagination(url))));
+    }
+
+    const noteById = url.pathname.match(/^\/clinical-notes\/([^/]+)$/);
+    if (method === "GET" && noteById) {
+      const note = getClinicalNote(auth.user.id, noteById[1]);
       if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
       return ok(res, requestId, 200, note);
     }
@@ -236,6 +274,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       const body = await readJson(req);
       return ok(res, requestId, 201, createScaleRecord(auth.user.id, String(body.scale_id), String(body.patient_id), Number(body.score ?? 0)));
     }
+    if (method === "GET" && url.pathname === "/scales") return ok(res, requestId, 200, listScales());
     if (method === "GET" && url.pathname === "/scales/records") return ok(res, requestId, 200, paginate(Array.from(db.scales.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && url.pathname === "/forms/entry") {
@@ -251,12 +290,14 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/financial/entries") return ok(res, requestId, 200, paginate(Array.from(db.financial.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
+      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export is not available");
       const job = createJob(auth.user.id, "export");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
 
     if (method === "POST" && url.pathname === "/backup") {
+      if (!canUseFeature(auth.user.id, "backup")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Backup is not available");
       const job = createJob(auth.user.id, "backup");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
@@ -279,6 +320,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       if (typeof body.job_id !== "string" || typeof body.status !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "job_id and status required");
       const updated = handleTranscriberWebhook(body.job_id, body.status as "queued" | "running" | "completed" | "failed", typeof body.error_code === "string" ? body.error_code : undefined);
       if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Job not found");
+      addTelemetry({ user_id: updated.owner_user_id, event_type: "TRANSCRIBER_WEBHOOK", route: url.pathname, status_code: 202, error_code: updated.error_code });
       return ok(res, requestId, 202, { accepted: true });
     }
 

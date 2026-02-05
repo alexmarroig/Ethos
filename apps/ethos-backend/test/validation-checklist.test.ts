@@ -35,6 +35,9 @@ const setup = async () => {
   await req(base, "/auth/accept-invite", "POST", { token: inviteB.json.data.invite_token, name: "User B", password: "secretB123" });
   const userBLogin = await req(base, "/auth/login", "POST", { email: "user-b@ethos.local", password: "secretB123" });
 
+  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, userALogin.json.data.token as string);
+  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, userBLogin.json.data.token as string);
+
   return {
     server,
     base,
