@@ -83,3 +83,25 @@ test("jobs async + webhook + idempotency", async () => {
   assert.equal(job.json.data.status, "completed");
   server.close();
 });
+
+test("paginação valida parâmetros e normaliza limites", async () => {
+  const { server, base, userToken } = await bootstrap();
+
+  const negativePage = await req(base, "/sessions?page=-1", "GET", undefined, userToken);
+  assert.equal(negativePage.status, 200);
+  assert.equal(negativePage.json.data.page, 1);
+
+  const invalidPage = await req(base, "/sessions?page=abc", "GET", undefined, userToken);
+  assert.equal(invalidPage.status, 422);
+  assert.equal(invalidPage.json.error.code, "VALIDATION_ERROR");
+
+  const zeroPageSize = await req(base, "/sessions?page_size=0", "GET", undefined, userToken);
+  assert.equal(zeroPageSize.status, 200);
+  assert.equal(zeroPageSize.json.data.page_size, 20);
+
+  const hugePageSize = await req(base, "/sessions?page_size=100000", "GET", undefined, userToken);
+  assert.equal(hugePageSize.status, 200);
+  assert.equal(hugePageSize.json.data.page_size, 20);
+
+  server.close();
+});

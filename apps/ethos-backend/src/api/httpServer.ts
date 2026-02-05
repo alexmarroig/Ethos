@@ -74,10 +74,25 @@ const requireAuth = (req: IncomingMessage, res: ServerResponse, requestId: strin
   return { token, user };
 };
 
-const parsePagination = (url: URL) => ({
-  page: Number(url.searchParams.get("page") ?? 1),
-  pageSize: Number(url.searchParams.get("page_size") ?? 20),
-});
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+const parsePagination = (url: URL) => {
+  const pageParam = url.searchParams.get("page");
+  const pageSizeParam = url.searchParams.get("page_size");
+
+  const page = pageParam === null ? DEFAULT_PAGE : Number(pageParam);
+  if (!Number.isInteger(page)) return { error: "Invalid page" as const };
+
+  const pageSize = pageSizeParam === null ? DEFAULT_PAGE_SIZE : Number(pageSizeParam);
+  if (!Number.isInteger(pageSize)) return { error: "Invalid page_size" as const };
+
+  return {
+    page: page >= 1 ? page : DEFAULT_PAGE,
+    pageSize: pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : DEFAULT_PAGE_SIZE,
+  };
+};
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -161,7 +176,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/sessions") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
