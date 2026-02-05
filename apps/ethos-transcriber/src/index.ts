@@ -5,54 +5,25 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import os from "node:os";
 import crypto from "node:crypto";
-import type { TranscriptionJob, TranscriptSegment } from "@ethos/shared";
-
-type JobMessage =
-  | { type: "enqueue"; payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" } }
-  | { type: "cancel"; payload: { jobId: string } }
-  | { type: "status"; payload: { jobId: string } };
-
-type JobUpdate = {
-  type: "job_update";
-  payload: TranscriptionJob;
-};
-
-type JobResult = {
-  type: "job_result";
-  payload: {
-    jobId: string;
-    transcript: {
-      language: string;
-      fullText: string;
-      segments: TranscriptSegment[];
-    };
-  };
-};
-
-type JobError = {
-  type: "job_error";
-  payload: { jobId: string; error: string };
-};
+import type { TranscriptionJob, TranscriptSegment, IPCMessage } from "@ethos/shared";
 
 const jobEmitter = new EventEmitter();
-const queue: TranscriptionJob[] = [];
-const runningJobs = new Map<string, TranscriptionJob>();
+const queue: (TranscriptionJob & { audioPath: string })[] = [];
+const runningJobs = new Map<string, ReturnType<typeof spawn>>();
 
-const respond = (message: JobUpdate | JobResult | JobError) => {
+const respond = (message: IPCMessage) => {
   process.stdout.write(`${JSON.stringify(message)}\n`);
 };
 
-const generateId = () => crypto.randomUUID();
-
 const resolveFfmpegPath = () => {
-  if (process.env.ETHOS_FFMPEG_PATH) {
-    return process.env.ETHOS_FFMPEG_PATH;
-  }
-  const localPath = path.resolve(__dirname, "../bin/ffmpeg/ffmpeg.exe");
-  return localPath;
+  if (process.env.ETHOS_FFMPEG_PATH) return process.env.ETHOS_FFMPEG_PATH;
+  // Fallback for Linux environment
+  return process.platform === "win32"
+    ? path.resolve(__dirname, "../bin/ffmpeg/ffmpeg.exe")
+    : "ffmpeg";
 };
 
-const resolvePythonPath = () => process.env.ETHOS_PYTHON_PATH ?? "python";
+const resolvePythonPath = () => process.env.ETHOS_PYTHON_PATH ?? "python3";
 
 const resolveModelPath = (model: "ptbr-fast" | "ptbr-accurate") => {
   const modelsRoot = process.env.ETHOS_MODELS_PATH ?? path.resolve(__dirname, "../models");
@@ -79,61 +50,61 @@ const convertToWav = async (inputPath: string) => {
     ]);
     proc.on("error", reject);
     proc.on("close", (code) => {
-      if (code === 0) {
-        resolve();
-      } else {
-        reject(new Error(`ffmpeg failed with code ${code}`));
-      }
+      if (code === 0) resolve();
+      else reject(new Error(`ffmpeg failed with code ${code}`));
     });
   });
   return outputPath;
 };
 
-const runFasterWhisper = async (audioPath: string, model: "ptbr-fast" | "ptbr-accurate") => {
+const runFasterWhisper = async (job: TranscriptionJob, audioPath: string) => {
   const pythonPath = resolvePythonPath();
-  const modelPath = resolveModelPath(model);
+  const modelPath = resolveModelPath(job.model);
   const scriptPath = path.resolve(__dirname, "../scripts/whisper_transcribe.py");
   const outputPath = path.join(os.tmpdir(), `ethos-transcript-${crypto.randomUUID()}.json`);
 
-  await new Promise<void>((resolve, reject) => {
-    const proc = spawn(pythonPath, [scriptPath, "--audio", audioPath, "--model", modelPath, "--output", outputPath]);
+  const proc = spawn(pythonPath, [
+    scriptPath,
+    "--audio", audioPath,
+    "--model", modelPath,
+    "--output", outputPath
+  ]);
+
+  runningJobs.set(job.id, proc);
+
+  return new Promise<{ language: string; full_text: string; segments: TranscriptSegment[] }>((resolve, reject) => {
     proc.on("error", reject);
     proc.stderr.on("data", (data) => {
+      // Potentially parse progress from stderr
       process.stderr.write(data);
     });
-    proc.on("close", (code) => {
+    proc.on("close", async (code) => {
+      runningJobs.delete(job.id);
       if (code === 0) {
-        resolve();
+        try {
+          const raw = await fs.readFile(outputPath, "utf-8");
+          await fs.unlink(outputPath);
+          resolve(JSON.parse(raw));
+        } catch (e) {
+          reject(e);
+        }
       } else {
         reject(new Error(`faster-whisper failed with code ${code}`));
       }
     });
   });
-
-  const raw = await fs.readFile(outputPath, "utf-8");
-  await fs.unlink(outputPath);
-  return JSON.parse(raw) as { language: string; full_text: string; segments: TranscriptSegment[] };
 };
 
-const processJob = async (job: TranscriptionJob) => {
-  runningJobs.set(job.id, job);
-  respond({ type: "job_update", payload: job });
+const processJob = async (job: TranscriptionJob & { audioPath: string }) => {
+  respond({ type: "job_update", payload: { ...job, status: "running", progress: 0.1 } });
 
+  let wavPath: string | null = null;
   try {
-    job.status = "running";
-    job.progress = 0.1;
-    respond({ type: "job_update", payload: job });
+    wavPath = await convertToWav(job.audioPath);
+    respond({ type: "job_update", payload: { ...job, status: "running", progress: 0.3 } });
 
-    const wavPath = await convertToWav(job.audioPath);
-    job.progress = 0.4;
-    respond({ type: "job_update", payload: job });
+    const result = await runFasterWhisper(job, wavPath);
 
-    const result = await runFasterWhisper(wavPath, job.model);
-    await fs.unlink(wavPath);
-
-    job.status = "completed";
-    job.progress = 1;
-    respond({ type: "job_update", payload: job });
     respond({
       type: "job_result",
       payload: {
@@ -145,92 +116,60 @@ const processJob = async (job: TranscriptionJob) => {
         },
       },
     });
-  } catch (error) {
-    job.status = "failed";
-    job.error = error instanceof Error ? error.message : "Erro desconhecido";
-    respond({ type: "job_update", payload: job });
-    respond({
-      type: "job_error",
-      payload: { jobId: job.id, error: job.error ?? "Erro desconhecido" },
-    });
+
+    respond({ type: "job_update", payload: { ...job, status: "completed", progress: 1 } });
+  } catch (error: any) {
+    if (error.message === "cancelled") {
+        respond({ type: "job_update", payload: { ...job, status: "cancelled" } });
+    } else {
+        respond({ type: "job_update", payload: { ...job, status: "failed", error: error.message } });
+    }
   } finally {
-    runningJobs.delete(job.id);
+    if (wavPath && fs.stat(wavPath).then(() => true).catch(() => false)) {
+        await fs.unlink(wavPath).catch(() => {});
+    }
+    // Delete the input temp audio file sent by main process
+    await fs.unlink(job.audioPath).catch(() => {});
+
     jobEmitter.emit("next");
   }
 };
 
 const scheduleNext = () => {
-  if (runningJobs.size > 0) {
-    return;
-  }
+  if (runningJobs.size > 0) return;
   const nextJob = queue.shift();
-  if (!nextJob) {
-    return;
-  }
-  void processJob(nextJob);
+  if (nextJob) void processJob(nextJob);
 };
 
 jobEmitter.on("next", scheduleNext);
 
-const enqueueJob = (payload: JobMessage["payload"] & { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }) => {
-  const job: TranscriptionJob = {
-    id: generateId(),
-    sessionId: payload.sessionId,
-    audioPath: payload.audioPath,
-    model: payload.model,
-    status: "queued",
-    progress: 0,
-  };
-  queue.push(job);
-  respond({ type: "job_update", payload: job });
-  scheduleNext();
-};
-
-const cancelJob = (jobId: string) => {
-  const queuedIndex = queue.findIndex((item) => item.id === jobId);
-  if (queuedIndex >= 0) {
-    const [job] = queue.splice(queuedIndex, 1);
-    job.status = "cancelled";
-    respond({ type: "job_update", payload: job });
-    return;
-  }
-  const running = runningJobs.get(jobId);
-  if (running) {
-    running.status = "cancelled";
-    respond({ type: "job_update", payload: running });
-  }
-};
-
-const reportStatus = (jobId: string) => {
-  const queued = queue.find((item) => item.id === jobId);
-  if (queued) {
-    respond({ type: "job_update", payload: queued });
-    return;
-  }
-  const running = runningJobs.get(jobId);
-  if (running) {
-    respond({ type: "job_update", payload: running });
-    return;
-  }
-  respond({ type: "job_error", payload: { jobId, error: "Job não encontrado" } });
-};
-
 const rl = createInterface({ input: process.stdin });
 rl.on("line", (line) => {
-  if (!line.trim()) {
-    return;
-  }
   try {
-    const message = JSON.parse(line) as JobMessage;
+    const message = JSON.parse(line);
     if (message.type === "enqueue") {
-      enqueueJob(message.payload);
+      const job: TranscriptionJob & { audioPath: string } = {
+        ...message.payload,
+        status: "queued",
+        progress: 0,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      queue.push(job);
+      respond({ type: "job_update", payload: job });
+      scheduleNext();
     } else if (message.type === "cancel") {
-      cancelJob(message.payload.jobId);
-    } else if (message.type === "status") {
-      reportStatus(message.payload.jobId);
+      const jobId = message.payload.jobId;
+      const running = runningJobs.get(jobId);
+      if (running) {
+        running.kill();
+        runningJobs.delete(jobId);
+      } else {
+        const idx = queue.findIndex(j => j.id === jobId);
+        if (idx !== -1) queue.splice(idx, 1);
+      }
     }
-  } catch (error) {
-    process.stderr.write(`Invalid message: ${line}\n`);
-    process.stderr.write(`${error}\n`);
+  } catch (e) {
+    console.error("Worker error parsing line", e);
   }
 });

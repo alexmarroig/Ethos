@@ -6,9 +6,18 @@
     "packages/*"
   ],
   "scripts": {
+    "install:all": "npm install",
     "dev:desktop": "npm --workspace apps/ethos-desktop run dev",
+    "dev:electron": "npm --workspace apps/ethos-desktop run electron:dev",
     "dev:transcriber": "npm --workspace apps/ethos-transcriber run dev",
     "build": "npm --workspace apps/ethos-desktop run build && npm --workspace apps/ethos-transcriber run build",
-    "lint": "echo 'lint placeholder'"
+    "lint": "echo 'lint placeholder'",
+    "test": "vitest"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "playwright": "^1.58.1",
+    "typescript": "^5.3.3",
+    "vitest": "^1.2.2"
   }
 }

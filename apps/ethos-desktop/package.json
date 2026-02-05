@@ -1,14 +1,36 @@
 {
   "name": "ethos-desktop",
   "version": "0.1.0",
-  "main": "electron/main.js",
+  "main": "dist-electron/main.js",
   "scripts": {
-    "dev": "echo 'run electron + vite in real setup'",
-    "build": "echo 'build placeholder'"
+    "dev": "vite",
+    "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "electron:dev": "electron .",
+    "preview": "vite preview"
   },
   "dependencies": {
     "@ethos/shared": "*",
+    "better-sqlite3": "^9.4.0",
+    "better-sqlite3-multiple-ciphers": "^12.6.2",
+    "docx": "^9.5.1",
+    "jspdf": "^4.1.0",
+    "lucide-react": "^0.330.0",
     "react": "^18.2.0",
-    "react-dom": "^18.2.0"
+    "react-dom": "^18.2.0",
+    "uuid": "^13.0.0"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.9",
+    "@types/react": "^18.2.55",
+    "@types/react-dom": "^18.2.19",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.2.1",
+    "autoprefixer": "^10.4.17",
+    "electron": "^28.2.1",
+    "electron-builder": "^24.9.1",
+    "postcss": "^8.4.35",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.1.1"
   }
 }

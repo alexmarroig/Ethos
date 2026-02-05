@@ -1,48 +1,45 @@
+import argparse
 import json
 import sys
-from pathlib import Path
+import os
+from faster_whisper import WhisperModel
 
-try:
-    from faster_whisper import WhisperModel
-except Exception as exc:
-    print("faster-whisper is required. Install it in the worker environment.", file=sys.stderr)
-    raise exc
-
-
-def run_transcription(audio_path: str, model_path: str):
+def transcribe(audio_path, model_path, output_path):
+    # Load model
+    # device="cpu" as per requirements
     model = WhisperModel(model_path, device="cpu", compute_type="int8")
+
     segments, info = model.transcribe(audio_path, beam_size=5, language="pt")
-    segment_list = [
-        {
-            "start": float(segment.start),
-            "end": float(segment.end),
-            "text": segment.text.strip(),
-        }
-        for segment in segments
-    ]
-    full_text = " ".join(segment["text"] for segment in segment_list).strip()
-    return {
+
+    result_segments = []
+    full_text = ""
+
+    for segment in segments:
+        result_segments.append({
+            "start": segment.start,
+            "end": segment.end,
+            "text": segment.text
+        })
+        full_text += segment.text + " "
+
+    result = {
         "language": info.language,
-        "full_text": full_text,
-        "segments": segment_list,
+        "full_text": full_text.strip(),
+        "segments": result_segments
     }
 
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(result, f, ensure_ascii=False, indent=2)
 
-def main():
+if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--audio", required=True)
     parser.add_argument("--model", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
 
-    if not Path(args.audio).exists():
-        raise FileNotFoundError(args.audio)
-
-    result = run_transcription(args.audio, args.model)
-
-    with open(args.output, "w", encoding="utf-8") as handle:
-        json.dump(result, handle, ensure_ascii=False)
-
-
-if __name__ == "__main__":
-    main()
+    try:
+        transcribe(args.audio, args.model, args.output)
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
