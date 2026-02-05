@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "ts-node src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "test": "node --test -r ts-node/register/transpile-only test/api.test.ts"
+    "test": "node --test -r ts-node/register/transpile-only test/*.test.ts"
   },
   "dependencies": {},
   "devDependencies": {

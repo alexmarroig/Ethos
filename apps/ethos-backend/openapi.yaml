@@ -1,7 +1,7 @@
 openapi: 3.0.3
 info:
   title: ETHOS Backend API
-  version: 1.0.0
+  version: 1.1.0
 servers:
   - url: http://localhost:8787
 components:
@@ -9,108 +9,158 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: token
   schemas:
+    Envelope:
+      type: object
+      properties:
+        request_id: { type: string }
+        data: { type: object }
     Error:
       type: object
       properties:
-        error: { type: string }
-        code: { type: string }
+        request_id: { type: string }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
 paths:
+  /openapi.yaml:
+    get: { summary: OpenAPI spec }
+  /contracts:
+    get: { summary: Contracts summary }
+
   /auth/invite:
     post:
-      summary: Create invite (admin)
+      summary: Invite user
+      security: [{ bearerAuth: [] }]
   /auth/accept-invite:
-    post:
-      summary: Accept invite and activate user
+    post: { summary: Accept invite }
   /auth/login:
-    post:
-      summary: Login
+    post: { summary: Login }
   /auth/logout:
     post:
       summary: Logout
-  /me:
-    get:
-      summary: Current user
-    patch:
-      summary: Update profile
-  /sessions:
-    post: { summary: Create session }
-    get: { summary: List sessions }
-  /sessions/{id}:
-    get: { summary: Get session }
-  /sessions/{id}/status:
-    patch: { summary: Update status }
-  /sessions/{id}/audio:
-    post: { summary: Register audio }
-  /sessions/{id}/transcribe:
-    post: { summary: Create transcription job }
-  /jobs/{job_id}:
-    get: { summary: Job status }
-  /sessions/{id}/clinical-note:
-    post: { summary: Create draft note }
-  /sessions/{id}/clinical-notes:
-    get: { summary: List session notes }
-  /clinical-notes/{id}:
-    get: { summary: Get note }
-  /clinical-notes/{id}/validate:
-    post: { summary: Validate note }
-  /reports:
-    post: { summary: Create report }
-    get: { summary: List reports }
-  /reports/{id}:
-    get: { summary: Get report }
-  /anamnesis:
-    post: { summary: Create anamnesis response }
-    get: { summary: List anamnesis responses }
-  /scales:
-    get: { summary: List scales }
-  /scales/record:
-    post: { summary: Record scale }
-  /scales/records:
-    get: { summary: List scale records }
-  /forms:
-    get: { summary: List forms }
-  /forms/entry:
-    post: { summary: Create form entry }
-  /financial/entry:
-    post: { summary: Create financial entry }
-  /financial/entries:
-    get: { summary: List financial entries }
-  /financial/reminder:
-    post: { summary: Generate reminder text }
-  /export/pdf:
-    post: { summary: Export PDF }
-  /export/docx:
-    post: { summary: Export DOCX }
-  /backup:
-    post: { summary: Backup by user }
-  /restore:
-    post: { summary: Restore by user }
-  /purge:
-    post: { summary: Purge all user data }
-  /ai/organize:
-    post: { summary: AI textual organization only }
-  /api/webhook:
-    post: { summary: Technical webhook telemetry ingest }
-  /admin/users:
-    get: { summary: Admin list users }
-  /admin/users/{id}:
-    get: { summary: Admin user details }
-    patch: { summary: Admin update role/status }
-  /admin/users/{id}/disable:
-    post: { summary: Admin disable user }
-  /admin/users/{id}/enable:
-    post: { summary: Admin enable user }
+      security: [{ bearerAuth: [] }]
+
   /admin/metrics/overview:
-    get: { summary: Admin aggregated metrics }
-  /admin/metrics/user-usage:
-    get: { summary: Admin per-user usage metrics }
-  /admin/metrics/errors:
-    get: { summary: Admin technical errors }
+    get:
+      summary: Admin sanitized overview
+      security: [{ bearerAuth: [] }]
   /admin/audit:
-    get: { summary: Admin audit trail }
-  /contracts:
-    get: { summary: API contracts }
-  /openapi.yaml:
-    get: { summary: OpenAPI spec file }
+    get:
+      summary: Admin audit trail
+      security: [{ bearerAuth: [] }]
+
+  /sessions:
+    post:
+      summary: Create session
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List sessions
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}:
+    get:
+      summary: Session detail
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/status:
+    patch:
+      summary: Update session status
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/audio:
+    post:
+      summary: Attach encrypted audio
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/transcribe:
+    post:
+      summary: Start transcription job
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/clinical-note:
+    post:
+      summary: Create clinical note draft
+      security: [{ bearerAuth: [] }]
+
+  /clinical-notes/{id}/validate:
+    post:
+      summary: Validate clinical note
+      security: [{ bearerAuth: [] }]
+
+  /reports:
+    post:
+      summary: Create report
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List reports
+      security: [{ bearerAuth: [] }]
+
+  /anamnesis:
+    post:
+      summary: Create anamnesis response
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List anamnesis responses
+      security: [{ bearerAuth: [] }]
+
+  /scales/record:
+    post:
+      summary: Create scale record
+      security: [{ bearerAuth: [] }]
+  /scales/records:
+    get:
+      summary: List scale records
+      security: [{ bearerAuth: [] }]
+
+  /forms/entry:
+    post:
+      summary: Create form entry
+      security: [{ bearerAuth: [] }]
+  /forms:
+    get:
+      summary: List form entries
+      security: [{ bearerAuth: [] }]
+
+  /financial/entry:
+    post:
+      summary: Create financial entry
+      security: [{ bearerAuth: [] }]
+  /financial/entries:
+    get:
+      summary: List financial entries
+      security: [{ bearerAuth: [] }]
+
+  /jobs/{id}:
+    get:
+      summary: Job status
+      security: [{ bearerAuth: [] }]
+
+  /export/pdf:
+    post:
+      summary: Enqueue PDF export
+      security: [{ bearerAuth: [] }]
+  /export/docx:
+    post:
+      summary: Enqueue DOCX export
+      security: [{ bearerAuth: [] }]
+
+  /backup:
+    post:
+      summary: Enqueue backup
+      security: [{ bearerAuth: [] }]
+  /restore:
+    post:
+      summary: Restore backup
+      security: [{ bearerAuth: [] }]
+  /purge:
+    post:
+      summary: Purge user data
+      security: [{ bearerAuth: [] }]
+
+  /api/webhook:
+    post: { summary: Transcriber webhook }
+  /webhooks/transcriber:
+    post: { summary: Transcriber webhook alias }
+
+  /ai/organize:
+    post:
+      summary: Sanitize and structure free text
+      security: [{ bearerAuth: [] }]
