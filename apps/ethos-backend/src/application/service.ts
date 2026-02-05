@@ -281,7 +281,13 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => note.status === "validated");
+  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => {
+    if (note.status !== "validated") return false;
+    if (note.session_id === patientId) return true;
+
+    const session = db.sessions.get(note.session_id);
+    return session?.owner_user_id === owner && session.patient_id === patientId;
+  });
   if (!hasValidatedNote) return null;
 
   const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };

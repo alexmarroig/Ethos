@@ -288,7 +288,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/reports") {
       const body = await readJson(req);
       const report = createReport(auth.user.id, String(body.patient_id ?? ""), String(body.purpose ?? "profissional") as "instituição" | "profissional" | "paciente", String(body.content ?? ""));
-      if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note is required before creating reports");
+      if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note for the patient is required before creating reports");
       return ok(res, requestId, 201, report);
     }
 
