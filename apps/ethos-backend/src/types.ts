@@ -49,12 +49,25 @@ export type Owned = { owner_user_id: UUID };
 
 export type Patient = Owned & {
   id: UUID;
+
+export type User = {
+  id: UUID;
+  name: string;
+  email: string;
+  role: "psychologist";
+  created_at: string;
+};
+
+export type Patient = {
+  id: UUID;
+  user_id: UUID;
   name: string;
   contact_info: string;
   created_at: string;
 };
 
 export type Session = Owned & {
+export type Session = {
   id: UUID;
   patient_id: UUID;
   scheduled_at: string;
@@ -63,6 +76,7 @@ export type Session = Owned & {
 };
 
 export type AudioRecord = Owned & {
+export type AudioRecord = {
   id: UUID;
   session_id: UUID;
   file_path: string;
@@ -83,6 +97,7 @@ export type TranscriptJob = Owned & {
 };
 
 export type Transcript = Owned & {
+export type Transcript = {
   id: UUID;
   session_id: UUID;
   raw_text: string;
@@ -91,6 +106,7 @@ export type Transcript = Owned & {
 };
 
 export type ClinicalNote = Owned & {
+export type ClinicalNote = {
   id: UUID;
   session_id: UUID;
   content: string;
@@ -101,6 +117,7 @@ export type ClinicalNote = Owned & {
 };
 
 export type ClinicalReport = Owned & {
+export type ClinicalReport = {
   id: UUID;
   patient_id: UUID;
   purpose: "instituição" | "profissional" | "paciente";
@@ -134,3 +151,12 @@ export type AuditEvent = {
   target_user_id?: UUID;
   ts: string;
 };
+export type AnamnesisResponse = { id: UUID; patient_id: UUID; template_id: UUID; content: Record<string, unknown>; version: number; created_at: string };
+export type Scale = { id: UUID; name: string; description: string; items: unknown[] };
+export type ScaleRecord = { id: UUID; scale_id: UUID; patient_id: UUID; score: number; recorded_at: string };
+export type FormTemplate = { id: UUID; name: string; structure: Record<string, unknown> };
+export type FormEntry = { id: UUID; patient_id: UUID; form_id: UUID; content: Record<string, unknown>; created_at: string };
+export type FinancialEntry = { id: UUID; patient_id: UUID; type: FinancialType; amount: number; due_date: string; status: FinancialStatus; description: string };
+export type Receipt = { id: UUID; financial_entry_id: UUID; generated_at: string; file_path: string };
+
+export type ApiError = { error: string; code: string };

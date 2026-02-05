@@ -11,6 +11,18 @@ Backend clínico local com isolamento por usuário, RBAC, convite e telemetria s
 - OpenAPI disponível em `/openapi.yaml`
 
 ## Execução
+# ETHOS Backend (offline-first)
+
+Backend clínico local com foco em prontuário draft-first, validação humana obrigatória e segurança ética.
+
+## Princípios implementados
+- Offline-first (sem dependências externas obrigatórias)
+- Draft-first para prontuário
+- Validação humana explícita
+- IA restrita a organização textual
+- Logging sem conteúdo clínico
+
+## Executar
 ```bash
 npm --workspace apps/ethos-backend run dev
 ```
@@ -19,3 +31,5 @@ npm --workspace apps/ethos-backend run dev
 ```bash
 npm --workspace apps/ethos-backend run test
 ```
+## Contratos
+`GET /contracts` retorna os contratos de endpoint esperados para integração.
