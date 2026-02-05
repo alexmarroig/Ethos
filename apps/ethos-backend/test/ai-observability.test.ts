@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
 import test from "node:test";
 import {
   detectAnomalousBehavior,
@@ -7,6 +9,7 @@ import {
   predictFailureRisk,
   suggestRootCauseFromLogs,
 } from "../src/application/aiObservability";
+import { createEthosBackend } from "../src/server";
 
 test("detectBottlenecks encontra gargalos críticos", () => {
   const alerts = detectBottlenecks([
@@ -40,7 +43,32 @@ test("detectAnomalousBehavior encontra picos fora do padrão", () => {
   ]);
 
   assert.equal(anomalies.length, 1);
+  assert.equal(anomalies[0].metric, "latency");
+  assert.match(anomalies[0].severity, /low|medium|high/);
   assert.match(anomalies[0].probableCause, /latência/i);
+});
+
+test("detectAnomalousBehavior detecta anomalia por erro alto sem pico de latência", () => {
+  const anomalies = detectAnomalousBehavior(
+    [
+      { timestamp: "1", latencyMs: 100, errorRate: 0.01, cpuPercent: 40, memoryPercent: 40 },
+      { timestamp: "2", latencyMs: 102, errorRate: 0.011, cpuPercent: 42, memoryPercent: 41 },
+      { timestamp: "3", latencyMs: 98, errorRate: 0.009, cpuPercent: 41, memoryPercent: 40 },
+      { timestamp: "4", latencyMs: 101, errorRate: 0.01, cpuPercent: 43, memoryPercent: 42 },
+      { timestamp: "5", latencyMs: 100, errorRate: 0.08, cpuPercent: 40, memoryPercent: 40 },
+    ],
+    {
+      zScoreByMetric: { error_rate: 1.7, latency: 2.5 },
+      scoreThreshold: 0.8,
+      weights: { error_rate: 0.6, latency: 0.2, cpu: 0.1, memory: 0.1 },
+    },
+  );
+
+  assert.equal(anomalies.length, 1);
+  assert.equal(anomalies[0].timestamp, "5");
+  assert.equal(anomalies[0].metric, "error_rate");
+  assert.match(anomalies[0].probableCause, /erro/i);
+  assert.match(anomalies[0].suggestedAction, /Métrica que disparou/i);
 });
 
 test("suggestRootCauseFromLogs sugere causa para timeout", () => {
@@ -55,4 +83,66 @@ test("generateUserSimulation cria usuários virtuais de carga", () => {
   const simulation = generateUserSimulation(3, 4000);
   assert.equal(simulation.length, 3);
   assert.deepEqual(simulation[0].actions, ["login", "create_session", "write_note", "export_report"]);
+});
+
+
+const req = async (base: string, path: string, method: string, body?: unknown, token?: string) => {
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers: {
+      "content-type": "application/json",
+      ...(token ? { authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  return { status: res.status, json: await res.json() as any };
+};
+
+const bootstrapAdmin = async () => {
+  const server = createEthosBackend();
+  server.listen(0);
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const login = await req(base, "/auth/login", "POST", { email: "camila@ethos.local", password: "admin123" });
+  return { server, base, adminToken: login.json.data.token as string };
+};
+
+test("integração observability: gera alerta após ingestão", async () => {
+  const { server, base, adminToken } = await bootstrapAdmin();
+
+  await req(base, "/admin/observability/performance-samples", "POST", {
+    timestamp: "2026-01-01T00:00:00.000Z",
+    latencyMs: 640,
+    errorRate: 0.05,
+    cpuPercent: 91,
+    memoryPercent: 87,
+  }, adminToken);
+
+  const alerts = await req(base, "/admin/observability/alerts", "GET", undefined, adminToken);
+  assert.equal(alerts.status, 200);
+  assert.ok(alerts.json.data.some((item: any) => item.source === "detectBottlenecks"));
+
+  server.close();
+});
+
+test("integração observability: deduplica alertas repetidos", async () => {
+  const { server, base, adminToken } = await bootstrapAdmin();
+
+  const sample = {
+    timestamp: "2026-01-01T00:00:00.000Z",
+    latencyMs: 660,
+    errorRate: 0.05,
+    cpuPercent: 93,
+    memoryPercent: 86,
+  };
+
+  await req(base, "/admin/observability/performance-samples", "POST", sample, adminToken);
+  await req(base, "/admin/observability/performance-samples", "POST", { ...sample, timestamp: "2026-01-01T00:01:00.000Z" }, adminToken);
+
+  const alerts = await req(base, "/admin/observability/alerts", "GET", undefined, adminToken);
+  const latencyAlert = alerts.json.data.find((item: any) => item.fingerprint === "bottleneck:latency:high");
+  assert.ok(latencyAlert);
+  assert.ok(latencyAlert.occurrences >= 2);
+
+  server.close();
 });

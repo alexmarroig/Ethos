@@ -6,11 +6,29 @@
 
 export type PerformanceSample = { timestamp: string; latencyMs: number; errorRate: number; cpuPercent: number; memoryPercent: number };
 export type ErrorLog = { timestamp: string; service: string; message: string; stack?: string };
+export type ObservabilityMetric = "latency" | "error_rate" | "cpu" | "memory";
+export type ObservabilitySeverity = "low" | "medium" | "high";
 
 export type BottleneckAlert = {
-  severity: "low" | "medium" | "high";
-  metric: "latency" | "error_rate" | "cpu" | "memory";
+  severity: ObservabilitySeverity;
+  metric: ObservabilityMetric;
   message: string;
+};
+
+export type AnomalyThresholds = {
+  zScoreByMetric?: Partial<Record<ObservabilityMetric, number>>;
+  scoreThreshold?: number;
+  weights?: Partial<Record<ObservabilityMetric, number>>;
+};
+
+export type AnomalousBehaviorAlert = {
+  timestamp: string;
+  metric: ObservabilityMetric;
+  score: number;
+  metricZScore: number;
+  severity: ObservabilitySeverity;
+  probableCause: string;
+  suggestedAction: string;
 };
 
 export const detectBottlenecks = (samples: PerformanceSample[]): BottleneckAlert[] => {
@@ -47,20 +65,123 @@ export const predictFailureRisk = (samples: PerformanceSample[]) => {
   return { riskScore, riskLevel: "low" as const, reason: "Comportamento estável" };
 };
 
-export const detectAnomalousBehavior = (samples: PerformanceSample[]) => {
+export const detectAnomalousBehavior = (samples: PerformanceSample[], thresholds: AnomalyThresholds = {}): AnomalousBehaviorAlert[] => {
   if (samples.length < 5) return [];
-  const latencyValues = samples.map((sample) => sample.latencyMs);
-  const mean = latencyValues.reduce((acc, item) => acc + item, 0) / latencyValues.length;
-  const variance = latencyValues.reduce((acc, item) => acc + (item - mean) ** 2, 0) / latencyValues.length;
-  const stdDev = Math.sqrt(variance);
 
-  return samples
-    .filter((sample) => stdDev > 0 && Math.abs(sample.latencyMs - mean) > 1.8 * stdDev)
-    .map((sample) => ({
-      timestamp: sample.timestamp,
+  const metricDescriptors: Record<
+    ObservabilityMetric,
+    {
+      label: string;
+      getter: (sample: PerformanceSample) => number;
+      probableCause: string;
+      suggestedAction: string;
+    }
+  > = {
+    latency: {
+      label: "latência",
+      getter: (sample) => sample.latencyMs,
       probableCause: "Pico anômalo de latência",
       suggestedAction: "Inspecionar consultas lentas, dependências externas e fila de processamento.",
-    }));
+    },
+    error_rate: {
+      label: "taxa de erro",
+      getter: (sample) => sample.errorRate,
+      probableCause: "Elevação anômala de erros",
+      suggestedAction: "Correlacionar exceptions recentes, rollback de mudanças e saúde de dependências.",
+    },
+    cpu: {
+      label: "CPU",
+      getter: (sample) => sample.cpuPercent,
+      probableCause: "Pressão anômala de CPU",
+      suggestedAction: "Revisar hot paths, concorrência e necessidade de escalonamento.",
+    },
+    memory: {
+      label: "memória",
+      getter: (sample) => sample.memoryPercent,
+      probableCause: "Pressão anômala de memória",
+      suggestedAction: "Inspecionar retenção de objetos, cache e sinais de vazamento.",
+    },
+  };
+
+  const defaultZScoreByMetric: Record<ObservabilityMetric, number> = {
+    latency: 1.8,
+    error_rate: 1.8,
+    cpu: 2,
+    memory: 2,
+  };
+  const zScoreByMetric = { ...defaultZScoreByMetric, ...(thresholds.zScoreByMetric ?? {}) };
+
+  const defaultWeights: Record<ObservabilityMetric, number> = {
+    latency: 0.35,
+    error_rate: 0.35,
+    cpu: 0.15,
+    memory: 0.15,
+  };
+  const weights = { ...defaultWeights, ...(thresholds.weights ?? {}) };
+  const scoreThreshold = thresholds.scoreThreshold ?? 0.9;
+  const weightSum = Object.values(weights).reduce((acc, value) => acc + value, 0) || 1;
+
+  const stats = (Object.keys(metricDescriptors) as ObservabilityMetric[]).reduce(
+    (accumulator, metric) => {
+      const values = samples.map((sample) => metricDescriptors[metric].getter(sample));
+      const mean = values.reduce((acc, item) => acc + item, 0) / values.length;
+      const variance = values.reduce((acc, item) => acc + (item - mean) ** 2, 0) / values.length;
+      const stdDev = Math.sqrt(variance);
+      return { ...accumulator, [metric]: { mean, stdDev } };
+    },
+    {} as Record<ObservabilityMetric, { mean: number; stdDev: number }>,
+  );
+
+  const anomalyAlerts: AnomalousBehaviorAlert[] = [];
+  for (const sample of samples) {
+    const zScoreByCurrentMetric = (Object.keys(metricDescriptors) as ObservabilityMetric[]).reduce(
+      (accumulator, metric) => {
+        const { mean, stdDev } = stats[metric];
+        const value = metricDescriptors[metric].getter(sample);
+        const normalized = stdDev > 0 ? Math.abs((value - mean) / stdDev) : 0;
+        return { ...accumulator, [metric]: normalized };
+      },
+      {} as Record<ObservabilityMetric, number>,
+    );
+
+    const multivariateScore =
+      (Object.keys(metricDescriptors) as ObservabilityMetric[]).reduce(
+        (accumulator, metric) => accumulator + zScoreByCurrentMetric[metric] * weights[metric],
+        0,
+      ) / weightSum;
+
+    const triggeredMetrics = (Object.keys(metricDescriptors) as ObservabilityMetric[]).filter(
+      (metric) => zScoreByCurrentMetric[metric] >= zScoreByMetric[metric],
+    );
+
+    if (multivariateScore < scoreThreshold && triggeredMetrics.length === 0) continue;
+
+    const metricToReport =
+      triggeredMetrics.sort((metricA, metricB) => zScoreByCurrentMetric[metricB] - zScoreByCurrentMetric[metricA])[0] ??
+      (Object.keys(metricDescriptors) as ObservabilityMetric[]).sort(
+        (metricA, metricB) => zScoreByCurrentMetric[metricB] - zScoreByCurrentMetric[metricA],
+      )[0];
+
+    const severity: ObservabilitySeverity =
+      multivariateScore >= scoreThreshold + 0.8 || zScoreByCurrentMetric[metricToReport] >= zScoreByMetric[metricToReport] + 1
+        ? "high"
+        : multivariateScore >= scoreThreshold + 0.3 || zScoreByCurrentMetric[metricToReport] >= zScoreByMetric[metricToReport] + 0.4
+          ? "medium"
+          : "low";
+
+    const descriptor = metricDescriptors[metricToReport];
+    anomalyAlerts.push({
+      timestamp: sample.timestamp,
+      metric: metricToReport,
+      score: Number(multivariateScore.toFixed(3)),
+      metricZScore: Number(zScoreByCurrentMetric[metricToReport].toFixed(3)),
+      severity,
+      probableCause: descriptor.probableCause,
+      suggestedAction: `Métrica que disparou: ${descriptor.label}. ${descriptor.suggestedAction}`,
+    });
+  }
+
+  return anomalyAlerts;
 };
 
 export const suggestRootCauseFromLogs = (logs: ErrorLog[]) => {
