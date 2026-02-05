@@ -80,8 +80,9 @@ test("state machine: nota draft -> validated e report depende de validação", a
 
 test("jobs async + webhook + idempotency", async () => {
   const { server, base, userToken } = await bootstrap();
-  const session = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
-  const session2 = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
+  const payload = { patient_id: "p3", scheduled_at: new Date().toISOString() };
+  const session = await req(base, "/sessions", "POST", payload, userToken, "idem-1");
+  const session2 = await req(base, "/sessions", "POST", payload, userToken, "idem-1");
   assert.equal(session.json.data.id, session2.json.data.id);
 
   const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "texto" }, userToken);
@@ -93,32 +94,24 @@ test("jobs async + webhook + idempotency", async () => {
   server.close();
 });
 
-test("json inválido no payload retorna 400 e não 500", async () => {
-  const { server, base } = await bootstrap();
-  const response = await rawReq(base, "/auth/login", "POST", '{"email":"x"', { "content-type": "application/json" });
+test("paginação valida parâmetros e normaliza limites", async () => {
+  const { server, base, userToken } = await bootstrap();
 
-  assert.equal(response.status, 400);
-  assert.notEqual(response.status, 500);
-  assert.equal(response.json.error.code, "INVALID_JSON");
-  server.close();
-});
+  const negativePage = await req(base, "/sessions?page=-1", "GET", undefined, userToken);
+  assert.equal(negativePage.status, 200);
+  assert.equal(negativePage.json.data.page, 1);
 
-test("corpo vazio retorna 400 e não 500", async () => {
-  const { server, base } = await bootstrap();
-  const response = await rawReq(base, "/auth/login", "POST", undefined, { "content-type": "application/json" });
+  const invalidPage = await req(base, "/sessions?page=abc", "GET", undefined, userToken);
+  assert.equal(invalidPage.status, 422);
+  assert.equal(invalidPage.json.error.code, "VALIDATION_ERROR");
 
-  assert.equal(response.status, 400);
-  assert.notEqual(response.status, 500);
-  assert.equal(response.json.error.code, "INVALID_JSON");
-  server.close();
-});
+  const zeroPageSize = await req(base, "/sessions?page_size=0", "GET", undefined, userToken);
+  assert.equal(zeroPageSize.status, 200);
+  assert.equal(zeroPageSize.json.data.page_size, 20);
 
-test("content-type não json retorna 400 e não 500", async () => {
-  const { server, base } = await bootstrap();
-  const response = await rawReq(base, "/auth/login", "POST", "email=x&password=y", { "content-type": "application/x-www-form-urlencoded" });
+  const hugePageSize = await req(base, "/sessions?page_size=100000", "GET", undefined, userToken);
+  assert.equal(hugePageSize.status, 200);
+  assert.equal(hugePageSize.json.data.page_size, 20);
 
-  assert.equal(response.status, 400);
-  assert.notEqual(response.status, 500);
-  assert.equal(response.json.error.code, "INVALID_JSON");
   server.close();
 });

@@ -1,5 +1,13 @@
 import crypto from "node:crypto";
 import { db, encrypt, hashInviteToken, hashPassword, seeds, uid, verifyPassword } from "../infra/database";
+import {
+  detectAnomalousBehavior,
+  detectBottlenecks,
+  predictFailureRisk,
+  suggestRootCauseFromLogs,
+  type ErrorLog,
+  type PerformanceSample,
+} from "./aiObservability";
 import type {
   AnamnesisResponse,
   ClinicalNote,
@@ -11,6 +19,7 @@ import type {
   JobStatus,
   JobType,
   LocalEntitlementSnapshot,
+  ObservabilityAlert,
   Patient,
   ScaleRecord,
   SessionStatus,
@@ -42,6 +51,111 @@ export const flushTelemetryQueue = (owner: string) => {
   db.telemetryQueue.set(owner, []);
   return queue;
 };
+
+
+
+const observabilityState = {
+  performanceSamples: [] as PerformanceSample[],
+  errorLogs: [] as ErrorLog[],
+};
+
+const upsertObservabilityAlert = (payload: Omit<ObservabilityAlert, "id" | "first_seen_at" | "last_seen_at" | "occurrences"> & { seenAt?: string }) => {
+  const seenAt = payload.seenAt ?? now();
+  const existing = Array.from(db.observabilityAlerts.values()).find((alert) => alert.fingerprint === payload.fingerprint);
+  if (existing) {
+    existing.last_seen_at = seenAt;
+    existing.occurrences += 1;
+    existing.context = payload.context;
+    existing.message = payload.message;
+    return existing;
+  }
+
+  const created: ObservabilityAlert = {
+    id: uid(),
+    source: payload.source,
+    severity: payload.severity,
+    title: payload.title,
+    message: payload.message,
+    fingerprint: payload.fingerprint,
+    first_seen_at: seenAt,
+    last_seen_at: seenAt,
+    occurrences: 1,
+    context: payload.context,
+  };
+  db.observabilityAlerts.set(created.id, created);
+  return created;
+};
+
+export const ingestPerformanceSample = (sample: PerformanceSample) => {
+  observabilityState.performanceSamples.push(sample);
+  if (observabilityState.performanceSamples.length > 500) observabilityState.performanceSamples.shift();
+  return evaluateObservability();
+};
+
+export const ingestErrorLog = (log: ErrorLog) => {
+  observabilityState.errorLogs.push(log);
+  if (observabilityState.errorLogs.length > 500) observabilityState.errorLogs.shift();
+  return evaluateObservability();
+};
+
+export const evaluateObservability = () => {
+  const createdOrUpdated: ObservabilityAlert[] = [];
+  const samples = observabilityState.performanceSamples;
+  const logs = observabilityState.errorLogs;
+
+  for (const alert of detectBottlenecks(samples)) {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "detectBottlenecks",
+      severity: alert.severity,
+      title: `Bottleneck em ${alert.metric}`,
+      message: alert.message,
+      fingerprint: `bottleneck:${alert.metric}:${alert.severity}`,
+      context: { metric: alert.metric },
+    }));
+  }
+
+  const risk = predictFailureRisk(samples);
+  if (risk.riskLevel !== "low") {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "predictFailureRisk",
+      severity: risk.riskLevel,
+      title: "Risco de falha previsto",
+      message: `${risk.reason} (score=${risk.riskScore.toFixed(2)})`,
+      fingerprint: `failure-risk:${risk.riskLevel}`,
+      context: risk,
+    }));
+  }
+
+  for (const anomaly of detectAnomalousBehavior(samples)) {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "detectAnomalousBehavior",
+      severity: "medium",
+      title: "Comportamento anômalo",
+      message: `${anomaly.probableCause}. ${anomaly.suggestedAction}`,
+      fingerprint: `anomaly:${anomaly.timestamp}:${anomaly.probableCause}`,
+      context: anomaly,
+    }));
+  }
+
+  if (logs.length > 0) {
+    const suggestion = suggestRootCauseFromLogs(logs.slice(-20));
+    if (!suggestion.toLowerCase().includes("não conclusiva")) {
+      createdOrUpdated.push(upsertObservabilityAlert({
+        source: "suggestRootCauseFromLogs",
+        severity: "medium",
+        title: "Hipótese de causa raiz",
+        message: suggestion,
+        fingerprint: `root-cause:${suggestion.toLowerCase()}`,
+        context: { based_on_logs: logs.slice(-5) },
+      }));
+    }
+  }
+
+  return createdOrUpdated;
+};
+
+export const listObservabilityAlerts = () =>
+  Array.from(db.observabilityAlerts.values()).sort((a, b) => Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at));
 
 export const createInvite = (email: string) => {
   const token = crypto.randomBytes(24).toString("hex");
@@ -270,6 +384,28 @@ export const purgeUserData = (owner: string) => {
     for (const [id, item] of map.entries()) {
       if (item.owner_user_id === owner) map.delete(id);
     }
+  }
+
+  for (const [id, item] of db.telemetry.entries()) {
+    if (item.user_id === owner) db.telemetry.delete(id);
+  }
+
+  for (const [id, item] of db.audit.entries()) {
+    if (item.actor_user_id === owner || item.target_user_id === owner) db.audit.delete(id);
+  }
+
+  for (const [token, item] of db.sessionsTokens.entries()) {
+    if (item.user_id === owner) db.sessionsTokens.delete(token);
+  }
+
+  db.localEntitlements.delete(owner);
+
+  for (const [queueOwner, queue] of db.telemetryQueue.entries()) {
+    if (queueOwner === owner) {
+      db.telemetryQueue.delete(queueOwner);
+      continue;
+    }
+    db.telemetryQueue.set(queueOwner, queue.filter((event) => event.user_id !== owner));
   }
 };
 
