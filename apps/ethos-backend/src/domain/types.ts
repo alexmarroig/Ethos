@@ -34,6 +34,11 @@ export type SessionToken = {
 
 export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 
+export type Patient = Owned & {
+  external_id: string;
+  label: string;
+};
+
 export type ClinicalSession = Owned & {
   patient_id: string;
   scheduled_at: string;
@@ -87,12 +92,6 @@ export type FormEntry = Owned & {
   content: Record<string, unknown>;
 };
 
-
-export type Patient = Owned & {
-  external_id: string;
-  label: string;
-};
-
 export type FinancialEntry = Owned & {
   patient_id: string;
   type: "receivable" | "payable";
@@ -105,6 +104,18 @@ export type FinancialEntry = Owned & {
 export type JobType = "transcription" | "export" | "backup";
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
+export type Job = {
+  id: UUID;
+  owner_user_id: UUID;
+  type: JobType;
+  status: JobStatus;
+  progress: number;
+  resource_id?: UUID;
+  result_uri?: string;
+  error_code?: string;
+  created_at: string;
+  updated_at: string;
+};
 
 export type LocalEntitlementSnapshot = {
   user_id: UUID;
@@ -121,10 +132,6 @@ export type LocalEntitlementSnapshot = {
   source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
   last_entitlements_sync_at: string;
   last_successful_subscription_validation_at?: string;
-  features: Record<string, boolean>;
-  limits: Record<string, number>;
-  source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
-  synced_at: string;
   grace_until?: string;
 };
 
@@ -132,19 +139,6 @@ export type ScaleTemplate = {
   id: string;
   name: string;
   description: string;
-};
-
-export type Job = {
-  id: UUID;
-  owner_user_id: UUID;
-  type: JobType;
-  status: JobStatus;
-  progress: number;
-  resource_id?: UUID;
-  result_uri?: string;
-  error_code?: string;
-  created_at: string;
-  updated_at: string;
 };
 
 export type TelemetryEvent = {

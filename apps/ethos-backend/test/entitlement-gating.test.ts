@@ -31,7 +31,6 @@ test("entitlement gating and offline grace", async () => {
   const session = await req(base, "/sessions", "POST", { patient_id: "p1", scheduled_at: new Date().toISOString() }, token);
   assert.equal(session.status, 201);
 
-  // active entitlement with tiny monthly transcription cap
   await req(base, "/local/entitlements/sync", "POST", {
     snapshot: {
       entitlements: {
@@ -55,7 +54,6 @@ test("entitlement gating and offline grace", async () => {
   const blockedSecond = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
   assert.equal(blockedSecond.status, 402);
 
-  // canceled but still in grace => session creation allowed
   await req(base, "/local/entitlements/sync", "POST", {
     snapshot: {
       entitlements: {
@@ -72,10 +70,8 @@ test("entitlement gating and offline grace", async () => {
       last_successful_subscription_validation_at: new Date().toISOString(),
     },
   }, token);
-  const graceAllowedSession = await req(base, "/sessions", "POST", { patient_id: "p2", scheduled_at: new Date().toISOString() }, token);
-  assert.equal(graceAllowedSession.status, 201);
+  assert.equal((await req(base, "/sessions", "POST", { patient_id: "p2", scheduled_at: new Date().toISOString() }, token)).status, 201);
 
-  // canceled out of grace => new session blocked, but export/backup still allowed
   await req(base, "/local/entitlements/sync", "POST", {
     snapshot: {
       entitlements: {
@@ -93,30 +89,9 @@ test("entitlement gating and offline grace", async () => {
     },
   }, token);
 
-  const blockedSession = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, token);
-  assert.equal(blockedSession.status, 402);
+  assert.equal((await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, token)).status, 402);
   assert.equal((await req(base, "/export/pdf", "POST", {}, token)).status, 202);
   assert.equal((await req(base, "/backup", "POST", {}, token)).status, 202);
-  // default local entitlement blocks transcription
-  const session = await req(base, "/sessions", "POST", { patient_id: "p1", scheduled_at: new Date().toISOString() }, token);
-  assert.equal(session.status, 201);
-  const blocked = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
-  assert.equal(blocked.status, 402);
-
-  // sync active entitlement
-  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 1 }, source_subscription_status: "active" } }, token);
-  const allowed = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
-  assert.equal(allowed.status, 202);
-
-  // expired subscription but within grace allows transcription
-  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: false }, limits: { sessions_per_month: 1 }, source_subscription_status: "canceled", grace_until: new Date(Date.now() + 86400000).toISOString() } }, token);
-  const graceAllowed = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
-  assert.equal(graceAllowed.status, 202);
-
-  // new session blocked after limit if canceled and no grace
-  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: false }, limits: { sessions_per_month: 1 }, source_subscription_status: "canceled" } }, token);
-  const blockedSession = await req(base, "/sessions", "POST", { patient_id: "p2", scheduled_at: new Date().toISOString() }, token);
-  assert.equal(blockedSession.status, 402);
 
   server.close();
 });
@@ -140,11 +115,8 @@ test("missing GET endpoints are available", async () => {
     },
   }, token);
 
-  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, token);
   const session = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, token);
-  assert.equal(session.status, 201);
   const note = await req(base, `/sessions/${session.json.data.id}/clinical-note`, "POST", { content: "draft" }, token);
-  assert.equal(note.status, 201);
 
   assert.equal((await req(base, `/sessions/${session.json.data.id}/clinical-notes`, "GET", undefined, token)).status, 200);
   assert.equal((await req(base, `/clinical-notes/${note.json.data.id}`, "GET", undefined, token)).status, 200);

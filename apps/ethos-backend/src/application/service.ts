@@ -20,17 +20,20 @@ import type {
 } from "../domain/types";
 
 const now = seeds.now;
+const DAY_MS = 86_400_000;
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
-  db.audit.set(uid(), { id: uid(), actor_user_id: actorUserId, event, target_user_id: targetUserId, ts: now() });
+  const id = uid();
+  db.audit.set(id, { id, actor_user_id: actorUserId, event, target_user_id: targetUserId, ts: now() });
 };
 
 export const addTelemetry = (event: Omit<TelemetryEvent, "id" | "ts">) => {
   const item: TelemetryEvent = { id: uid(), ts: now(), ...event };
   db.telemetry.set(item.id, item);
-  const queue = db.telemetryQueue.get(event.user_id ?? "anonymous") ?? [];
+  const owner = event.user_id ?? "anonymous";
+  const queue = db.telemetryQueue.get(owner) ?? [];
   queue.push(item);
-  db.telemetryQueue.set(event.user_id ?? "anonymous", queue);
+  db.telemetryQueue.set(owner, queue);
   return item;
 };
 
@@ -40,73 +43,85 @@ export const flushTelemetryQueue = (owner: string) => {
   return queue;
 };
 
-  return item;
-};
-
 export const createInvite = (email: string) => {
-  const raw = crypto.randomBytes(24).toString("hex");
-  const invite = { id: uid(), email, token_hash: hashInviteToken(raw), expires_at: new Date(Date.now() + 86400000).toISOString(), created_at: now() };
+  const token = crypto.randomBytes(24).toString("hex");
+  const invite = {
+    id: uid(),
+    email,
+    token_hash: hashInviteToken(token),
+    expires_at: new Date(Date.now() + DAY_MS).toISOString(),
+    created_at: now(),
+  };
   db.invites.set(invite.id, invite);
-  return { invite, token: raw };
+  return { invite, token };
 };
 
 export const acceptInvite = (token: string, name: string, password: string) => {
-  const invite = Array.from(db.invites.values()).find((x) => x.token_hash === hashInviteToken(token) && !x.used_at);
+  const tokenHash = hashInviteToken(token);
+  const invite = Array.from(db.invites.values()).find((entry) => entry.token_hash === tokenHash && !entry.used_at);
   if (!invite || Date.parse(invite.expires_at) < Date.now()) return null;
+
   invite.used_at = now();
-  const user: User = { id: uid(), email: invite.email, name, password_hash: hashPassword(password), role: "user", status: "active", created_at: now() };
+  const user: User = {
+    id: uid(),
+    email: invite.email,
+    name,
+    password_hash: hashPassword(password),
+    role: "user",
+    status: "active",
+    created_at: now(),
+  };
   db.users.set(user.id, user);
   return user;
 };
 
 export const login = (email: string, password: string) => {
-  const user = Array.from(db.users.values()).find((u) => u.email.toLowerCase() === email.toLowerCase());
+  const user = Array.from(db.users.values()).find((entry) => entry.email.toLowerCase() === email.toLowerCase());
   if (!user || user.status !== "active" || !user.password_hash || !verifyPassword(password, user.password_hash)) return null;
+
   const token = crypto.randomBytes(24).toString("hex");
-  db.sessionsTokens.set(token, { token, user_id: user.id, created_at: now(), expires_at: new Date(Date.now() + 86_400_000).toISOString() });
+  db.sessionsTokens.set(token, {
+    token,
+    user_id: user.id,
+    created_at: now(),
+    expires_at: new Date(Date.now() + DAY_MS).toISOString(),
+  });
   user.last_seen_at = now();
   return { user, token };
 };
 
 export const getUserFromToken = (token: string) => {
-  const s = db.sessionsTokens.get(token);
-  if (!s || Date.parse(s.expires_at) < Date.now()) return null;
-  return db.users.get(s.user_id) ?? null;
+  const session = db.sessionsTokens.get(token);
+  if (!session || Date.parse(session.expires_at) < Date.now()) return null;
+  return db.users.get(session.user_id) ?? null;
 };
+
 export const logout = (token: string) => db.sessionsTokens.delete(token);
 
 export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
-  const v = map.get(id);
-  return v && v.owner_user_id === owner ? v : null;
+  const item = map.get(id);
+  return item?.owner_user_id === owner ? item : null;
 };
-const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((x) => x.owner_user_id === owner);
+
+const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((item) => item.owner_user_id === owner);
 
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
-  const existing = Array.from(db.patients.values()).find((p) => p.owner_user_id === owner && p.external_id === patientId);
+  const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
   if (existing) return existing;
-  const item: Patient = { id: uid(), owner_user_id: owner, external_id: patientId, label: `Paciente ${patientId}`, created_at: now() };
-  db.patients.set(item.id, item);
-  return item;
+
+  const patient: Patient = { id: uid(), owner_user_id: owner, external_id: patientId, label: `Paciente ${patientId}`, created_at: now() };
+  db.patients.set(patient.id, patient);
+  return patient;
 };
 
 export const listPatients = (owner: string) => byOwner(db.patients.values(), owner);
-export const getPatient = (owner: string, patientId: string) => {
-  const p = db.patients.get(patientId);
-  return p && p.owner_user_id === owner ? p : null;
-};
+export const getPatient = (owner: string, patientId: string) => getByOwner(db.patients, owner, patientId);
 
 export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
   createPatientIfMissing(owner, patientId);
-export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
-  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled" as const, created_at: now() };
-  db.sessions.set(item.id, item);
-  return item;
-};
-
-const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((x) => x.owner_user_id === owner);
-export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
-  const v = map.get(id);
-  return v && v.owner_user_id === owner ? v : null;
+  const session: ClinicalSession = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled", created_at: now() };
+  db.sessions.set(session.id, session);
+  return session;
 };
 
 export const patchSessionStatus = (owner: string, sessionId: string, status: SessionStatus) => {
@@ -117,7 +132,15 @@ export const patchSessionStatus = (owner: string, sessionId: string, status: Ses
 };
 
 export const addAudio = (owner: string, sessionId: string, filePath: string) => {
-  const item = { id: uid(), owner_user_id: owner, session_id: sessionId, file_path_encrypted: encrypt(filePath), consent_confirmed: true as const, expires_at: new Date(Date.now() + 30 * 86400_000).toISOString(), created_at: now() };
+  const item = {
+    id: uid(),
+    owner_user_id: owner,
+    session_id: sessionId,
+    file_path_encrypted: encrypt(filePath),
+    consent_confirmed: true as const,
+    expires_at: new Date(Date.now() + 30 * DAY_MS).toISOString(),
+    created_at: now(),
+  };
   db.audioRecords.set(item.id, item);
   return item;
 };
@@ -129,9 +152,9 @@ export const addTranscript = (owner: string, sessionId: string, rawText: string)
 };
 
 export const createClinicalNoteDraft = (owner: string, sessionId: string, content: string): ClinicalNote => {
-  const item = { id: uid(), owner_user_id: owner, session_id: sessionId, content, status: "draft" as const, version: 1, created_at: now() };
-  db.clinicalNotes.set(item.id, item);
-  return item;
+  const note = { id: uid(), owner_user_id: owner, session_id: sessionId, content, status: "draft" as const, version: 1, created_at: now() };
+  db.clinicalNotes.set(note.id, note);
+  return note;
 };
 
 export const validateClinicalNote = (owner: string, noteId: string) => {
@@ -144,23 +167,24 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const hasValidated = byOwner(db.clinicalNotes.values(), owner).some((n) => n.status === "validated");
-  if (!hasValidated) return null;
-  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
-  db.reports.set(item.id, item);
-  return item;
+  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => note.status === "validated");
+  if (!hasValidatedNote) return null;
+
+  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
+  db.reports.set(report.id, report);
+  return report;
 };
 
 export const createAnamnesis = (owner: string, patientId: string, templateId: string, content: Record<string, unknown>): AnamnesisResponse => {
-  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, template_id: templateId, content, version: 1, created_at: now() };
-  db.anamnesis.set(item.id, item);
-  return item;
+  const anamnesis = { id: uid(), owner_user_id: owner, patient_id: patientId, template_id: templateId, content, version: 1, created_at: now() };
+  db.anamnesis.set(anamnesis.id, anamnesis);
+  return anamnesis;
 };
 
 export const createScaleRecord = (owner: string, scaleId: string, patientId: string, score: number): ScaleRecord => {
-  const item = { id: uid(), owner_user_id: owner, scale_id: scaleId, patient_id: patientId, score, recorded_at: now(), created_at: now() };
-  db.scales.set(item.id, item);
-  return item;
+  const record = { id: uid(), owner_user_id: owner, scale_id: scaleId, patient_id: patientId, score, recorded_at: now(), created_at: now() };
+  db.scales.set(record.id, record);
+  return record;
 };
 
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
@@ -186,14 +210,16 @@ export const getJob = (owner: string, jobId: string) => getByOwner(db.jobs, owne
 export const runJob = async (jobId: string, options: { rawText?: string }) => {
   const job = db.jobs.get(jobId);
   if (!job) return;
+
   job.status = "running";
   job.progress = 0.5;
   job.updated_at = now();
-  await new Promise((r) => setTimeout(r, 20));
+  await new Promise((resolve) => setTimeout(resolve, 20));
+
   if (job.type === "transcription" && job.resource_id) {
     const transcript = addTranscript(job.owner_user_id, job.resource_id, options.rawText ?? "");
     job.result_uri = `transcript:${transcript.id}`;
-    addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60000, (options.rawText ?? "").length * 1000) });
+    addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60_000, (options.rawText ?? "").length * 1_000) });
   }
   if (job.type === "export") {
     job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
@@ -203,9 +229,7 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
     job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
     addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
   }
-  }
-  if (job.type === "export") job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
-  if (job.type === "backup") job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
+
   job.status = "completed";
   job.progress = 1;
   job.updated_at = now();
@@ -229,18 +253,31 @@ export const paginate = <T>(items: T[], page = 1, pageSize = 20) => ({
 });
 
 export const purgeUserData = (owner: string) => {
-  for (const map of [db.patients, db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
-    for (const [id, item] of map as Map<string, { owner_user_id: string }>) if (item.owner_user_id === owner) map.delete(id);
-  for (const map of [db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
-    for (const [id, item] of map) if ((item as { owner_user_id: string }).owner_user_id === owner) map.delete(id);
+  const ownedMaps: Array<Map<string, { owner_user_id: string }>> = [
+    db.patients,
+    db.sessions,
+    db.audioRecords,
+    db.transcripts,
+    db.clinicalNotes,
+    db.reports,
+    db.anamnesis,
+    db.scales,
+    db.forms,
+    db.financial,
+    db.jobs,
+  ];
+  for (const map of ownedMaps) {
+    for (const [id, item] of map.entries()) {
+      if (item.owner_user_id === owner) map.delete(id);
+    }
   }
 };
 
 export const adminOverviewMetrics = () => ({
   users_total: db.users.size,
-  users_active: Array.from(db.users.values()).filter((u) => u.status === "active").length,
+  users_active: Array.from(db.users.values()).filter((item) => item.status === "active").length,
   jobs_total: db.jobs.size,
-  error_events: Array.from(db.telemetry.values()).filter((e) => e.error_code).length,
+  error_events: Array.from(db.telemetry.values()).filter((item) => Boolean(item.error_code)).length,
 });
 
 const defaultEntitlements: LocalEntitlementSnapshot["entitlements"] = {
@@ -249,9 +286,9 @@ const defaultEntitlements: LocalEntitlementSnapshot["entitlements"] = {
   forms_enabled: true,
   scales_enabled: true,
   finance_enabled: true,
-  transcription_minutes_per_month: 600,
+  transcription_minutes_per_month: 0,
   max_patients: 200,
-  max_sessions_per_month: 200,
+  max_sessions_per_month: 10,
 };
 
 export const syncLocalEntitlements = (owner: string, snapshot: {
@@ -263,24 +300,13 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
   const previous = db.localEntitlements.get(owner);
   const value: LocalEntitlementSnapshot = {
     user_id: owner,
-    entitlements: { ...defaultEntitlements, ...(snapshot.entitlements ?? {}) },
+    entitlements: { ...defaultEntitlements, ...(previous?.entitlements ?? {}), ...(snapshot.entitlements ?? {}) },
     source_subscription_status: snapshot.source_subscription_status ?? previous?.source_subscription_status ?? "none",
     last_entitlements_sync_at: now(),
-    last_successful_subscription_validation_at: snapshot.last_successful_subscription_validation_at ?? previous?.last_successful_subscription_validation_at ?? now(),
-
-export const syncLocalEntitlements = (owner: string, snapshot: {
-  features?: Record<string, boolean>;
-  limits?: Record<string, number>;
-  source_subscription_status?: "none" | "trialing" | "active" | "past_due" | "canceled";
-  grace_until?: string;
-}) => {
-  const value = {
-    user_id: owner,
-    features: snapshot.features ?? { transcription: false, export: true, backup: true },
-    limits: snapshot.limits ?? { sessions_per_month: 10 },
-    source_subscription_status: snapshot.source_subscription_status ?? "none",
-    synced_at: now(),
-    grace_until: snapshot.grace_until,
+    last_successful_subscription_validation_at:
+      snapshot.last_successful_subscription_validation_at
+      ?? previous?.last_successful_subscription_validation_at,
+    grace_until: snapshot.grace_until ?? previous?.grace_until,
   };
   db.localEntitlements.set(owner, value);
   return value;
@@ -291,48 +317,42 @@ export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.
 const transcriptionMinutesUsedThisMonth = (owner: string) => {
   const month = new Date().getMonth();
   return Array.from(db.telemetry.values())
-    .filter((e) => e.user_id === owner && e.event_type.includes("TRANSCRIPTION") && new Date(e.ts).getMonth() === month)
-    .reduce((acc, cur) => acc + Math.ceil((cur.duration_ms ?? 0) / 60000), 0);
+    .filter((event) => event.user_id === owner && event.event_type.includes("TRANSCRIPTION") && new Date(event.ts).getMonth() === month)
+    .reduce((acc, item) => acc + Math.ceil((item.duration_ms ?? 0) / 60_000), 0);
 };
 
 export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup" | "forms" | "scales" | "finance") => {
-  const ent = resolveLocalEntitlements(owner);
-  const graceFromLastOk = ent.last_successful_subscription_validation_at ? Date.parse(ent.last_successful_subscription_validation_at) + 14 * 86400000 : 0;
-  const withinGrace = Date.now() <= graceFromLastOk || (!!ent.grace_until && Date.parse(ent.grace_until) > Date.now());
+  const entitlements = resolveLocalEntitlements(owner);
+  const graceFromLastValidation = entitlements.last_successful_subscription_validation_at
+    ? Date.parse(entitlements.last_successful_subscription_validation_at) + 14 * DAY_MS
+    : 0;
+  const withinGrace = Date.now() <= graceFromLastValidation
+    || (Boolean(entitlements.grace_until) && Date.parse(entitlements.grace_until as string) > Date.now());
 
-  if (feature === "backup" || feature === "export") return true;
+  if (feature === "export") return entitlements.entitlements.exports_enabled;
+  if (feature === "backup") return entitlements.entitlements.backup_enabled;
 
-  if (ent.source_subscription_status === "past_due" || ent.source_subscription_status === "canceled") {
-    if (!withinGrace) return false;
-  }
+  if (["past_due", "canceled"].includes(entitlements.source_subscription_status) && !withinGrace) return false;
 
   if (feature === "new_session") {
-    const count = byOwner(db.sessions.values(), owner).filter((s) => new Date(s.created_at).getMonth() === new Date().getMonth()).length;
-    return count < ent.entitlements.max_sessions_per_month;
+    const month = new Date().getMonth();
+    const monthlyCount = byOwner(db.sessions.values(), owner)
+      .filter((item) => new Date(item.created_at).getMonth() === month)
+      .length;
+    return monthlyCount < entitlements.entitlements.max_sessions_per_month;
   }
-  if (feature === "transcription") return transcriptionMinutesUsedThisMonth(owner) < ent.entitlements.transcription_minutes_per_month;
-  if (feature === "forms") return ent.entitlements.forms_enabled;
-  if (feature === "scales") return ent.entitlements.scales_enabled;
-  if (feature === "finance") return ent.entitlements.finance_enabled;
-  return true;
-export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, {});
 
-export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup") => {
-  const ent = resolveLocalEntitlements(owner);
-  const withinGrace = !!ent.grace_until && Date.parse(ent.grace_until) > Date.now();
-  if (feature === "new_session") {
-    const createdThisMonth = byOwner(db.sessions.values(), owner).filter((s) => new Date(s.created_at).getMonth() === new Date().getMonth()).length;
-    if (createdThisMonth >= (ent.limits.sessions_per_month ?? 10) && !withinGrace) return false;
-    if (ent.source_subscription_status === "canceled" && !withinGrace) return false;
-    return true;
+  if (feature === "transcription") {
+    return transcriptionMinutesUsedThisMonth(owner) < entitlements.entitlements.transcription_minutes_per_month;
   }
-  if (feature === "transcription") return !!ent.features.transcription || withinGrace;
-  if (feature === "export") return true;
-  if (feature === "backup") return true;
+
+  if (feature === "forms") return entitlements.entitlements.forms_enabled;
+  if (feature === "scales") return entitlements.entitlements.scales_enabled;
+  if (feature === "finance") return entitlements.entitlements.finance_enabled;
   return false;
 };
 
-export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((n) => n.session_id === sessionId);
+export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((item) => item.session_id === sessionId);
 export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
