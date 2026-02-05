@@ -20,6 +20,13 @@ import {
   getByOwner,
   getClinicalNote,
   getJob,
+  getPatient,
+  getReport,
+  getUserFromToken,
+  handleTranscriberWebhook,
+  listPatients,
+  listScales,
+  listSessionClinicalNotes,
   getUserFromToken,
   handleTranscriberWebhook,
   listScales,
@@ -110,6 +117,28 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         openapi: "/openapi.yaml",
         response_envelope: { request_id: "string", data: "any" },
         error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
+        examples: {
+          idempotency: "Idempotency-Key: 5b5a-...",
+          entitlement_sync: {
+            path: "/local/entitlements/sync",
+            body: {
+              snapshot: {
+                entitlements: {
+                  exports_enabled: true,
+                  backup_enabled: true,
+                  forms_enabled: true,
+                  scales_enabled: true,
+                  finance_enabled: true,
+                  transcription_minutes_per_month: 600,
+                  max_patients: 200,
+                  max_sessions_per_month: 200,
+                },
+                source_subscription_status: "active",
+                last_successful_subscription_validation_at: new Date().toISOString(),
+              },
+            },
+          },
+        },
         examples: { idempotency: "Idempotency-Key: 5b5a-...", entitlement_sync: "POST /local/entitlements/sync" },
         examples: { idempotency: "Idempotency-Key: 5b5a-..." },
       });
@@ -149,6 +178,21 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/local/entitlements/sync") {
       const body = await readJson(req);
       const snapshot = typeof body.snapshot === "object" && body.snapshot ? body.snapshot as Record<string, unknown> : {};
+      const ent = typeof snapshot.entitlements === "object" && snapshot.entitlements ? snapshot.entitlements as Record<string, unknown> : {};
+      const synced = syncLocalEntitlements(auth.user.id, {
+        entitlements: {
+          exports_enabled: typeof ent.exports_enabled === "boolean" ? ent.exports_enabled : undefined,
+          backup_enabled: typeof ent.backup_enabled === "boolean" ? ent.backup_enabled : undefined,
+          forms_enabled: typeof ent.forms_enabled === "boolean" ? ent.forms_enabled : undefined,
+          scales_enabled: typeof ent.scales_enabled === "boolean" ? ent.scales_enabled : undefined,
+          finance_enabled: typeof ent.finance_enabled === "boolean" ? ent.finance_enabled : undefined,
+          transcription_minutes_per_month: typeof ent.transcription_minutes_per_month === "number" ? ent.transcription_minutes_per_month : undefined,
+          max_patients: typeof ent.max_patients === "number" ? ent.max_patients : undefined,
+          max_sessions_per_month: typeof ent.max_sessions_per_month === "number" ? ent.max_sessions_per_month : undefined,
+        },
+        source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
+        grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
+        last_successful_subscription_validation_at: typeof snapshot.last_successful_subscription_validation_at === "string" ? snapshot.last_successful_subscription_validation_at : undefined,
       const synced = syncLocalEntitlements(auth.user.id, {
         features: typeof snapshot.features === "object" && snapshot.features ? snapshot.features as Record<string, boolean> : undefined,
         limits: typeof snapshot.limits === "object" && snapshot.limits ? snapshot.limits as Record<string, number> : undefined,
@@ -185,6 +229,16 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/sessions") {
       const { page, pageSize } = parsePagination(url);
       const patientId = url.searchParams.get("patient_id");
+      const status = url.searchParams.get("status");
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      const base = Array.from(db.sessions.values()).filter((s) =>
+        s.owner_user_id === auth.user.id
+        && (!patientId || s.patient_id === patientId)
+        && (!status || s.status === status)
+        && (!from || Date.parse(s.scheduled_at) >= Date.parse(from))
+        && (!to || Date.parse(s.scheduled_at) <= Date.parse(to))
+      );
       const base = Array.from(db.sessions.values()).filter((s) => s.owner_user_id === auth.user.id && (!patientId || s.patient_id === patientId));
       return ok(res, requestId, 200, paginate(base, page, pageSize));
     }
@@ -264,6 +318,13 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
+    const reportById = url.pathname.match(/^\/reports\/([^/]+)$/);
+    if (method === "GET" && reportById) {
+      const report = getReport(auth.user.id, reportById[1]);
+      if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
+      return ok(res, requestId, 200, report);
+    }
+
     if (method === "POST" && url.pathname === "/anamnesis") {
       const body = await readJson(req);
       return ok(res, requestId, 201, createAnamnesis(auth.user.id, String(body.patient_id), String(body.template_id), (body.content ?? {}) as Record<string, unknown>));
@@ -271,6 +332,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/anamnesis") return ok(res, requestId, 200, paginate(Array.from(db.anamnesis.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && url.pathname === "/scales/record") {
+      if (!canUseFeature(auth.user.id, "scales")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Scales disabled by subscription");
       const body = await readJson(req);
       return ok(res, requestId, 201, createScaleRecord(auth.user.id, String(body.scale_id), String(body.patient_id), Number(body.score ?? 0)));
     }
@@ -278,12 +340,29 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/scales/records") return ok(res, requestId, 200, paginate(Array.from(db.scales.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && url.pathname === "/forms/entry") {
+      if (!canUseFeature(auth.user.id, "forms")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Forms disabled by subscription");
       const body = await readJson(req);
       return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id), String(body.form_id), (body.content ?? {}) as Record<string, unknown>));
     }
     if (method === "GET" && url.pathname === "/forms") return ok(res, requestId, 200, paginate(Array.from(db.forms.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && url.pathname === "/financial/entry") {
+      if (!canUseFeature(auth.user.id, "finance")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Finance disabled by subscription");
+      const body = await readJson(req);
+      return ok(res, requestId, 201, createFinancialEntry(auth.user.id, { patient_id: String(body.patient_id), type: body.type === "payable" ? "payable" : "receivable", amount: Number(body.amount), due_date: String(body.due_date), status: body.status === "paid" ? "paid" : "open", description: String(body.description ?? "") }));
+    }
+    if (method === "GET" && url.pathname === "/financial/entries") {
+      const from = url.searchParams.get("from");
+      const to = url.searchParams.get("to");
+      const status = url.searchParams.get("status");
+      const filtered = Array.from(db.financial.values()).filter((x) =>
+        x.owner_user_id === auth.user.id
+        && (!from || Date.parse(x.due_date) >= Date.parse(from))
+        && (!to || Date.parse(x.due_date) <= Date.parse(to))
+        && (!status || x.status === status)
+      );
+      return ok(res, requestId, 200, paginate(filtered, ...Object.values(parsePagination(url))));
+    }
       const body = await readJson(req);
       return ok(res, requestId, 201, createFinancialEntry(auth.user.id, { patient_id: String(body.patient_id), type: body.type === "payable" ? "payable" : "receivable", amount: Number(body.amount), due_date: String(body.due_date), status: body.status === "paid" ? "paid" : "open", description: String(body.description ?? "") }));
     }
@@ -329,6 +408,21 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, { structured_text: String(body.text ?? "").trim(), compliance: "Apenas organização textual. Sem diagnóstico ou conduta." });
     }
 
+
+    if (method === "GET" && url.pathname === "/patients") {
+      return ok(res, requestId, 200, paginate(listPatients(auth.user.id), ...Object.values(parsePagination(url))));
+    }
+    const patientById = url.pathname.match(/^\/patients\/([^/]+)$/);
+    if (method === "GET" && patientById) {
+      const patient = getPatient(auth.user.id, patientById[1]);
+      if (!patient) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+      return ok(res, requestId, 200, patient);
+    }
+
+    if (method === "POST" && url.pathname === "/local/telemetry/flush") {
+      const flushed = [];
+      return ok(res, requestId, 200, { sent: flushed.length });
+    }
     return error(res, requestId, 404, "NOT_FOUND", "Route not found");
   } catch {
     addTelemetry({ user_id: tokenFrom(req) ? getUserFromToken(tokenFrom(req)!)?.id : undefined, event_type: "ERROR", route: url.pathname, status_code: 500, error_code: "BAD_REQUEST" });

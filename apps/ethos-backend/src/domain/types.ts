@@ -87,6 +87,12 @@ export type FormEntry = Owned & {
   content: Record<string, unknown>;
 };
 
+
+export type Patient = Owned & {
+  external_id: string;
+  label: string;
+};
+
 export type FinancialEntry = Owned & {
   patient_id: string;
   type: "receivable" | "payable";
@@ -102,6 +108,19 @@ export type JobStatus = "queued" | "running" | "completed" | "failed";
 
 export type LocalEntitlementSnapshot = {
   user_id: UUID;
+  entitlements: {
+    exports_enabled: boolean;
+    backup_enabled: boolean;
+    forms_enabled: boolean;
+    scales_enabled: boolean;
+    finance_enabled: boolean;
+    transcription_minutes_per_month: number;
+    max_patients: number;
+    max_sessions_per_month: number;
+  };
+  source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
+  last_entitlements_sync_at: string;
+  last_successful_subscription_validation_at?: string;
   features: Record<string, boolean>;
   limits: Record<string, number>;
   source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
@@ -134,6 +153,7 @@ export type TelemetryEvent = {
   event_type: string;
   route?: string;
   status_code?: number;
+  duration_ms?: number;
   error_code?: string;
   ts: string;
 };

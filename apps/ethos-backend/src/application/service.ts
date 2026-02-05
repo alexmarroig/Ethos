@@ -10,6 +10,8 @@ import type {
   Job,
   JobStatus,
   JobType,
+  LocalEntitlementSnapshot,
+  Patient,
   ScaleRecord,
   SessionStatus,
   TelemetryEvent,
@@ -26,6 +28,18 @@ export const addAudit = (actorUserId: string, event: string, targetUserId?: stri
 export const addTelemetry = (event: Omit<TelemetryEvent, "id" | "ts">) => {
   const item: TelemetryEvent = { id: uid(), ts: now(), ...event };
   db.telemetry.set(item.id, item);
+  const queue = db.telemetryQueue.get(event.user_id ?? "anonymous") ?? [];
+  queue.push(item);
+  db.telemetryQueue.set(event.user_id ?? "anonymous", queue);
+  return item;
+};
+
+export const flushTelemetryQueue = (owner: string) => {
+  const queue = db.telemetryQueue.get(owner) ?? [];
+  db.telemetryQueue.set(owner, []);
+  return queue;
+};
+
   return item;
 };
 
@@ -61,6 +75,28 @@ export const getUserFromToken = (token: string) => {
 };
 export const logout = (token: string) => db.sessionsTokens.delete(token);
 
+export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
+  const v = map.get(id);
+  return v && v.owner_user_id === owner ? v : null;
+};
+const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((x) => x.owner_user_id === owner);
+
+export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
+  const existing = Array.from(db.patients.values()).find((p) => p.owner_user_id === owner && p.external_id === patientId);
+  if (existing) return existing;
+  const item: Patient = { id: uid(), owner_user_id: owner, external_id: patientId, label: `Paciente ${patientId}`, created_at: now() };
+  db.patients.set(item.id, item);
+  return item;
+};
+
+export const listPatients = (owner: string) => byOwner(db.patients.values(), owner);
+export const getPatient = (owner: string, patientId: string) => {
+  const p = db.patients.get(patientId);
+  return p && p.owner_user_id === owner ? p : null;
+};
+
+export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
+  createPatientIfMissing(owner, patientId);
 export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled" as const, created_at: now() };
   db.sessions.set(item.id, item);
@@ -103,6 +139,7 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
   if (!note) return null;
   note.status = "validated";
   note.validated_at = now();
+  addTelemetry({ user_id: owner, event_type: "NOTE_VALIDATED" });
   return note;
 };
 
@@ -156,6 +193,16 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
   if (job.type === "transcription" && job.resource_id) {
     const transcript = addTranscript(job.owner_user_id, job.resource_id, options.rawText ?? "");
     job.result_uri = `transcript:${transcript.id}`;
+    addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60000, (options.rawText ?? "").length * 1000) });
+  }
+  if (job.type === "export") {
+    job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
+    addTelemetry({ user_id: job.owner_user_id, event_type: "EXPORT_PDF" });
+  }
+  if (job.type === "backup") {
+    job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
+    addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
+  }
   }
   if (job.type === "export") job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
   if (job.type === "backup") job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
@@ -182,6 +229,8 @@ export const paginate = <T>(items: T[], page = 1, pageSize = 20) => ({
 });
 
 export const purgeUserData = (owner: string) => {
+  for (const map of [db.patients, db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
+    for (const [id, item] of map as Map<string, { owner_user_id: string }>) if (item.owner_user_id === owner) map.delete(id);
   for (const map of [db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
     for (const [id, item] of map) if ((item as { owner_user_id: string }).owner_user_id === owner) map.delete(id);
   }
@@ -194,6 +243,30 @@ export const adminOverviewMetrics = () => ({
   error_events: Array.from(db.telemetry.values()).filter((e) => e.error_code).length,
 });
 
+const defaultEntitlements: LocalEntitlementSnapshot["entitlements"] = {
+  exports_enabled: true,
+  backup_enabled: true,
+  forms_enabled: true,
+  scales_enabled: true,
+  finance_enabled: true,
+  transcription_minutes_per_month: 600,
+  max_patients: 200,
+  max_sessions_per_month: 200,
+};
+
+export const syncLocalEntitlements = (owner: string, snapshot: {
+  entitlements?: Partial<LocalEntitlementSnapshot["entitlements"]>;
+  source_subscription_status?: LocalEntitlementSnapshot["source_subscription_status"];
+  grace_until?: string;
+  last_successful_subscription_validation_at?: string;
+}) => {
+  const previous = db.localEntitlements.get(owner);
+  const value: LocalEntitlementSnapshot = {
+    user_id: owner,
+    entitlements: { ...defaultEntitlements, ...(snapshot.entitlements ?? {}) },
+    source_subscription_status: snapshot.source_subscription_status ?? previous?.source_subscription_status ?? "none",
+    last_entitlements_sync_at: now(),
+    last_successful_subscription_validation_at: snapshot.last_successful_subscription_validation_at ?? previous?.last_successful_subscription_validation_at ?? now(),
 
 export const syncLocalEntitlements = (owner: string, snapshot: {
   features?: Record<string, boolean>;
@@ -213,6 +286,35 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
   return value;
 };
 
+export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, { source_subscription_status: "none" });
+
+const transcriptionMinutesUsedThisMonth = (owner: string) => {
+  const month = new Date().getMonth();
+  return Array.from(db.telemetry.values())
+    .filter((e) => e.user_id === owner && e.event_type.includes("TRANSCRIPTION") && new Date(e.ts).getMonth() === month)
+    .reduce((acc, cur) => acc + Math.ceil((cur.duration_ms ?? 0) / 60000), 0);
+};
+
+export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup" | "forms" | "scales" | "finance") => {
+  const ent = resolveLocalEntitlements(owner);
+  const graceFromLastOk = ent.last_successful_subscription_validation_at ? Date.parse(ent.last_successful_subscription_validation_at) + 14 * 86400000 : 0;
+  const withinGrace = Date.now() <= graceFromLastOk || (!!ent.grace_until && Date.parse(ent.grace_until) > Date.now());
+
+  if (feature === "backup" || feature === "export") return true;
+
+  if (ent.source_subscription_status === "past_due" || ent.source_subscription_status === "canceled") {
+    if (!withinGrace) return false;
+  }
+
+  if (feature === "new_session") {
+    const count = byOwner(db.sessions.values(), owner).filter((s) => new Date(s.created_at).getMonth() === new Date().getMonth()).length;
+    return count < ent.entitlements.max_sessions_per_month;
+  }
+  if (feature === "transcription") return transcriptionMinutesUsedThisMonth(owner) < ent.entitlements.transcription_minutes_per_month;
+  if (feature === "forms") return ent.entitlements.forms_enabled;
+  if (feature === "scales") return ent.entitlements.scales_enabled;
+  if (feature === "finance") return ent.entitlements.finance_enabled;
+  return true;
 export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, {});
 
 export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup") => {
@@ -233,3 +335,4 @@ export const canUseFeature = (owner: string, feature: "transcription" | "new_ses
 export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((n) => n.session_id === sessionId);
 export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
 export const listScales = () => Array.from(db.scaleTemplates.values());
+export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);

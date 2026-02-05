@@ -21,6 +21,9 @@ Plataforma clínica multi-plataforma com duas camadas:
 - `docs/offline-grace.md`
 - `docs/mobile-v1.md`
 - `docs/troubleshooting.md`
+- `docs/security-sigilo.md`
+- `docs/webhooks.md`
+- `docs/entitlements.md`
 
 ## Comandos
 ```bash

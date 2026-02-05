@@ -10,6 +10,7 @@ import type {
   FormEntry,
   Invite,
   Job,
+  Patient,
   ScaleRecord,
   SessionToken,
   TelemetryEvent,
@@ -43,6 +44,7 @@ export const db = {
   invites: new Map<string, Invite>(),
   sessionsTokens: new Map<string, SessionToken>(),
 
+  patients: new Map<string, Patient>(),
   sessions: new Map<string, ClinicalSession>(),
   audioRecords: new Map<string, AudioRecord>(),
   transcripts: new Map<string, Transcript>(),
@@ -57,6 +59,7 @@ export const db = {
   scaleTemplates: new Map<string, ScaleTemplate>(),
 
   telemetry: new Map<string, TelemetryEvent>(),
+  telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
 };
