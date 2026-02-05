@@ -24,6 +24,9 @@ import {
   handleTranscriberWebhook,
   listScales,
   listSessionClinicalNotes,
+  getJob,
+  getUserFromToken,
+  handleTranscriberWebhook,
   login,
   logout,
   paginate,
@@ -33,6 +36,7 @@ import {
   runJob,
   syncLocalEntitlements,
   canUseFeature,
+  runJob,
   validateClinicalNote,
 } from "../application/service";
 import { db } from "../infra/database";
@@ -107,6 +111,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         response_envelope: { request_id: "string", data: "any" },
         error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
         examples: { idempotency: "Idempotency-Key: 5b5a-...", entitlement_sync: "POST /local/entitlements/sync" },
+        examples: { idempotency: "Idempotency-Key: 5b5a-..." },
       });
     }
 
