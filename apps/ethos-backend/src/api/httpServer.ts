@@ -18,11 +18,15 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  evaluateObservability,
   getByOwner,
   getClinicalNote,
   getJob,
   getUserFromToken,
   handleTranscriberWebhook,
+  ingestErrorLog,
+  ingestPerformanceSample,
+  listObservabilityAlerts,
   listPatients,
   listScales,
   listSessionClinicalNotes,
@@ -340,6 +344,45 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/admin/metrics/overview") {
       if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
       return ok(res, requestId, 200, adminOverviewMetrics());
+    }
+
+
+    if (method === "POST" && url.pathname === "/admin/observability/performance-samples") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const body = await readJson(req);
+      const sample = {
+        timestamp: String(body.timestamp ?? new Date().toISOString()),
+        latencyMs: Number(body.latencyMs ?? 0),
+        errorRate: Number(body.errorRate ?? 0),
+        cpuPercent: Number(body.cpuPercent ?? 0),
+        memoryPercent: Number(body.memoryPercent ?? 0),
+      };
+      const alerts = ingestPerformanceSample(sample);
+      return ok(res, requestId, 201, { ingested: sample, alerts_generated: alerts.length });
+    }
+
+    if (method === "POST" && url.pathname === "/admin/observability/error-logs") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const body = await readJson(req);
+      const log = {
+        timestamp: String(body.timestamp ?? new Date().toISOString()),
+        service: String(body.service ?? "unknown"),
+        message: String(body.message ?? ""),
+        stack: typeof body.stack === "string" ? body.stack : undefined,
+      };
+      const alerts = ingestErrorLog(log);
+      return ok(res, requestId, 201, { ingested: log, alerts_generated: alerts.length });
+    }
+
+    if (method === "POST" && url.pathname === "/admin/observability/evaluate") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const alerts = evaluateObservability();
+      return ok(res, requestId, 200, { alerts_generated: alerts.length });
+    }
+
+    if (method === "GET" && url.pathname === "/admin/observability/alerts") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      return ok(res, requestId, 200, listObservabilityAlerts());
     }
 
     if (method === "GET" && url.pathname === "/admin/audit") {
