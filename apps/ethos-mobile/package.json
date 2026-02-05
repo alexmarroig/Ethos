@@ -1,0 +1,12 @@
+{
+  "name": "ethos-mobile",
+  "version": "0.1.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "echo 'mobile app placeholder: react-native/expo wiring'",
+    "build": "echo 'mobile build placeholder'"
+  },
+  "dependencies": {
+    "@ethos/sdk": "*"
+  }
+}

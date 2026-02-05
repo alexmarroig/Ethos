@@ -1,116 +1,68 @@
 openapi: 3.0.3
 info:
-  title: ETHOS Backend API
-  version: 1.0.0
+  title: ETHOS Clinical Plane API
+  version: 1.3.0
 servers:
   - url: http://localhost:8787
-components:
-  securitySchemes:
-    bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: token
-  schemas:
-    Error:
-      type: object
-      properties:
-        error: { type: string }
-        code: { type: string }
 paths:
-  /auth/invite:
-    post:
-      summary: Create invite (admin)
-  /auth/accept-invite:
-    post:
-      summary: Accept invite and activate user
-  /auth/login:
-    post:
-      summary: Login
-  /auth/logout:
-    post:
-      summary: Logout
-  /me:
-    get:
-      summary: Current user
-    patch:
-      summary: Update profile
+  /openapi.yaml: { get: { summary: OpenAPI spec } }
+  /contracts: { get: { summary: Runtime API contracts } }
+
+  /auth/invite: { post: { summary: Invite local user (admin) } }
+  /auth/accept-invite: { post: { summary: Accept local invite } }
+  /auth/login: { post: { summary: Local login } }
+  /auth/logout: { post: { summary: Local logout } }
+
+  /local/entitlements: { get: { summary: Read local entitlement snapshot } }
+  /local/entitlements/sync: { post: { summary: Sync entitlement snapshot from control plane } }
+  /local/telemetry/flush: { post: { summary: Flush queued telemetry (offline-first) } }
+
+  /admin/metrics/overview: { get: { summary: Admin metrics sanitized } }
+  /admin/audit: { get: { summary: Admin audit sanitized } }
+
+  /patients: { get: { summary: List patients } }
+  /patients/{id}: { get: { summary: Patient detail } }
+
   /sessions:
-    post: { summary: Create session }
-    get: { summary: List sessions }
-  /sessions/{id}:
-    get: { summary: Get session }
-  /sessions/{id}/status:
-    patch: { summary: Update status }
-  /sessions/{id}/audio:
-    post: { summary: Register audio }
-  /sessions/{id}/transcribe:
-    post: { summary: Create transcription job }
-  /jobs/{job_id}:
-    get: { summary: Job status }
-  /sessions/{id}/clinical-note:
-    post: { summary: Create draft note }
-  /sessions/{id}/clinical-notes:
-    get: { summary: List session notes }
-  /clinical-notes/{id}:
-    get: { summary: Get note }
-  /clinical-notes/{id}/validate:
-    post: { summary: Validate note }
+    post: { summary: Create session (gated by entitlements) }
+    get: { summary: List sessions (filters from,to,status,patient_id) }
+  /sessions/{id}: { get: { summary: Session detail } }
+  /sessions/{id}/status: { patch: { summary: Update session status } }
+  /sessions/{id}/audio: { post: { summary: Attach encrypted audio with consent } }
+  /sessions/{id}/transcribe: { post: { summary: Create transcription job } }
+  /sessions/{id}/clinical-note: { post: { summary: Create draft clinical note } }
+  /sessions/{id}/clinical-notes: { get: { summary: List session clinical note versions } }
+
+  /clinical-notes/{id}: { get: { summary: Clinical note detail } }
+  /clinical-notes/{id}/validate: { post: { summary: Validate clinical note (human) } }
+
   /reports:
-    post: { summary: Create report }
+    post: { summary: Create report from validated notes }
     get: { summary: List reports }
-  /reports/{id}:
-    get: { summary: Get report }
+  /reports/{id}: { get: { summary: Report detail } }
+
   /anamnesis:
-    post: { summary: Create anamnesis response }
-    get: { summary: List anamnesis responses }
-  /scales:
-    get: { summary: List scales }
-  /scales/record:
-    post: { summary: Record scale }
-  /scales/records:
-    get: { summary: List scale records }
-  /forms:
-    get: { summary: List forms }
-  /forms/entry:
-    post: { summary: Create form entry }
-  /financial/entry:
-    post: { summary: Create financial entry }
-  /financial/entries:
-    get: { summary: List financial entries }
-  /financial/reminder:
-    post: { summary: Generate reminder text }
-  /export/pdf:
-    post: { summary: Export PDF }
-  /export/docx:
-    post: { summary: Export DOCX }
-  /backup:
-    post: { summary: Backup by user }
-  /restore:
-    post: { summary: Restore by user }
-  /purge:
-    post: { summary: Purge all user data }
-  /ai/organize:
-    post: { summary: AI textual organization only }
-  /api/webhook:
-    post: { summary: Technical webhook telemetry ingest }
-  /admin/users:
-    get: { summary: Admin list users }
-  /admin/users/{id}:
-    get: { summary: Admin user details }
-    patch: { summary: Admin update role/status }
-  /admin/users/{id}/disable:
-    post: { summary: Admin disable user }
-  /admin/users/{id}/enable:
-    post: { summary: Admin enable user }
-  /admin/metrics/overview:
-    get: { summary: Admin aggregated metrics }
-  /admin/metrics/user-usage:
-    get: { summary: Admin per-user usage metrics }
-  /admin/metrics/errors:
-    get: { summary: Admin technical errors }
-  /admin/audit:
-    get: { summary: Admin audit trail }
-  /contracts:
-    get: { summary: API contracts }
-  /openapi.yaml:
-    get: { summary: OpenAPI spec file }
+    post: { summary: Create anamnesis }
+    get: { summary: List anamnesis }
+
+  /scales: { get: { summary: List scales catalog } }
+  /scales/record: { post: { summary: Create scale record } }
+  /scales/records: { get: { summary: List scale records (patient_id optional) } }
+
+  /forms/entry: { post: { summary: Create form entry } }
+  /forms: { get: { summary: List forms } }
+
+  /financial/entry: { post: { summary: Create financial entry } }
+  /financial/entries: { get: { summary: List financial entries (from,to,status filters) } }
+
+  /jobs/{id}: { get: { summary: Job status/progress/error } }
+  /api/webhook: { post: { summary: Transcriber webhook -> update jobs + telemetry } }
+  /webhooks/transcriber: { post: { summary: Transcriber webhook alias } }
+
+  /export/pdf: { post: { summary: Export PDF job } }
+  /export/docx: { post: { summary: Export DOCX job } }
+  /backup: { post: { summary: Backup user data } }
+  /restore: { post: { summary: Restore backup } }
+  /purge: { post: { summary: Purge user data } }
+
+  /ai/organize: { post: { summary: Local-only AI text organization } }
