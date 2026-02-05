@@ -21,3 +21,7 @@ Backend HTTP em TypeScript com foco em isolamento clínico multiusuário.
 npm run dev
 npm test
 ```
+
+## Documentação adicional
+- `docs/backend-hardening.md`
+- `docs/backend-endpoints-funcionalidades.md`
