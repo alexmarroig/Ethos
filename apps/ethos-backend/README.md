@@ -25,3 +25,4 @@ npm test
 ## Documentação adicional
 - `docs/backend-hardening.md`
 - `docs/backend-endpoints-funcionalidades.md`
+- `docs/backend-validation-checklist.md`
