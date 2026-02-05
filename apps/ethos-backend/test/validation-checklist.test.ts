@@ -3,6 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
+import { db } from "../src/infra/database";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {
@@ -67,6 +68,48 @@ test("checklist: isolamento total entre usuários (inclusive por ID)", async () 
   const nid = note.json.data.id as string;
   const noteValidateByOther = await req(base, `/clinical-notes/${nid}/validate`, "POST", {}, userBToken);
   assert.equal(noteValidateByOther.status, 404);
+
+  server.close();
+});
+
+
+test("checklist: idempotência em /sessions é isolada por usuário", async () => {
+  const { server, base, userAToken, userBToken } = await setup();
+  const idem = "shared-idem";
+  const scheduledAt = new Date().toISOString();
+
+  const a1 = await req(base, "/sessions", "POST", { patient_id: "p-isolation", scheduled_at: scheduledAt }, userAToken, idem);
+  const a2 = await req(base, "/sessions", "POST", { patient_id: "p-isolation", scheduled_at: scheduledAt }, userAToken, idem);
+  assert.equal(a1.status, 201);
+  assert.equal(a2.status, 201);
+  assert.equal(a1.json.data.id, a2.json.data.id);
+
+  const b1 = await req(base, "/sessions", "POST", { patient_id: "p-isolation", scheduled_at: scheduledAt }, userBToken, idem);
+  assert.equal(b1.status, 201);
+  assert.notEqual(b1.json.data.id, a1.json.data.id);
+
+  const aDifferentBody = await req(base, "/sessions", "POST", { patient_id: "p-isolation-2", scheduled_at: scheduledAt }, userAToken, idem);
+  assert.equal(aDifferentBody.status, 201);
+  assert.notEqual(aDifferentBody.json.data.id, a1.json.data.id);
+
+  server.close();
+});
+
+test("checklist: idempotência em /sessions expira após TTL", async () => {
+  const { server, base, userAToken } = await setup();
+  const idem = "ttl-idem";
+  const payload = { patient_id: "p-ttl", scheduled_at: new Date().toISOString() };
+
+  const first = await req(base, "/sessions", "POST", payload, userAToken, idem);
+  assert.equal(first.status, 201);
+
+  const key = Array.from(db.idempotency.keys()).find((candidate) => candidate.includes(`:${idem}:`));
+  assert.ok(key);
+  db.idempotency.get(key!)!.expiresAt = Date.now() - 1;
+
+  const second = await req(base, "/sessions", "POST", payload, userAToken, idem);
+  assert.equal(second.status, 201);
+  assert.notEqual(first.json.data.id, second.json.data.id);
 
   server.close();
 });
