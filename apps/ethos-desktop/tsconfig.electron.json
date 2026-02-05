@@ -1,9 +1,10 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    "outDir": "dist-electron",
+    "module": "commonjs",
     "target": "ESNext",
-    "module": "CommonJS",
-    "outDir": "dist",
-    "rootDir": "src",
+    "lib": ["ESNext"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -12,5 +13,5 @@
       "@ethos/shared": ["../../packages/shared/src"]
     }
   },
-  "include": ["src"]
+  "include": ["electron"]
 }
