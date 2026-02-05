@@ -31,6 +31,7 @@ const setup = async () => {
   const login = await req(base, "/auth/login", "POST", { email: "qa@ethos.local", password: "qa123456" });
 
   await req(base, "/local/entitlements/sync", "POST", { snapshot: { entitlements: { transcription_minutes_per_month: 3000, max_sessions_per_month: 2000, exports_enabled: true, backup_enabled: true, forms_enabled: true, scales_enabled: true, finance_enabled: true, max_patients: 2000 }, source_subscription_status: "active", last_successful_subscription_validation_at: new Date().toISOString() } }, login.json.data.token as string);
+  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, login.json.data.token as string);
   return { server, base, adminToken, userToken: login.json.data.token as string };
 };
 

@@ -27,3 +27,22 @@ paths:
   /v1/admin/metrics/user-usage: { get: { summary: Admin user usage counts/minutes } }
   /v1/admin/metrics/errors: { get: { summary: Admin errors grouped by code/version } }
   /v1/admin/audit: { get: { summary: Admin audit trail (sanitized) } }
+  version: 1.0.0
+servers:
+  - url: http://localhost:8788
+paths:
+  /v1/auth/invite: { post: { summary: Invite user (admin) } }
+  /v1/auth/accept-invite: { post: { summary: Accept invite } }
+  /v1/auth/login: { post: { summary: Login } }
+  /v1/me: { get: { summary: Current user } }
+  /v1/billing/checkout-session: { post: { summary: Create Stripe checkout session } }
+  /v1/billing/portal-session: { post: { summary: Create Stripe portal session } }
+  /v1/billing/subscription: { get: { summary: Read current subscription } }
+  /v1/webhooks/stripe: { post: { summary: Stripe webhook receiver } }
+  /v1/entitlements: { get: { summary: Resolve user entitlements } }
+  /v1/telemetry: { post: { summary: Sanitized telemetry ingest } }
+  /v1/admin/users: { get: { summary: Admin users list (sanitized) } }
+  /v1/admin/metrics/overview: { get: { summary: Admin overview metrics } }
+  /v1/admin/metrics/user-usage: { get: { summary: Admin usage per user } }
+  /v1/admin/metrics/errors: { get: { summary: Admin sanitized errors } }
+  /v1/admin/audit: { get: { summary: Admin audit (sanitized) } }

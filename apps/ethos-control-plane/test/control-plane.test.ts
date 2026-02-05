@@ -5,6 +5,7 @@ import test from "node:test";
 import { createControlPlane } from "../src/server";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, headers?: Record<string, string>) => {
+const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string) => {
   const res = await fetch(`${base}${path}`, {
     method,
     headers: {
@@ -34,6 +35,11 @@ test("control plane auth, billing stripe webhook, entitlements and admin sanitiz
   const accepted = await req(base, "/v1/auth/accept-invite", "POST", { token: invite.json.data.invite_token, name: "Pro", password: "secret123" });
   assert.equal(accepted.status, 201);
 
+test("invite/login/rbac/billing/entitlements/telemetry", async () => {
+  const { server, base, adminToken } = await bootstrap();
+  const invite = await req(base, "/v1/auth/invite", "POST", { email: "pro@ethos.local" }, adminToken);
+  assert.equal(invite.status, 201);
+  await req(base, "/v1/auth/accept-invite", "POST", { token: invite.json.data.invite_token, name: "Pro", password: "secret123" });
   const login = await req(base, "/v1/auth/login", "POST", { email: "pro@ethos.local", password: "secret123" });
   const userToken = login.json.data.token as string;
 
@@ -64,6 +70,24 @@ test("control plane auth, billing stripe webhook, entitlements and admin sanitiz
   assert.equal((await req(base, `/v1/admin/metrics/user-usage?user_id=${login.json.data.user.id}`, "GET", undefined, adminToken)).status, 200);
   assert.equal((await req(base, "/v1/admin/metrics/errors", "GET", undefined, adminToken)).status, 200);
   assert.equal((await req(base, "/v1/admin/audit", "GET", undefined, adminToken)).status, 200);
+  assert.equal((await req(base, "/v1/admin/users", "GET", undefined, userToken)).status, 403);
+  assert.equal((await req(base, "/v1/admin/users", "GET", undefined, adminToken)).status, 200);
+
+  assert.equal((await req(base, "/v1/billing/checkout-session", "POST", { plan: "pro", interval: "month" }, userToken)).status, 200);
+  assert.equal((await req(base, "/v1/billing/subscription", "GET", undefined, userToken)).status, 200);
+  assert.equal((await req(base, "/v1/entitlements", "GET", undefined, userToken)).status, 200);
+  assert.equal((await req(base, "/v1/billing/portal-session", "POST", {}, userToken)).status, 200);
+
+  assert.equal((await req(base, "/v1/webhooks/stripe", "POST", { type: "invoice.payment_failed", user_id: login.json.data.user.id })).status, 202);
+  const ent = await req(base, "/v1/entitlements", "GET", undefined, userToken);
+  assert.ok(ent.json.data.grace_until || ent.json.data.source_subscription_status === "past_due");
+
+  assert.equal((await req(base, "/v1/telemetry", "POST", { event_type: "APP_OPEN", ts: new Date().toISOString(), app_version: "1", worker_version: "1" }, userToken)).status, 202);
+  assert.equal((await req(base, "/v1/telemetry", "POST", { event_type: "BAD", clinical_text: "secret" }, userToken)).status, 422);
+
+  assert.equal((await req(base, "/v1/admin/metrics/overview", "GET", undefined, adminToken)).status, 200);
+  assert.equal((await req(base, "/v1/admin/metrics/errors", "GET", undefined, adminToken)).status, 200);
+  assert.equal((await req(base, "/v1/admin/metrics/user-usage?user_id=" + login.json.data.user.id, "GET", undefined, adminToken)).status, 200);
 
   server.close();
 });

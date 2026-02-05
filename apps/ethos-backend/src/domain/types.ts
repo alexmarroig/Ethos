@@ -121,6 +121,10 @@ export type LocalEntitlementSnapshot = {
   source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
   last_entitlements_sync_at: string;
   last_successful_subscription_validation_at?: string;
+  features: Record<string, boolean>;
+  limits: Record<string, number>;
+  source_subscription_status: "none" | "trialing" | "active" | "past_due" | "canceled";
+  synced_at: string;
   grace_until?: string;
 };
 

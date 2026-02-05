@@ -40,6 +40,9 @@ export const flushTelemetryQueue = (owner: string) => {
   return queue;
 };
 
+  return item;
+};
+
 export const createInvite = (email: string) => {
   const raw = crypto.randomBytes(24).toString("hex");
   const invite = { id: uid(), email, token_hash: hashInviteToken(raw), expires_at: new Date(Date.now() + 86400000).toISOString(), created_at: now() };
@@ -94,9 +97,16 @@ export const getPatient = (owner: string, patientId: string) => {
 
 export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
   createPatientIfMissing(owner, patientId);
+export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled" as const, created_at: now() };
   db.sessions.set(item.id, item);
   return item;
+};
+
+const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((x) => x.owner_user_id === owner);
+export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
+  const v = map.get(id);
+  return v && v.owner_user_id === owner ? v : null;
 };
 
 export const patchSessionStatus = (owner: string, sessionId: string, status: SessionStatus) => {
@@ -193,6 +203,9 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
     job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
     addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
   }
+  }
+  if (job.type === "export") job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
+  if (job.type === "backup") job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
   job.status = "completed";
   job.progress = 1;
   job.updated_at = now();
@@ -218,6 +231,8 @@ export const paginate = <T>(items: T[], page = 1, pageSize = 20) => ({
 export const purgeUserData = (owner: string) => {
   for (const map of [db.patients, db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
     for (const [id, item] of map as Map<string, { owner_user_id: string }>) if (item.owner_user_id === owner) map.delete(id);
+  for (const map of [db.sessions, db.audioRecords, db.transcripts, db.clinicalNotes, db.reports, db.anamnesis, db.scales, db.forms, db.financial, db.jobs]) {
+    for (const [id, item] of map) if ((item as { owner_user_id: string }).owner_user_id === owner) map.delete(id);
   }
 };
 
@@ -252,6 +267,19 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
     source_subscription_status: snapshot.source_subscription_status ?? previous?.source_subscription_status ?? "none",
     last_entitlements_sync_at: now(),
     last_successful_subscription_validation_at: snapshot.last_successful_subscription_validation_at ?? previous?.last_successful_subscription_validation_at ?? now(),
+
+export const syncLocalEntitlements = (owner: string, snapshot: {
+  features?: Record<string, boolean>;
+  limits?: Record<string, number>;
+  source_subscription_status?: "none" | "trialing" | "active" | "past_due" | "canceled";
+  grace_until?: string;
+}) => {
+  const value = {
+    user_id: owner,
+    features: snapshot.features ?? { transcription: false, export: true, backup: true },
+    limits: snapshot.limits ?? { sessions_per_month: 10 },
+    source_subscription_status: snapshot.source_subscription_status ?? "none",
+    synced_at: now(),
     grace_until: snapshot.grace_until,
   };
   db.localEntitlements.set(owner, value);
@@ -287,6 +315,21 @@ export const canUseFeature = (owner: string, feature: "transcription" | "new_ses
   if (feature === "scales") return ent.entitlements.scales_enabled;
   if (feature === "finance") return ent.entitlements.finance_enabled;
   return true;
+export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, {});
+
+export const canUseFeature = (owner: string, feature: "transcription" | "new_session" | "export" | "backup") => {
+  const ent = resolveLocalEntitlements(owner);
+  const withinGrace = !!ent.grace_until && Date.parse(ent.grace_until) > Date.now();
+  if (feature === "new_session") {
+    const createdThisMonth = byOwner(db.sessions.values(), owner).filter((s) => new Date(s.created_at).getMonth() === new Date().getMonth()).length;
+    if (createdThisMonth >= (ent.limits.sessions_per_month ?? 10) && !withinGrace) return false;
+    if (ent.source_subscription_status === "canceled" && !withinGrace) return false;
+    return true;
+  }
+  if (feature === "transcription") return !!ent.features.transcription || withinGrace;
+  if (feature === "export") return true;
+  if (feature === "backup") return true;
+  return false;
 };
 
 export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((n) => n.session_id === sessionId);

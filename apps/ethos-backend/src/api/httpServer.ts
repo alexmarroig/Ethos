@@ -27,6 +27,13 @@ import {
   listPatients,
   listScales,
   listSessionClinicalNotes,
+  getUserFromToken,
+  handleTranscriberWebhook,
+  listScales,
+  listSessionClinicalNotes,
+  getJob,
+  getUserFromToken,
+  handleTranscriberWebhook,
   login,
   logout,
   paginate,
@@ -36,6 +43,7 @@ import {
   runJob,
   syncLocalEntitlements,
   canUseFeature,
+  runJob,
   validateClinicalNote,
 } from "../application/service";
 import { db } from "../infra/database";
@@ -131,6 +139,8 @@ export const createEthosBackend = () => createServer(async (req, res) => {
             },
           },
         },
+        examples: { idempotency: "Idempotency-Key: 5b5a-...", entitlement_sync: "POST /local/entitlements/sync" },
+        examples: { idempotency: "Idempotency-Key: 5b5a-..." },
       });
     }
 
@@ -183,6 +193,11 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
         grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
         last_successful_subscription_validation_at: typeof snapshot.last_successful_subscription_validation_at === "string" ? snapshot.last_successful_subscription_validation_at : undefined,
+      const synced = syncLocalEntitlements(auth.user.id, {
+        features: typeof snapshot.features === "object" && snapshot.features ? snapshot.features as Record<string, boolean> : undefined,
+        limits: typeof snapshot.limits === "object" && snapshot.limits ? snapshot.limits as Record<string, number> : undefined,
+        source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
+        grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
       });
       return ok(res, requestId, 200, synced);
     }
@@ -224,6 +239,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         && (!from || Date.parse(s.scheduled_at) >= Date.parse(from))
         && (!to || Date.parse(s.scheduled_at) <= Date.parse(to))
       );
+      const base = Array.from(db.sessions.values()).filter((s) => s.owner_user_id === auth.user.id && (!patientId || s.patient_id === patientId));
       return ok(res, requestId, 200, paginate(base, page, pageSize));
     }
     const sessionById = url.pathname.match(/^\/sessions\/([^/]+)$/);
@@ -347,6 +363,10 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       );
       return ok(res, requestId, 200, paginate(filtered, ...Object.values(parsePagination(url))));
     }
+      const body = await readJson(req);
+      return ok(res, requestId, 201, createFinancialEntry(auth.user.id, { patient_id: String(body.patient_id), type: body.type === "payable" ? "payable" : "receivable", amount: Number(body.amount), due_date: String(body.due_date), status: body.status === "paid" ? "paid" : "open", description: String(body.description ?? "") }));
+    }
+    if (method === "GET" && url.pathname === "/financial/entries") return ok(res, requestId, 200, paginate(Array.from(db.financial.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
       if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export is not available");
