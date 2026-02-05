@@ -40,7 +40,32 @@ test("detectAnomalousBehavior encontra picos fora do padrão", () => {
   ]);
 
   assert.equal(anomalies.length, 1);
+  assert.equal(anomalies[0].metric, "latency");
+  assert.match(anomalies[0].severity, /low|medium|high/);
   assert.match(anomalies[0].probableCause, /latência/i);
+});
+
+test("detectAnomalousBehavior detecta anomalia por erro alto sem pico de latência", () => {
+  const anomalies = detectAnomalousBehavior(
+    [
+      { timestamp: "1", latencyMs: 100, errorRate: 0.01, cpuPercent: 40, memoryPercent: 40 },
+      { timestamp: "2", latencyMs: 102, errorRate: 0.011, cpuPercent: 42, memoryPercent: 41 },
+      { timestamp: "3", latencyMs: 98, errorRate: 0.009, cpuPercent: 41, memoryPercent: 40 },
+      { timestamp: "4", latencyMs: 101, errorRate: 0.01, cpuPercent: 43, memoryPercent: 42 },
+      { timestamp: "5", latencyMs: 100, errorRate: 0.08, cpuPercent: 40, memoryPercent: 40 },
+    ],
+    {
+      zScoreByMetric: { error_rate: 1.7, latency: 2.5 },
+      scoreThreshold: 0.8,
+      weights: { error_rate: 0.6, latency: 0.2, cpu: 0.1, memory: 0.1 },
+    },
+  );
+
+  assert.equal(anomalies.length, 1);
+  assert.equal(anomalies[0].timestamp, "5");
+  assert.equal(anomalies[0].metric, "error_rate");
+  assert.match(anomalies[0].probableCause, /erro/i);
+  assert.match(anomalies[0].suggestedAction, /Métrica que disparou/i);
 });
 
 test("suggestRootCauseFromLogs sugere causa para timeout", () => {
