@@ -17,6 +17,15 @@ const req = async (base: string, path: string, method: string, body?: unknown, t
   return { status: res.status, json: await res.json() as any };
 };
 
+const rawReq = async (base: string, path: string, method: string, body: string | undefined, headers: Record<string, string> = {}) => {
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers,
+    body,
+  });
+  return { status: res.status, json: await res.json() as any };
+};
+
 const bootstrap = async () => {
   const server = createEthosBackend();
   server.listen(0);
