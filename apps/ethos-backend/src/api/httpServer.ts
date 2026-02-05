@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import {
   acceptInvite,
@@ -8,6 +8,7 @@ import {
   addAudio,
   addTelemetry,
   adminOverviewMetrics,
+  canUseFeature,
   createAnamnesis,
   createClinicalNoteDraft,
   createFinancialEntry,
@@ -20,20 +21,11 @@ import {
   getByOwner,
   getClinicalNote,
   getJob,
-  getPatient,
-  getReport,
   getUserFromToken,
   handleTranscriberWebhook,
   listPatients,
   listScales,
   listSessionClinicalNotes,
-  getUserFromToken,
-  handleTranscriberWebhook,
-  listScales,
-  listSessionClinicalNotes,
-  getJob,
-  getUserFromToken,
-  handleTranscriberWebhook,
   login,
   logout,
   paginate,
@@ -42,19 +34,17 @@ import {
   resolveLocalEntitlements,
   runJob,
   syncLocalEntitlements,
-  canUseFeature,
-  runJob,
   validateClinicalNote,
 } from "../application/service";
+import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db } from "../infra/database";
-import type { ApiError, ApiEnvelope, Role, SessionStatus } from "../domain/types";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
 const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
 const readJson = async (req: IncomingMessage) => {
   const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   const raw = Buffer.concat(chunks).toString("utf8") || "{}";
   return JSON.parse(raw) as Record<string, unknown>;
 };
@@ -67,26 +57,13 @@ const error = (res: ServerResponse, requestId: string, status: number, code: str
 };
 
 const ok = <T>(res: ServerResponse, requestId: string, status: number, data: T) => {
-  const body: ApiEnvelope<T> = { request_id: requestId, data };
+  const payload: ApiEnvelope<T> = { request_id: requestId, data };
   res.statusCode = status;
   res.setHeader("content-type", "application/json");
-  res.end(JSON.stringify(body));
+  res.end(JSON.stringify(payload));
 };
 
 const tokenFrom = (req: IncomingMessage) => req.headers.authorization?.startsWith("Bearer ") ? req.headers.authorization.slice(7) : null;
-
-const rate = new Map<string, { start: number; count: number }>();
-const rateLimit = (req: IncomingMessage) => {
-  const key = req.socket.remoteAddress ?? "local";
-  const curr = rate.get(key);
-  const now = Date.now();
-  if (!curr || now - curr.start > 60_000) {
-    rate.set(key, { start: now, count: 1 });
-    return true;
-  }
-  curr.count += 1;
-  return curr.count <= 200;
-};
 
 const requireAuth = (req: IncomingMessage, res: ServerResponse, requestId: string, role?: Role) => {
   const token = tokenFrom(req);
@@ -94,17 +71,18 @@ const requireAuth = (req: IncomingMessage, res: ServerResponse, requestId: strin
   const user = getUserFromToken(token);
   if (!user || user.status !== "active") return error(res, requestId, 401, "UNAUTHORIZED", "Invalid session"), null;
   if (role && user.role !== role) return error(res, requestId, 403, "FORBIDDEN", "Missing permission"), null;
-  return { user, token };
+  return { token, user };
 };
 
-const parsePagination = (url: URL) => ({ page: Number(url.searchParams.get("page") ?? 1), pageSize: Number(url.searchParams.get("page_size") ?? 20) });
+const parsePagination = (url: URL) => ({
+  page: Number(url.searchParams.get("page") ?? 1),
+  pageSize: Number(url.searchParams.get("page_size") ?? 20),
+});
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
   const method = req.method ?? "GET";
   const url = new URL(req.url ?? "/", "http://localhost");
-
-  if (!rateLimit(req)) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
 
   try {
     if (method === "GET" && url.pathname === "/openapi.yaml") {
@@ -112,136 +90,82 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       res.setHeader("content-type", "application/yaml");
       return res.end(openApi);
     }
+
     if (method === "GET" && url.pathname === "/contracts") {
       return ok(res, requestId, 200, {
         openapi: "/openapi.yaml",
         response_envelope: { request_id: "string", data: "any" },
         error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
-        examples: {
-          idempotency: "Idempotency-Key: 5b5a-...",
-          entitlement_sync: {
-            path: "/local/entitlements/sync",
-            body: {
-              snapshot: {
-                entitlements: {
-                  exports_enabled: true,
-                  backup_enabled: true,
-                  forms_enabled: true,
-                  scales_enabled: true,
-                  finance_enabled: true,
-                  transcription_minutes_per_month: 600,
-                  max_patients: 200,
-                  max_sessions_per_month: 200,
-                },
-                source_subscription_status: "active",
-                last_successful_subscription_validation_at: new Date().toISOString(),
-              },
-            },
-          },
-        },
-        examples: { idempotency: "Idempotency-Key: 5b5a-...", entitlement_sync: "POST /local/entitlements/sync" },
-        examples: { idempotency: "Idempotency-Key: 5b5a-..." },
       });
     }
 
+    if (method === "POST" && url.pathname === "/auth/login") {
+      const body = await readJson(req);
+      const session = login(String(body.email ?? ""), String(body.password ?? ""));
+      if (!session) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid credentials");
+      return ok(res, requestId, 200, { user: session.user, token: session.token });
+    }
+
     if (method === "POST" && url.pathname === "/auth/invite") {
-      const auth = requireAuth(req, res, requestId, "admin"); if (!auth) return;
+      const auth = requireAuth(req, res, requestId, "admin");
+      if (!auth) return;
       const body = await readJson(req);
       if (typeof body.email !== "string" || !body.email.includes("@")) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
       const { invite, token } = createInvite(body.email);
       addAudit(auth.user.id, "INVITE_CREATED");
       return ok(res, requestId, 201, { invite_id: invite.id, invite_token: token, expires_at: invite.expires_at });
     }
+
     if (method === "POST" && url.pathname === "/auth/accept-invite") {
       const body = await readJson(req);
-      if (typeof body.token !== "string" || typeof body.name !== "string" || typeof body.password !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid payload");
-      const user = acceptInvite(body.token, body.name, body.password);
-      if (!user) return error(res, requestId, 400, "INVALID_INVITE", "Invite token invalid or expired");
-      return ok(res, requestId, 201, { id: user.id, email: user.email, role: user.role });
+      const user = acceptInvite(String(body.token ?? ""), String(body.name ?? ""), String(body.password ?? ""));
+      if (!user) return error(res, requestId, 422, "INVITE_INVALID", "Invite invalid or expired");
+      return ok(res, requestId, 201, user);
     }
-    if (method === "POST" && url.pathname === "/auth/login") {
-      const body = await readJson(req);
-      const result = login(String(body.email ?? ""), String(body.password ?? ""));
-      if (!result) return error(res, requestId, 401, "INVALID_CREDENTIALS", "Invalid credentials");
-      return ok(res, requestId, 200, { token: result.token, user: { id: result.user.id, email: result.user.email, role: result.user.role, name: result.user.name } });
-    }
+
     if (method === "POST" && url.pathname === "/auth/logout") {
-      const auth = requireAuth(req, res, requestId); if (!auth) return;
+      const auth = requireAuth(req, res, requestId);
+      if (!auth) return;
       logout(auth.token);
-      return ok(res, requestId, 200, { ok: true });
+      return ok(res, requestId, 200, { success: true });
     }
 
-    const auth = requireAuth(req, res, requestId); if (!auth) return;
-    if (auth.user.role === "admin" && CLINICAL_PATHS.some((r) => r.test(url.pathname))) return error(res, requestId, 403, "FORBIDDEN", "Admin cannot access clinical content");
+    const auth = requireAuth(req, res, requestId);
+    if (!auth) return;
+    const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
+    if (isClinicalPath && auth.user.role !== "user") return error(res, requestId, 403, "FORBIDDEN", "Clinical routes are user-only");
 
-    if (method === "GET" && url.pathname === "/local/entitlements") return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
     if (method === "POST" && url.pathname === "/local/entitlements/sync") {
       const body = await readJson(req);
-      const snapshot = typeof body.snapshot === "object" && body.snapshot ? body.snapshot as Record<string, unknown> : {};
-      const ent = typeof snapshot.entitlements === "object" && snapshot.entitlements ? snapshot.entitlements as Record<string, unknown> : {};
-      const synced = syncLocalEntitlements(auth.user.id, {
-        entitlements: {
-          exports_enabled: typeof ent.exports_enabled === "boolean" ? ent.exports_enabled : undefined,
-          backup_enabled: typeof ent.backup_enabled === "boolean" ? ent.backup_enabled : undefined,
-          forms_enabled: typeof ent.forms_enabled === "boolean" ? ent.forms_enabled : undefined,
-          scales_enabled: typeof ent.scales_enabled === "boolean" ? ent.scales_enabled : undefined,
-          finance_enabled: typeof ent.finance_enabled === "boolean" ? ent.finance_enabled : undefined,
-          transcription_minutes_per_month: typeof ent.transcription_minutes_per_month === "number" ? ent.transcription_minutes_per_month : undefined,
-          max_patients: typeof ent.max_patients === "number" ? ent.max_patients : undefined,
-          max_sessions_per_month: typeof ent.max_sessions_per_month === "number" ? ent.max_sessions_per_month : undefined,
-        },
-        source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
-        grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
-        last_successful_subscription_validation_at: typeof snapshot.last_successful_subscription_validation_at === "string" ? snapshot.last_successful_subscription_validation_at : undefined,
-      const synced = syncLocalEntitlements(auth.user.id, {
-        features: typeof snapshot.features === "object" && snapshot.features ? snapshot.features as Record<string, boolean> : undefined,
-        limits: typeof snapshot.limits === "object" && snapshot.limits ? snapshot.limits as Record<string, number> : undefined,
-        source_subscription_status: ["none", "trialing", "active", "past_due", "canceled"].includes(String(snapshot.source_subscription_status ?? "")) ? snapshot.source_subscription_status as "none" | "trialing" | "active" | "past_due" | "canceled" : undefined,
-        grace_until: typeof snapshot.grace_until === "string" ? snapshot.grace_until : undefined,
-      });
-      return ok(res, requestId, 200, synced);
+      const snapshot = (body.snapshot ?? {}) as Parameters<typeof syncLocalEntitlements>[1];
+      return ok(res, requestId, 200, syncLocalEntitlements(auth.user.id, snapshot));
     }
 
-    if (method === "GET" && url.pathname === "/admin/metrics/overview") {
-      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
-      return ok(res, requestId, 200, adminOverviewMetrics());
-    }
-    if (method === "GET" && url.pathname === "/admin/audit") {
-      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
-      return ok(res, requestId, 200, Array.from(db.audit.values()));
+    if (method === "GET" && url.pathname === "/local/entitlements") {
+      return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
     }
 
-    const idempotency = req.headers["idempotency-key"];
-    const idemKey = typeof idempotency === "string" ? `${auth.user.id}:${method}:${url.pathname}:${idempotency}` : "";
-    if (idemKey && db.idempotency.has(idemKey)) {
-      const item = db.idempotency.get(idemKey)!;
-      return ok(res, requestId, item.statusCode, item.body);
+    const idemKey = req.headers["idempotency-key"]?.toString();
+    if (method === "POST" && url.pathname === "/sessions" && idemKey) {
+      const existing = db.idempotency.get(idemKey);
+      if (existing) return ok(res, requestId, existing.statusCode, existing.body);
     }
 
     if (method === "POST" && url.pathname === "/sessions") {
       if (!canUseFeature(auth.user.id, "new_session")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Subscription required to create new sessions");
       const body = await readJson(req);
       if (typeof body.patient_id !== "string" || typeof body.scheduled_at !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and scheduled_at required");
-      const created = createSession(auth.user.id, body.patient_id, body.scheduled_at);
-      if (idemKey) db.idempotency.set(idemKey, { statusCode: 201, body: created, createdAt: new Date().toISOString() });
-      return ok(res, requestId, 201, created);
+      const session = createSession(auth.user.id, body.patient_id, body.scheduled_at);
+      if (idemKey) db.idempotency.set(idemKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
+      return ok(res, requestId, 201, session);
     }
+
     if (method === "GET" && url.pathname === "/sessions") {
       const { page, pageSize } = parsePagination(url);
-      const patientId = url.searchParams.get("patient_id");
-      const status = url.searchParams.get("status");
-      const from = url.searchParams.get("from");
-      const to = url.searchParams.get("to");
-      const base = Array.from(db.sessions.values()).filter((s) =>
-        s.owner_user_id === auth.user.id
-        && (!patientId || s.patient_id === patientId)
-        && (!status || s.status === status)
-        && (!from || Date.parse(s.scheduled_at) >= Date.parse(from))
-        && (!to || Date.parse(s.scheduled_at) <= Date.parse(to))
-      );
-      const base = Array.from(db.sessions.values()).filter((s) => s.owner_user_id === auth.user.id && (!patientId || s.patient_id === patientId));
-      return ok(res, requestId, 200, paginate(base, page, pageSize));
+      const items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
+
     const sessionById = url.pathname.match(/^\/sessions\/([^/]+)$/);
     if (method === "GET" && sessionById) {
       const session = getByOwner(db.sessions, auth.user.id, sessionById[1]);
@@ -259,21 +183,20 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, session);
     }
 
-    const audio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
-    if (method === "POST" && audio) {
+    const sessionAudio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
+    if (method === "POST" && sessionAudio) {
       const body = await readJson(req);
       if (body.consent_confirmed !== true) return error(res, requestId, 422, "CONSENT_REQUIRED", "Explicit consent is required");
-      if (!getByOwner(db.sessions, auth.user.id, audio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
-      const record = addAudio(auth.user.id, audio[1], String(body.file_path ?? "vault://audio.enc"));
-      return ok(res, requestId, 201, record);
+      if (!getByOwner(db.sessions, auth.user.id, sessionAudio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+      return ok(res, requestId, 201, addAudio(auth.user.id, sessionAudio[1], String(body.file_path ?? "vault://audio.enc")));
     }
 
-    const transcribe = url.pathname.match(/^\/sessions\/([^/]+)\/transcribe$/);
-    if (method === "POST" && transcribe) {
-      if (!canUseFeature(auth.user.id, "transcription")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Transcription is not available for current subscription");
+    const sessionTranscribe = url.pathname.match(/^\/sessions\/([^/]+)\/transcribe$/);
+    if (method === "POST" && sessionTranscribe) {
+      if (!canUseFeature(auth.user.id, "transcription")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Transcription unavailable for this subscription");
+      if (!getByOwner(db.sessions, auth.user.id, sessionTranscribe[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
       const body = await readJson(req);
-      if (!getByOwner(db.sessions, auth.user.id, transcribe[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
-      const job = createJob(auth.user.id, "transcription", transcribe[1]);
+      const job = createJob(auth.user.id, "transcription", sessionTranscribe[1]);
       void runJob(job.id, { rawText: String(body.raw_text ?? "") });
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
@@ -282,8 +205,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && noteCreate) {
       const body = await readJson(req);
       if (typeof body.content !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "content required");
-      const note = createClinicalNoteDraft(auth.user.id, noteCreate[1], body.content);
-      return ok(res, requestId, 201, note);
+      return ok(res, requestId, 201, createClinicalNoteDraft(auth.user.id, noteCreate[1], body.content));
     }
 
     const noteValidate = url.pathname.match(/^\/clinical-notes\/([^/]+)\/validate$/);
@@ -293,11 +215,6 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, note);
     }
 
-    const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
-    if (method === "GET" && sessionNotes) {
-      return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), ...Object.values(parsePagination(url))));
-    }
-
     const noteById = url.pathname.match(/^\/clinical-notes\/([^/]+)$/);
     if (method === "GET" && noteById) {
       const note = getClinicalNote(auth.user.id, noteById[1]);
@@ -305,86 +222,97 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, note);
     }
 
+    const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
+    if (method === "GET" && sessionNotes) {
+      const { page, pageSize } = parsePagination(url);
+      return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
+    }
+
     if (method === "POST" && url.pathname === "/reports") {
       const body = await readJson(req);
-      const report = createReport(auth.user.id, String(body.patient_id), (body.purpose as "instituição" | "profissional" | "paciente") ?? "profissional", String(body.content ?? ""));
+      const report = createReport(auth.user.id, String(body.patient_id ?? ""), String(body.purpose ?? "profissional") as "instituição" | "profissional" | "paciente", String(body.content ?? ""));
       if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note is required before creating reports");
       return ok(res, requestId, 201, report);
     }
+
     if (method === "GET" && url.pathname === "/reports") {
       const { page, pageSize } = parsePagination(url);
-      const patientId = url.searchParams.get("patient_id");
-      const items = Array.from(db.reports.values()).filter((x) => x.owner_user_id === auth.user.id && (!patientId || x.patient_id === patientId));
+      const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
       return ok(res, requestId, 200, paginate(items, page, pageSize));
-    }
-
-    const reportById = url.pathname.match(/^\/reports\/([^/]+)$/);
-    if (method === "GET" && reportById) {
-      const report = getReport(auth.user.id, reportById[1]);
-      if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
-      return ok(res, requestId, 200, report);
     }
 
     if (method === "POST" && url.pathname === "/anamnesis") {
       const body = await readJson(req);
-      return ok(res, requestId, 201, createAnamnesis(auth.user.id, String(body.patient_id), String(body.template_id), (body.content ?? {}) as Record<string, unknown>));
+      return ok(res, requestId, 201, createAnamnesis(auth.user.id, String(body.patient_id ?? ""), String(body.template_id ?? "default"), (body.content as Record<string, unknown>) ?? {}));
     }
-    if (method === "GET" && url.pathname === "/anamnesis") return ok(res, requestId, 200, paginate(Array.from(db.anamnesis.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
+
+    if (method === "GET" && url.pathname === "/anamnesis") {
+      const { page, pageSize } = parsePagination(url);
+      const items = Array.from(db.anamnesis.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    if (method === "GET" && url.pathname === "/scales") return ok(res, requestId, 200, listScales());
 
     if (method === "POST" && url.pathname === "/scales/record") {
-      if (!canUseFeature(auth.user.id, "scales")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Scales disabled by subscription");
       const body = await readJson(req);
-      return ok(res, requestId, 201, createScaleRecord(auth.user.id, String(body.scale_id), String(body.patient_id), Number(body.score ?? 0)));
+      return ok(res, requestId, 201, createScaleRecord(auth.user.id, String(body.scale_id ?? ""), String(body.patient_id ?? ""), Number(body.score ?? 0)));
     }
-    if (method === "GET" && url.pathname === "/scales") return ok(res, requestId, 200, listScales());
-    if (method === "GET" && url.pathname === "/scales/records") return ok(res, requestId, 200, paginate(Array.from(db.scales.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
+
+    if (method === "GET" && url.pathname === "/scales/records") {
+      const { page, pageSize } = parsePagination(url);
+      const items = Array.from(db.scales.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
 
     if (method === "POST" && url.pathname === "/forms/entry") {
-      if (!canUseFeature(auth.user.id, "forms")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Forms disabled by subscription");
       const body = await readJson(req);
-      return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id), String(body.form_id), (body.content ?? {}) as Record<string, unknown>));
+      return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}));
     }
-    if (method === "GET" && url.pathname === "/forms") return ok(res, requestId, 200, paginate(Array.from(db.forms.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
+
+    if (method === "GET" && url.pathname === "/forms") {
+      const { page, pageSize } = parsePagination(url);
+      const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
 
     if (method === "POST" && url.pathname === "/financial/entry") {
-      if (!canUseFeature(auth.user.id, "finance")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Finance disabled by subscription");
       const body = await readJson(req);
-      return ok(res, requestId, 201, createFinancialEntry(auth.user.id, { patient_id: String(body.patient_id), type: body.type === "payable" ? "payable" : "receivable", amount: Number(body.amount), due_date: String(body.due_date), status: body.status === "paid" ? "paid" : "open", description: String(body.description ?? "") }));
+      return ok(res, requestId, 201, createFinancialEntry(auth.user.id, {
+        patient_id: String(body.patient_id ?? ""),
+        type: (body.type as "receivable" | "payable") ?? "receivable",
+        amount: Number(body.amount ?? 0),
+        due_date: String(body.due_date ?? new Date().toISOString()),
+        status: "open",
+        description: String(body.description ?? ""),
+      }));
     }
+
     if (method === "GET" && url.pathname === "/financial/entries") {
-      const from = url.searchParams.get("from");
-      const to = url.searchParams.get("to");
-      const status = url.searchParams.get("status");
-      const filtered = Array.from(db.financial.values()).filter((x) =>
-        x.owner_user_id === auth.user.id
-        && (!from || Date.parse(x.due_date) >= Date.parse(from))
-        && (!to || Date.parse(x.due_date) <= Date.parse(to))
-        && (!status || x.status === status)
-      );
-      return ok(res, requestId, 200, paginate(filtered, ...Object.values(parsePagination(url))));
+      const { page, pageSize } = parsePagination(url);
+      const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
-      const body = await readJson(req);
-      return ok(res, requestId, 201, createFinancialEntry(auth.user.id, { patient_id: String(body.patient_id), type: body.type === "payable" ? "payable" : "receivable", amount: Number(body.amount), due_date: String(body.due_date), status: body.status === "paid" ? "paid" : "open", description: String(body.description ?? "") }));
-    }
-    if (method === "GET" && url.pathname === "/financial/entries") return ok(res, requestId, 200, paginate(Array.from(db.financial.values()).filter((x) => x.owner_user_id === auth.user.id), ...Object.values(parsePagination(url))));
 
     if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
-      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export is not available");
       const job = createJob(auth.user.id, "export");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
 
     if (method === "POST" && url.pathname === "/backup") {
-      if (!canUseFeature(auth.user.id, "backup")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Backup is not available");
       const job = createJob(auth.user.id, "backup");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
-    if (method === "POST" && url.pathname === "/restore") return ok(res, requestId, 202, { restored: true });
+
+    if (method === "POST" && url.pathname === "/restore") {
+      return ok(res, requestId, 202, { accepted: true });
+    }
+
     if (method === "POST" && url.pathname === "/purge") {
       purgeUserData(auth.user.id);
-      return ok(res, requestId, 202, { purged: true });
+      return ok(res, requestId, 202, { accepted: true });
     }
 
     const jobById = url.pathname.match(/^\/jobs\/([^/]+)$/);
@@ -396,36 +324,38 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     if (method === "POST" && (url.pathname === "/api/webhook" || url.pathname === "/webhooks/transcriber")) {
       const body = await readJson(req);
-      if (typeof body.job_id !== "string" || typeof body.status !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "job_id and status required");
-      const updated = handleTranscriberWebhook(body.job_id, body.status as "queued" | "running" | "completed" | "failed", typeof body.error_code === "string" ? body.error_code : undefined);
+      const updated = handleTranscriberWebhook(String(body.job_id ?? ""), String(body.status ?? "failed") as any, typeof body.error_code === "string" ? body.error_code : undefined);
       if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Job not found");
-      addTelemetry({ user_id: updated.owner_user_id, event_type: "TRANSCRIBER_WEBHOOK", route: url.pathname, status_code: 202, error_code: updated.error_code });
       return ok(res, requestId, 202, { accepted: true });
     }
 
+    if (method === "GET" && url.pathname === "/patients") return ok(res, requestId, 200, listPatients(auth.user.id));
+
     if (method === "POST" && url.pathname === "/ai/organize") {
       const body = await readJson(req);
-      return ok(res, requestId, 200, { structured_text: String(body.text ?? "").trim(), compliance: "Apenas organização textual. Sem diagnóstico ou conduta." });
+      const text = String(body.text ?? "").trim();
+      return ok(res, requestId, 200, { summary: text, tokens_estimate: text.split(/\s+/).filter(Boolean).length });
     }
 
-
-    if (method === "GET" && url.pathname === "/patients") {
-      return ok(res, requestId, 200, paginate(listPatients(auth.user.id), ...Object.values(parsePagination(url))));
-    }
-    const patientById = url.pathname.match(/^\/patients\/([^/]+)$/);
-    if (method === "GET" && patientById) {
-      const patient = getPatient(auth.user.id, patientById[1]);
-      if (!patient) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
-      return ok(res, requestId, 200, patient);
+    if (method === "GET" && url.pathname === "/admin/metrics/overview") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      return ok(res, requestId, 200, adminOverviewMetrics());
     }
 
-    if (method === "POST" && url.pathname === "/local/telemetry/flush") {
-      const flushed = [];
-      return ok(res, requestId, 200, { sent: flushed.length });
+    if (method === "GET" && url.pathname === "/admin/audit") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      return ok(res, requestId, 200, Array.from(db.audit.values()));
     }
+
     return error(res, requestId, 404, "NOT_FOUND", "Route not found");
-  } catch {
-    addTelemetry({ user_id: tokenFrom(req) ? getUserFromToken(tokenFrom(req)!)?.id : undefined, event_type: "ERROR", route: url.pathname, status_code: 500, error_code: "BAD_REQUEST" });
-    return error(res, requestId, 400, "BAD_REQUEST", "Invalid request payload");
+  } catch (err) {
+    addTelemetry({ user_id: authUserId(req), event_type: "HTTP_ERROR", route: url.pathname, status_code: 500, error_code: (err as Error).name });
+    return error(res, requestId, 500, "INTERNAL_ERROR", "Unexpected server error");
   }
 });
+
+const authUserId = (req: IncomingMessage) => {
+  const token = tokenFrom(req);
+  if (!token) return undefined;
+  return getUserFromToken(token)?.id;
+};
