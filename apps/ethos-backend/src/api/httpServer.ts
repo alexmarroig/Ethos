@@ -42,11 +42,37 @@ import { db } from "../infra/database";
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
 const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
+class BadRequestError extends Error {
+  readonly statusCode = 400;
+
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BadRequestError";
+  }
+}
+
 const readJson = async (req: IncomingMessage) => {
+  const contentType = req.headers["content-type"]?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new BadRequestError("INVALID_JSON", "Expected content-type application/json");
+  }
+
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  const raw = Buffer.concat(chunks).toString("utf8") || "{}";
-  return JSON.parse(raw) as Record<string, unknown>;
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+
+  if (!raw) {
+    throw new BadRequestError("INVALID_JSON", "Request body must be a valid JSON object");
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new BadRequestError("INVALID_JSON", "Request body must be a valid JSON object");
+  }
 };
 
 const error = (res: ServerResponse, requestId: string, status: number, code: string, message: string) => {
@@ -349,6 +375,10 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     return error(res, requestId, 404, "NOT_FOUND", "Route not found");
   } catch (err) {
+    if (err instanceof BadRequestError) {
+      return error(res, requestId, err.statusCode, err.code, err.message);
+    }
+
     addTelemetry({ user_id: authUserId(req), event_type: "HTTP_ERROR", route: url.pathname, status_code: 500, error_code: (err as Error).name });
     return error(res, requestId, 500, "INTERNAL_ERROR", "Unexpected server error");
   }

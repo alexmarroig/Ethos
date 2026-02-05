@@ -17,6 +17,15 @@ const req = async (base: string, path: string, method: string, body?: unknown, t
   return { status: res.status, json: await res.json() as any };
 };
 
+const rawReq = async (base: string, path: string, method: string, body: string | undefined, headers: Record<string, string> = {}) => {
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers,
+    body,
+  });
+  return { status: res.status, json: await res.json() as any };
+};
+
 const bootstrap = async () => {
   const server = createEthosBackend();
   server.listen(0);
@@ -81,5 +90,35 @@ test("jobs async + webhook + idempotency", async () => {
   assert.equal(hook.status, 202);
   const job = await req(base, `/jobs/${transcribe.json.data.job_id}`, "GET", undefined, userToken);
   assert.equal(job.json.data.status, "completed");
+  server.close();
+});
+
+test("json inválido no payload retorna 400 e não 500", async () => {
+  const { server, base } = await bootstrap();
+  const response = await rawReq(base, "/auth/login", "POST", '{"email":"x"', { "content-type": "application/json" });
+
+  assert.equal(response.status, 400);
+  assert.notEqual(response.status, 500);
+  assert.equal(response.json.error.code, "INVALID_JSON");
+  server.close();
+});
+
+test("corpo vazio retorna 400 e não 500", async () => {
+  const { server, base } = await bootstrap();
+  const response = await rawReq(base, "/auth/login", "POST", undefined, { "content-type": "application/json" });
+
+  assert.equal(response.status, 400);
+  assert.notEqual(response.status, 500);
+  assert.equal(response.json.error.code, "INVALID_JSON");
+  server.close();
+});
+
+test("content-type não json retorna 400 e não 500", async () => {
+  const { server, base } = await bootstrap();
+  const response = await rawReq(base, "/auth/login", "POST", "email=x&password=y", { "content-type": "application/x-www-form-urlencoded" });
+
+  assert.equal(response.status, 400);
+  assert.notEqual(response.status, 500);
+  assert.equal(response.json.error.code, "INVALID_JSON");
   server.close();
 });
