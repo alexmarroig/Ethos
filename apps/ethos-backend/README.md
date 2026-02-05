@@ -1,35 +1,23 @@
-# ETHOS Backend (multiusuário, offline-first)
+# ETHOS Backend
 
-Backend clínico local com isolamento por usuário, RBAC, convite e telemetria sanitizada.
+Backend HTTP em TypeScript com foco em isolamento clínico multiusuário.
 
-## Destaques
-- Auth por convite: `/auth/invite` -> `/auth/accept-invite` -> `/auth/login`
-- RBAC: `user` e `admin`
-- Isolamento clínico por `owner_user_id` em entidades clínicas
-- Admin global com visão sanitizada (sem conteúdo clínico)
-- Transcrição assíncrona com jobs (`POST /sessions/{id}/transcribe`, `GET /jobs/{job_id}`)
-- OpenAPI disponível em `/openapi.yaml`
+## Principais garantias
+- Isolamento total por `owner_user_id`.
+- Auth por convite (`/auth/invite`, `/auth/accept-invite`, `/auth/login`).
+- Admin global com métricas/auditoria sanitizadas e bloqueio de conteúdo clínico.
+- Jobs assíncronos para transcrição/export/backup + polling por `/jobs/{id}`.
+- Idempotência por `Idempotency-Key` em endpoints críticos.
+- Contratos padronizados com `request_id`.
 
-## Execução
-# ETHOS Backend (offline-first)
+## Estrutura
+- `src/domain`: tipos de domínio.
+- `src/application`: regras de negócio.
+- `src/infra`: persistência e utilitários de segurança.
+- `src/api`: camada HTTP.
 
-Backend clínico local com foco em prontuário draft-first, validação humana obrigatória e segurança ética.
-
-## Princípios implementados
-- Offline-first (sem dependências externas obrigatórias)
-- Draft-first para prontuário
-- Validação humana explícita
-- IA restrita a organização textual
-- Logging sem conteúdo clínico
-
-## Executar
+## Rodar
 ```bash
-npm --workspace apps/ethos-backend run dev
+npm run dev
+npm test
 ```
-
-## Testes
-```bash
-npm --workspace apps/ethos-backend run test
-```
-## Contratos
-`GET /contracts` retorna os contratos de endpoint esperados para integração.
