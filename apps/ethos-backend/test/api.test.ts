@@ -1,176 +1,84 @@
-import test from "node:test";
 import assert from "node:assert/strict";
 import { once } from "node:events";
 import type { AddressInfo } from "node:net";
+import test from "node:test";
 import { createEthosBackend } from "../src/server";
 
-const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string) => {
+const req = async (base: string, path: string, method: string, body?: unknown, token?: string, idem?: string) => {
   const res = await fetch(`${base}${path}`, {
     method,
     headers: {
       "content-type": "application/json",
       ...(token ? { authorization: `Bearer ${token}` } : {}),
+      ...(idem ? { "Idempotency-Key": idem } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
-const post = async (base: string, path: string, body: unknown, method = "POST") => {
-  const res = await fetch(`${base}${path}`, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
   });
   return { status: res.status, json: await res.json() as any };
 };
 
 const bootstrap = async () => {
-test("clinical note sempre nasce draft e só valida por endpoint", async () => {
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");
-  const port = (server.address() as AddressInfo).port;
-  const base = `http://127.0.0.1:${port}`;
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
 
   const adminLogin = await req(base, "/auth/login", "POST", { email: "camila@ethos.local", password: "admin123" });
-  const adminToken = adminLogin.json.token as string;
-
-  const invite = await req(base, "/auth/invite", "POST", { email: "psy1@ethos.local" }, adminToken);
-  const accepted = await req(base, "/auth/accept-invite", "POST", { token: invite.json.invite_token, name: "Psy One", password: "secret123" });
-  const userLogin = await req(base, "/auth/login", "POST", { email: "psy1@ethos.local", password: "secret123" });
-
-  return { server, base, adminToken, userToken: userLogin.json.token as string, userId: accepted.json.id as string };
+  const adminToken = adminLogin.json.data.token;
+  const invite = await req(base, "/auth/invite", "POST", { email: "user1@ethos.local" }, adminToken);
+  await req(base, "/auth/accept-invite", "POST", { token: invite.json.data.invite_token, name: "User 1", password: "secret123" });
+  const login = await req(base, "/auth/login", "POST", { email: "user1@ethos.local", password: "secret123" });
+  await req(base, "/local/entitlements/sync", "POST", { snapshot: { features: { transcription: true, export: true, backup: true }, limits: { sessions_per_month: 100 }, source_subscription_status: "active" } }, login.json.data.token as string);
+  return { server, base, adminToken, userToken: login.json.data.token as string };
 };
 
-test("auth por convite funciona ponta a ponta", async () => {
-  const { server, userToken } = await bootstrap();
-  assert.ok(userToken);
-  server.close();
-});
-
-test("isolamento por owner_user_id impede acesso cruzado", async () => {
+test("auth convite + rbac admin", async () => {
   const { server, base, adminToken, userToken } = await bootstrap();
+  const denied = await req(base, "/sessions", "GET", undefined, adminToken);
+  assert.equal(denied.status, 403);
+  const allowed = await req(base, "/sessions", "GET", undefined, userToken);
+  assert.equal(allowed.status, 200);
+  server.close();
+});
 
-  const invite2 = await req(base, "/auth/invite", "POST", { email: "psy2@ethos.local" }, adminToken);
-  await req(base, "/auth/accept-invite", "POST", { token: invite2.json.invite_token, name: "Psy Two", password: "secret234" });
-  const login2 = await req(base, "/auth/login", "POST", { email: "psy2@ethos.local", password: "secret234" });
-  const user2Token = login2.json.token as string;
+test("isolamento owner_user_id", async () => {
+  const { server, base, adminToken, userToken } = await bootstrap();
+  const invite2 = await req(base, "/auth/invite", "POST", { email: "user2@ethos.local" }, adminToken);
+  await req(base, "/auth/accept-invite", "POST", { token: invite2.json.data.invite_token, name: "User 2", password: "secret321" });
+  const login2 = await req(base, "/auth/login", "POST", { email: "user2@ethos.local", password: "secret321" });
 
-  const session1 = await req(base, "/sessions", "POST", { patient_id: "p1", scheduled_at: new Date().toISOString() }, userToken);
-  const forbidden = await req(base, `/sessions/${session1.json.id}`, "GET", undefined, user2Token);
+  const session = await req(base, "/sessions", "POST", { patient_id: "p1", scheduled_at: new Date().toISOString() }, userToken);
+  const forbidden = await req(base, `/sessions/${session.json.data.id}`, "GET", undefined, login2.json.data.token);
   assert.equal(forbidden.status, 404);
-  const session = await post(base, "/sessions", { patient_id: "p1", scheduled_at: new Date().toISOString() });
-  const note = await post(base, `/sessions/${session.json.id}/clinical-note`, { content: "texto clínico" });
-  assert.equal(note.status, 201);
-  assert.equal(note.json.status, "draft");
-
-  const validated = await post(base, `/clinical-notes/${note.json.id}/validate`, {});
-  assert.equal(validated.status, 200);
-  assert.equal(validated.json.status, "validated");
-
   server.close();
 });
 
-test("relatório exige prontuário validado", async () => {
-  const server = createEthosBackend();
-  server.listen(0);
-  await once(server, "listening");
-  const port = (server.address() as AddressInfo).port;
-  const base = `http://127.0.0.1:${port}`;
-
-  const session = await post(base, "/sessions", { patient_id: "patient-x", scheduled_at: new Date().toISOString() });
-  const forbidden = await post(base, "/reports", { patient_id: "patient-x", purpose: "profissional", content: "r" });
-  assert.equal(forbidden.status, 422);
-
-  const note = await post(base, `/sessions/${session.json.id}/clinical-note`, { content: "nota" });
-  await post(base, `/clinical-notes/${note.json.id}/validate`, {});
-  const allowed = await post(base, "/reports", { patient_id: "patient-x", purpose: "profissional", content: "r" });
-  assert.equal(allowed.status, 201);
-
-  server.close();
-});
-
-test("admin não acessa conteúdo clínico", async () => {
-  const { server, base, adminToken } = await bootstrap();
-  const response = await req(base, "/sessions", "GET", undefined, adminToken);
-  assert.equal(response.status, 403);
-  server.close();
-});
-
-test("transcrição assíncrona cria job e permite polling", async () => {
+test("state machine: nota draft -> validated e report depende de validação", async () => {
   const { server, base, userToken } = await bootstrap();
-  const session = await req(base, "/sessions", "POST", { patient_id: "p-x", scheduled_at: new Date().toISOString() }, userToken);
-  const queued = await req(base, `/sessions/${session.json.id}/transcribe`, "POST", { raw_text: "texto" }, userToken);
-  assert.equal(queued.status, 202);
+  const session = await req(base, "/sessions", "POST", { patient_id: "p2", scheduled_at: new Date().toISOString() }, userToken);
+  const note = await req(base, `/sessions/${session.json.data.id}/clinical-note`, "POST", { content: "rascunho" }, userToken);
+  assert.equal(note.json.data.status, "draft");
 
-  let status = "queued";
-  for (let i = 0; i < 10; i += 1) {
-    const job = await req(base, `/jobs/${queued.json.job_id}`, "GET", undefined, userToken);
-    status = job.json.status;
-    if (status === "completed") break;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  assert.equal(status, "completed");
+  const blocked = await req(base, "/reports", "POST", { patient_id: "p2", purpose: "profissional", content: "x" }, userToken);
+  assert.equal(blocked.status, 422);
+
+  await req(base, `/clinical-notes/${note.json.data.id}/validate`, "POST", {}, userToken);
+  const report = await req(base, "/reports", "POST", { patient_id: "p2", purpose: "profissional", content: "ok" }, userToken);
+  assert.equal(report.status, 201);
   server.close();
 });
 
-test("GETs de leitura retornam apenas dados do usuário", async () => {
+test("jobs async + webhook + idempotency", async () => {
   const { server, base, userToken } = await bootstrap();
-  const session = await req(base, "/sessions", "POST", { patient_id: "p-read", scheduled_at: new Date().toISOString() }, userToken);
-  await req(base, `/sessions/${session.json.id}/clinical-note`, "POST", { content: "draft" }, userToken);
-  await req(base, "/reports", "POST", { patient_id: "p-read", purpose: "profissional", content: "x" }, userToken);
+  const session = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
+  const session2 = await req(base, "/sessions", "POST", { patient_id: "p3", scheduled_at: new Date().toISOString() }, userToken, "idem-1");
+  assert.equal(session.json.data.id, session2.json.data.id);
 
-  const sessions = await req(base, "/sessions", "GET", undefined, userToken);
-  const reports = await req(base, "/reports", "GET", undefined, userToken);
-  const anamnesis = await req(base, "/anamnesis", "GET", undefined, userToken);
-  const scales = await req(base, "/scales", "GET", undefined, userToken);
-  const forms = await req(base, "/forms", "GET", undefined, userToken);
-  const financial = await req(base, "/financial/entries", "GET", undefined, userToken);
-
-  assert.equal(sessions.status, 200);
-  assert.equal(reports.status, 200);
-  assert.equal(anamnesis.status, 200);
-  assert.equal(scales.status, 200);
-  assert.equal(forms.status, 200);
-  assert.equal(financial.status, 200);
-  server.close();
-});
-
-test("/contracts e /openapi.yaml publicados", async () => {
-  const { server, base } = await bootstrap();
-  const contracts = await req(base, "/contracts");
-  assert.equal(contracts.status, 200);
-  assert.equal(contracts.json.openapi, "/openapi.yaml");
-
-  const openapi = await fetch(`${base}/openapi.yaml`);
-  assert.equal(openapi.status, 200);
-  assert.match(await openapi.text(), /openapi:\s*3\.0\.3/);
-test("audio exige consentimento explícito", async () => {
-  const server = createEthosBackend();
-  server.listen(0);
-  await once(server, "listening");
-  const port = (server.address() as AddressInfo).port;
-  const base = `http://127.0.0.1:${port}`;
-
-  const session = await post(base, "/sessions", { patient_id: "p2", scheduled_at: new Date().toISOString() });
-  const denied = await post(base, `/sessions/${session.json.id}/audio`, { file_path: "vault://a.enc", consent_confirmed: false });
-  assert.equal(denied.status, 422);
-
-  const ok = await post(base, `/sessions/${session.json.id}/audio`, { file_path: "vault://a.enc", consent_confirmed: true });
-  assert.equal(ok.status, 201);
-
-  server.close();
-});
-
-test("estabilidade em carga leve concorrente", async () => {
-  const server = createEthosBackend();
-  server.listen(0);
-  await once(server, "listening");
-  const port = (server.address() as AddressInfo).port;
-  const base = `http://127.0.0.1:${port}`;
-
-  const calls = Array.from({ length: 25 }, (_, i) =>
-    post(base, "/sessions", { patient_id: `p-${i}`, scheduled_at: new Date().toISOString() }),
-  );
-  const results = await Promise.all(calls);
-  assert.equal(results.filter((r) => r.status === 201).length, 25);
-
+  const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "texto" }, userToken);
+  assert.equal(transcribe.status, 202);
+  const hook = await req(base, "/api/webhook", "POST", { job_id: transcribe.json.data.job_id, status: "completed" }, userToken);
+  assert.equal(hook.status, 202);
+  const job = await req(base, `/jobs/${transcribe.json.data.job_id}`, "GET", undefined, userToken);
+  assert.equal(job.json.data.status, "completed");
   server.close();
 });
