@@ -1,5 +1,13 @@
 import crypto from "node:crypto";
 import { db, encrypt, hashInviteToken, hashPassword, seeds, uid, verifyPassword } from "../infra/database";
+import {
+  detectAnomalousBehavior,
+  detectBottlenecks,
+  predictFailureRisk,
+  suggestRootCauseFromLogs,
+  type ErrorLog,
+  type PerformanceSample,
+} from "./aiObservability";
 import type {
   AnamnesisResponse,
   ClinicalNote,
@@ -11,6 +19,7 @@ import type {
   JobStatus,
   JobType,
   LocalEntitlementSnapshot,
+  ObservabilityAlert,
   Patient,
   ScaleRecord,
   SessionStatus,
@@ -42,6 +51,111 @@ export const flushTelemetryQueue = (owner: string) => {
   db.telemetryQueue.set(owner, []);
   return queue;
 };
+
+
+
+const observabilityState = {
+  performanceSamples: [] as PerformanceSample[],
+  errorLogs: [] as ErrorLog[],
+};
+
+const upsertObservabilityAlert = (payload: Omit<ObservabilityAlert, "id" | "first_seen_at" | "last_seen_at" | "occurrences"> & { seenAt?: string }) => {
+  const seenAt = payload.seenAt ?? now();
+  const existing = Array.from(db.observabilityAlerts.values()).find((alert) => alert.fingerprint === payload.fingerprint);
+  if (existing) {
+    existing.last_seen_at = seenAt;
+    existing.occurrences += 1;
+    existing.context = payload.context;
+    existing.message = payload.message;
+    return existing;
+  }
+
+  const created: ObservabilityAlert = {
+    id: uid(),
+    source: payload.source,
+    severity: payload.severity,
+    title: payload.title,
+    message: payload.message,
+    fingerprint: payload.fingerprint,
+    first_seen_at: seenAt,
+    last_seen_at: seenAt,
+    occurrences: 1,
+    context: payload.context,
+  };
+  db.observabilityAlerts.set(created.id, created);
+  return created;
+};
+
+export const ingestPerformanceSample = (sample: PerformanceSample) => {
+  observabilityState.performanceSamples.push(sample);
+  if (observabilityState.performanceSamples.length > 500) observabilityState.performanceSamples.shift();
+  return evaluateObservability();
+};
+
+export const ingestErrorLog = (log: ErrorLog) => {
+  observabilityState.errorLogs.push(log);
+  if (observabilityState.errorLogs.length > 500) observabilityState.errorLogs.shift();
+  return evaluateObservability();
+};
+
+export const evaluateObservability = () => {
+  const createdOrUpdated: ObservabilityAlert[] = [];
+  const samples = observabilityState.performanceSamples;
+  const logs = observabilityState.errorLogs;
+
+  for (const alert of detectBottlenecks(samples)) {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "detectBottlenecks",
+      severity: alert.severity,
+      title: `Bottleneck em ${alert.metric}`,
+      message: alert.message,
+      fingerprint: `bottleneck:${alert.metric}:${alert.severity}`,
+      context: { metric: alert.metric },
+    }));
+  }
+
+  const risk = predictFailureRisk(samples);
+  if (risk.riskLevel !== "low") {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "predictFailureRisk",
+      severity: risk.riskLevel,
+      title: "Risco de falha previsto",
+      message: `${risk.reason} (score=${risk.riskScore.toFixed(2)})`,
+      fingerprint: `failure-risk:${risk.riskLevel}`,
+      context: risk,
+    }));
+  }
+
+  for (const anomaly of detectAnomalousBehavior(samples)) {
+    createdOrUpdated.push(upsertObservabilityAlert({
+      source: "detectAnomalousBehavior",
+      severity: "medium",
+      title: "Comportamento anômalo",
+      message: `${anomaly.probableCause}. ${anomaly.suggestedAction}`,
+      fingerprint: `anomaly:${anomaly.timestamp}:${anomaly.probableCause}`,
+      context: anomaly,
+    }));
+  }
+
+  if (logs.length > 0) {
+    const suggestion = suggestRootCauseFromLogs(logs.slice(-20));
+    if (!suggestion.toLowerCase().includes("não conclusiva")) {
+      createdOrUpdated.push(upsertObservabilityAlert({
+        source: "suggestRootCauseFromLogs",
+        severity: "medium",
+        title: "Hipótese de causa raiz",
+        message: suggestion,
+        fingerprint: `root-cause:${suggestion.toLowerCase()}`,
+        context: { based_on_logs: logs.slice(-5) },
+      }));
+    }
+  }
+
+  return createdOrUpdated;
+};
+
+export const listObservabilityAlerts = () =>
+  Array.from(db.observabilityAlerts.values()).sort((a, b) => Date.parse(b.last_seen_at) - Date.parse(a.last_seen_at));
 
 export const createInvite = (email: string) => {
   const token = crypto.randomBytes(24).toString("hex");
@@ -167,7 +281,13 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => note.status === "validated");
+  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => {
+    if (note.status !== "validated") return false;
+    if (note.session_id === patientId) return true;
+
+    const session = db.sessions.get(note.session_id);
+    return session?.owner_user_id === owner && session.patient_id === patientId;
+  });
   if (!hasValidatedNote) return null;
 
   const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
@@ -271,6 +391,28 @@ export const purgeUserData = (owner: string) => {
       if (item.owner_user_id === owner) map.delete(id);
     }
   }
+
+  for (const [id, item] of db.telemetry.entries()) {
+    if (item.user_id === owner) db.telemetry.delete(id);
+  }
+
+  for (const [id, item] of db.audit.entries()) {
+    if (item.actor_user_id === owner || item.target_user_id === owner) db.audit.delete(id);
+  }
+
+  for (const [token, item] of db.sessionsTokens.entries()) {
+    if (item.user_id === owner) db.sessionsTokens.delete(token);
+  }
+
+  db.localEntitlements.delete(owner);
+
+  for (const [queueOwner, queue] of db.telemetryQueue.entries()) {
+    if (queueOwner === owner) {
+      db.telemetryQueue.delete(queueOwner);
+      continue;
+    }
+    db.telemetryQueue.set(queueOwner, queue.filter((event) => event.user_id !== owner));
+  }
 };
 
 export const adminOverviewMetrics = () => ({
@@ -289,6 +431,12 @@ const defaultEntitlements: LocalEntitlementSnapshot["entitlements"] = {
   transcription_minutes_per_month: 0,
   max_patients: 200,
   max_sessions_per_month: 10,
+};
+
+const getCurrentMonthWindow = (referenceDate = new Date()) => {
+  const start = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+  const end = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
+  return { start, end };
 };
 
 export const syncLocalEntitlements = (owner: string, snapshot: {
@@ -315,9 +463,13 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
 export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, { source_subscription_status: "none" });
 
 const transcriptionMinutesUsedThisMonth = (owner: string) => {
-  const month = new Date().getMonth();
+  const { start, end } = getCurrentMonthWindow();
   return Array.from(db.telemetry.values())
-    .filter((event) => event.user_id === owner && event.event_type.includes("TRANSCRIPTION") && new Date(event.ts).getMonth() === month)
+    .filter((event) => {
+      if (event.user_id !== owner || !event.event_type.includes("TRANSCRIPTION")) return false;
+      const ts = new Date(event.ts);
+      return ts >= start && ts < end;
+    })
     .reduce((acc, item) => acc + Math.ceil((item.duration_ms ?? 0) / 60_000), 0);
 };
 
@@ -335,9 +487,12 @@ export const canUseFeature = (owner: string, feature: "transcription" | "new_ses
   if (["past_due", "canceled"].includes(entitlements.source_subscription_status) && !withinGrace) return false;
 
   if (feature === "new_session") {
-    const month = new Date().getMonth();
+    const { start, end } = getCurrentMonthWindow();
     const monthlyCount = byOwner(db.sessions.values(), owner)
-      .filter((item) => new Date(item.created_at).getMonth() === month)
+      .filter((item) => {
+        const createdAt = new Date(item.created_at);
+        return createdAt >= start && createdAt < end;
+      })
       .length;
     return monthlyCount < entitlements.entitlements.max_sessions_per_month;
   }

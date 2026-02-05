@@ -18,11 +18,15 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  evaluateObservability,
   getByOwner,
   getClinicalNote,
   getJob,
   getUserFromToken,
   handleTranscriberWebhook,
+  ingestErrorLog,
+  ingestPerformanceSample,
+  listObservabilityAlerts,
   listPatients,
   listScales,
   listSessionClinicalNotes,
@@ -37,16 +41,42 @@ import {
   validateClinicalNote,
 } from "../application/service";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
-import { db } from "../infra/database";
+import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
 const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
+class BadRequestError extends Error {
+  readonly statusCode = 400;
+
+  constructor(
+    readonly code: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = "BadRequestError";
+  }
+}
+
 const readJson = async (req: IncomingMessage) => {
+  const contentType = req.headers["content-type"]?.toLowerCase() ?? "";
+  if (!contentType.includes("application/json")) {
+    throw new BadRequestError("INVALID_JSON", "Expected content-type application/json");
+  }
+
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-  const raw = Buffer.concat(chunks).toString("utf8") || "{}";
-  return JSON.parse(raw) as Record<string, unknown>;
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+
+  if (!raw) {
+    throw new BadRequestError("INVALID_JSON", "Request body must be a valid JSON object");
+  }
+
+  try {
+    return JSON.parse(raw) as Record<string, unknown>;
+  } catch {
+    throw new BadRequestError("INVALID_JSON", "Request body must be a valid JSON object");
+  }
 };
 
 const error = (res: ServerResponse, requestId: string, status: number, code: string, message: string) => {
@@ -74,10 +104,28 @@ const requireAuth = (req: IncomingMessage, res: ServerResponse, requestId: strin
   return { token, user };
 };
 
-const parsePagination = (url: URL) => ({
-  page: Number(url.searchParams.get("page") ?? 1),
-  pageSize: Number(url.searchParams.get("page_size") ?? 20),
-});
+const DEFAULT_PAGE = 1;
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+const parsePagination = (url: URL) => {
+  const pageParam = url.searchParams.get("page");
+  const pageSizeParam = url.searchParams.get("page_size");
+
+  const page = pageParam === null ? DEFAULT_PAGE : Number(pageParam);
+  if (!Number.isInteger(page)) return { error: "Invalid page" as const };
+
+  const pageSize = pageSizeParam === null ? DEFAULT_PAGE_SIZE : Number(pageSizeParam);
+  if (!Number.isInteger(pageSize)) return { error: "Invalid page_size" as const };
+
+  return {
+    page: page >= 1 ? page : DEFAULT_PAGE,
+    pageSize: pageSize >= 1 && pageSize <= MAX_PAGE_SIZE ? pageSize : DEFAULT_PAGE_SIZE,
+  };
+};
+
+const hashRequestBody = (body: Record<string, unknown>) => crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
+const idempotencyCacheKey = (userId: string, method: string, pathname: string, idempotencyKey: string, bodyHash: string) => `${userId}:${method}:${pathname}:${idempotencyKey}:${bodyHash}`;
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -146,22 +194,31 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     const idemKey = req.headers["idempotency-key"]?.toString();
-    if (method === "POST" && url.pathname === "/sessions" && idemKey) {
-      const existing = db.idempotency.get(idemKey);
-      if (existing) return ok(res, requestId, existing.statusCode, existing.body);
-    }
 
     if (method === "POST" && url.pathname === "/sessions") {
       if (!canUseFeature(auth.user.id, "new_session")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Subscription required to create new sessions");
       const body = await readJson(req);
       if (typeof body.patient_id !== "string" || typeof body.scheduled_at !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and scheduled_at required");
+
+      const idemCacheKey = idemKey
+        ? idempotencyCacheKey(auth.user.id, method, url.pathname, idemKey, hashRequestBody(body))
+        : null;
+      if (idemCacheKey) {
+        const existing = getIdempotencyEntry(idemCacheKey);
+        if (existing) return ok(res, requestId, existing.statusCode, existing.body);
+      }
+
       const session = createSession(auth.user.id, body.patient_id, body.scheduled_at);
-      if (idemKey) db.idempotency.set(idemKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
+      if (idemCacheKey) {
+        setIdempotencyEntry(idemCacheKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
+      }
       return ok(res, requestId, 201, session);
     }
 
     if (method === "GET" && url.pathname === "/sessions") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
@@ -231,7 +288,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/reports") {
       const body = await readJson(req);
       const report = createReport(auth.user.id, String(body.patient_id ?? ""), String(body.purpose ?? "profissional") as "instituição" | "profissional" | "paciente", String(body.content ?? ""));
-      if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note is required before creating reports");
+      if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note for the patient is required before creating reports");
       return ok(res, requestId, 201, report);
     }
 
@@ -342,6 +399,45 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 200, adminOverviewMetrics());
     }
 
+
+    if (method === "POST" && url.pathname === "/admin/observability/performance-samples") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const body = await readJson(req);
+      const sample = {
+        timestamp: String(body.timestamp ?? new Date().toISOString()),
+        latencyMs: Number(body.latencyMs ?? 0),
+        errorRate: Number(body.errorRate ?? 0),
+        cpuPercent: Number(body.cpuPercent ?? 0),
+        memoryPercent: Number(body.memoryPercent ?? 0),
+      };
+      const alerts = ingestPerformanceSample(sample);
+      return ok(res, requestId, 201, { ingested: sample, alerts_generated: alerts.length });
+    }
+
+    if (method === "POST" && url.pathname === "/admin/observability/error-logs") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const body = await readJson(req);
+      const log = {
+        timestamp: String(body.timestamp ?? new Date().toISOString()),
+        service: String(body.service ?? "unknown"),
+        message: String(body.message ?? ""),
+        stack: typeof body.stack === "string" ? body.stack : undefined,
+      };
+      const alerts = ingestErrorLog(log);
+      return ok(res, requestId, 201, { ingested: log, alerts_generated: alerts.length });
+    }
+
+    if (method === "POST" && url.pathname === "/admin/observability/evaluate") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const alerts = evaluateObservability();
+      return ok(res, requestId, 200, { alerts_generated: alerts.length });
+    }
+
+    if (method === "GET" && url.pathname === "/admin/observability/alerts") {
+      if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      return ok(res, requestId, 200, listObservabilityAlerts());
+    }
+
     if (method === "GET" && url.pathname === "/admin/audit") {
       if (auth.user.role !== "admin") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
       return ok(res, requestId, 200, Array.from(db.audit.values()));
@@ -349,6 +445,10 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     return error(res, requestId, 404, "NOT_FOUND", "Route not found");
   } catch (err) {
+    if (err instanceof BadRequestError) {
+      return error(res, requestId, err.statusCode, err.code, err.message);
+    }
+
     addTelemetry({ user_id: authUserId(req), event_type: "HTTP_ERROR", route: url.pathname, status_code: 500, error_code: (err as Error).name });
     return error(res, requestId, 500, "INTERNAL_ERROR", "Unexpected server error");
   }
