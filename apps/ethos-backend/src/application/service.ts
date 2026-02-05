@@ -433,6 +433,12 @@ const defaultEntitlements: LocalEntitlementSnapshot["entitlements"] = {
   max_sessions_per_month: 10,
 };
 
+const getCurrentMonthWindow = (referenceDate = new Date()) => {
+  const start = new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1);
+  const end = new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 1);
+  return { start, end };
+};
+
 export const syncLocalEntitlements = (owner: string, snapshot: {
   entitlements?: Partial<LocalEntitlementSnapshot["entitlements"]>;
   source_subscription_status?: LocalEntitlementSnapshot["source_subscription_status"];
@@ -457,9 +463,13 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
 export const resolveLocalEntitlements = (owner: string) => db.localEntitlements.get(owner) ?? syncLocalEntitlements(owner, { source_subscription_status: "none" });
 
 const transcriptionMinutesUsedThisMonth = (owner: string) => {
-  const month = new Date().getMonth();
+  const { start, end } = getCurrentMonthWindow();
   return Array.from(db.telemetry.values())
-    .filter((event) => event.user_id === owner && event.event_type.includes("TRANSCRIPTION") && new Date(event.ts).getMonth() === month)
+    .filter((event) => {
+      if (event.user_id !== owner || !event.event_type.includes("TRANSCRIPTION")) return false;
+      const ts = new Date(event.ts);
+      return ts >= start && ts < end;
+    })
     .reduce((acc, item) => acc + Math.ceil((item.duration_ms ?? 0) / 60_000), 0);
 };
 
@@ -477,9 +487,12 @@ export const canUseFeature = (owner: string, feature: "transcription" | "new_ses
   if (["past_due", "canceled"].includes(entitlements.source_subscription_status) && !withinGrace) return false;
 
   if (feature === "new_session") {
-    const month = new Date().getMonth();
+    const { start, end } = getCurrentMonthWindow();
     const monthlyCount = byOwner(db.sessions.values(), owner)
-      .filter((item) => new Date(item.created_at).getMonth() === month)
+      .filter((item) => {
+        const createdAt = new Date(item.created_at);
+        return createdAt >= start && createdAt < end;
+      })
       .length;
     return monthlyCount < entitlements.entitlements.max_sessions_per_month;
   }
