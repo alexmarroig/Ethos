@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { colors, radii, spacing, typography } from "../theme/tokens";
 
 export const Login = () => {
   const navigate = useNavigate();
@@ -18,57 +19,59 @@ export const Login = () => {
     <div
       style={{
         minHeight: "100vh",
-        background: "#0F172A",
-        color: "#F8FAFC",
+        background: colors.background.canvas,
+        color: colors.text.highlight,
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        fontFamily: "Inter, sans-serif",
+        fontFamily: typography.fontFamily,
       }}
     >
       <form
         onSubmit={handleSubmit}
         style={{
           width: 360,
-          padding: 32,
-          background: "#111827",
-          borderRadius: 16,
+          padding: spacing.xxl,
+          background: colors.background.surface,
+          borderRadius: radii.xl,
           display: "flex",
           flexDirection: "column",
-          gap: 16,
+          gap: spacing.lg,
         }}
       >
         <div>
           <h1 style={{ margin: 0 }}>Bem-vindo(a)</h1>
-          <p style={{ margin: "8px 0 0", color: "#94A3B8" }}>Entre para acessar sua agenda segura.</p>
+          <p style={{ margin: `${spacing.sm}px 0 0`, color: colors.text.secondary }}>
+            Entre para acessar sua agenda segura.
+          </p>
         </div>
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: spacing.sm - 2 }}>
           Nome
           <input
             value={name}
             onChange={(event) => setName(event.target.value)}
             style={{
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #1E293B",
-              background: "#0F172A",
-              color: "#E2E8F0",
+              padding: `${spacing.md - 2}px ${spacing.md}px`,
+              borderRadius: radii.md,
+              border: `1px solid ${colors.border.default}`,
+              background: colors.background.canvas,
+              color: colors.text.primary,
             }}
             required
           />
         </label>
-        <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: spacing.sm - 2 }}>
           Email
           <input
             type="email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             style={{
-              padding: "10px 12px",
-              borderRadius: 10,
-              border: "1px solid #1E293B",
-              background: "#0F172A",
-              color: "#E2E8F0",
+              padding: `${spacing.md - 2}px ${spacing.md}px`,
+              borderRadius: radii.md,
+              border: `1px solid ${colors.border.default}`,
+              background: colors.background.canvas,
+              color: colors.text.primary,
             }}
             required
           />
@@ -76,13 +79,13 @@ export const Login = () => {
         <button
           type="submit"
           style={{
-            padding: "12px",
-            borderRadius: 12,
+            padding: `${spacing.md}px`,
+            borderRadius: radii.lg,
             border: "none",
-            background: "#3B82F6",
+            background: colors.accent.strong,
             color: "white",
             cursor: "pointer",
-            fontWeight: 600,
+            fontWeight: typography.weight.semibold,
           }}
         >
           Entrar

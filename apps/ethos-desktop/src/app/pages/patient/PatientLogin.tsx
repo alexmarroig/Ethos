@@ -1,43 +1,45 @@
 import React, { useState } from "react";
 import { patientsService } from "../../../services/patientsService";
 import { usePatientAuth } from "../../auth/PatientAuthContext";
+import { colors, radii, spacing, typography } from "../../theme/tokens";
 
 const containerStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#0F172A",
-  color: "#E2E8F0",
+  background: colors.background.canvas,
+  color: colors.text.primary,
   display: "flex",
   alignItems: "center",
   justifyContent: "center",
-  padding: 24,
+  padding: spacing.xl,
+  fontFamily: typography.fontFamily,
 };
 
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 420,
-  background: "#111827",
-  padding: 24,
-  borderRadius: 16,
+  background: colors.background.surface,
+  padding: spacing.xl,
+  borderRadius: radii.xl,
   display: "flex",
   flexDirection: "column",
-  gap: 16,
+  gap: spacing.lg,
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "12px 14px",
-  borderRadius: 10,
-  border: "1px solid #1F2937",
-  background: "#0F172A",
-  color: "#E2E8F0",
+  padding: `${spacing.md}px ${spacing.md + 2}px`,
+  borderRadius: radii.md,
+  border: `1px solid ${colors.border.subtle}`,
+  background: colors.background.canvas,
+  color: colors.text.primary,
 };
 
 const buttonStyle: React.CSSProperties = {
-  padding: "12px 16px",
-  borderRadius: 10,
+  padding: `${spacing.md}px ${spacing.lg}px`,
+  borderRadius: radii.md,
   border: "none",
-  background: "#38BDF8",
-  color: "#0F172A",
-  fontWeight: 600,
+  background: colors.accent.primary,
+  color: colors.text.inverse,
+  fontWeight: typography.weight.semibold,
   cursor: "pointer",
 };
 
@@ -69,31 +71,33 @@ export const PatientLogin = () => {
     <div style={containerStyle}>
       <form style={cardStyle} onSubmit={handleSubmit}>
         <header>
-          <h2 style={{ marginBottom: 4 }}>Portal do paciente</h2>
-          <p style={{ margin: 0, color: "#94A3B8", fontSize: 14 }}>
+          <h2 style={{ marginBottom: spacing.xs }}>Portal do paciente</h2>
+          <p style={{ margin: 0, color: colors.text.secondary, fontSize: typography.sizes.md }}>
             Faça login com o código enviado pelo seu psicólogo para responder formulários e diários.
           </p>
         </header>
-        <label style={{ fontSize: 12, color: "#94A3B8" }}>
+        <label style={{ fontSize: typography.sizes.xs, color: colors.text.secondary }}>
           Código de acesso
           <input
-            style={{ ...inputStyle, marginTop: 6 }}
+            style={{ ...inputStyle, marginTop: spacing.sm - 2 }}
             value={accessCode}
             onChange={(event) => setAccessCode(event.target.value)}
             placeholder="Ex.: 3f12ab45"
           />
         </label>
-        <label style={{ fontSize: 12, color: "#94A3B8" }}>
+        <label style={{ fontSize: typography.sizes.xs, color: colors.text.secondary }}>
           E-mail
           <input
-            style={{ ...inputStyle, marginTop: 6 }}
+            style={{ ...inputStyle, marginTop: spacing.sm - 2 }}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             placeholder="seuemail@exemplo.com"
             type="email"
           />
         </label>
-        {error ? <p style={{ margin: 0, color: "#F87171", fontSize: 13 }}>{error}</p> : null}
+        {error ? (
+          <p style={{ margin: 0, color: colors.status.danger, fontSize: typography.sizes.sm }}>{error}</p>
+        ) : null}
         <button type="submit" style={buttonStyle}>
           Entrar
         </button>
