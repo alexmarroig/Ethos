@@ -62,9 +62,9 @@ export class AudioRecordingService {
       mediaRecorder.stop();
     }
     await stopPromise;
-    await window.ethos.audio.finishSession({ recordingId });
+    const finishedSession = await window.ethos.audio.finishSession({ recordingId });
     this.session = null;
-    return { recordingId, filePath };
+    return { recordingId, filePath: finishedSession.filePath ?? filePath };
   }
 
   async abort(): Promise<void> {
