@@ -10,6 +10,7 @@ import {
 } from "./aiObservability";
 import type {
   AnamnesisResponse,
+  AnonymizedCase,
   CaseClosureProtocol,
   CaseHistoryPolicy,
   ClinicalNote,
@@ -25,6 +26,7 @@ import type {
   LocalEntitlementSnapshot,
   ObservabilityAlert,
   Patient,
+  PrivateComment,
   RetentionPolicy,
   PatientAlertState,
   PatientDecision,
@@ -225,7 +227,7 @@ export const acceptInvite = (token: string, name: string, password: string) => {
     email: invite.email,
     name,
     password_hash: hashPassword(password),
-    role: "user",
+    role: "assistente",
     status: "active",
     created_at: now(),
   };
@@ -490,6 +492,24 @@ export const createClinicalNoteDraft = (owner: string, sessionId: string, conten
   return note;
 };
 
+export const createPrivateComment = (owner: string, noteId: string, content: string): PrivateComment | null => {
+  const note = getByOwner(db.clinicalNotes, owner, noteId);
+  if (!note) return null;
+  const comment: PrivateComment = {
+    id: uid(),
+    owner_user_id: owner,
+    note_id: noteId,
+    author_user_id: owner,
+    content,
+    created_at: now(),
+  };
+  db.privateComments.set(comment.id, comment);
+  return comment;
+};
+
+export const listPrivateComments = (owner: string, noteId: string) =>
+  byOwner(db.privateComments.values(), owner).filter((comment) => comment.note_id === noteId);
+
 export const validateClinicalNote = (owner: string, noteId: string) => {
   const note = getByOwner(db.clinicalNotes, owner, noteId);
   if (!note) return null;
@@ -522,6 +542,14 @@ export const createAnamnesis = (owner: string, patientId: string, templateId: st
   recordProntuarioAudit(owner, "EDIT", "anamnesis", anamnesis.id);
   return anamnesis;
 };
+
+export const createAnonymizedCase = (owner: string, payload: { title: string; summary: string; tags: string[] }): AnonymizedCase => {
+  const item: AnonymizedCase = { id: uid(), owner_user_id: owner, created_at: now(), ...payload };
+  db.anonymizedCases.set(item.id, item);
+  return item;
+};
+
+export const listAnonymizedCases = (owner: string) => byOwner(db.anonymizedCases.values(), owner);
 
 export const createScaleRecord = (owner: string, scaleId: string, patientId: string, score: number): ScaleRecord => {
   const record = { id: uid(), owner_user_id: owner, scale_id: scaleId, patient_id: patientId, score, recorded_at: now(), created_at: now() };
@@ -834,11 +862,13 @@ export const purgeUserData = (owner: string) => {
     db.audioRecords,
     db.transcripts,
     db.clinicalNotes,
+    db.privateComments,
     db.reports,
     db.anamnesis,
     db.scales,
     db.forms,
     db.financial,
+    db.anonymizedCases,
     db.jobs,
   ];
   for (const map of ownedMaps) {

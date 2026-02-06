@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type {
   AnamnesisResponse,
+  AnonymizedCase,
   AuditEvent,
   AudioRecord,
   ClinicalNote,
@@ -11,6 +12,7 @@ import type {
   Invite,
   Job,
   Patient,
+  PrivateComment,
   Contract,
   ScaleRecord,
   SessionToken,
@@ -88,6 +90,8 @@ export const db = {
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   caseClosures: new Map<string, CaseClosureProtocol>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+  anonymizedCases: new Map<string, AnonymizedCase>(),
+  privateComments: new Map<string, PrivateComment>(),
   retentionPolicies: new Map<string, RetentionPolicy>(),
 
   notificationTemplates: new Map<string, NotificationTemplate>(),
