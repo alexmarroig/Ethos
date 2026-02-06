@@ -28,6 +28,7 @@ export class AudioRecordingService {
       sessionId: options.sessionId,
       mimeType,
     });
+
     const mediaRecorder = new MediaRecorder(options.stream, { mimeType });
     mediaRecorder.addEventListener("dataavailable", async (event) => {
       if (!event.data || event.data.size === 0) return;
@@ -42,6 +43,7 @@ export class AudioRecordingService {
       options.onError?.(new Error("MediaRecorder failed"));
     });
     mediaRecorder.start(timesliceMs);
+
     this.session = { recordingId, filePath, mediaRecorder };
     return { recordingId, filePath };
   }
@@ -58,16 +60,18 @@ export class AudioRecordingService {
       }
       mediaRecorder.addEventListener("stop", () => resolve(), { once: true });
     });
+
     if (mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
     }
     await stopPromise;
+
     const finishedSession = await window.ethos.audio.finishSession({ recordingId });
     this.session = null;
     return { recordingId, filePath: finishedSession.filePath ?? filePath };
   }
 
-  async pause(): Promise<void> {
+  pause(): void {
     if (!this.session) {
       return;
     }
@@ -77,6 +81,7 @@ export class AudioRecordingService {
     }
   }
 
+  resume(): void {
   async resume(): Promise<void> {
     if (!this.session) {
       return;
