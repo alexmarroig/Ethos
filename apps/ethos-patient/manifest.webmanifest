@@ -1,0 +1,17 @@
+{
+  "name": "Ethos Patient",
+  "short_name": "Ethos",
+  "description": "Aplicativo do paciente para responder formulários clínicos.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/icons/icon.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml"
+    }
+  ]
+}
