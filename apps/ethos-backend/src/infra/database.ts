@@ -21,6 +21,7 @@ import type {
   LocalEntitlementSnapshot,
   ScaleTemplate,
   ObservabilityAlert,
+  RetentionPolicy,
   CaseClosureProtocol,
   NotificationConsent,
   NotificationLog,
@@ -87,6 +88,7 @@ export const db = {
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   caseClosures: new Map<string, CaseClosureProtocol>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+  retentionPolicies: new Map<string, RetentionPolicy>(),
 
   notificationTemplates: new Map<string, NotificationTemplate>(),
   notificationConsents: new Map<string, NotificationConsent>(),

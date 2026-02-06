@@ -25,6 +25,7 @@ import type {
   LocalEntitlementSnapshot,
   ObservabilityAlert,
   Patient,
+  RetentionPolicy,
   PatientAlertState,
   PatientDecision,
   PatientRules,
@@ -79,6 +80,20 @@ export const flushTelemetryQueue = (owner: string) => {
   const queue = db.telemetryQueue.get(owner) ?? [];
   db.telemetryQueue.set(owner, []);
   return queue;
+};
+
+type ProntuarioResource = "clinical_note" | "report" | "anamnesis" | "scale_record" | "form_entry" | "financial_entry";
+type ProntuarioAction = "ACCESS" | "EDIT";
+
+export const recordProntuarioAudit = (actorUserId: string, action: ProntuarioAction, resource: ProntuarioResource, resourceId?: string) => {
+  const target = resourceId ? `${resource}:${resourceId}` : `${resource}:list`;
+  addAudit(actorUserId, `PRONTUARIO_${action}:${target}`);
+};
+
+const defaultRetentionPolicy: Omit<RetentionPolicy, "id" | "owner_user_id" | "created_at" | "updated_at"> = {
+  clinical_record_days: 3650,
+  audit_days: 3650,
+  export_days: 365,
 };
 
 
@@ -471,6 +486,7 @@ export const addTranscript = (owner: string, sessionId: string, rawText: string)
 export const createClinicalNoteDraft = (owner: string, sessionId: string, content: string): ClinicalNote => {
   const note = { id: uid(), owner_user_id: owner, session_id: sessionId, content, status: "draft" as const, version: 1, created_at: now() };
   db.clinicalNotes.set(note.id, note);
+  recordProntuarioAudit(owner, "EDIT", "clinical_note", note.id);
   return note;
 };
 
@@ -480,6 +496,7 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
   note.status = "validated";
   note.validated_at = now();
   addTelemetry({ user_id: owner, event_type: "NOTE_VALIDATED" });
+  recordProntuarioAudit(owner, "EDIT", "clinical_note", note.id);
   return note;
 };
 
@@ -495,30 +512,35 @@ export const createReport = (owner: string, patientId: string, purpose: Clinical
 
   const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
   db.reports.set(report.id, report);
+  recordProntuarioAudit(owner, "EDIT", "report", report.id);
   return report;
 };
 
 export const createAnamnesis = (owner: string, patientId: string, templateId: string, content: Record<string, unknown>): AnamnesisResponse => {
   const anamnesis = { id: uid(), owner_user_id: owner, patient_id: patientId, template_id: templateId, content, version: 1, created_at: now() };
   db.anamnesis.set(anamnesis.id, anamnesis);
+  recordProntuarioAudit(owner, "EDIT", "anamnesis", anamnesis.id);
   return anamnesis;
 };
 
 export const createScaleRecord = (owner: string, scaleId: string, patientId: string, score: number): ScaleRecord => {
   const record = { id: uid(), owner_user_id: owner, scale_id: scaleId, patient_id: patientId, score, recorded_at: now(), created_at: now() };
   db.scales.set(record.id, record);
+  recordProntuarioAudit(owner, "EDIT", "scale_record", record.id);
   return record;
 };
 
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
   db.forms.set(item.id, item);
+  recordProntuarioAudit(owner, "EDIT", "form_entry", item.id);
   return item;
 };
 
 export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry, "id" | "owner_user_id" | "created_at">): FinancialEntry => {
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
   db.financial.set(item.id, item);
+  recordProntuarioAudit(owner, "EDIT", "financial_entry", item.id);
   return item;
 };
 
@@ -631,6 +653,10 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
     job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
     addTelemetry({ user_id: job.owner_user_id, event_type: "EXPORT_PDF" });
   }
+  if (job.type === "export_full") {
+    job.result_uri = `vault://exports/full/${job.owner_user_id}.zip.enc`;
+    addTelemetry({ user_id: job.owner_user_id, event_type: "EXPORT_FULL" });
+  }
   if (job.type === "backup") {
     job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
     addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
@@ -658,6 +684,33 @@ export const paginate = <T>(items: T[], page = 1, pageSize = 20) => ({
   total: items.length,
 });
 
+export const getRetentionPolicy = (owner: string) => {
+  const existing = db.retentionPolicies.get(owner);
+  if (existing) return existing;
+  const created: RetentionPolicy = {
+    id: uid(),
+    owner_user_id: owner,
+    ...defaultRetentionPolicy,
+    created_at: now(),
+    updated_at: now(),
+  };
+  db.retentionPolicies.set(owner, created);
+  return created;
+};
+
+export const updateRetentionPolicy = (owner: string, updates: Partial<Pick<RetentionPolicy, "clinical_record_days" | "audit_days" | "export_days">>) => {
+  const policy = getRetentionPolicy(owner);
+  const next: RetentionPolicy = {
+    ...policy,
+    clinical_record_days: Number.isFinite(updates.clinical_record_days) && updates.clinical_record_days! > 0
+      ? updates.clinical_record_days!
+      : policy.clinical_record_days,
+    audit_days: Number.isFinite(updates.audit_days) && updates.audit_days! > 0 ? updates.audit_days! : policy.audit_days,
+    export_days: Number.isFinite(updates.export_days) && updates.export_days! > 0 ? updates.export_days! : policy.export_days,
+    updated_at: now(),
+  };
+  db.retentionPolicies.set(owner, next);
+  return next;
 export const exportCase = (owner: string, patientId: string, policyOverrides: Partial<CaseHistoryPolicy> = {}) => {
   const patient = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && (item.external_id === patientId || item.id === patientId));
   if (!patient) return null;
@@ -807,6 +860,7 @@ export const purgeUserData = (owner: string) => {
   }
 
   db.localEntitlements.delete(owner);
+  db.retentionPolicies.delete(owner);
 
   for (const [queueOwner, queue] of db.telemetryQueue.entries()) {
     if (queueOwner === owner) {

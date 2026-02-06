@@ -126,6 +126,7 @@ export type FinancialEntry = Owned & {
   description: string;
 };
 
+export type JobType = "transcription" | "export" | "export_full" | "backup";
 export type ContractSignature = {
   accepted_by: string;
   accepted_at: string;
@@ -175,6 +176,16 @@ export type Job = {
   resource_id?: UUID;
   result_uri?: string;
   error_code?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type RetentionPolicy = {
+  id: UUID;
+  owner_user_id: UUID;
+  clinical_record_days: number;
+  audit_days: number;
+  export_days: number;
   created_at: string;
   updated_at: string;
 };
