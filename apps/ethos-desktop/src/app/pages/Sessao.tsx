@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import { AudioRecordingService } from "../../services/audioRecordingService";
 import { TranscriptionService, type TranscriptionResult } from "../../services/transcriptionService";
 
 type TemplateField = { id: string; label: string; required?: boolean };
@@ -88,12 +89,16 @@ export const Sessao = () => {
   const [jobId, setJobId] = useState<string | null>(null);
   const [transcript, setTranscript] = useState<TranscriptionResult["transcript"] | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "stopping">("idle");
+  const [recordedFilePath, setRecordedFilePath] = useState<string | null>(null);
   const [safeMode, setSafeMode] = useState(true);
   const [selectedTemplateId, setSelectedTemplateId] = useState(documentTemplates[0]?.id ?? "");
   const [globalValues, setGlobalValues] = useState<Record<string, string>>({});
   const [documentContent, setDocumentContent] = useState("");
   const [versions, setVersions] = useState<DocumentVersion[]>([]);
   const sessionId = "sessao-marina-001";
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const audioRecordingService = useMemo(() => new AudioRecordingService(), []);
   const transcriptionService = useMemo(() => new TranscriptionService(), []);
   const selectedTemplate = useMemo(
     () => documentTemplates.find((template) => template.id === selectedTemplateId),
@@ -205,6 +210,7 @@ export const Sessao = () => {
     const path = await transcriptionService.pickAudio();
     if (path) {
       setAudioPath(path);
+      setRecordedFilePath(null);
       setTranscript(null);
       setErrorMessage(null);
       setJobStatus("idle");
@@ -226,6 +232,46 @@ export const Sessao = () => {
     const newJobId = await transcriptionService.enqueueTranscription(sessionId, audioPath, "ptbr-accurate");
     if (newJobId) {
       setJobId(newJobId);
+    }
+  };
+
+  const handleStartRecording = async () => {
+    if (recordingStatus === "recording") return;
+    setErrorMessage(null);
+    setRecordedFilePath(null);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recordingStreamRef.current = stream;
+      await audioRecordingService.start({
+        stream,
+        sessionId,
+        onError: (error) => setErrorMessage(error.message),
+      });
+      setRecordingStatus("recording");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Falha ao iniciar a gravação.");
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      recordingStreamRef.current = null;
+      setRecordingStatus("idle");
+    }
+  };
+
+  const handleStopRecording = async () => {
+    if (recordingStatus !== "recording") return;
+    setRecordingStatus("stopping");
+    try {
+      const session = await audioRecordingService.stop();
+      const filePath = session?.filePath ?? null;
+      if (filePath) {
+        setRecordedFilePath(filePath);
+        setAudioPath(filePath);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Falha ao finalizar a gravação.");
+    } finally {
+      recordingStreamRef.current?.getTracks().forEach((track) => track.stop());
+      recordingStreamRef.current = null;
+      setRecordingStatus("idle");
     }
   };
 
@@ -269,6 +315,38 @@ export const Sessao = () => {
         <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
           <button
             type="button"
+            onClick={handleStartRecording}
+            disabled={recordingStatus !== "idle"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "none",
+              background: recordingStatus === "idle" ? "#16A34A" : "#334155",
+              color: "white",
+              cursor: recordingStatus === "idle" ? "pointer" : "not-allowed",
+              opacity: recordingStatus === "idle" ? 1 : 0.6,
+            }}
+          >
+            Iniciar gravação
+          </button>
+          <button
+            type="button"
+            onClick={handleStopRecording}
+            disabled={recordingStatus !== "recording"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "none",
+              background: recordingStatus === "recording" ? "#DC2626" : "#334155",
+              color: "white",
+              cursor: recordingStatus === "recording" ? "pointer" : "not-allowed",
+              opacity: recordingStatus === "recording" ? 1 : 0.6,
+            }}
+          >
+            Parar gravação
+          </button>
+          <button
+            type="button"
             onClick={handlePickAudio}
             style={{
               padding: "10px 16px",
@@ -301,6 +379,11 @@ export const Sessao = () => {
         ) : (
           <p style={{ color: "#94A3B8", marginTop: 8, fontSize: 12 }}>Selecione um áudio (.mp3, .wav, .m4a) para transcrição.</p>
         )}
+        {recordedFilePath ? (
+          <p style={{ color: "#A5B4FC", marginTop: 8, fontSize: 12 }}>
+            Gravação finalizada: {recordedFilePath}
+          </p>
+        ) : null}
         <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
           <input
             type="checkbox"
