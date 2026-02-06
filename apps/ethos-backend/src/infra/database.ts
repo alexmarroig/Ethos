@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import type {
   AnamnesisResponse,
+  AnonymizedCase,
   AuditEvent,
   AudioRecord,
   ClinicalNote,
@@ -11,6 +12,7 @@ import type {
   Invite,
   Job,
   Patient,
+  PrivateComment,
   ScaleRecord,
   SessionToken,
   TelemetryEvent,
@@ -77,6 +79,8 @@ export const db = {
   audit: new Map<string, AuditEvent>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+  anonymizedCases: new Map<string, AnonymizedCase>(),
+  privateComments: new Map<string, PrivateComment>(),
 };
 
 export const getIdempotencyEntry = (key: string, at = Date.now()) => {

@@ -10,6 +10,7 @@ import {
   adminOverviewMetrics,
   canUseFeature,
   createAnamnesis,
+  createAnonymizedCase,
   createClinicalNoteDraft,
   createFinancialEntry,
   createFormEntry,
@@ -18,6 +19,7 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  createPrivateComment,
   evaluateObservability,
   getByOwner,
   getClinicalNote,
@@ -27,6 +29,7 @@ import {
   ingestErrorLog,
   ingestPerformanceSample,
   listObservabilityAlerts,
+  listPrivateComments,
   listPatients,
   listScales,
   listSessionClinicalNotes,
@@ -39,12 +42,28 @@ import {
   runJob,
   syncLocalEntitlements,
   validateClinicalNote,
+  listAnonymizedCases,
 } from "../application/service";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
-const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
+const CLINICAL_PATHS = [
+  /^\/sessions/,
+  /^\/clinical-notes/,
+  /^\/reports/,
+  /^\/anamnesis/,
+  /^\/scales/,
+  /^\/forms/,
+  /^\/financial/,
+  /^\/jobs/,
+  /^\/export/,
+  /^\/backup/,
+  /^\/restore/,
+  /^\/purge/,
+  /^\/cases/,
+];
+const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
@@ -181,7 +200,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     const auth = requireAuth(req, res, requestId);
     if (!auth) return;
     const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
-    if (isClinicalPath && auth.user.role !== "user") return error(res, requestId, 403, "FORBIDDEN", "Clinical routes are user-only");
+    if (isClinicalPath && !CLINICAL_ROLES.includes(auth.user.role)) {
+      return error(res, requestId, 403, "FORBIDDEN", "Clinical routes are restricted to clinical roles");
+    }
 
     if (method === "POST" && url.pathname === "/local/entitlements/sync") {
       const body = await readJson(req);
@@ -283,6 +304,34 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && sessionNotes) {
       const { page, pageSize } = parsePagination(url);
       return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
+    }
+
+    const notePrivateComments = url.pathname.match(/^\/clinical-notes\/([^/]+)\/private-comments$/);
+    if (method === "POST" && notePrivateComments) {
+      const body = await readJson(req);
+      if (typeof body.content !== "string" || body.content.trim().length === 0) return error(res, requestId, 422, "VALIDATION_ERROR", "content required");
+      const comment = createPrivateComment(auth.user.id, notePrivateComments[1], body.content.trim());
+      if (!comment) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
+      return ok(res, requestId, 201, comment);
+    }
+
+    if (method === "GET" && notePrivateComments) {
+      const { page, pageSize } = parsePagination(url);
+      return ok(res, requestId, 200, paginate(listPrivateComments(auth.user.id, notePrivateComments[1]), page, pageSize));
+    }
+
+    if (method === "POST" && url.pathname === "/cases/anonymized") {
+      const body = await readJson(req);
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const summary = typeof body.summary === "string" ? body.summary.trim() : "";
+      const tags = Array.isArray(body.tags) ? body.tags.map((tag) => String(tag).trim()).filter(Boolean) : [];
+      if (!title || !summary) return error(res, requestId, 422, "VALIDATION_ERROR", "title and summary required");
+      return ok(res, requestId, 201, createAnonymizedCase(auth.user.id, { title, summary, tags }));
+    }
+
+    if (method === "GET" && url.pathname === "/cases/anonymized") {
+      const { page, pageSize } = parsePagination(url);
+      return ok(res, requestId, 200, paginate(listAnonymizedCases(auth.user.id), page, pageSize));
     }
 
     if (method === "POST" && url.pathname === "/reports") {

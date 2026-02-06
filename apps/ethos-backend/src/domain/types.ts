@@ -1,6 +1,6 @@
 export type UUID = string;
 
-export type Role = "user" | "admin";
+export type Role = "admin" | "supervisor" | "assistente";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
@@ -64,6 +64,18 @@ export type ClinicalNote = Owned & {
   status: ClinicalNoteStatus;
   version: number;
   validated_at?: string;
+};
+
+export type AnonymizedCase = Owned & {
+  title: string;
+  summary: string;
+  tags: string[];
+};
+
+export type PrivateComment = Owned & {
+  note_id: UUID;
+  author_user_id: UUID;
+  content: string;
 };
 
 export type ClinicalReport = Owned & {
