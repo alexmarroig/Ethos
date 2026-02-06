@@ -18,10 +18,13 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  createTemplate,
+  deleteTemplate,
   evaluateObservability,
   getByOwner,
   getClinicalNote,
   getJob,
+  getTemplate,
   getUserFromToken,
   handleTranscriberWebhook,
   ingestErrorLog,
@@ -30,21 +33,24 @@ import {
   listPatients,
   listScales,
   listSessionClinicalNotes,
+  listTemplates,
   login,
   logout,
   paginate,
   patchSessionStatus,
   purgeUserData,
+  renderTemplate,
   resolveLocalEntitlements,
   runJob,
   syncLocalEntitlements,
+  updateTemplate,
   validateClinicalNote,
 } from "../application/service";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
-const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
+const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/, /^\/templates/];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
@@ -331,6 +337,61 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
       return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    if (method === "GET" && url.pathname === "/templates") {
+      return ok(res, requestId, 200, listTemplates(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/templates") {
+      const body = await readJson(req);
+      if (typeof body.title !== "string" || typeof body.html !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "title and html required");
+      const template = createTemplate(auth.user.id, {
+        title: body.title,
+        description: typeof body.description === "string" ? body.description : undefined,
+        version: typeof body.version === "number" ? body.version : 1,
+        html: body.html,
+        fields: Array.isArray(body.fields) ? (body.fields as any) : [],
+      });
+      return ok(res, requestId, 201, template);
+    }
+
+    const templateById = url.pathname.match(/^\/templates\/([^/]+)$/);
+    if (method === "GET" && templateById) {
+      const template = getTemplate(auth.user.id, templateById[1]);
+      if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, template);
+    }
+
+    if (method === "PUT" && templateById) {
+      const body = await readJson(req);
+      const template = updateTemplate(auth.user.id, templateById[1], {
+        title: typeof body.title === "string" ? body.title : undefined,
+        description: typeof body.description === "string" ? body.description : undefined,
+        version: typeof body.version === "number" ? body.version : undefined,
+        html: typeof body.html === "string" ? body.html : undefined,
+        fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
+      });
+      if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, template);
+    }
+
+    if (method === "DELETE" && templateById) {
+      const removed = deleteTemplate(auth.user.id, templateById[1]);
+      if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, { deleted: true });
+    }
+
+    const templateRender = url.pathname.match(/^\/templates\/([^/]+)\/render$/);
+    if (method === "POST" && templateRender) {
+      const body = await readJson(req);
+      const render = renderTemplate(auth.user.id, templateRender[1], {
+        globals: (body.globals ?? {}) as any,
+        fields: (body.fields ?? {}) as Record<string, string>,
+        format: (body.format as "html" | "pdf" | "docx") ?? "html",
+      });
+      if (!render) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, render);
     }
 
     if (method === "POST" && url.pathname === "/financial/entry") {

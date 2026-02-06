@@ -13,6 +13,7 @@ import type {
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  ClinicalTemplate,
   FinancialEntry,
   FormEntry,
   Job,
@@ -24,6 +25,8 @@ import type {
   ScaleRecord,
   SessionStatus,
   TelemetryEvent,
+  TemplateRenderRequest,
+  TemplateRenderResponse,
   Transcript,
   User,
 } from "../domain/types";
@@ -218,6 +221,44 @@ export const getByOwner = <T extends { owner_user_id: string; id: string }>(map:
 };
 
 const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((item) => item.owner_user_id === owner);
+const templateStyles = `
+  body { font-family: "Inter", "Helvetica", sans-serif; color: #0f172a; font-size: 14px; }
+  h1, h2, h3 { margin-bottom: 16px; }
+  p { line-height: 1.6; margin: 8px 0; }
+  .doc-wrapper { padding: 32px; max-width: 720px; margin: 0 auto; }
+`;
+
+const renderTemplateHtml = (template: ClinicalTemplate, payload: TemplateRenderRequest) => {
+  const combined = {
+    psychologist: payload.globals.psychologist,
+    patient: payload.globals.patient,
+    city: payload.globals.city,
+    date: payload.globals.date,
+    signature: payload.globals.signature,
+    ...payload.fields,
+  } as Record<string, unknown>;
+
+  const resolvePath = (path: string) => path.split(".").reduce<unknown>((acc, key) => (acc as Record<string, unknown>)?.[key], combined);
+
+  const body = template.html.replace(/{{\s*([\w.]+)\s*}}/g, (_match, key: string) => {
+    const value = resolvePath(key);
+    return typeof value === "string" || typeof value === "number" ? String(value) : "";
+  });
+
+  return `
+    <html>
+      <head>
+        <meta charset="utf-8" />
+        <style>${templateStyles}</style>
+      </head>
+      <body>
+        <div class="doc-wrapper">
+          ${body}
+        </div>
+      </body>
+    </html>
+  `;
+};
 
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
   const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
@@ -511,3 +552,39 @@ export const listSessionClinicalNotes = (owner: string, sessionId: string) => by
 export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
+export const listTemplates = (owner: string) => byOwner(db.templates.values(), owner);
+export const getTemplate = (owner: string, templateId: string) => getByOwner(db.templates, owner, templateId);
+
+export const createTemplate = (owner: string, payload: Omit<ClinicalTemplate, "id" | "owner_user_id" | "created_at">) => {
+  const template: ClinicalTemplate = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
+  db.templates.set(template.id, template);
+  return template;
+};
+
+export const updateTemplate = (owner: string, templateId: string, payload: Partial<Omit<ClinicalTemplate, "id" | "owner_user_id" | "created_at">>) => {
+  const template = getByOwner(db.templates, owner, templateId);
+  if (!template) return null;
+  Object.assign(template, payload);
+  return template;
+};
+
+export const deleteTemplate = (owner: string, templateId: string) => {
+  const template = getByOwner(db.templates, owner, templateId);
+  if (!template) return false;
+  db.templates.delete(templateId);
+  return true;
+};
+
+export const renderTemplate = (owner: string, templateId: string, payload: TemplateRenderRequest): TemplateRenderResponse | null => {
+  const template = getByOwner(db.templates, owner, templateId);
+  if (!template) return null;
+  const html = renderTemplateHtml(template, payload);
+  const format = payload.format ?? "html";
+  const contentType = format === "html"
+    ? "text/html"
+    : format === "pdf"
+      ? "application/pdf"
+      : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  const contentBase64 = Buffer.from(html).toString("base64");
+  return { template_id: template.id, format, content_type: contentType, content_base64: contentBase64 };
+};
