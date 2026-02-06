@@ -15,6 +15,10 @@ contextBridge.exposeInMainWorld("ethos", {
       ipcRenderer.invoke("audio:abortSession", payload),
     deleteRecording: (payload: { filePath: string }) =>
       ipcRenderer.invoke("audio:deleteRecording", payload),
+    exportRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:exportRecording", payload),
+    openRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:openRecording", payload),
     openRecording: (payload: { filePath: string }) =>
       ipcRenderer.invoke("audio:openRecording", payload),
     exportRecording: (payload: { filePath: string }) =>

@@ -24,6 +24,9 @@ declare global {
         appendChunk: (payload: { recordingId: string; data: ArrayBuffer }) => Promise<{ ok: boolean }>;
         finishSession: (payload: { recordingId: string }) => Promise<{ filePath: string }>;
         abortSession: (payload: { recordingId: string }) => Promise<{ ok: boolean }>;
+        deleteRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
+        exportRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
+        openRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
         deleteRecording: (payload: { filePath: string }) => Promise<{ ok: boolean }>;
         openRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
         showRecording: (payload: { filePath: string }) => Promise<{ ok: boolean }>;

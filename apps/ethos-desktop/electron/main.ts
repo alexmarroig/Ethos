@@ -137,6 +137,12 @@ ipcMain.handle("audio:abortSession", async (_event, payload: { recordingId: stri
 });
 
 ipcMain.handle("audio:deleteRecording", async (_event, payload: { filePath: string }) => {
+  try {
+    await fs.promises.unlink(payload.filePath);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Falha ao excluir arquivo." };
+  }
   await fs.promises.unlink(payload.filePath);
   return { ok: true };
 });
@@ -148,6 +154,35 @@ ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string
 
 ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: string }) => {
   if (!mainWindow) {
+    return { ok: false, error: "Janela principal indisponível." };
+  }
+  const defaultName = path.basename(payload.filePath);
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Exportar gravação",
+    defaultPath: defaultName,
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false, error: "Exportação cancelada." };
+  }
+  try {
+    await fs.promises.copyFile(payload.filePath, result.filePath);
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Falha ao exportar arquivo." };
+  }
+});
+
+ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string }) => {
+  try {
+    const result = await shell.openPath(payload.filePath);
+    if (result) {
+      return { ok: false, error: result };
+    }
+    return { ok: true };
+  } catch (error) {
+    return { ok: false, error: error instanceof Error ? error.message : "Falha ao abrir arquivo." };
+  }
+});
     return { ok: false };
   }
   const defaultPath = path.basename(payload.filePath);
