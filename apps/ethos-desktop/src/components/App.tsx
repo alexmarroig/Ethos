@@ -24,10 +24,8 @@ type WorkerMessage =
   | unknown;
 
 type AppTab = "clinical" | "admin";
+type ClinicalSection = "login" | "agenda" | "sessao" | "prontuario";
 
-/**
- * Bridge minimalista (compatível com preload antigo e refatorado).
- */
 type EthosBridge = {
   audio: {
     openDialog: () => Promise<string | null>;
@@ -47,7 +45,7 @@ declare global {
 }
 
 // -----------------------------
-// Styles
+// Styles (base)
 // -----------------------------
 const sectionStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -152,9 +150,6 @@ function safeLocalStorageRemove(key: string) {
   }
 }
 
-/**
- * Cria um bridge compatível com preload antigo/refatorado.
- */
 function createEthosBridge(): EthosBridge {
   const ethos = window.ethos;
 
@@ -197,19 +192,31 @@ function createEthosBridge(): EthosBridge {
 // -----------------------------
 // Main Component
 // -----------------------------
-export const App = () => {
-  // Tabs
-  const [tab, setTab] = useState<AppTab>("clinical");
+const clinicalNavItems: Array<{ id: ClinicalSection; label: string; helper: string }> = [
+  { id: "login", label: "Login", helper: "Acesso seguro" },
+  { id: "agenda", label: "Agenda", helper: "Semana clínica" },
+  { id: "sessao", label: "Sessão", helper: "Registro guiado" },
+  { id: "prontuario", label: "Prontuário", helper: "Validação + export" },
+];
 
+export const App = () => {
+  // =========================
+  // Tabs
+  // =========================
+  const [tab, setTab] = useState<AppTab>("clinical");
+  const [clinicalSection, setClinicalSection] = useState<ClinicalSection>("agenda");
+
+  // =========================
   // Session context (proto)
+  // =========================
   const sessionId = "session-marina-alves";
   const patientName = "Marina Alves";
   const clinicianName = "Dra. Ana Souza";
   const sessionDate = "15/02/2025";
 
-  // -------------------------
+  // =========================
   // Clinical note state
-  // -------------------------
+  // =========================
   const [consentForNote, setConsentForNote] = useState(false);
   const [draft, setDraft] = useState(
     "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
@@ -225,13 +232,13 @@ export const App = () => {
   const canValidate = consentForNote && !isValidated;
   const canExport = isValidated && exportingFormat === null;
 
-  const handleValidate = () => setShowEthicsModal(true);
+  const handleValidate = useCallback(() => setShowEthicsModal(true), []);
 
-  const confirmValidation = () => {
+  const confirmValidation = useCallback(() => {
     setStatus("validated");
     setValidatedAt(safeNowPtBr());
     setShowEthicsModal(false);
-  };
+  }, []);
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
@@ -261,17 +268,17 @@ export const App = () => {
     [canExport, clinicianName, draft, patientName, sessionDate, status, validatedAt]
   );
 
-  // UX: se estiver editando rascunho, limpa feedback antigo para evitar confusão
   useEffect(() => {
     if (!isValidated) setExportFeedback(null);
   }, [draft, isValidated]);
 
-  // -------------------------
+  // =========================
   // Audio recording + transcription
-  // -------------------------
+  // =========================
   const bridge = useMemo(() => createEthosBridge(), []);
   const recorder = useAudioRecorder({ sessionId });
 
+  // Consentimento de gravação (adição 1)
   const [consentForRecording, setConsentForRecording] = useState(false);
   const [showRecordingConsentModal, setShowRecordingConsentModal] = useState(false);
   const [recordingConsentChecked, setRecordingConsentChecked] = useState(false);
@@ -286,7 +293,7 @@ export const App = () => {
 
   const currentJobIdRef = useRef<string | null>(null);
 
-  const startRecordingWithConsent = useCallback(async () => {
+  const handleStartRecording = useCallback(async () => {
     if (!consentForRecording) {
       setShowRecordingConsentModal(true);
       return;
@@ -294,7 +301,7 @@ export const App = () => {
     await recorder.startRecording();
   }, [consentForRecording, recorder]);
 
-  const confirmRecordingConsentAndStart = useCallback(async () => {
+  const handleConfirmRecordingConsent = useCallback(async () => {
     setConsentForRecording(true);
     setShowRecordingConsentModal(false);
     setRecordingConsentChecked(false);
@@ -352,7 +359,6 @@ export const App = () => {
   }, [bridge, selectedModel, sessionId]);
 
   const handleTranscribeRecordedAudio = useCallback(async () => {
-    // depende do hook expor audioBuffer/mimeType.
     const audioBuffer: ArrayBuffer | undefined = (recorder as any).audioBuffer;
     const mimeType: string | undefined = (recorder as any).mimeType;
 
@@ -386,9 +392,9 @@ export const App = () => {
     setJobId(id);
   }, [bridge, recorder, selectedModel, sessionId]);
 
-  // -------------------------
+  // =========================
   // Admin control plane
-  // -------------------------
+  // =========================
   const defaultControlPlaneUrl = "http://localhost:8788";
 
   const [adminBaseUrl, setAdminBaseUrl] = useState(() =>
@@ -531,9 +537,43 @@ export const App = () => {
     safeLocalStorageRemove("ethos-admin-role");
   }, []);
 
-  // -------------------------
+  // =========================
+  // PWA/Mobile shell styles (adição 2)
+  // =========================
+  const clinicalShellStyles = useMemo(
+    () => `
+      :root { color-scheme: dark; }
+      * { box-sizing: border-box; }
+      .pwa-app { display: flex; flex-direction: column; gap: 24px; }
+      .pwa-header { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+      .pwa-header h2 { margin: 0; font-size: 20px; color: #f8fafc; }
+      .pwa-header p { margin: 6px 0 0; color: #94a3b8; }
+      .status-pill { background: #1f2937; color: #e2e8f0; padding: 8px 14px; border-radius: 999px; font-size: 14px; }
+      .shell { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
+      .nav { background: #0b1222; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
+      .nav button { background: transparent; border: 1px solid transparent; padding: 12px; border-radius: 12px; text-align: left; color: #cbd5f5; font-weight: 600; cursor: pointer; }
+      .nav button span { display: block; font-size: 12px; color: #64748b; margin-top: 4px; font-weight: 500; }
+      .nav button.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); color: #f8fafc; }
+      .content { display: flex; flex-direction: column; gap: 16px; }
+      .panel { display: none; gap: 16px; flex-direction: column; }
+      .panel.active { display: flex; }
+      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+      .input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
+      .bottom-nav { display: none; }
+      @media (max-width: 960px) {
+        .shell { grid-template-columns: 1fr; }
+        .nav { display: none; }
+        .bottom-nav { display: flex; position: sticky; bottom: 16px; background: #0b1222; border-radius: 16px; padding: 12px; gap: 8px; justify-content: space-around; }
+        .bottom-nav button { background: transparent; border: none; color: #94a3b8; font-weight: 600; cursor: pointer; }
+        .bottom-nav button.active { color: #f8fafc; }
+      }
+    `,
+    []
+  );
+
+  // =========================
   // Render
-  // -------------------------
+  // =========================
   return (
     <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
       <header style={{ marginBottom: 24 }}>
@@ -541,36 +581,26 @@ export const App = () => {
         <p style={subtleText}>Offline: prontuário + gravação/transcrição local + control plane admin.</p>
 
         <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
-          <button
-            style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }}
-            onClick={() => setTab("clinical")}
-          >
+          <button style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }} onClick={() => setTab("clinical")}>
             Clínica
           </button>
-          <button
-            style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }}
-            onClick={() => setTab("admin")}
-          >
+          <button style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }} onClick={() => setTab("admin")}>
             Admin
           </button>
-
           {tab === "admin" && hasAdminToken ? <span style={badgeStyle}>{adminStatusLabel}</span> : null}
         </div>
       </header>
 
-      {/* MODALS */}
+      {/* Modals globais */}
       {showRecordingConsentModal ? (
-        <ConsentModal
-          title="Confirmar consentimento de gravação"
-          description="Antes de iniciar a gravação, confirme que o paciente autorizou o registro de áudio."
+        <RecordingConsentModal
           checked={recordingConsentChecked}
           onCheck={setRecordingConsentChecked}
-          confirmLabel="Iniciar gravação"
           onCancel={() => {
             setShowRecordingConsentModal(false);
             setRecordingConsentChecked(false);
           }}
-          onConfirm={confirmRecordingConsentAndStart}
+          onConfirm={handleConfirmRecordingConsent}
         />
       ) : null}
 
@@ -579,190 +609,311 @@ export const App = () => {
       ) : null}
 
       {/* -------------------------
-          CLINICAL TAB
+          CLINICAL TAB (com shell PWA)
       -------------------------- */}
       {tab === "clinical" ? (
-        <>
-          <section style={sectionStyle}>
-            <h2>Agenda semanal</h2>
-            <p style={{ color: "#CBD5F5" }}>Segunda · 14:00 · {patientName}</p>
-            <p style={{ color: "#CBD5F5" }}>Terça · 09:30 · João Costa</p>
-          </section>
+        <div className="pwa-app">
+          <style>{clinicalShellStyles}</style>
 
-          <section style={sectionStyle}>
-            <h2>Sessão</h2>
-            <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
+          <div className="pwa-header">
+            <div>
+              <h2>PWA Clínica</h2>
+              <p>Experiência mobile-first com navegação rápida e suporte offline.</p>
+            </div>
+            <div className="status-pill">Modo offline pronto · Última sincronização: 09:24</div>
+          </div>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-              <button style={buttonStyle} onClick={handleImportAudio}>
-                Importar áudio
-              </button>
-
-              <button
-                style={recorder.status === "recording" ? { ...buttonStyle, background: "#EF4444" } : secondaryButtonStyle}
-                onClick={recorder.status === "recording" ? recorder.stopRecording : startRecordingWithConsent}
-              >
-                {recorder.status === "recording" ? "Parar gravação" : "Gravar áudio"}
-              </button>
-
-              {recorder.audioUrl ? (
-                <button style={outlineButtonStyle} onClick={recorder.resetRecording}>
-                  Limpar gravação
+          <div className="shell">
+            <nav className="nav" aria-label="Navegação clínica">
+              {clinicalNavItems.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={clinicalSection === item.id ? "active" : ""}
+                  onClick={() => setClinicalSection(item.id)}
+                >
+                  {item.label}
+                  <span>{item.helper}</span>
                 </button>
-              ) : null}
+              ))}
+            </nav>
 
-              <select
-                value={selectedModel}
-                onChange={(e) => setSelectedModel(e.target.value as ModelId)}
-                style={{ ...inputStyle, maxWidth: 220 }}
-                title="Modelo de transcrição"
-              >
-                <option value="ptbr-accurate">ptbr-accurate (mais preciso)</option>
-                <option value="ptbr-fast">ptbr-fast (mais rápido)</option>
-              </select>
+            <main className="content">
+              {/* LOGIN (placeholder) */}
+              <section className={`panel ${clinicalSection === "login" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Login rápido</h2>
+                  <p style={{ color: "#CBD5F5" }}>Autenticação segura com PIN local e biometria.</p>
+                  <div className="grid" style={{ marginTop: 16 }}>
+                    <label style={{ color: "#CBD5F5" }}>
+                      Email
+                      <input className="input" type="email" placeholder="nome@clinica.com" />
+                    </label>
+                    <label style={{ color: "#CBD5F5" }}>
+                      PIN
+                      <input className="input" type="password" placeholder="••••" />
+                    </label>
+                  </div>
+                  <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
+                    <button style={buttonStyle} type="button">
+                      Entrar
+                    </button>
+                    <button style={{ ...buttonStyle, background: "#334155" }} type="button">
+                      Usar biometria
+                    </button>
+                  </div>
+                </div>
 
-              {recorder.audioUrl ? (
-                <button style={{ ...buttonStyle, background: "#6366F1" }} onClick={handleTranscribeRecordedAudio}>
-                  Transcrever gravação
-                </button>
-              ) : null}
-            </div>
+                <div style={sectionStyle}>
+                  <h2>Sincronização inteligente</h2>
+                  <p style={{ color: "#94A3B8" }}>Controlamos uploads apenas quando o Wi-Fi seguro está disponível.</p>
+                  <div className="grid" style={{ marginTop: 12 }}>
+                    <div>
+                      <strong>Fila local</strong>
+                      <p style={{ color: "#CBD5F5" }}>3 sessões aguardando envio</p>
+                    </div>
+                    <div>
+                      <strong>Criptografia</strong>
+                      <p style={{ color: "#CBD5F5" }}>AES-256 ativo</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-              <span style={badgeStyle}>{recorder.status === "recording" ? "Gravando" : "Pronto"}</span>
-              <span style={badgeStyle}>Tempo: {recorder.elapsedLabel}</span>
-              {consentForRecording ? <span style={badgeStyle}>Consentimento de gravação registrado</span> : null}
-            </div>
+              {/* AGENDA */}
+              <section className={`panel ${clinicalSection === "agenda" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Agenda semanal</h2>
+                  <div className="grid" style={{ marginTop: 12 }}>
+                    <div>
+                      <strong>Segunda</strong>
+                      <p style={{ color: "#CBD5F5" }}>14:00 · {patientName}</p>
+                      <p style={{ color: "#94A3B8" }}>Sala 2 · Presencial</p>
+                    </div>
+                    <div>
+                      <strong>Terça</strong>
+                      <p style={{ color: "#CBD5F5" }}>09:30 · João Costa</p>
+                      <p style={{ color: "#94A3B8" }}>Teleatendimento</p>
+                    </div>
+                    <div>
+                      <strong>Quarta</strong>
+                      <p style={{ color: "#CBD5F5" }}>16:15 · Luísa Martins</p>
+                      <p style={{ color: "#94A3B8" }}>Sala 3 · Avaliação inicial</p>
+                    </div>
+                  </div>
+                </div>
 
-            {recorder.errorMessage ? (
-              <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro de gravação: {recorder.errorMessage}</p>
-            ) : null}
+                <div style={sectionStyle}>
+                  <h2>Próximas tarefas</h2>
+                  <ul style={{ color: "#CBD5F5", paddingLeft: 18, margin: 0 }}>
+                    <li>Revisar formulário de intake (Marina).</li>
+                    <li>Confirmar autorização de gravação (João).</li>
+                    <li>Enviar lembrete de sessão (Luísa).</li>
+                  </ul>
+                </div>
+              </section>
 
-            {recorder.audioUrl ? (
-              <div style={{ marginTop: 12 }}>
-                <p style={{ color: "#E2E8F0", marginBottom: 8 }}>
-                  Prévia do áudio gravado{recorder.audioFilePath ? ` (salvo em ${recorder.audioFilePath})` : ""}.
-                </p>
-                <audio controls src={recorder.audioUrl} style={{ width: "100%" }} />
-              </div>
-            ) : null}
+              {/* SESSÃO */}
+              <section className={`panel ${clinicalSection === "sessao" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Sessão</h2>
+                  <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
 
-            <div style={{ marginTop: 12 }}>
-              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                <span style={badgeStyle}>Transcrição: {jobStatus}</span>
-                {jobId ? <span style={badgeStyle}>Job: {jobId.slice(0, 8)}…</span> : null}
-                <span style={badgeStyle}>Progresso: {Math.round(jobProgress)}%</span>
-              </div>
-              {jobError ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro do worker: {jobError}</p> : null}
-              {workerLog ? <p style={{ ...subtleText, marginTop: 8 }}>{workerLog}</p> : null}
-            </div>
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+                    <button style={buttonStyle} onClick={handleImportAudio} type="button">
+                      Importar áudio
+                    </button>
 
-            <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
-              <input
-                type="checkbox"
-                checked={consentForNote}
-                onChange={(event) => setConsentForNote(event.target.checked)}
-              />{" "}
-              Tenho consentimento do paciente (registro/uso do prontuário)
-            </label>
-          </section>
+                    <button
+                      style={recorder.status === "recording" ? { ...buttonStyle, background: "#EF4444" } : secondaryButtonStyle}
+                      onClick={recorder.status === "recording" ? recorder.stopRecording : handleStartRecording}
+                      type="button"
+                    >
+                      {recorder.status === "recording" ? "Parar gravação" : "Gravar áudio"}
+                    </button>
 
-          <section style={sectionStyle}>
-            <h2>Prontuário automático</h2>
+                    {recorder.audioUrl ? (
+                      <button style={outlineButtonStyle} onClick={recorder.resetRecording} type="button">
+                        Limpar gravação
+                      </button>
+                    ) : null}
 
-            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-              <span
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 999,
-                  background: status === "draft" ? "#FBBF24" : "#22C55E",
-                  color: "#0F172A",
-                  fontWeight: 700,
-                  fontSize: 12,
-                }}
-              >
-                {status === "draft" ? "Rascunho" : "Validado"}
-              </span>
-              <span style={{ ...subtleText, fontSize: 14 }}>
-                {isValidated ? `Bloqueado para edição · ${validatedAt ?? "Validado"}` : "Edição liberada até validação ética."}
-              </span>
-            </div>
+                    <select
+                      value={selectedModel}
+                      onChange={(e) => setSelectedModel(e.target.value as ModelId)}
+                      style={{ ...inputStyle, maxWidth: 220 }}
+                      title="Modelo de transcrição"
+                    >
+                      <option value="ptbr-accurate">ptbr-accurate (mais preciso)</option>
+                      <option value="ptbr-fast">ptbr-fast (mais rápido)</option>
+                    </select>
 
-            {isValidated ? (
-              <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
-                Prontuário validado e congelado para assegurar integridade clínica.
-              </p>
-            ) : null}
+                    {recorder.audioUrl ? (
+                      <button style={{ ...buttonStyle, background: "#14B8A6" }} onClick={handleTranscribeRecordedAudio} type="button">
+                        Iniciar transcrição
+                      </button>
+                    ) : null}
+                  </div>
 
-            <textarea
-              value={draft}
-              onChange={(event) => {
-                if (!isValidated) setDraft(event.target.value);
-              }}
-              readOnly={isValidated}
-              style={{
-                width: "100%",
-                minHeight: 140,
-                marginTop: 12,
-                borderRadius: 12,
-                padding: 12,
-                background: isValidated ? "#1E293B" : "#F8FAFC",
-                color: isValidated ? "#E2E8F0" : "#0F172A",
-              }}
-            />
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+                    <span style={badgeStyle}>{recorder.status === "recording" ? "Gravando" : "Pronto para gravar"}</span>
+                    <span style={badgeStyle}>Tempo: {recorder.elapsedLabel}</span>
+                    {consentForRecording ? <span style={badgeStyle}>Consentimento registrado</span> : null}
+                  </div>
 
-            <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                  {recorder.errorMessage ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro: {recorder.errorMessage}</p> : null}
+
+                  {recorder.audioUrl ? (
+                    <div style={{ marginTop: 12 }}>
+                      <p style={{ color: "#E2E8F0", marginBottom: 8 }}>
+                        Áudio salvo {recorder.audioFilePath ? `em ${recorder.audioFilePath}` : "localmente"}.
+                      </p>
+                      <audio controls src={recorder.audioUrl} style={{ width: "100%" }} />
+                    </div>
+                  ) : null}
+
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                      <span style={badgeStyle}>Transcrição: {jobStatus}</span>
+                      {jobId ? <span style={badgeStyle}>Job: {jobId.slice(0, 8)}…</span> : null}
+                      <span style={badgeStyle}>Progresso: {Math.round(jobProgress)}%</span>
+                    </div>
+                    {jobError ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro do worker: {jobError}</p> : null}
+                    {workerLog ? <p style={{ ...subtleText, marginTop: 8 }}>{workerLog}</p> : null}
+                  </div>
+
+                  <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
+                    <input
+                      type="checkbox"
+                      checked={consentForNote}
+                      onChange={(event) => setConsentForNote(event.target.checked)}
+                    />{" "}
+                    Tenho consentimento do paciente (registro/uso do prontuário)
+                  </label>
+
+                  <p style={{ color: "#94A3B8", marginTop: 8 }}>
+                    Status da transcrição: aguardando envio para o worker local.
+                  </p>
+                </div>
+              </section>
+
+              {/* PRONTUÁRIO */}
+              <section className={`panel ${clinicalSection === "prontuario" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Prontuário automático</h2>
+
+                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+                    <span
+                      style={{
+                        padding: "4px 10px",
+                        borderRadius: 999,
+                        background: status === "draft" ? "#FBBF24" : "#22C55E",
+                        color: "#0F172A",
+                        fontWeight: 700,
+                        fontSize: 12,
+                      }}
+                    >
+                      {status === "draft" ? "Rascunho" : "Validado"}
+                    </span>
+                    <span style={{ ...subtleText, fontSize: 14 }}>
+                      {isValidated ? `Bloqueado para edição · ${validatedAt ?? "Validado"}` : "Edição liberada até validação ética."}
+                    </span>
+                  </div>
+
+                  {isValidated ? (
+                    <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
+                      Prontuário validado e congelado para assegurar integridade clínica.
+                    </p>
+                  ) : null}
+
+                  <textarea
+                    value={draft}
+                    onChange={(event) => {
+                      if (!isValidated) setDraft(event.target.value);
+                    }}
+                    readOnly={isValidated}
+                    style={{
+                      width: "100%",
+                      minHeight: 140,
+                      marginTop: 12,
+                      borderRadius: 12,
+                      padding: 12,
+                      border: "1px solid #334155",
+                      background: isValidated ? "#1E293B" : "#0f172a",
+                      color: "#E2E8F0",
+                    }}
+                  />
+
+                  <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                    <button
+                      style={{
+                        ...buttonStyle,
+                        background: canValidate ? "#22C55E" : "#334155",
+                        cursor: canValidate ? "pointer" : "not-allowed",
+                      }}
+                      onClick={handleValidate}
+                      disabled={!canValidate}
+                      type="button"
+                    >
+                      Validar prontuário
+                    </button>
+
+                    <button
+                      style={{
+                        ...buttonStyle,
+                        background: canExport ? "#6366F1" : "#334155",
+                        cursor: canExport ? "pointer" : "not-allowed",
+                      }}
+                      onClick={() => handleExport("docx")}
+                      disabled={!canExport}
+                      type="button"
+                    >
+                      {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
+                    </button>
+
+                    <button
+                      style={{
+                        ...buttonStyle,
+                        background: canExport ? "#6366F1" : "#334155",
+                        cursor: canExport ? "pointer" : "not-allowed",
+                      }}
+                      onClick={() => handleExport("pdf")}
+                      disabled={!canExport}
+                      type="button"
+                    >
+                      {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
+                    </button>
+                  </div>
+
+                  {!consentForNote ? (
+                    <p style={{ color: "#FCA5A5", marginTop: 8 }}>
+                      É necessário confirmar o consentimento do paciente para validar o prontuário.
+                    </p>
+                  ) : null}
+
+                  {exportFeedback ? (
+                    <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
+                      {exportFeedback}
+                    </p>
+                  ) : null}
+                </div>
+              </section>
+            </main>
+          </div>
+
+          <nav className="bottom-nav" aria-label="Navegação clínica móvel">
+            {clinicalNavItems.map((item) => (
               <button
-                style={{
-                  ...buttonStyle,
-                  background: canValidate ? "#22C55E" : "#334155",
-                  cursor: canValidate ? "pointer" : "not-allowed",
-                }}
-                onClick={handleValidate}
-                disabled={!canValidate}
-                title={!consentForNote ? "Confirme o consentimento do paciente para validar." : undefined}
+                key={item.id}
+                type="button"
+                className={clinicalSection === item.id ? "active" : ""}
+                onClick={() => setClinicalSection(item.id)}
               >
-                Validar prontuário
+                {item.label}
               </button>
-
-              <button
-                style={{
-                  ...buttonStyle,
-                  background: canExport ? "#6366F1" : "#334155",
-                  cursor: canExport ? "pointer" : "not-allowed",
-                }}
-                onClick={() => handleExport("docx")}
-                disabled={!canExport}
-              >
-                {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
-              </button>
-
-              <button
-                style={{
-                  ...buttonStyle,
-                  background: canExport ? "#6366F1" : "#334155",
-                  cursor: canExport ? "pointer" : "not-allowed",
-                }}
-                onClick={() => handleExport("pdf")}
-                disabled={!canExport}
-              >
-                {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
-              </button>
-            </div>
-
-            {!consentForNote ? (
-              <p style={{ color: "#FCA5A5", marginTop: 8 }}>
-                É necessário confirmar o consentimento do paciente para validar o prontuário.
-              </p>
-            ) : null}
-
-            {exportFeedback ? (
-              <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
-                {exportFeedback}
-              </p>
-            ) : null}
-          </section>
-        </>
+            ))}
+          </nav>
+        </div>
       ) : null}
 
       {/* -------------------------
@@ -842,7 +993,7 @@ export const App = () => {
 };
 
 // -----------------------------
-// Subcomponents
+// Modals/Subcomponents
 // -----------------------------
 function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
@@ -854,10 +1005,10 @@ function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; 
           que o consentimento foi obtido e que você está ciente do bloqueio permanente após a validação.
         </p>
         <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button style={outlineButtonStyle} onClick={onCancel}>
+          <button style={outlineButtonStyle} onClick={onCancel} type="button">
             Cancelar
           </button>
-          <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={onConfirm}>
+          <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={onConfirm} type="button">
             Confirmar e validar
           </button>
         </div>
@@ -866,35 +1017,43 @@ function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; 
   );
 }
 
-function ConsentModal(props: {
-  title: string;
-  description: string;
+/**
+ * Modal de gravação no estilo do seu snippet (compacto).
+ */
+function RecordingConsentModal(props: {
   checked: boolean;
   onCheck: (value: boolean) => void;
   onCancel: () => void;
   onConfirm: () => void;
-  confirmLabel: string;
 }) {
-  const { title, description, checked, onCheck, onCancel, onConfirm, confirmLabel } = props;
+  const { checked, onCheck, onCancel, onConfirm } = props;
+
+  // modal menor (como no snippet)
+  const compactModalStyle: React.CSSProperties = {
+    ...modalStyle,
+    width: "min(90vw, 420px)",
+  };
+
   return (
     <div style={modalBackdropStyle}>
-      <div style={modalStyle}>
-        <h3 style={{ marginTop: 0 }}>{title}</h3>
-        <p style={{ color: "#CBD5F5" }}>{description}</p>
+      <div style={compactModalStyle}>
+        <h3 style={{ marginTop: 0 }}>Confirmar consentimento</h3>
+        <p style={{ color: "#CBD5F5" }}>Antes de iniciar a gravação, confirme que o paciente autorizou o registro de áudio.</p>
         <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#E2E8F0" }}>
           <input type="checkbox" checked={checked} onChange={(event) => onCheck(event.target.checked)} />
-          Tenho consentimento explícito do paciente.
+          Tenho consentimento explícito do paciente para gravar a sessão.
         </label>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button style={outlineButtonStyle} onClick={onCancel}>
+        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end" }}>
+          <button style={outlineButtonStyle} onClick={onCancel} type="button">
             Cancelar
           </button>
           <button
             style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }}
             onClick={onConfirm}
             disabled={!checked}
+            type="button"
           >
-            {confirmLabel}
+            Iniciar gravação
           </button>
         </div>
       </div>
