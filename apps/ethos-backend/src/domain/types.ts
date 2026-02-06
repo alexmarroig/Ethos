@@ -39,6 +39,52 @@ export type Patient = Owned & {
   label: string;
 };
 
+export type EmergencyContact = Owned & {
+  patient_id: string;
+  name: string;
+  relationship: string;
+  phone: string;
+  email?: string;
+  availability_notes?: string;
+};
+
+export type SafetyPlan = Owned & {
+  patient_id: string;
+  warning_signs: string[];
+  coping_strategies: string[];
+  safe_places: string[];
+  trusted_people: string[];
+  professional_support: string[];
+  means_restriction_actions: string[];
+  updated_at: string;
+};
+
+export type CriticalEpisode = Owned & {
+  patient_id: string;
+  occurred_at: string;
+  severity: "low" | "medium" | "high";
+  triggers: string[];
+  summary: string;
+  interventions: string[];
+  outcome: string;
+  follow_up_at?: string;
+};
+
+export type ConductChecklistItem = Owned & {
+  patient_id: string;
+  label: string;
+  status: "pending" | "completed";
+  last_reviewed_at?: string;
+};
+
+export type PatientHistoryEntry = Owned & {
+  patient_id: string;
+  category: "family" | "clinical" | "social" | "academic" | "legal" | "other";
+  summary: string;
+  recorded_at: string;
+  source?: string;
+};
+
 export type ClinicalSession = Owned & {
   patient_id: string;
   scheduled_at: string;
