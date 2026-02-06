@@ -13,6 +13,12 @@ contextBridge.exposeInMainWorld("ethos", {
       ipcRenderer.invoke("audio:finishSession", payload),
     abortSession: (payload: { recordingId: string }) =>
       ipcRenderer.invoke("audio:abortSession", payload),
+    deleteRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:deleteRecording", payload),
+    openRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:openRecording", payload),
+    exportRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:exportRecording", payload),
   },
   onTranscriptionMessage: (handler: (message: string) => void) =>
     ipcRenderer.on("transcription:message", (_event, message) => handler(message)),

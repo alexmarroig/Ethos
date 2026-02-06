@@ -67,6 +67,30 @@ export class AudioRecordingService {
     return { recordingId, filePath };
   }
 
+  pause(): boolean {
+    if (!this.session) {
+      return false;
+    }
+    const { mediaRecorder } = this.session;
+    if (mediaRecorder.state === "recording") {
+      mediaRecorder.pause();
+      return true;
+    }
+    return false;
+  }
+
+  resume(): boolean {
+    if (!this.session) {
+      return false;
+    }
+    const { mediaRecorder } = this.session;
+    if (mediaRecorder.state === "paused") {
+      mediaRecorder.resume();
+      return true;
+    }
+    return false;
+  }
+
   async abort(): Promise<void> {
     if (!this.session || !window.ethos?.audio) {
       return;
