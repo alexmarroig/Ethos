@@ -80,47 +80,11 @@ export class AudioRecordingService {
   async resume(): Promise<void> {
     if (!this.session) {
       return;
-  pause(): void {
-    if (!this.session) {
-      return;
-    }
-    if (this.session.mediaRecorder.state === "recording") {
-      this.session.mediaRecorder.pause();
-    }
-  }
-
-  resume(): void {
-    if (!this.session) {
-      return;
-    }
-    if (this.session.mediaRecorder.state === "paused") {
-      this.session.mediaRecorder.resume();
-    }
-  }
-
-  pause(): boolean {
-    if (!this.session) {
-      return false;
-    }
-    const { mediaRecorder } = this.session;
-    if (mediaRecorder.state === "recording") {
-      mediaRecorder.pause();
-      return true;
-    }
-    return false;
-  }
-
-  resume(): boolean {
-    if (!this.session) {
-      return false;
     }
     const { mediaRecorder } = this.session;
     if (mediaRecorder.state === "paused") {
       mediaRecorder.resume();
     }
-      return true;
-    }
-    return false;
   }
 
   async abort(): Promise<void> {
