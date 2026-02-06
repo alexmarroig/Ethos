@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#0f172a" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/icons/icon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/src/styles.css" />
+    <title>Ethos Patient</title>
+  </head>
+  <body>
+    <div id="app" class="app">
+      <header class="app__header">
+        <div>
+          <p class="eyebrow">Ethos · Área do Paciente</p>
+          <h1>Formulários e tarefas</h1>
+          <p class="subhead">Acesse suas tarefas liberadas pelo psicólogo e envie suas respostas.</p>
+        </div>
+        <button id="logout" class="ghost" type="button">Sair</button>
+      </header>
+
+      <section class="panel">
+        <h2>Entrar</h2>
+        <p>Use o e-mail e a senha compartilhados pelo psicólogo.</p>
+        <form id="login-form" class="form-grid">
+          <label>
+            URL do servidor
+            <input id="base-url" type="url" placeholder="http://localhost:3333" required />
+          </label>
+          <label>
+            E-mail
+            <input id="email" type="email" placeholder="paciente@email.com" required />
+          </label>
+          <label>
+            Senha
+            <input id="password" type="password" placeholder="********" required />
+          </label>
+          <button type="submit">Entrar</button>
+        </form>
+      </section>
+
+      <section class="panel" aria-live="polite">
+        <div class="panel__header">
+          <h2>Tarefas liberadas</h2>
+          <button id="refresh" type="button" class="ghost">Atualizar</button>
+        </div>
+        <div id="forms-empty" class="empty">Faça login para visualizar os formulários disponíveis.</div>
+        <ul id="forms-list" class="card-list"></ul>
+      </section>
+
+      <section class="panel">
+        <h2>Enviar resposta</h2>
+        <p>Selecione uma tarefa acima ou preencha manualmente os campos.</p>
+        <form id="entry-form" class="form-grid">
+          <label>
+            ID do paciente
+            <input id="patient-id" type="text" placeholder="paciente-001" required />
+          </label>
+          <label>
+            ID do formulário
+            <input id="form-id" type="text" placeholder="formulario-inicial" required />
+          </label>
+          <label class="span-2">
+            Conteúdo (JSON)
+            <textarea id="form-content" rows="6" placeholder='{"pergunta": "resposta"}'></textarea>
+          </label>
+          <button type="submit">Enviar formulário</button>
+        </form>
+        <div id="entry-status" class="status"></div>
+      </section>
+    </div>
+
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

@@ -17,33 +17,60 @@ import {
   createInvite,
   createJob,
   createReport,
+  createContract,
   createScaleRecord,
   createSession,
   createPrivateComment,
+  exportCase,
+  createTemplate,
+  deleteTemplate,
   evaluateObservability,
+  exportContract,
   getByOwner,
   getClinicalNote,
+  getContract,
   getJob,
+  getTemplate,
   getUserFromToken,
+  getContractByPortalToken,
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
+  getRetentionPolicy,
   listObservabilityAlerts,
   listPrivateComments,
   listPatients,
+  listContracts,
   listScales,
   listSessionClinicalNotes,
+  listTemplates,
   login,
   logout,
+  closeCase,
   paginate,
   patchSessionStatus,
   purgeUserData,
+  renderTemplate,
   resolveLocalEntitlements,
+  recordProntuarioAudit,
   runJob,
+  sendContract,
   syncLocalEntitlements,
+  updateRetentionPolicy,
+  acceptContract,
+  updateTemplate,
   validateClinicalNote,
   listAnonymizedCases,
 } from "../application/service";
+import {
+  createNotificationTemplate,
+  dispatchDueNotifications,
+  grantNotificationConsent,
+  listNotificationLogs,
+  listNotificationSchedules,
+  listNotificationTemplates,
+  scheduleNotification,
+} from "../application/notifications";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
@@ -64,6 +91,7 @@ const CLINICAL_PATHS = [
   /^\/cases/,
 ];
 const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
+const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/notifications/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
@@ -145,6 +173,11 @@ const parsePagination = (url: URL) => {
 
 const hashRequestBody = (body: Record<string, unknown>) => crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
 const idempotencyCacheKey = (userId: string, method: string, pathname: string, idempotencyKey: string, bodyHash: string) => `${userId}:${method}:${pathname}:${idempotencyKey}:${bodyHash}`;
+const getRemoteIp = (req: IncomingMessage) => {
+  const forwarded = req.headers["x-forwarded-for"]?.toString();
+  if (forwarded) return forwarded.split(",")[0]?.trim() ?? "unknown";
+  return req.socket.remoteAddress ?? "unknown";
+};
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -158,12 +191,24 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return res.end(openApi);
     }
 
-    if (method === "GET" && url.pathname === "/contracts") {
-      return ok(res, requestId, 200, {
-        openapi: "/openapi.yaml",
-        response_envelope: { request_id: "string", data: "any" },
-        error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
-      });
+    if (method === "GET" && url.pathname.startsWith("/portal/contracts/")) {
+      const token = url.pathname.split("/")[3];
+      if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
+      const contract = getContractByPortalToken(token);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
+    }
+
+    if (method === "POST" && url.pathname.startsWith("/portal/contracts/") && url.pathname.endsWith("/accept")) {
+      const parts = url.pathname.split("/");
+      const token = parts[3];
+      if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
+      const body = await readJson(req);
+      const acceptedBy = String(body.accepted_by ?? "");
+      if (!acceptedBy) return error(res, requestId, 422, "VALIDATION_ERROR", "accepted_by is required");
+      const contract = acceptContract(token, acceptedBy, getRemoteIp(req));
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
     }
 
     if (method === "POST" && url.pathname === "/auth/login") {
@@ -212,6 +257,54 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     if (method === "GET" && url.pathname === "/local/entitlements") {
       return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
+    }
+
+    if (method === "GET" && url.pathname === "/contracts") {
+      return ok(res, requestId, 200, listContracts(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/contracts") {
+      const body = await readJson(req);
+      const requiredFields = [
+        "patient_id",
+        "psychologist",
+        "patient",
+        "terms",
+      ];
+      const missing = requiredFields.filter((field) => body[field] === undefined);
+      if (missing.length > 0) return error(res, requestId, 422, "VALIDATION_ERROR", `Missing fields: ${missing.join(", ")}`);
+      const contract = createContract(auth.user.id, {
+        patient_id: String(body.patient_id ?? ""),
+        psychologist: body.psychologist as { name: string; license: string; email: string; phone?: string },
+        patient: body.patient as { name: string; email: string; document: string },
+        terms: body.terms as { value: string; periodicity: string; absence_policy: string; payment_method: string },
+      });
+      return ok(res, requestId, 201, contract);
+    }
+
+    if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/send")) {
+      const contractId = url.pathname.split("/")[2];
+      const contract = sendContract(auth.user.id, contractId);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, {
+        contract,
+        portal_url: contract.portal_token ? `/portal/contracts/${contract.portal_token}` : null,
+      });
+    }
+
+    if (method === "GET" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/export")) {
+      const contractId = url.pathname.split("/")[2];
+      const format = url.searchParams.get("format") === "docx" ? "docx" : "pdf";
+      const payload = exportContract(auth.user.id, contractId, format);
+      if (!payload) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, payload);
+    }
+
+    if (method === "GET" && url.pathname.startsWith("/contracts/")) {
+      const contractId = url.pathname.split("/")[2];
+      const contract = getContract(auth.user.id, contractId);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
     }
 
     const idemKey = req.headers["idempotency-key"]?.toString();
@@ -297,12 +390,14 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && noteById) {
       const note = getClinicalNote(auth.user.id, noteById[1]);
       if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
+      recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", note.id);
       return ok(res, requestId, 200, note);
     }
 
     const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
     if (method === "GET" && sessionNotes) {
       const { page, pageSize } = parsePagination(url);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
       return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
     }
 
@@ -332,6 +427,75 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/cases/anonymized") {
       const { page, pageSize } = parsePagination(url);
       return ok(res, requestId, 200, paginate(listAnonymizedCases(auth.user.id), page, pageSize));
+    if (method === "POST" && url.pathname === "/notifications/templates") {
+      const body = await readJson(req);
+      if (typeof body.name !== "string" || typeof body.channel !== "string" || typeof body.content !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "name, channel and content required");
+      }
+      if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+      const template = createNotificationTemplate(auth.user.id, {
+        name: body.name,
+        channel: body.channel,
+        content: body.content,
+        subject: typeof body.subject === "string" ? body.subject : undefined,
+      });
+      return ok(res, requestId, 201, template);
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/templates") {
+      return ok(res, requestId, 200, listNotificationTemplates(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/consents") {
+      const body = await readJson(req);
+      if (typeof body.patient_id !== "string" || typeof body.channel !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and channel required");
+      }
+      if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+      const consent = grantNotificationConsent(auth.user.id, {
+        patientId: body.patient_id,
+        channel: body.channel,
+        source: typeof body.source === "string" ? body.source : "manual",
+      });
+      return ok(res, requestId, 201, consent);
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/schedule") {
+      const body = await readJson(req);
+      if (typeof body.session_id !== "string" || typeof body.template_id !== "string" || typeof body.scheduled_for !== "string" || typeof body.recipient !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "session_id, template_id, scheduled_for, recipient required");
+      }
+      if (Number.isNaN(Date.parse(body.scheduled_for))) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid scheduled_for");
+      const session = getByOwner(db.sessions, auth.user.id, body.session_id);
+      if (!session) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+      const template = db.notificationTemplates.get(body.template_id);
+      if (!template || template.owner_user_id !== auth.user.id) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+
+      const result = await scheduleNotification(auth.user.id, {
+        session,
+        template,
+        scheduledFor: body.scheduled_for,
+        recipient: body.recipient,
+      });
+
+      if ("error" in result) return error(res, requestId, 422, result.error, "Consent required before scheduling");
+      return ok(res, requestId, 201, result);
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/schedules") {
+      return ok(res, requestId, 200, listNotificationSchedules(auth.user.id));
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/logs") {
+      return ok(res, requestId, 200, listNotificationLogs(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/dispatch-due") {
+      const body = await readJson(req);
+      const asOf = typeof body.as_of === "string" ? Date.parse(body.as_of) : Date.now();
+      if (Number.isNaN(asOf)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid as_of");
+      const dispatched = await dispatchDueNotifications(auth.user.id, asOf);
+      return ok(res, requestId, 200, dispatched);
     }
 
     if (method === "POST" && url.pathname === "/reports") {
@@ -344,6 +508,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/reports") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "report");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -355,6 +520,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/anamnesis") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.anamnesis.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "anamnesis");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -368,6 +534,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/scales/records") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.scales.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "scale_record");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -379,7 +546,63 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/forms") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    if (method === "GET" && url.pathname === "/templates") {
+      return ok(res, requestId, 200, listTemplates(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/templates") {
+      const body = await readJson(req);
+      if (typeof body.title !== "string" || typeof body.html !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "title and html required");
+      const template = createTemplate(auth.user.id, {
+        title: body.title,
+        description: typeof body.description === "string" ? body.description : undefined,
+        version: typeof body.version === "number" ? body.version : 1,
+        html: body.html,
+        fields: Array.isArray(body.fields) ? (body.fields as any) : [],
+      });
+      return ok(res, requestId, 201, template);
+    }
+
+    const templateById = url.pathname.match(/^\/templates\/([^/]+)$/);
+    if (method === "GET" && templateById) {
+      const template = getTemplate(auth.user.id, templateById[1]);
+      if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, template);
+    }
+
+    if (method === "PUT" && templateById) {
+      const body = await readJson(req);
+      const template = updateTemplate(auth.user.id, templateById[1], {
+        title: typeof body.title === "string" ? body.title : undefined,
+        description: typeof body.description === "string" ? body.description : undefined,
+        version: typeof body.version === "number" ? body.version : undefined,
+        html: typeof body.html === "string" ? body.html : undefined,
+        fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
+      });
+      if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, template);
+    }
+
+    if (method === "DELETE" && templateById) {
+      const removed = deleteTemplate(auth.user.id, templateById[1]);
+      if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, { deleted: true });
+    }
+
+    const templateRender = url.pathname.match(/^\/templates\/([^/]+)\/render$/);
+    if (method === "POST" && templateRender) {
+      const body = await readJson(req);
+      const render = renderTemplate(auth.user.id, templateRender[1], {
+        globals: (body.globals ?? {}) as any,
+        fields: (body.fields ?? {}) as Record<string, string>,
+        format: (body.format as "html" | "pdf" | "docx") ?? "html",
+      });
+      if (!render) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+      return ok(res, requestId, 200, render);
     }
 
     if (method === "POST" && url.pathname === "/financial/entry") {
@@ -397,13 +620,34 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/financial/entries") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
     if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
+      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
       const job = createJob(auth.user.id, "export");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+    }
+
+    if (method === "POST" && url.pathname === "/export/full") {
+      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
+      const job = createJob(auth.user.id, "export_full");
+      void runJob(job.id, {});
+      return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+    if (method === "POST" && url.pathname === "/export/case") {
+      const body = await readJson(req);
+      const patientId = String(body.patient_id ?? "");
+      if (!patientId) return error(res, requestId, 400, "INVALID_PAYLOAD", "patient_id is required");
+      const exportPayload = exportCase(auth.user.id, patientId, {
+        window_days: typeof body.history_window_days === "number" ? body.history_window_days : undefined,
+        max_sessions: typeof body.max_sessions === "number" ? body.max_sessions : undefined,
+        max_notes: typeof body.max_notes === "number" ? body.max_notes : undefined,
+        max_reports: typeof body.max_reports === "number" ? body.max_reports : undefined,
+      });
+      if (!exportPayload) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+      return ok(res, requestId, 200, exportPayload);
     }
 
     if (method === "POST" && url.pathname === "/backup") {
@@ -419,6 +663,40 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/purge") {
       purgeUserData(auth.user.id);
       return ok(res, requestId, 202, { accepted: true });
+    }
+
+    if (method === "GET" && url.pathname === "/retention-policy") {
+      return ok(res, requestId, 200, getRetentionPolicy(auth.user.id));
+    }
+
+    if (method === "PATCH" && url.pathname === "/retention-policy") {
+      const body = await readJson(req);
+      const updated = updateRetentionPolicy(auth.user.id, {
+        clinical_record_days: typeof body.clinical_record_days === "number" ? body.clinical_record_days : undefined,
+        audit_days: typeof body.audit_days === "number" ? body.audit_days : undefined,
+        export_days: typeof body.export_days === "number" ? body.export_days : undefined,
+      });
+      return ok(res, requestId, 200, updated);
+    if (method === "POST" && url.pathname === "/cases/close") {
+      const body = await readJson(req);
+      const patientId = String(body.patient_id ?? "");
+      if (!patientId) return error(res, requestId, 400, "INVALID_PAYLOAD", "patient_id is required");
+      const reason = String(body.reason ?? "").trim();
+      const summary = String(body.summary ?? "").trim();
+      if (!reason || !summary) return error(res, requestId, 400, "INVALID_PAYLOAD", "reason and summary are required");
+      const result = closeCase(auth.user.id, patientId, {
+        reason,
+        summary,
+        next_steps: Array.isArray(body.next_steps) ? body.next_steps.map((item) => String(item)) : [],
+        history_policy: {
+          window_days: typeof body.history_window_days === "number" ? body.history_window_days : undefined,
+          max_sessions: typeof body.max_sessions === "number" ? body.max_sessions : undefined,
+          max_notes: typeof body.max_notes === "number" ? body.max_notes : undefined,
+          max_reports: typeof body.max_reports === "number" ? body.max_reports : undefined,
+        },
+      });
+      if (!result) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+      return ok(res, requestId, 200, result);
     }
 
     const jobById = url.pathname.match(/^\/jobs\/([^/]+)$/);
