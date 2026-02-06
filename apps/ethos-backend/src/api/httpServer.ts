@@ -26,6 +26,7 @@ import {
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
+  getRetentionPolicy,
   listObservabilityAlerts,
   listPatients,
   listScales,
@@ -36,8 +37,10 @@ import {
   patchSessionStatus,
   purgeUserData,
   resolveLocalEntitlements,
+  recordProntuarioAudit,
   runJob,
   syncLocalEntitlements,
+  updateRetentionPolicy,
   validateClinicalNote,
 } from "../application/service";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
@@ -276,12 +279,14 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && noteById) {
       const note = getClinicalNote(auth.user.id, noteById[1]);
       if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
+      recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", note.id);
       return ok(res, requestId, 200, note);
     }
 
     const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
     if (method === "GET" && sessionNotes) {
       const { page, pageSize } = parsePagination(url);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
       return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
     }
 
@@ -295,6 +300,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/reports") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "report");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -306,6 +312,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/anamnesis") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.anamnesis.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "anamnesis");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -319,6 +326,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/scales/records") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.scales.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "scale_record");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -330,6 +338,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/forms") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
@@ -348,11 +357,20 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && url.pathname === "/financial/entries") {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+      recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
     }
 
     if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
+      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
       const job = createJob(auth.user.id, "export");
+      void runJob(job.id, {});
+      return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+    }
+
+    if (method === "POST" && url.pathname === "/export/full") {
+      if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
+      const job = createJob(auth.user.id, "export_full");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
@@ -370,6 +388,20 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/purge") {
       purgeUserData(auth.user.id);
       return ok(res, requestId, 202, { accepted: true });
+    }
+
+    if (method === "GET" && url.pathname === "/retention-policy") {
+      return ok(res, requestId, 200, getRetentionPolicy(auth.user.id));
+    }
+
+    if (method === "PATCH" && url.pathname === "/retention-policy") {
+      const body = await readJson(req);
+      const updated = updateRetentionPolicy(auth.user.id, {
+        clinical_record_days: typeof body.clinical_record_days === "number" ? body.clinical_record_days : undefined,
+        audit_days: typeof body.audit_days === "number" ? body.audit_days : undefined,
+        export_days: typeof body.export_days === "number" ? body.export_days : undefined,
+      });
+      return ok(res, requestId, 200, updated);
     }
 
     const jobById = url.pathname.match(/^\/jobs\/([^/]+)$/);
