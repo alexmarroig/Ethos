@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
-type Role = "admin" | "user";
+type Role = "admin" | "supervisor" | "assistente";
 type User = { id: string; email: string; name: string; role: Role; status: "active" | "disabled"; password_hash: string; created_at: string };
 type Invite = { id: string; email: string; token_hash: string; expires_at: string; created_at: string; used_at?: string };
 type Session = { token: string; user_id: string; expires_at: string };
@@ -130,7 +130,15 @@ export const createControlPlane = () => createServer(async (req, res) => {
       const invite = Array.from(db.invites.values()).find((item) => item.token_hash === hash(token) && !item.used_at);
       if (!invite || Date.parse(invite.expires_at) < Date.now()) return fail(res, requestId, 400, "INVALID_INVITE", "Invite invalid or expired");
       invite.used_at = now();
-      const user: User = { id: uid(), email: invite.email, name: String(body.name ?? ""), role: "user", status: "active", password_hash: hashPassword(String(body.password ?? "")), created_at: now() };
+      const user: User = {
+        id: uid(),
+        email: invite.email,
+        name: String(body.name ?? ""),
+        role: "assistente",
+        status: "active",
+        password_hash: hashPassword(String(body.password ?? "")),
+        created_at: now(),
+      };
       db.users.set(user.id, user);
       upsertEntitlements(user.id, "active");
       return send(res, requestId, 201, { id: user.id, email: user.email });

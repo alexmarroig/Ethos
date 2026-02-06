@@ -6,13 +6,15 @@
     "packages/*"
   ],
   "scripts": {
+    "dev:patient": "npm --workspace apps/ethos-patient run dev",
     "dev:desktop": "npm --workspace apps/ethos-desktop run dev",
     "dev:transcriber": "npm --workspace apps/ethos-transcriber run dev",
-    "build": "npm --workspace packages/shared run build && npm --workspace apps/ethos-backend run build && npm --workspace apps/ethos-control-plane run build && npm --workspace apps/ethos-transcriber run build && npm --workspace packages/ethos-sdk run build",
+    "build": "npm --workspace packages/shared run build && npm --workspace apps/ethos-backend run build && npm --workspace apps/ethos-control-plane run build && npm --workspace apps/ethos-transcriber run build && npm --workspace apps/ethos-patient run build && npm --workspace packages/ethos-sdk run build",
     "lint": "echo 'lint placeholder'",
     "dev:control-plane": "npm --workspace apps/ethos-control-plane run dev",
     "dev:backend": "npm --workspace apps/ethos-backend run dev",
     "dev:mobile": "npm --workspace apps/ethos-mobile run dev",
+    "dev:patient": "npm --workspace apps/ethos-patient run dev",
     "test": "npm --workspace apps/ethos-backend run test && npm --workspace apps/ethos-control-plane run test"
   }
 }
