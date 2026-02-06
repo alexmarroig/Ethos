@@ -18,20 +18,37 @@ type Role = "admin" | "user" | "unknown";
 type ExportFormat = "pdf" | "docx";
 type ModelId = "ptbr-fast" | "ptbr-accurate";
 
-// worker message shape (o main manda objetos estruturados; mas pode vir log)
 type WorkerMessage =
   | { type: "job_update"; payload: { id: string; status: string; progress?: number; error?: string } }
   | { type: "worker_log"; payload: { line: string } }
   | unknown;
 
+type AppTab = "clinical" | "admin";
+
+/**
+ * Bridge minimalista (compatível com preload antigo e refatorado).
+ * Evita espalhar window.ethos?.whatever pelo componente.
+ */
+type EthosBridge = {
+  audio: {
+    openDialog: () => Promise<string | null>;
+    save: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string } | null>;
+  };
+  transcription: {
+    enqueue: (payload: any) => Promise<string>;
+    onMessage: (handler: (m: WorkerMessage) => void) => () => void;
+    onError: (handler: (m: string) => void) => () => void;
+  };
+};
+
 declare global {
   interface Window {
-    ethos: any;
+    ethos?: any;
   }
 }
 
 // -----------------------------
-// Styles (mantive inline por consistência do seu projeto)
+// Styles
 // -----------------------------
 const sectionStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -112,23 +129,94 @@ const isLikelyForbidden = (msg: string) => msg.toLowerCase().includes("forbidden
 const isLikelyUnauthorized = (msg: string) =>
   msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("401") || msg.toLowerCase().includes("token");
 
+function safeLocalStorageGet(key: string, fallback: string) {
+  try {
+    return localStorage.getItem(key) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function safeLocalStorageSet(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    // ignore
+  }
+}
+
+function safeLocalStorageRemove(key: string) {
+  try {
+    localStorage.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
+/**
+ * Cria um bridge compatível com preload antigo/refatorado.
+ * Se faltar algo, jogamos erro claro (melhor do que falhar silenciosamente).
+ */
+function createEthosBridge(): EthosBridge {
+  const ethos = window.ethos;
+
+  const openDialog = async () => {
+    if (ethos?.audio?.openDialog) return ethos.audio.openDialog();
+    if (ethos?.openAudioDialog) return ethos.openAudioDialog();
+    throw new Error("ETHOS bridge: audio.openDialog/openAudioDialog não disponível no preload.");
+  };
+
+  const save = async (payload: { data: ArrayBuffer; mimeType: string }) => {
+    if (ethos?.audio?.save) return ethos.audio.save(payload);
+    if (ethos?.saveAudio) return ethos.saveAudio(payload);
+    throw new Error("ETHOS bridge: audio.save/saveAudio não disponível no preload.");
+  };
+
+  const enqueue = async (payload: any) => {
+    if (ethos?.transcription?.enqueue) return ethos.transcription.enqueue(payload);
+    if (ethos?.enqueueTranscription) return ethos.enqueueTranscription(payload);
+    throw new Error("ETHOS bridge: transcription.enqueue/enqueueTranscription não disponível no preload.");
+  };
+
+  const onMessage = (handler: (m: WorkerMessage) => void) => {
+    if (ethos?.transcription?.onMessage) return ethos.transcription.onMessage(handler);
+    if (ethos?.onTranscriptionMessage) return ethos.onTranscriptionMessage(handler);
+    return () => {};
+  };
+
+  const onError = (handler: (m: string) => void) => {
+    if (ethos?.transcription?.onError) return ethos.transcription.onError(handler);
+    if (ethos?.onTranscriptionError) return ethos.onTranscriptionError(handler);
+    return () => {};
+  };
+
+  return {
+    audio: { openDialog, save },
+    transcription: { enqueue, onMessage, onError },
+  };
+}
+
 // -----------------------------
 // Main Component
 // -----------------------------
 export const App = () => {
   // =========================
+  // Tabs (separa Admin da UI clínica)
+  // =========================
+  const [tab, setTab] = useState<AppTab>("clinical");
+
+  // =========================
   // Session context (proto)
   // =========================
-  // Ideal: vir do DB (patients/sessions). Por ora, mantemos estático como seu original.
   const sessionId = "session-marina-alves";
   const patientName = "Marina Alves";
   const clinicianName = "Dra. Ana Souza";
   const sessionDate = "15/02/2025";
 
   // =========================
-  // Clinical note state (mantém rigor do original)
+  // Clinical note state
   // =========================
-  const [consentForNote, setConsentForNote] = useState(false); // consentimento para registrar/validar prontuário
+  const [consentForNote, setConsentForNote] = useState(false);
   const [draft, setDraft] = useState(
     "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
   );
@@ -146,126 +234,81 @@ export const App = () => {
   const handleValidate = () => setShowEthicsModal(true);
 
   const confirmValidation = () => {
-    const now = safeNowPtBr();
     setStatus("validated");
-    setValidatedAt(now);
+    setValidatedAt(safeNowPtBr());
     setShowEthicsModal(false);
   };
 
-  const handleExport = async (format: ExportFormat) => {
-    if (!canExport) return;
-    setExportingFormat(format);
-    setExportFeedback(null);
-    try {
-      const fileName = await exportClinicalNote(
-        {
-          patientName,
-          clinicianName,
-          sessionDate,
-          status,
-          noteText: draft,
-          validatedAt: validatedAt ?? undefined,
-        },
-        format
-      );
-      setExportFeedback(`Arquivo gerado: ${fileName}`);
-    } catch (err) {
-      const message = err instanceof Error ? err.message : "Falha ao exportar.";
-      setExportFeedback(`Erro: ${message}`);
-    } finally {
-      setExportingFormat(null);
-    }
-  };
+  const handleExport = useCallback(
+    async (format: ExportFormat) => {
+      if (!canExport) return;
+      setExportingFormat(format);
+      setExportFeedback(null);
+      try {
+        const fileName = await exportClinicalNote(
+          {
+            patientName,
+            clinicianName,
+            sessionDate,
+            status,
+            noteText: draft,
+            validatedAt: validatedAt ?? undefined,
+          },
+          format
+        );
+        setExportFeedback(`Arquivo gerado: ${fileName}`);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : "Falha ao exportar.";
+        setExportFeedback(`Erro: ${message}`);
+      } finally {
+        setExportingFormat(null);
+      }
+    },
+    [canExport, clinicianName, draft, patientName, sessionDate, status, validatedAt]
+  );
 
   // =========================
-  // Audio recording (adição)
+  // Audio recording + transcription
   // =========================
-  // O hook deve cuidar de MediaRecorder/elapsed etc. Mantemos como a adição sugeriu.
+  const bridge = useMemo(() => createEthosBridge(), []);
   const recorder = useAudioRecorder({ sessionId });
 
-  // Consentimento específico para gravação (modal)
   const [consentForRecording, setConsentForRecording] = useState(false);
   const [showRecordingConsentModal, setShowRecordingConsentModal] = useState(false);
   const [recordingConsentChecked, setRecordingConsentChecked] = useState(false);
 
   const [selectedModel, setSelectedModel] = useState<ModelId>("ptbr-accurate");
 
-  // Status da transcrição (job)
   const [jobId, setJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<string>("idle");
   const [jobProgress, setJobProgress] = useState<number>(0);
   const [jobError, setJobError] = useState<string | null>(null);
   const [workerLog, setWorkerLog] = useState<string | null>(null);
 
-  // Evita atualizar estado de um job antigo (se user disparar outro)
   const currentJobIdRef = useRef<string | null>(null);
 
-  const startRecordingWithConsent = async () => {
+  const startRecordingWithConsent = useCallback(async () => {
     if (!consentForRecording) {
       setShowRecordingConsentModal(true);
       return;
     }
     await recorder.startRecording();
-  };
+  }, [consentForRecording, recorder]);
 
-  const confirmRecordingConsentAndStart = async () => {
+  const confirmRecordingConsentAndStart = useCallback(async () => {
     setConsentForRecording(true);
     setShowRecordingConsentModal(false);
     setRecordingConsentChecked(false);
     await recorder.startRecording();
-  };
+  }, [recorder]);
 
-  // -------------------------
-  // ETHOS bridge helpers (compatibilidade)
-  // -------------------------
-  const ethos = window.ethos;
-
-  const openAudioDialog = async (): Promise<string | null> => {
-    // compat: ethos.audio.openDialog() (refactor) ou ethos.openAudioDialog() (antigo)
-    if (ethos?.audio?.openDialog) return ethos.audio.openDialog();
-    if (ethos?.openAudioDialog) return ethos.openAudioDialog();
-    throw new Error("ETHOS bridge: openAudioDialog não disponível no preload.");
-  };
-
-  const saveAudioToDisk = async (payload: { data: ArrayBuffer; mimeType: string }) => {
-    // compat: ethos.audio.save() (refactor) ou ethos.saveAudio() (proposto)
-    if (ethos?.audio?.save) return ethos.audio.save(payload);
-    if (ethos?.saveAudio) return ethos.saveAudio(payload);
-    throw new Error("ETHOS bridge: saveAudio não disponível no preload.");
-  };
-
-  const enqueueTranscription = async (payload: any): Promise<string> => {
-    // compat: ethos.transcription.enqueue() (refactor) ou ethos.enqueueTranscription() (antigo)
-    if (ethos?.transcription?.enqueue) return ethos.transcription.enqueue(payload);
-    if (ethos?.enqueueTranscription) return ethos.enqueueTranscription(payload);
-    throw new Error("ETHOS bridge: enqueueTranscription não disponível no preload.");
-  };
-
-  const onWorkerMessage = (handler: (m: WorkerMessage) => void) => {
-    // compat: ethos.transcription.onMessage() ou ethos.onTranscriptionMessage()
-    if (ethos?.transcription?.onMessage) return ethos.transcription.onMessage(handler);
-    if (ethos?.onTranscriptionMessage) return ethos.onTranscriptionMessage(handler);
-    return () => {};
-  };
-
-  const onWorkerError = (handler: (m: string) => void) => {
-    if (ethos?.transcription?.onError) return ethos.transcription.onError(handler);
-    if (ethos?.onTranscriptionError) return ethos.onTranscriptionError(handler);
-    return () => {};
-  };
-
-  // -------------------------
-  // Subscribe to worker events (limpa listeners!)
-  // -------------------------
+  // Subscribe to worker events (uma vez)
   useEffect(() => {
-    const offMsg = onWorkerMessage((m) => {
-      // job_update estruturado
+    const offMsg = bridge.transcription.onMessage((m) => {
       if (typeof m === "object" && m && (m as any).type === "job_update") {
         const payload = (m as any).payload || {};
         const incomingId = String(payload.id || "");
         if (!incomingId) return;
-
-        // só atualiza se for o job atual
         if (currentJobIdRef.current && incomingId !== currentJobIdRef.current) return;
 
         setJobStatus(String(payload.status || "unknown"));
@@ -274,15 +317,13 @@ export const App = () => {
         return;
       }
 
-      // logs genéricos do worker
       if (typeof m === "object" && m && (m as any).type === "worker_log") {
         const line = (m as any).payload?.line;
         if (typeof line === "string") setWorkerLog(clamp(line, 240));
-        return;
       }
     });
 
-    const offErr = onWorkerError((msg) => {
+    const offErr = bridge.transcription.onError((msg) => {
       if (typeof msg === "string") setWorkerLog(clamp(msg, 240));
     });
 
@@ -290,23 +331,19 @@ export const App = () => {
       offMsg?.();
       offErr?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [bridge]);
 
-  // -------------------------
-  // Actions: import audio -> enqueue transcription
-  // -------------------------
-  const handleImportAudio = async () => {
+  const handleImportAudio = useCallback(async () => {
     setWorkerLog(null);
     setJobError(null);
 
-    const audioPath = await openAudioDialog();
+    const audioPath = await bridge.audio.openDialog();
     if (!audioPath) return;
 
     setJobStatus("queued");
     setJobProgress(0);
 
-    const id = await enqueueTranscription({
+    const id = await bridge.transcription.enqueue({
       sessionId,
       audioPath,
       model: selectedModel,
@@ -314,16 +351,17 @@ export const App = () => {
 
     currentJobIdRef.current = id;
     setJobId(id);
-  };
+  }, [bridge, selectedModel, sessionId]);
 
-  // -------------------------
-  // Actions: after recording, persist audio and enqueue transcription
-  // -------------------------
   const handleTranscribeRecordedAudio = useCallback(async () => {
-    // depende do seu hook: precisamos do ArrayBuffer + mimeType.
-    // Se o seu hook não expõe isso, ajuste o hook para expor `audioBuffer` e `mimeType`.
-    if (!recorder.audioBuffer || !recorder.mimeType) {
-      setWorkerLog("Sem buffer de áudio disponível para transcrever. Verifique o hook useAudioRecorder.");
+    // ⚠️ depende do hook expor audioBuffer/mimeType. Se não existir, avisa.
+    const audioBuffer: ArrayBuffer | undefined = (recorder as any).audioBuffer;
+    const mimeType: string | undefined = (recorder as any).mimeType;
+
+    if (!audioBuffer || !mimeType) {
+      setWorkerLog(
+        "Sem buffer de áudio disponível para transcrever. Ajuste o hook useAudioRecorder para expor audioBuffer + mimeType (ou implemente 'Salvar e transcrever' fora do hook)."
+      );
       return;
     }
 
@@ -332,11 +370,15 @@ export const App = () => {
     setJobStatus("saving_audio");
     setJobProgress(0);
 
-    const saved = await saveAudioToDisk({ data: recorder.audioBuffer, mimeType: recorder.mimeType });
+    const saved = await bridge.audio.save({ data: audioBuffer, mimeType });
+    if (!saved?.filePath) {
+      setJobStatus("error");
+      setJobError("Falha ao salvar o áudio no disco.");
+      return;
+    }
 
     setJobStatus("queued");
-
-    const id = await enqueueTranscription({
+    const id = await bridge.transcription.enqueue({
       sessionId,
       audioPath: saved.filePath,
       model: selectedModel,
@@ -344,54 +386,23 @@ export const App = () => {
 
     currentJobIdRef.current = id;
     setJobId(id);
-  }, [recorder.audioBuffer, recorder.mimeType, saveAudioToDisk, enqueueTranscription, sessionId, selectedModel]);
+  }, [bridge, recorder, selectedModel, sessionId]);
 
   // =========================
-  // Control Plane (Admin) state (mantém original)
+  // Admin control plane (central observability)
   // =========================
   const defaultControlPlaneUrl = "http://localhost:8788";
 
-  const [adminBaseUrl, setAdminBaseUrl] = useState(() => {
-    try {
-      return localStorage.getItem("ethos-control-plane-url") ?? defaultControlPlaneUrl;
-    } catch {
-      return defaultControlPlaneUrl;
-    }
-  });
-
-  const [adminEmail, setAdminEmail] = useState(() => {
-    try {
-      return localStorage.getItem("ethos-admin-email") ?? "camila@ethos.local";
-    } catch {
-      return "camila@ethos.local";
-    }
-  });
-
+  const [adminBaseUrl, setAdminBaseUrl] = useState(() =>
+    safeLocalStorageGet("ethos-control-plane-url", defaultControlPlaneUrl)
+  );
+  const [adminEmail, setAdminEmail] = useState(() => safeLocalStorageGet("ethos-admin-email", "camila@ethos.local"));
   const [adminPassword, setAdminPassword] = useState("");
 
-  const [rememberSession, setRememberSession] = useState(() => {
-    try {
-      return (localStorage.getItem("ethos-admin-remember") ?? "0") === "1";
-    } catch {
-      return false;
-    }
-  });
-
-  const [adminToken, setAdminToken] = useState(() => {
-    try {
-      return localStorage.getItem("ethos-admin-token") ?? "";
-    } catch {
-      return "";
-    }
-  });
-
-  const [adminRole, setAdminRole] = useState<Role>(() => {
-    try {
-      return (localStorage.getItem("ethos-admin-role") as Role) ?? "unknown";
-    } catch {
-      return "unknown";
-    }
-  });
+  // Persistência de token é tradeoff: manter sob "remember me"
+  const [rememberSession, setRememberSession] = useState(() => safeLocalStorageGet("ethos-admin-remember", "0") === "1");
+  const [adminToken, setAdminToken] = useState(() => safeLocalStorageGet("ethos-admin-token", ""));
+  const [adminRole, setAdminRole] = useState<Role>(() => (safeLocalStorageGet("ethos-admin-role", "unknown") as Role) ?? "unknown");
 
   const [adminMetrics, setAdminMetrics] = useState<AdminOverviewMetrics | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
@@ -402,45 +413,28 @@ export const App = () => {
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
 
-  // Persist preferences
-  useEffect(() => {
-    try {
-      localStorage.setItem("ethos-control-plane-url", adminBaseUrl);
-    } catch {}
-  }, [adminBaseUrl]);
+  // Persist preferences (URL/email sempre)
+  useEffect(() => safeLocalStorageSet("ethos-control-plane-url", adminBaseUrl), [adminBaseUrl]);
+  useEffect(() => safeLocalStorageSet("ethos-admin-email", adminEmail), [adminEmail]);
+  useEffect(() => safeLocalStorageSet("ethos-admin-remember", rememberSession ? "1" : "0"), [rememberSession]);
 
+  // Persist token/role somente se "rememberSession"
   useEffect(() => {
-    try {
-      localStorage.setItem("ethos-admin-email", adminEmail);
-    } catch {}
-  }, [adminEmail]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem("ethos-admin-remember", rememberSession ? "1" : "0");
-    } catch {}
-  }, [rememberSession]);
-
-  useEffect(() => {
-    try {
-      if (!rememberSession) {
-        localStorage.removeItem("ethos-admin-token");
-        localStorage.removeItem("ethos-admin-role");
-        return;
-      }
-      if (adminToken) localStorage.setItem("ethos-admin-token", adminToken);
-      else localStorage.removeItem("ethos-admin-token");
-    } catch {}
+    if (!rememberSession) {
+      safeLocalStorageRemove("ethos-admin-token");
+      safeLocalStorageRemove("ethos-admin-role");
+      return;
+    }
+    if (adminToken) safeLocalStorageSet("ethos-admin-token", adminToken);
+    else safeLocalStorageRemove("ethos-admin-token");
   }, [adminToken, rememberSession]);
 
   useEffect(() => {
-    try {
-      if (!rememberSession) {
-        localStorage.removeItem("ethos-admin-role");
-        return;
-      }
-      localStorage.setItem("ethos-admin-role", adminRole);
-    } catch {}
+    if (!rememberSession) {
+      safeLocalStorageRemove("ethos-admin-role");
+      return;
+    }
+    safeLocalStorageSet("ethos-admin-role", adminRole);
   }, [adminRole, rememberSession]);
 
   const adminStatusLabel = useMemo(() => {
@@ -451,75 +445,105 @@ export const App = () => {
     return "Sessão ativa, aguardando validação.";
   }, [adminLastSync, adminLoading, adminRole, hasAdminToken, isAdmin]);
 
+  // Abort para evitar race (mudança de URL/token/logout)
+  const adminAbortRef = useRef<AbortController | null>(null);
+
   const refreshAdminData = useCallback(async () => {
     if (!adminToken) return;
+
+    adminAbortRef.current?.abort();
+    const ac = new AbortController();
+    adminAbortRef.current = ac;
+
     setAdminLoading(true);
     setAdminError("");
+
     try {
+      // fetchAdminOverview/fetchAdminUsers hoje não recebem signal.
+      // Se você puder, recomendo adicionar optional { signal } nelas.
+      // Aqui, ao menos evitamos aplicar resultado "stale" checando ac.signal.aborted no final.
+
       const [overview, users] = await Promise.all([
         fetchAdminOverview(adminBaseUrl, adminToken),
         fetchAdminUsers(adminBaseUrl, adminToken),
       ]);
+
+      if (ac.signal.aborted) return;
+
       setAdminMetrics(overview);
       setAdminUsers(users);
+
+      // Se os endpoints admin responderam, assumimos admin.
       setAdminRole("admin");
       setAdminLastSync(safeNowPtBr());
     } catch (error) {
+      if (ac.signal.aborted) return;
+
       const message = error instanceof Error ? error.message : "Falha ao acessar admin.";
       setAdminError(message);
       setAdminMetrics(null);
       setAdminUsers([]);
+
       if (isLikelyForbidden(message)) setAdminRole("user");
       if (isLikelyUnauthorized(message)) {
         setAdminRole("unknown");
         setAdminToken("");
       }
     } finally {
-      setAdminLoading(false);
+      if (!ac.signal.aborted) setAdminLoading(false);
     }
   }, [adminBaseUrl, adminToken]);
 
+  // Auto-refresh quando token/url mudam — MAS apenas se você estiver na aba Admin
   useEffect(() => {
+    if (tab !== "admin") return;
     if (!adminToken) return;
     void refreshAdminData();
-  }, [adminBaseUrl, adminToken, refreshAdminData]);
+  }, [adminBaseUrl, adminToken, refreshAdminData, tab]);
 
-  const handleAdminLogin = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setAdminLoading(true);
-    setAdminError("");
-    try {
-      const response = await loginControlPlane(adminBaseUrl, adminEmail, adminPassword);
-      setAdminToken(response.token);
-      setAdminRole((response.user?.role as Role) ?? "unknown");
-      setAdminPassword("");
-      setAdminLastSync(safeNowPtBr());
-      await Promise.allSettled([
-        fetchAdminOverview(adminBaseUrl, response.token).then(setAdminMetrics),
-        fetchAdminUsers(adminBaseUrl, response.token).then(setAdminUsers),
-      ]);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Falha no login.";
-      setAdminError(message);
-      setAdminRole("unknown");
-      setAdminToken("");
-    } finally {
-      setAdminLoading(false);
-    }
-  };
+  const handleAdminLogin = useCallback(
+    async (event: React.FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      setAdminLoading(true);
+      setAdminError("");
+      try {
+        const response = await loginControlPlane(adminBaseUrl, adminEmail, adminPassword);
+        setAdminToken(response.token);
+        setAdminRole((response.user?.role as Role) ?? "unknown");
+        setAdminPassword("");
+        setAdminLastSync(safeNowPtBr());
 
-  const handleAdminLogout = () => {
+        // Carrega dados logo após login (se não for admin, vai cair em forbidden e a UI limita)
+        await Promise.allSettled([
+          fetchAdminOverview(adminBaseUrl, response.token).then(setAdminMetrics),
+          fetchAdminUsers(adminBaseUrl, response.token).then(setAdminUsers),
+        ]);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Falha no login.";
+        setAdminError(message);
+        setAdminRole("unknown");
+        setAdminToken("");
+      } finally {
+        setAdminLoading(false);
+      }
+    },
+    [adminBaseUrl, adminEmail, adminPassword]
+  );
+
+  const handleAdminLogout = useCallback(() => {
+    adminAbortRef.current?.abort();
+    adminAbortRef.current = null;
+
     setAdminToken("");
     setAdminRole("unknown");
     setAdminMetrics(null);
     setAdminUsers([]);
     setAdminError("");
     setAdminLastSync(null);
-    try {
-      localStorage.removeItem("ethos-admin-token");
-      localStorage.removeItem("ethos-admin-role");
-    } catch {}
-  };
+
+    safeLocalStorageRemove("ethos-admin-token");
+    safeLocalStorageRemove("ethos-admin-role");
+  }, []);
 
   // =========================
   // Render
@@ -528,9 +552,35 @@ export const App = () => {
     <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ color: "#F8FAFC", fontSize: 28, marginBottom: 4 }}>ETHOS — Agenda Clínica</h1>
-        <p style={subtleText}>Fluxo offline com prontuário + gravação/transcrição local + control plane admin.</p>
+        <p style={subtleText}>Offline: prontuário + gravação/transcrição local + control plane admin.</p>
+
+        {/* Tabs */}
+        <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
+          <button
+            style={{
+              ...buttonStyle,
+              background: tab === "clinical" ? "#6366F1" : "#334155",
+            }}
+            onClick={() => setTab("clinical")}
+          >
+            Clínica
+          </button>
+          <button
+            style={{
+              ...buttonStyle,
+              background: tab === "admin" ? "#6366F1" : "#334155",
+            }}
+            onClick={() => setTab("admin")}
+          >
+            Admin
+          </button>
+          {tab === "admin" && hasAdminToken ? (
+            <span style={badgeStyle}>{adminStatusLabel}</span>
+          ) : null}
+        </div>
       </header>
 
+      {/* MODALS */}
       {showRecordingConsentModal ? (
         <ConsentModal
           title="Confirmar consentimento de gravação"
@@ -546,271 +596,262 @@ export const App = () => {
         />
       ) : null}
 
-      {showEthicsModal ? (
-        <EthicsValidationModal
-          onCancel={() => setShowEthicsModal(false)}
-          onConfirm={confirmValidation}
-        />
+      {showEthicsModal ? <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} /> : null}
+
+      {/* -------------------------
+          CLINICAL TAB
+      -------------------------- */}
+      {tab === "clinical" ? (
+        <>
+          <section style={sectionStyle}>
+            <h2>Agenda semanal</h2>
+            <p style={{ color: "#CBD5F5" }}>Segunda · 14:00 · {patientName}</p>
+            <p style={{ color: "#CBD5F5" }}>Terça · 09:30 · João Costa</p>
+          </section>
+
+          <section style={sectionStyle}>
+            <h2>Sessão</h2>
+            <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
+
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+              <button style={buttonStyle} onClick={handleImportAudio}>
+                Importar áudio
+              </button>
+
+              <button
+                style={recorder.status === "recording" ? { ...buttonStyle, background: "#EF4444" } : secondaryButtonStyle}
+                onClick={recorder.status === "recording" ? recorder.stopRecording : startRecordingWithConsent}
+              >
+                {recorder.status === "recording" ? "Parar gravação" : "Gravar áudio"}
+              </button>
+
+              {recorder.audioUrl ? (
+                <button style={outlineButtonStyle} onClick={recorder.resetRecording}>
+                  Limpar gravação
+                </button>
+              ) : null}
+
+              <select
+                value={selectedModel}
+                onChange={(e) => setSelectedModel(e.target.value as ModelId)}
+                style={{ ...inputStyle, maxWidth: 220 }}
+                title="Modelo de transcrição"
+              >
+                <option value="ptbr-accurate">ptbr-accurate (mais preciso)</option>
+                <option value="ptbr-fast">ptbr-fast (mais rápido)</option>
+              </select>
+
+              {recorder.audioUrl ? (
+                <button style={{ ...buttonStyle, background: "#6366F1" }} onClick={handleTranscribeRecordedAudio}>
+                  Transcrever gravação
+                </button>
+              ) : null}
+            </div>
+
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
+              <span style={badgeStyle}>{recorder.status === "recording" ? "Gravando" : "Pronto"}</span>
+              <span style={badgeStyle}>Tempo: {recorder.elapsedLabel}</span>
+              {consentForRecording ? <span style={badgeStyle}>Consentimento de gravação registrado</span> : null}
+            </div>
+
+            {recorder.errorMessage ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro de gravação: {recorder.errorMessage}</p> : null}
+
+            {recorder.audioUrl ? (
+              <div style={{ marginTop: 12 }}>
+                <p style={{ color: "#E2E8F0", marginBottom: 8 }}>
+                  Prévia do áudio gravado{recorder.audioFilePath ? ` (salvo em ${recorder.audioFilePath})` : ""}.
+                </p>
+                <audio controls src={recorder.audioUrl} style={{ width: "100%" }} />
+              </div>
+            ) : null}
+
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+                <span style={badgeStyle}>Transcrição: {jobStatus}</span>
+                {jobId ? <span style={badgeStyle}>Job: {jobId.slice(0, 8)}…</span> : null}
+                <span style={badgeStyle}>Progresso: {Math.round(jobProgress)}%</span>
+              </div>
+              {jobError ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro do worker: {jobError}</p> : null}
+              {workerLog ? <p style={{ ...subtleText, marginTop: 8 }}>{workerLog}</p> : null}
+            </div>
+
+            <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
+              <input type="checkbox" checked={consentForNote} onChange={(event) => setConsentForNote(event.target.checked)} />{" "}
+              Tenho consentimento do paciente (registro/uso do prontuário)
+            </label>
+          </section>
+
+          <section style={sectionStyle}>
+            <h2>Prontuário automático</h2>
+
+            <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+              <span
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 999,
+                  background: status === "draft" ? "#FBBF24" : "#22C55E",
+                  color: "#0F172A",
+                  fontWeight: 700,
+                  fontSize: 12,
+                }}
+              >
+                {status === "draft" ? "Rascunho" : "Validado"}
+              </span>
+              <span style={{ ...subtleText, fontSize: 14 }}>
+                {isValidated ? `Bloqueado para edição · ${validatedAt ?? "Validado"}` : "Edição liberada até validação ética."}
+              </span>
+            </div>
+
+            {isValidated ? (
+              <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
+                Prontuário validado e congelado para assegurar integridade clínica.
+              </p>
+            ) : null}
+
+            <textarea
+              value={draft}
+              onChange={(event) => {
+                if (!isValidated) setDraft(event.target.value);
+              }}
+              readOnly={isValidated}
+              style={{
+                width: "100%",
+                minHeight: 140,
+                marginTop: 12,
+                borderRadius: 12,
+                padding: 12,
+                background: isValidated ? "#1E293B" : "#F8FAFC",
+                color: isValidated ? "#E2E8F0" : "#0F172A",
+              }}
+            />
+
+            <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+              <button
+                style={{
+                  ...buttonStyle,
+                  background: canValidate ? "#22C55E" : "#334155",
+                  cursor: canValidate ? "pointer" : "not-allowed",
+                }}
+                onClick={handleValidate}
+                disabled={!canValidate}
+              >
+                Validar prontuário
+              </button>
+
+              <button
+                style={{
+                  ...buttonStyle,
+                  background: canExport ? "#6366F1" : "#334155",
+                  cursor: canExport ? "pointer" : "not-allowed",
+                }}
+                onClick={() => handleExport("docx")}
+                disabled={!canExport}
+              >
+                {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
+              </button>
+
+              <button
+                style={{
+                  ...buttonStyle,
+                  background: canExport ? "#6366F1" : "#334155",
+                  cursor: canExport ? "pointer" : "not-allowed",
+                }}
+                onClick={() => handleExport("pdf")}
+                disabled={!canExport}
+              >
+                {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
+              </button>
+            </div>
+
+            {!consentForNote ? (
+              <p style={{ color: "#FCA5A5", marginTop: 8 }}>É necessário confirmar o consentimento do paciente para validar o prontuário.</p>
+            ) : null}
+
+            {exportFeedback ? (
+              <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>{exportFeedback}</p>
+            ) : null}
+          </section>
+        </>
       ) : null}
 
-      <section style={sectionStyle}>
-        <h2>Agenda semanal</h2>
-        <p style={{ color: "#CBD5F5" }}>Segunda · 14:00 · {patientName}</p>
-        <p style={{ color: "#CBD5F5" }}>Terça · 09:30 · João Costa</p>
-      </section>
-
-      <section style={sectionStyle}>
-        <h2>Sessão</h2>
-        <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-          <button style={buttonStyle} onClick={handleImportAudio}>
-            Importar áudio
-          </button>
-
-          <button
-            style={recorder.status === "recording" ? { ...buttonStyle, background: "#EF4444" } : secondaryButtonStyle}
-            onClick={recorder.status === "recording" ? recorder.stopRecording : startRecordingWithConsent}
-          >
-            {recorder.status === "recording" ? "Parar gravação" : "Gravar áudio"}
-          </button>
-
-          {recorder.audioUrl ? (
-            <button style={outlineButtonStyle} onClick={recorder.resetRecording}>
-              Limpar gravação
-            </button>
-          ) : null}
-
-          <select
-            value={selectedModel}
-            onChange={(e) => setSelectedModel(e.target.value as ModelId)}
-            style={{ ...inputStyle, maxWidth: 220 }}
-            title="Modelo de transcrição"
-          >
-            <option value="ptbr-accurate">ptbr-accurate (mais preciso)</option>
-            <option value="ptbr-fast">ptbr-fast (mais rápido)</option>
-          </select>
-
-          {recorder.audioUrl ? (
-            <button style={{ ...buttonStyle, background: "#6366F1" }} onClick={handleTranscribeRecordedAudio}>
-              Transcrever gravação
-            </button>
-          ) : null}
-        </div>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-          <span style={badgeStyle}>{recorder.status === "recording" ? "Gravando" : "Pronto"}</span>
-          <span style={badgeStyle}>Tempo: {recorder.elapsedLabel}</span>
-          {consentForRecording ? <span style={badgeStyle}>Consentimento de gravação registrado</span> : null}
-        </div>
-
-        {recorder.errorMessage ? (
-          <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro de gravação: {recorder.errorMessage}</p>
-        ) : null}
-
-        {recorder.audioUrl ? (
-          <div style={{ marginTop: 12 }}>
-            <p style={{ color: "#E2E8F0", marginBottom: 8 }}>
-              Prévia do áudio gravado{recorder.audioFilePath ? ` (salvo em ${recorder.audioFilePath})` : ""}.
-            </p>
-            <audio controls src={recorder.audioUrl} style={{ width: "100%" }} />
-          </div>
-        ) : null}
-
-        <div style={{ marginTop: 12 }}>
-          <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-            <span style={badgeStyle}>Transcrição: {jobStatus}</span>
-            {jobId ? <span style={badgeStyle}>Job: {jobId.slice(0, 8)}…</span> : null}
-            <span style={badgeStyle}>Progresso: {Math.round(jobProgress)}%</span>
-          </div>
-          {jobError ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro do worker: {jobError}</p> : null}
-          {workerLog ? <p style={{ ...subtleText, marginTop: 8 }}>{workerLog}</p> : null}
-        </div>
-
-        <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
-          <input
-            type="checkbox"
-            checked={consentForNote}
-            onChange={(event) => setConsentForNote(event.target.checked)}
-          />{" "}
-          Tenho consentimento do paciente (registro/uso do prontuário)
-        </label>
-      </section>
-
-      <section style={sectionStyle}>
-        <h2>Prontuário automático</h2>
-
-        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-          <span
-            style={{
-              padding: "4px 10px",
-              borderRadius: 999,
-              background: status === "draft" ? "#FBBF24" : "#22C55E",
-              color: "#0F172A",
-              fontWeight: 700,
-              fontSize: 12,
-            }}
-          >
-            {status === "draft" ? "Rascunho" : "Validado"}
-          </span>
-          <span style={{ ...subtleText, fontSize: 14 }}>
-            {isValidated
-              ? `Bloqueado para edição · ${validatedAt ?? "Validado"}`
-              : "Edição liberada até validação ética."}
-          </span>
-        </div>
-
-        {isValidated ? (
-          <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
-            Prontuário validado e congelado para assegurar integridade clínica.
+      {/* -------------------------
+          ADMIN TAB
+      -------------------------- */}
+      {tab === "admin" ? (
+        <section style={sectionStyle}>
+          <h2>Admin — Control Plane</h2>
+          <p style={{ ...subtleText, marginBottom: 12 }}>
+            Painel restrito à role=admin. Exibe apenas métricas agregadas e usuários sanitizados (sem conteúdo clínico).
           </p>
-        ) : null}
 
-        <textarea
-          value={draft}
-          onChange={(event) => {
-            if (!isValidated) setDraft(event.target.value);
-          }}
-          readOnly={isValidated}
-          style={{
-            width: "100%",
-            minHeight: 140,
-            marginTop: 12,
-            borderRadius: 12,
-            padding: 12,
-            background: isValidated ? "#1E293B" : "#F8FAFC",
-            color: isValidated ? "#E2E8F0" : "#0F172A",
-          }}
-        />
+          <form onSubmit={handleAdminLogin} style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ color: "#E2E8F0" }}>URL do control plane</label>
+              <input value={adminBaseUrl} onChange={(event) => setAdminBaseUrl(event.target.value)} style={inputStyle} />
+            </div>
 
-        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-          <button
-            style={{
-              ...buttonStyle,
-              background: canValidate ? "#22C55E" : "#334155",
-              cursor: canValidate ? "pointer" : "not-allowed",
-            }}
-            onClick={handleValidate}
-            disabled={!canValidate}
-          >
-            Validar prontuário
-          </button>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ color: "#E2E8F0" }}>Email</label>
+              <input value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} style={inputStyle} autoComplete="username" />
+            </div>
 
-          <button
-            style={{
-              ...buttonStyle,
-              background: canExport ? "#6366F1" : "#334155",
-              cursor: canExport ? "pointer" : "not-allowed",
-            }}
-            onClick={() => handleExport("docx")}
-            disabled={!canExport}
-          >
-            {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
-          </button>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ color: "#E2E8F0" }}>Senha</label>
+              <input
+                type="password"
+                value={adminPassword}
+                onChange={(event) => setAdminPassword(event.target.value)}
+                style={inputStyle}
+                autoComplete="current-password"
+              />
+            </div>
 
-          <button
-            style={{
-              ...buttonStyle,
-              background: canExport ? "#6366F1" : "#334155",
-              cursor: canExport ? "pointer" : "not-allowed",
-            }}
-            onClick={() => handleExport("pdf")}
-            disabled={!canExport}
-          >
-            {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
-          </button>
-        </div>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0" }}>
+              <input type="checkbox" checked={rememberSession} onChange={(e) => setRememberSession(e.target.checked)} />
+              Lembrar sessão neste dispositivo (salva token localmente)
+            </label>
 
-        {!consentForNote ? (
-          <p style={{ color: "#FCA5A5", marginTop: 8 }}>
-            É necessário confirmar o consentimento do paciente para validar o prontuário.
-          </p>
-        ) : null}
+            <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+              <button style={{ ...buttonStyle, background: "#22C55E" }} disabled={adminLoading}>
+                Entrar
+              </button>
+              <button type="button" style={{ ...buttonStyle, background: "#475569" }} onClick={handleAdminLogout}>
+                Encerrar sessão
+              </button>
+              <button
+                type="button"
+                style={{
+                  ...buttonStyle,
+                  background: hasAdminToken ? "#6366F1" : "#334155",
+                  cursor: hasAdminToken ? "pointer" : "not-allowed",
+                }}
+                onClick={() => void refreshAdminData()}
+                disabled={!hasAdminToken || adminLoading}
+                title={!hasAdminToken ? "Faça login primeiro" : "Atualizar"}
+              >
+                {adminLoading ? "Atualizando..." : "Atualizar dados"}
+              </button>
+            </div>
+          </form>
 
-        {exportFeedback ? (
-          <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
-            {exportFeedback}
-          </p>
-        ) : null}
-      </section>
+          <p style={{ color: "#CBD5F5", marginBottom: 8 }}>{adminStatusLabel}</p>
+          {adminError ? <p style={{ color: "#FCA5A5" }}>{clamp(adminError, 240)}</p> : null}
 
-      <section style={sectionStyle}>
-        <h2>Admin — Control Plane</h2>
-        <p style={{ ...subtleText, marginBottom: 12 }}>
-          Painel restrito à role=admin, com métricas agregadas e lista de usuários sanitizada (sem conteúdo clínico).
-        </p>
-
-        <form onSubmit={handleAdminLogin} style={{ display: "grid", gap: 12, marginBottom: 16 }}>
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ color: "#E2E8F0" }}>URL do control plane</label>
-            <input value={adminBaseUrl} onChange={(event) => setAdminBaseUrl(event.target.value)} style={inputStyle} />
-          </div>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ color: "#E2E8F0" }}>Email</label>
-            <input value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} style={inputStyle} />
-          </div>
-
-          <div style={{ display: "grid", gap: 8 }}>
-            <label style={{ color: "#E2E8F0" }}>Senha</label>
-            <input
-              type="password"
-              value={adminPassword}
-              onChange={(event) => setAdminPassword(event.target.value)}
-              style={inputStyle}
-              autoComplete="current-password"
-            />
-          </div>
-
-          <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0" }}>
-            <input
-              type="checkbox"
-              checked={rememberSession}
-              onChange={(e) => setRememberSession(e.target.checked)}
-            />
-            Lembrar sessão neste dispositivo (salva token localmente)
-          </label>
-
-          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-            <button style={{ ...buttonStyle, background: "#22C55E" }} disabled={adminLoading}>
-              Entrar como admin
-            </button>
-            <button type="button" style={{ ...buttonStyle, background: "#475569" }} onClick={handleAdminLogout}>
-              Encerrar sessão
-            </button>
-            <button
-              type="button"
-              style={{
-                ...buttonStyle,
-                background: hasAdminToken ? "#6366F1" : "#334155",
-                cursor: hasAdminToken ? "pointer" : "not-allowed",
-              }}
-              onClick={() => void refreshAdminData()}
-              disabled={!hasAdminToken || adminLoading}
-              title={!hasAdminToken ? "Faça login primeiro" : "Atualizar"}
-            >
-              {adminLoading ? "Atualizando..." : "Atualizar dados"}
-            </button>
-          </div>
-        </form>
-
-        <p style={{ color: "#CBD5F5", marginBottom: 8 }}>{adminStatusLabel}</p>
-        {adminError ? <p style={{ color: "#FCA5A5" }}>{clamp(adminError, 240)}</p> : null}
-
-        {isAdmin ? (
-          <AdminPanel metrics={adminMetrics} users={adminUsers} />
-        ) : (
-          <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "#1F2937", color: "#FBBF24" }}>
-            Acesso restrito: role=admin necessária para visualizar métricas e usuários.
-          </div>
-        )}
-      </section>
+          {isAdmin ? (
+            <AdminPanel metrics={adminMetrics} users={adminUsers} />
+          ) : (
+            <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "#1F2937", color: "#FBBF24" }}>
+              Acesso restrito: role=admin necessária para visualizar métricas e usuários.
+            </div>
+          )}
+        </section>
+      ) : null}
     </div>
   );
 };
 
 // -----------------------------
-// Subcomponents (coloquei aqui, mas você pode mover pra arquivos separados)
+// Subcomponents
 // -----------------------------
 function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
   return (
@@ -857,11 +898,7 @@ function ConsentModal(props: {
           <button style={outlineButtonStyle} onClick={onCancel}>
             Cancelar
           </button>
-          <button
-            style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }}
-            onClick={onConfirm}
-            disabled={!checked}
-          >
+          <button style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }} onClick={onConfirm} disabled={!checked}>
             {confirmLabel}
           </button>
         </div>
