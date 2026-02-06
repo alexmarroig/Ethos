@@ -13,6 +13,9 @@ import type {
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  ClinicalDocument,
+  DocumentTemplate,
+  DocumentVersion,
   FinancialEntry,
   FormEntry,
   Job,
@@ -23,6 +26,7 @@ import type {
   Patient,
   ScaleRecord,
   SessionStatus,
+  SafeModeAlert,
   TelemetryEvent,
   Transcript,
   User,
@@ -30,6 +34,32 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+
+const SAFE_MODE_RULES: Array<{ pattern: RegExp; message: string }> = [
+  { pattern: /\bdiagn[oó]stic\w*/i, message: "Evite linguagem diagnóstica conclusiva fora do laudo." },
+  { pattern: /\btranstorno\b/i, message: "Substitua termos diagnósticos por descrições clínicas." },
+  { pattern: /\bCID-?\s*\w+/i, message: "Códigos CID devem aparecer apenas em laudos." },
+  { pattern: /\bconclusiv\w+/i, message: "Evite termos conclusivos em documentos de declaração." },
+  { pattern: /\bcomprovad\w+/i, message: "Evite afirmações conclusivas sem laudo." },
+];
+
+const buildSafeModeAlerts = (content: string, allowDiagnostics: boolean): SafeModeAlert[] => {
+  if (allowDiagnostics) return [];
+  const alerts: SafeModeAlert[] = [];
+  for (const rule of SAFE_MODE_RULES) {
+    const match = content.match(rule.pattern);
+    if (match) {
+      alerts.push({
+        id: uid(),
+        kind: "diagnostic_language",
+        severity: "warning",
+        message: rule.message,
+        match: match[0],
+      });
+    }
+  }
+  return alerts;
+};
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
   const id = uid();
@@ -266,7 +296,17 @@ export const addTranscript = (owner: string, sessionId: string, rawText: string)
 };
 
 export const createClinicalNoteDraft = (owner: string, sessionId: string, content: string): ClinicalNote => {
-  const note = { id: uid(), owner_user_id: owner, session_id: sessionId, content, status: "draft" as const, version: 1, created_at: now() };
+  const safeModeAlerts = buildSafeModeAlerts(content, false);
+  const note = {
+    id: uid(),
+    owner_user_id: owner,
+    session_id: sessionId,
+    content,
+    status: "draft" as const,
+    version: 1,
+    created_at: now(),
+    safe_mode_alerts: safeModeAlerts,
+  };
   db.clinicalNotes.set(note.id, note);
   return note;
 };
@@ -294,6 +334,59 @@ export const createReport = (owner: string, patientId: string, purpose: Clinical
   db.reports.set(report.id, report);
   return report;
 };
+
+export const listDocumentTemplates = (): DocumentTemplate[] => Array.from(db.documentTemplates.values());
+
+export const createDocument = (owner: string, patientId: string, caseId: string, templateId: string, title: string): ClinicalDocument | null => {
+  const template = db.documentTemplates.get(templateId);
+  if (!template) return null;
+  const document: ClinicalDocument = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patientId,
+    case_id: caseId,
+    template_id: templateId,
+    title,
+    status: "draft",
+    latest_version: 0,
+    created_at: now(),
+  };
+  db.documents.set(document.id, document);
+  return document;
+};
+
+export const addDocumentVersion = (
+  owner: string,
+  documentId: string,
+  payload: { content: string; global_values: Record<string, string> },
+): DocumentVersion | null => {
+  const document = getByOwner(db.documents, owner, documentId);
+  if (!document) return null;
+  const template = db.documentTemplates.get(document.template_id);
+  const alerts = buildSafeModeAlerts(payload.content, template?.type === "laudo");
+  const version: DocumentVersion = {
+    id: uid(),
+    owner_user_id: owner,
+    document_id: document.id,
+    case_id: document.case_id,
+    version: document.latest_version + 1,
+    content: payload.content,
+    global_values: payload.global_values,
+    safe_mode_alerts: alerts,
+    created_at: now(),
+  };
+  document.latest_version = version.version;
+  db.documentVersions.set(version.id, version);
+  return version;
+};
+
+export const listDocumentsByCase = (owner: string, caseId: string) =>
+  Array.from(db.documents.values()).filter((item) => item.owner_user_id === owner && item.case_id === caseId);
+
+export const listDocumentVersions = (owner: string, documentId: string) =>
+  Array.from(db.documentVersions.values())
+    .filter((item) => item.owner_user_id === owner && item.document_id === documentId)
+    .sort((a, b) => b.version - a.version);
 
 export const createAnamnesis = (owner: string, patientId: string, templateId: string, content: Record<string, unknown>): AnamnesisResponse => {
   const anamnesis = { id: uid(), owner_user_id: owner, patient_id: patientId, template_id: templateId, content, version: 1, created_at: now() };
@@ -385,6 +478,8 @@ export const purgeUserData = (owner: string) => {
     db.forms,
     db.financial,
     db.jobs,
+    db.documents,
+    db.documentVersions,
   ];
   for (const map of ownedMaps) {
     for (const [id, item] of map.entries()) {

@@ -6,6 +6,9 @@ import type {
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  ClinicalDocument,
+  DocumentTemplate,
+  DocumentVersion,
   FinancialEntry,
   FormEntry,
   Invite,
@@ -71,6 +74,9 @@ export const db = {
   jobs: new Map<string, Job>(),
   localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
+  documentTemplates: new Map<string, DocumentTemplate>(),
+  documents: new Map<string, ClinicalDocument>(),
+  documentVersions: new Map<string, DocumentVersion>(),
 
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
@@ -113,3 +119,42 @@ export const seeds = { camilaId, now };
 
 db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
 db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
+
+db.documentTemplates.set("cfp-atestado", {
+  id: "cfp-atestado",
+  authority: "CFP",
+  title: "Atestado psicológico CFP",
+  description: "Declaração breve com identificação profissional e objetivo da emissão.",
+  type: "declaracao",
+  global_fields: [
+    { id: "profissional_nome", label: "Nome do(a) profissional", required: true },
+    { id: "registro_profissional", label: "Registro profissional (CRP)", required: true },
+    { id: "paciente_nome", label: "Nome do(a) paciente", required: true },
+    { id: "data_emissao", label: "Data de emissão", required: true },
+  ],
+  sections: [
+    { id: "objetivo", label: "Objetivo do documento", placeholder: "Informe a finalidade do atestado." },
+    { id: "periodo", label: "Período/comparecimento", placeholder: "Descreva período de acompanhamento ou comparecimento." },
+    { id: "observacoes", label: "Observações", placeholder: "Informações complementares, sem diagnóstico conclusivo." },
+  ],
+});
+
+db.documentTemplates.set("crp-declaracao", {
+  id: "crp-declaracao",
+  authority: "CRP",
+  title: "Declaração CRP",
+  description: "Declaração de acompanhamento com dados básicos e limitações éticas.",
+  type: "declaracao",
+  global_fields: [
+    { id: "profissional_nome", label: "Nome do(a) profissional", required: true },
+    { id: "registro_profissional", label: "Registro profissional (CRP)", required: true },
+    { id: "paciente_nome", label: "Nome do(a) paciente", required: true },
+    { id: "cidade_uf", label: "Cidade/UF", required: true },
+    { id: "data_emissao", label: "Data de emissão", required: true },
+  ],
+  sections: [
+    { id: "contexto", label: "Contexto do acompanhamento", placeholder: "Descreva o contexto sem linguagem diagnóstica." },
+    { id: "objetivo", label: "Objetivo da declaração", placeholder: "Informe para qual finalidade a declaração é emitida." },
+    { id: "limites", label: "Limites e observações", placeholder: "Registre limites técnicos e éticos do documento." },
+  ],
+});

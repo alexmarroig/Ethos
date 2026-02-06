@@ -11,6 +11,7 @@ import {
   canUseFeature,
   createAnamnesis,
   createClinicalNoteDraft,
+  createDocument,
   createFinancialEntry,
   createFormEntry,
   createInvite,
@@ -18,6 +19,7 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  addDocumentVersion,
   evaluateObservability,
   getByOwner,
   getClinicalNote,
@@ -26,6 +28,9 @@ import {
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
+  listDocumentTemplates,
+  listDocumentsByCase,
+  listDocumentVersions,
   listObservabilityAlerts,
   listPatients,
   listScales,
@@ -44,7 +49,22 @@ import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
-const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
+const CLINICAL_PATHS = [
+  /^\/sessions/,
+  /^\/clinical-notes/,
+  /^\/reports/,
+  /^\/anamnesis/,
+  /^\/scales/,
+  /^\/forms/,
+  /^\/financial/,
+  /^\/documents/,
+  /^\/document-templates/,
+  /^\/jobs/,
+  /^\/export/,
+  /^\/backup/,
+  /^\/restore/,
+  /^\/purge/,
+];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
@@ -296,6 +316,47 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       const { page, pageSize } = parsePagination(url);
       const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
       return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    if (method === "GET" && url.pathname === "/document-templates") {
+      return ok(res, requestId, 200, listDocumentTemplates());
+    }
+
+    if (method === "POST" && url.pathname === "/documents") {
+      const body = await readJson(req);
+      const document = createDocument(
+        auth.user.id,
+        String(body.patient_id ?? ""),
+        String(body.case_id ?? ""),
+        String(body.template_id ?? ""),
+        String(body.title ?? "Documento clínico"),
+      );
+      if (!document) return error(res, requestId, 404, "TEMPLATE_NOT_FOUND", "Template not found");
+      return ok(res, requestId, 201, document);
+    }
+
+    if (method === "GET" && url.pathname === "/documents") {
+      const caseId = String(url.searchParams.get("case_id") ?? "");
+      const { page, pageSize } = parsePagination(url);
+      const items = caseId
+        ? listDocumentsByCase(auth.user.id, caseId)
+        : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    const documentVersions = url.pathname.match(/^\/documents\/([^/]+)\/versions$/);
+    if (method === "POST" && documentVersions) {
+      const body = await readJson(req);
+      const version = addDocumentVersion(auth.user.id, documentVersions[1], {
+        content: String(body.content ?? ""),
+        global_values: (body.global_values as Record<string, string>) ?? {},
+      });
+      if (!version) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+      return ok(res, requestId, 201, version);
+    }
+
+    if (method === "GET" && documentVersions) {
+      return ok(res, requestId, 200, listDocumentVersions(auth.user.id, documentVersions[1]));
     }
 
     if (method === "POST" && url.pathname === "/anamnesis") {
