@@ -1,5 +1,7 @@
 import { EthosClinicalPlaneClient, EthosControlPlaneClient } from "@ethos/sdk";
 
+export * from "./theme/tokens";
+
 export const mobileV1Capabilities = {
   login: true,
   recording: true,

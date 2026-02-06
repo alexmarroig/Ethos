@@ -1,38 +1,40 @@
 import React from "react";
 import { NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { colors, radii, spacing, typography } from "../theme/tokens";
 
 const containerStyle: React.CSSProperties = {
   minHeight: "100vh",
-  background: "#0F172A",
-  color: "#E2E8F0",
+  background: colors.background.canvas,
+  color: colors.text.primary,
   display: "flex",
+  fontFamily: typography.fontFamily,
 };
 
 const sidebarStyle: React.CSSProperties = {
   width: 220,
-  background: "#111827",
-  padding: 24,
+  background: colors.background.surface,
+  padding: spacing.xl,
   display: "flex",
   flexDirection: "column",
-  gap: 12,
+  gap: spacing.md,
 };
 
 const linkStyle: React.CSSProperties = {
-  color: "#94A3B8",
+  color: colors.text.secondary,
   textDecoration: "none",
-  padding: "8px 12px",
-  borderRadius: 10,
+  padding: `${spacing.sm}px ${spacing.md}px`,
+  borderRadius: radii.md,
 };
 
 const activeLinkStyle: React.CSSProperties = {
-  color: "#F8FAFC",
-  background: "#1E293B",
+  color: colors.text.highlight,
+  background: colors.background.surfaceAlt,
 };
 
 const contentStyle: React.CSSProperties = {
   flex: 1,
-  padding: 32,
+  padding: spacing.xxl,
 };
 
 export const AppLayout = () => {
@@ -42,10 +44,18 @@ export const AppLayout = () => {
     <div style={containerStyle}>
       <aside style={sidebarStyle}>
         <div>
-          <h1 style={{ margin: 0, fontSize: 20 }}>ETHOS</h1>
-          <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: 12 }}>Agenda clínica</p>
+          <h1 style={{ margin: 0, fontSize: typography.sizes.xl }}>ETHOS</h1>
+          <p
+            style={{
+              margin: `${spacing.sm - 2}px 0 0`,
+              color: colors.text.muted,
+              fontSize: typography.sizes.xs,
+            }}
+          >
+            Agenda clínica
+          </p>
         </div>
-        <nav style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <nav style={{ display: "flex", flexDirection: "column", gap: spacing.sm }}>
           {[
             { to: "/home", label: "Home" },
             { to: "/agenda", label: "Agenda" },
@@ -66,20 +76,20 @@ export const AppLayout = () => {
             </NavLink>
           ))}
         </nav>
-        <div style={{ marginTop: "auto", fontSize: 12, color: "#94A3B8" }}>
-          <p style={{ marginBottom: 8 }}>Logado como</p>
-          <strong style={{ display: "block", color: "#E2E8F0" }}>{user?.name}</strong>
+        <div style={{ marginTop: "auto", fontSize: typography.sizes.xs, color: colors.text.secondary }}>
+          <p style={{ marginBottom: spacing.sm }}>Logado como</p>
+          <strong style={{ display: "block", color: colors.text.primary }}>{user?.name}</strong>
           <span>{user?.email}</span>
           <button
             type="button"
             onClick={logout}
             style={{
-              marginTop: 12,
-              padding: "8px 12px",
-              borderRadius: 10,
+              marginTop: spacing.md,
+              padding: `${spacing.sm}px ${spacing.md}px`,
+              borderRadius: radii.md,
               border: "none",
-              background: "#334155",
-              color: "#E2E8F0",
+              background: colors.background.surfaceRaised,
+              color: colors.text.primary,
               cursor: "pointer",
               width: "100%",
             }}
