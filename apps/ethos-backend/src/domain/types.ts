@@ -211,6 +211,23 @@ export type ObservabilityAlert = {
   context: Record<string, unknown>;
 };
 
+export type CaseHistoryPolicy = {
+  window_days: number;
+  max_sessions: number;
+  max_notes: number;
+  max_reports: number;
+};
+
+export type CaseClosureProtocol = Owned & {
+  patient_id: string;
+  closed_at: string;
+  reason: string;
+  summary: string;
+  next_steps: string[];
+  history_policy: CaseHistoryPolicy;
+  retained: { sessions: number; notes: number; reports: number };
+  discarded: { sessions: number; notes: number; reports: number };
+  supporting_pruned: { anamnesis: number; scales: number; forms: number; financial_entries: number };
 export type NotificationChannel = "email" | "whatsapp";
 export type NotificationScheduleStatus = "scheduled" | "sent" | "failed";
 

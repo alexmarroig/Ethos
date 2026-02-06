@@ -20,6 +20,7 @@ import type {
   LocalEntitlementSnapshot,
   ScaleTemplate,
   ObservabilityAlert,
+  CaseClosureProtocol,
   NotificationConsent,
   NotificationLog,
   NotificationSchedule,
@@ -82,6 +83,7 @@ export const db = {
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
+  caseClosures: new Map<string, CaseClosureProtocol>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
 
   notificationTemplates: new Map<string, NotificationTemplate>(),

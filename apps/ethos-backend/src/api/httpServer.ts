@@ -18,6 +18,7 @@ import {
   createReport,
   createScaleRecord,
   createSession,
+  exportCase,
   createTemplate,
   deleteTemplate,
   evaluateObservability,
@@ -36,6 +37,7 @@ import {
   listTemplates,
   login,
   logout,
+  closeCase,
   paginate,
   patchSessionStatus,
   purgeUserData,
@@ -498,6 +500,20 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
     }
 
+    if (method === "POST" && url.pathname === "/export/case") {
+      const body = await readJson(req);
+      const patientId = String(body.patient_id ?? "");
+      if (!patientId) return error(res, requestId, 400, "INVALID_PAYLOAD", "patient_id is required");
+      const exportPayload = exportCase(auth.user.id, patientId, {
+        window_days: typeof body.history_window_days === "number" ? body.history_window_days : undefined,
+        max_sessions: typeof body.max_sessions === "number" ? body.max_sessions : undefined,
+        max_notes: typeof body.max_notes === "number" ? body.max_notes : undefined,
+        max_reports: typeof body.max_reports === "number" ? body.max_reports : undefined,
+      });
+      if (!exportPayload) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+      return ok(res, requestId, 200, exportPayload);
+    }
+
     if (method === "POST" && url.pathname === "/backup") {
       const job = createJob(auth.user.id, "backup");
       void runJob(job.id, {});
@@ -511,6 +527,28 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "POST" && url.pathname === "/purge") {
       purgeUserData(auth.user.id);
       return ok(res, requestId, 202, { accepted: true });
+    }
+
+    if (method === "POST" && url.pathname === "/cases/close") {
+      const body = await readJson(req);
+      const patientId = String(body.patient_id ?? "");
+      if (!patientId) return error(res, requestId, 400, "INVALID_PAYLOAD", "patient_id is required");
+      const reason = String(body.reason ?? "").trim();
+      const summary = String(body.summary ?? "").trim();
+      if (!reason || !summary) return error(res, requestId, 400, "INVALID_PAYLOAD", "reason and summary are required");
+      const result = closeCase(auth.user.id, patientId, {
+        reason,
+        summary,
+        next_steps: Array.isArray(body.next_steps) ? body.next_steps.map((item) => String(item)) : [],
+        history_policy: {
+          window_days: typeof body.history_window_days === "number" ? body.history_window_days : undefined,
+          max_sessions: typeof body.max_sessions === "number" ? body.max_sessions : undefined,
+          max_notes: typeof body.max_notes === "number" ? body.max_notes : undefined,
+          max_reports: typeof body.max_reports === "number" ? body.max_reports : undefined,
+        },
+      });
+      if (!result) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+      return ok(res, requestId, 200, result);
     }
 
     const jobById = url.pathname.match(/^\/jobs\/([^/]+)$/);

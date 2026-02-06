@@ -10,6 +10,8 @@ import {
 } from "./aiObservability";
 import type {
   AnamnesisResponse,
+  CaseClosureProtocol,
+  CaseHistoryPolicy,
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
@@ -33,6 +35,12 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+const DEFAULT_CASE_HISTORY_POLICY: CaseHistoryPolicy = {
+  window_days: 365,
+  max_sessions: 20,
+  max_notes: 60,
+  max_reports: 20,
+};
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
   const id = uid();
@@ -260,6 +268,61 @@ const renderTemplateHtml = (template: ClinicalTemplate, payload: TemplateRenderR
   `;
 };
 
+const normalizeCaseHistoryPolicy = (policy: Partial<CaseHistoryPolicy> = {}): CaseHistoryPolicy => ({
+  window_days: Math.max(1, Math.floor(Number(policy.window_days ?? DEFAULT_CASE_HISTORY_POLICY.window_days))),
+  max_sessions: Math.max(1, Math.floor(Number(policy.max_sessions ?? DEFAULT_CASE_HISTORY_POLICY.max_sessions))),
+  max_notes: Math.max(1, Math.floor(Number(policy.max_notes ?? DEFAULT_CASE_HISTORY_POLICY.max_notes))),
+  max_reports: Math.max(1, Math.floor(Number(policy.max_reports ?? DEFAULT_CASE_HISTORY_POLICY.max_reports))),
+});
+
+const sortByCreatedAtDesc = <T extends { created_at: string }>(items: T[]) =>
+  [...items].sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+const withinWindow = (item: { created_at: string }, cutoffMs: number) => Date.parse(item.created_at) >= cutoffMs;
+
+const buildCaseHistory = (owner: string, patientId: string, policy: CaseHistoryPolicy, referenceDate = new Date()) => {
+  const cutoffMs = referenceDate.getTime() - policy.window_days * DAY_MS;
+  const allSessions = byOwner(db.sessions.values(), owner).filter((session) => session.patient_id === patientId);
+  const windowSessions = allSessions.filter((session) => withinWindow(session, cutoffMs));
+  let retainedSessions = sortByCreatedAtDesc(windowSessions).slice(0, policy.max_sessions);
+  if (retainedSessions.length === 0 && allSessions.length > 0) {
+    retainedSessions = sortByCreatedAtDesc(allSessions).slice(0, 1);
+  }
+  const retainedSessionIds = new Set(retainedSessions.map((session) => session.id));
+
+  const allNotes = byOwner(db.clinicalNotes.values(), owner).filter((note) => {
+    const session = db.sessions.get(note.session_id);
+    return session?.patient_id === patientId;
+  });
+  const windowNotes = allNotes.filter((note) => retainedSessionIds.has(note.session_id) && withinWindow(note, cutoffMs));
+  let retainedNotes = sortByCreatedAtDesc(windowNotes).slice(0, policy.max_notes);
+  if (retainedNotes.length === 0 && allNotes.length > 0) {
+    retainedNotes = sortByCreatedAtDesc(allNotes.filter((note) => retainedSessionIds.has(note.session_id))).slice(0, 1);
+  }
+  const retainedNoteIds = new Set(retainedNotes.map((note) => note.id));
+
+  const allReports = byOwner(db.reports.values(), owner).filter((report) => report.patient_id === patientId);
+  const windowReports = allReports.filter((report) => withinWindow(report, cutoffMs));
+  let retainedReports = sortByCreatedAtDesc(windowReports).slice(0, policy.max_reports);
+  if (retainedReports.length === 0 && allReports.length > 0) {
+    retainedReports = sortByCreatedAtDesc(allReports).slice(0, 1);
+  }
+  const retainedReportIds = new Set(retainedReports.map((report) => report.id));
+
+  return {
+    cutoffMs,
+    allSessions,
+    retainedSessions,
+    retainedSessionIds,
+    allNotes,
+    retainedNotes,
+    retainedNoteIds,
+    allReports,
+    retainedReports,
+    retainedReportIds,
+  };
+};
+
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
   const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
   if (existing) return existing;
@@ -412,6 +475,122 @@ export const paginate = <T>(items: T[], page = 1, pageSize = 20) => ({
   page_size: pageSize,
   total: items.length,
 });
+
+export const exportCase = (owner: string, patientId: string, policyOverrides: Partial<CaseHistoryPolicy> = {}) => {
+  const patient = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && (item.external_id === patientId || item.id === patientId));
+  if (!patient) return null;
+  const policy = normalizeCaseHistoryPolicy(policyOverrides);
+  const history = buildCaseHistory(owner, patient.external_id, policy);
+  const cutoffMs = history.cutoffMs;
+  const retainedSessionIds = history.retainedSessionIds;
+
+  const audioRecords = byOwner(db.audioRecords.values(), owner).filter((record) => retainedSessionIds.has(record.session_id));
+  const transcripts = byOwner(db.transcripts.values(), owner).filter((record) => retainedSessionIds.has(record.session_id));
+  const anamnesis = byOwner(db.anamnesis.values(), owner).filter((item) => item.patient_id === patient.external_id && withinWindow(item, cutoffMs));
+  const scales = byOwner(db.scales.values(), owner).filter((item) => item.patient_id === patient.external_id && withinWindow(item, cutoffMs));
+  const forms = byOwner(db.forms.values(), owner).filter((item) => item.patient_id === patient.external_id && withinWindow(item, cutoffMs));
+  const financial = byOwner(db.financial.values(), owner).filter((item) => item.patient_id === patient.external_id && withinWindow(item, cutoffMs));
+  const closures = byOwner(db.caseClosures.values(), owner).filter((item) => item.patient_id === patient.external_id);
+
+  return {
+    patient,
+    generated_at: now(),
+    history_policy: policy,
+    sessions: history.retainedSessions,
+    clinical_notes: history.retainedNotes,
+    reports: history.retainedReports,
+    transcripts,
+    audio_records: audioRecords,
+    anamnesis,
+    scales,
+    forms,
+    financial_entries: financial,
+    closures,
+  };
+};
+
+export const closeCase = (owner: string, patientId: string, payload: {
+  reason: string;
+  summary: string;
+  next_steps?: string[];
+  history_policy?: Partial<CaseHistoryPolicy>;
+}) => {
+  const patient = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && (item.external_id === patientId || item.id === patientId));
+  if (!patient) return null;
+  const policy = normalizeCaseHistoryPolicy(payload.history_policy ?? {});
+  const history = buildCaseHistory(owner, patient.external_id, policy);
+
+  for (const session of history.allSessions) {
+    if (!history.retainedSessionIds.has(session.id)) db.sessions.delete(session.id);
+  }
+  for (const note of history.allNotes) {
+    if (!history.retainedNoteIds.has(note.id)) db.clinicalNotes.delete(note.id);
+  }
+  for (const record of Array.from(db.audioRecords.values())) {
+    if (record.owner_user_id !== owner) continue;
+    if (history.retainedSessionIds.has(record.session_id)) continue;
+    db.audioRecords.delete(record.id);
+  }
+  for (const record of Array.from(db.transcripts.values())) {
+    if (record.owner_user_id !== owner) continue;
+    if (history.retainedSessionIds.has(record.session_id)) continue;
+    db.transcripts.delete(record.id);
+  }
+  for (const report of history.allReports) {
+    if (!history.retainedReportIds.has(report.id)) db.reports.delete(report.id);
+  }
+
+  const cutoffMs = history.cutoffMs;
+  const pruneByPatientWindow = <T extends { id: string; owner_user_id: string; patient_id: string; created_at: string }>(map: Map<string, T>) => {
+    let pruned = 0;
+    for (const [id, item] of map.entries()) {
+      if (item.owner_user_id !== owner) continue;
+      if (item.patient_id !== patient.external_id) continue;
+      if (!withinWindow(item, cutoffMs)) {
+        map.delete(id);
+        pruned += 1;
+      }
+    }
+    return pruned;
+  };
+
+  const anamnesisPruned = pruneByPatientWindow(db.anamnesis);
+  const scalesPruned = pruneByPatientWindow(db.scales);
+  const formsPruned = pruneByPatientWindow(db.forms);
+  const financialPruned = pruneByPatientWindow(db.financial);
+
+  const protocol: CaseClosureProtocol = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patient.external_id,
+    created_at: now(),
+    closed_at: now(),
+    reason: payload.reason,
+    summary: payload.summary,
+    next_steps: payload.next_steps ?? [],
+    history_policy: policy,
+    retained: {
+      sessions: history.retainedSessions.length,
+      notes: history.retainedNotes.length,
+      reports: history.retainedReports.length,
+    },
+    discarded: {
+      sessions: history.allSessions.length - history.retainedSessions.length,
+      notes: history.allNotes.length - history.retainedNotes.length,
+      reports: history.allReports.length - history.retainedReports.length,
+    },
+    supporting_pruned: {
+      anamnesis: anamnesisPruned,
+      scales: scalesPruned,
+      forms: formsPruned,
+      financial_entries: financialPruned,
+    },
+  };
+  db.caseClosures.set(protocol.id, protocol);
+  addTelemetry({ user_id: owner, event_type: "CASE_CLOSED" });
+
+  return { protocol, retained_case: exportCase(owner, patient.external_id, policy) };
+};
 
 export const purgeUserData = (owner: string) => {
   const ownedMaps: Array<Map<string, { owner_user_id: string }>> = [
