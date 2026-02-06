@@ -12,6 +12,7 @@ import {
   createAnamnesis,
   createAnonymizedCase,
   createClinicalNoteDraft,
+  createDocument,
   createFinancialEntry,
   createFormEntry,
   createInvite,
@@ -22,6 +23,7 @@ import {
   createContract,
   createScaleRecord,
   createSession,
+  addDocumentVersion,
   createPrivateComment,
   exportCase,
   createTemplate,
@@ -39,6 +41,9 @@ import {
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
+  listDocumentTemplates,
+  listDocumentsByCase,
+  listDocumentVersions,
   listPatientSessions,
   getRetentionPolicy,
   listObservabilityAlerts,
@@ -90,11 +95,14 @@ const CLINICAL_PATHS = [
   /^\/scales/,
   /^\/forms/,
   /^\/financial/,
+  /^\/documents/,
+  /^\/document-templates/,
   /^\/jobs/,
   /^\/export/,
   /^\/backup/,
   /^\/restore/,
   /^\/purge/,
+];
   /^\/cases/,
 ];
 const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
@@ -608,6 +616,47 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "report");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    if (method === "GET" && url.pathname === "/document-templates") {
+      return ok(res, requestId, 200, listDocumentTemplates());
+    }
+
+    if (method === "POST" && url.pathname === "/documents") {
+      const body = await readJson(req);
+      const document = createDocument(
+        auth.user.id,
+        String(body.patient_id ?? ""),
+        String(body.case_id ?? ""),
+        String(body.template_id ?? ""),
+        String(body.title ?? "Documento clínico"),
+      );
+      if (!document) return error(res, requestId, 404, "TEMPLATE_NOT_FOUND", "Template not found");
+      return ok(res, requestId, 201, document);
+    }
+
+    if (method === "GET" && url.pathname === "/documents") {
+      const caseId = String(url.searchParams.get("case_id") ?? "");
+      const { page, pageSize } = parsePagination(url);
+      const items = caseId
+        ? listDocumentsByCase(auth.user.id, caseId)
+        : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id);
+      return ok(res, requestId, 200, paginate(items, page, pageSize));
+    }
+
+    const documentVersions = url.pathname.match(/^\/documents\/([^/]+)\/versions$/);
+    if (method === "POST" && documentVersions) {
+      const body = await readJson(req);
+      const version = addDocumentVersion(auth.user.id, documentVersions[1], {
+        content: String(body.content ?? ""),
+        global_values: (body.global_values as Record<string, string>) ?? {},
+      });
+      if (!version) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+      return ok(res, requestId, 201, version);
+    }
+
+    if (method === "GET" && documentVersions) {
+      return ok(res, requestId, 200, listDocumentVersions(auth.user.id, documentVersions[1]));
     }
 
     if (method === "POST" && url.pathname === "/anamnesis") {

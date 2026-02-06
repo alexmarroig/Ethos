@@ -163,6 +163,7 @@ export type ClinicalNote = Owned & {
   status: ClinicalNoteStatus;
   version: number;
   validated_at?: string;
+  safe_mode_alerts?: SafeModeAlert[];
 };
 
 export type ClinicalNoteLevel = "registro_factual" | "impressoes" | "planejamento";
@@ -208,6 +209,42 @@ export type ClinicalReport = Owned & {
   patient_id: string;
   purpose: "instituição" | "profissional" | "paciente";
   content: string;
+};
+
+export type DocumentTemplate = {
+  id: string;
+  authority: "CFP" | "CRP";
+  title: string;
+  description: string;
+  type: "laudo" | "relatorio" | "declaracao";
+  global_fields: Array<{ id: string; label: string; required?: boolean }>;
+  sections: Array<{ id: string; label: string; placeholder?: string }>;
+};
+
+export type SafeModeAlert = {
+  id: string;
+  kind: "diagnostic_language";
+  severity: "warning";
+  message: string;
+  match: string;
+};
+
+export type ClinicalDocument = Owned & {
+  patient_id: string;
+  case_id: string;
+  template_id: string;
+  title: string;
+  status: "draft" | "final";
+  latest_version: number;
+};
+
+export type DocumentVersion = Owned & {
+  document_id: string;
+  case_id: string;
+  version: number;
+  content: string;
+  global_values: Record<string, string>;
+  safe_mode_alerts: SafeModeAlert[];
 };
 
 export type AnamnesisResponse = Owned & {
