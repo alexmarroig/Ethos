@@ -173,6 +173,45 @@ export type ObservabilityAlert = {
   context: Record<string, unknown>;
 };
 
+export type NotificationChannel = "email" | "whatsapp";
+export type NotificationScheduleStatus = "scheduled" | "sent" | "failed";
+
+export type NotificationTemplate = Owned & {
+  name: string;
+  channel: NotificationChannel;
+  content: string;
+  subject?: string;
+};
+
+export type NotificationConsent = Owned & {
+  patient_id: UUID;
+  channel: NotificationChannel;
+  source: string;
+  granted_at: string;
+};
+
+export type NotificationSchedule = Owned & {
+  session_id: UUID;
+  patient_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  scheduled_for: string;
+  recipient: string;
+  status: NotificationScheduleStatus;
+  last_sent_at?: string;
+  last_error?: string;
+};
+
+export type NotificationLog = Owned & {
+  schedule_id: UUID;
+  channel: NotificationChannel;
+  provider: "smtp" | "whatsapp_api";
+  recipient: string;
+  status: "sent" | "failed";
+  error?: string;
+  sent_at: string;
+};
+
 export type ApiEnvelope<T> = {
   request_id: string;
   data: T;

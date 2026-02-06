@@ -19,6 +19,10 @@ import type {
   LocalEntitlementSnapshot,
   ScaleTemplate,
   ObservabilityAlert,
+  NotificationConsent,
+  NotificationLog,
+  NotificationSchedule,
+  NotificationTemplate,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -77,6 +81,11 @@ export const db = {
   audit: new Map<string, AuditEvent>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+
+  notificationTemplates: new Map<string, NotificationTemplate>(),
+  notificationConsents: new Map<string, NotificationConsent>(),
+  notificationSchedules: new Map<string, NotificationSchedule>(),
+  notificationLogs: new Map<string, NotificationLog>(),
 };
 
 export const getIdempotencyEntry = (key: string, at = Date.now()) => {

@@ -40,11 +40,20 @@ import {
   syncLocalEntitlements,
   validateClinicalNote,
 } from "../application/service";
+import {
+  createNotificationTemplate,
+  dispatchDueNotifications,
+  grantNotificationConsent,
+  listNotificationLogs,
+  listNotificationSchedules,
+  listNotificationTemplates,
+  scheduleNotification,
+} from "../application/notifications";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
-const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
+const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/notifications/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
@@ -283,6 +292,77 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (method === "GET" && sessionNotes) {
       const { page, pageSize } = parsePagination(url);
       return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/templates") {
+      const body = await readJson(req);
+      if (typeof body.name !== "string" || typeof body.channel !== "string" || typeof body.content !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "name, channel and content required");
+      }
+      if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+      const template = createNotificationTemplate(auth.user.id, {
+        name: body.name,
+        channel: body.channel,
+        content: body.content,
+        subject: typeof body.subject === "string" ? body.subject : undefined,
+      });
+      return ok(res, requestId, 201, template);
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/templates") {
+      return ok(res, requestId, 200, listNotificationTemplates(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/consents") {
+      const body = await readJson(req);
+      if (typeof body.patient_id !== "string" || typeof body.channel !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and channel required");
+      }
+      if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+      const consent = grantNotificationConsent(auth.user.id, {
+        patientId: body.patient_id,
+        channel: body.channel,
+        source: typeof body.source === "string" ? body.source : "manual",
+      });
+      return ok(res, requestId, 201, consent);
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/schedule") {
+      const body = await readJson(req);
+      if (typeof body.session_id !== "string" || typeof body.template_id !== "string" || typeof body.scheduled_for !== "string" || typeof body.recipient !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "session_id, template_id, scheduled_for, recipient required");
+      }
+      if (Number.isNaN(Date.parse(body.scheduled_for))) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid scheduled_for");
+      const session = getByOwner(db.sessions, auth.user.id, body.session_id);
+      if (!session) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+      const template = db.notificationTemplates.get(body.template_id);
+      if (!template || template.owner_user_id !== auth.user.id) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
+
+      const result = await scheduleNotification(auth.user.id, {
+        session,
+        template,
+        scheduledFor: body.scheduled_for,
+        recipient: body.recipient,
+      });
+
+      if ("error" in result) return error(res, requestId, 422, result.error, "Consent required before scheduling");
+      return ok(res, requestId, 201, result);
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/schedules") {
+      return ok(res, requestId, 200, listNotificationSchedules(auth.user.id));
+    }
+
+    if (method === "GET" && url.pathname === "/notifications/logs") {
+      return ok(res, requestId, 200, listNotificationLogs(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/notifications/dispatch-due") {
+      const body = await readJson(req);
+      const asOf = typeof body.as_of === "string" ? Date.parse(body.as_of) : Date.now();
+      if (Number.isNaN(asOf)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid as_of");
+      const dispatched = await dispatchDueNotifications(auth.user.id, asOf);
+      return ok(res, requestId, 200, dispatched);
     }
 
     if (method === "POST" && url.pathname === "/reports") {
