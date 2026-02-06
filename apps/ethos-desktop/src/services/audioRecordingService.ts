@@ -67,6 +67,24 @@ export class AudioRecordingService {
     return { recordingId, filePath: finishedSession.filePath ?? filePath };
   }
 
+  pause(): void {
+    if (!this.session) {
+      return;
+    }
+    if (this.session.mediaRecorder.state === "recording") {
+      this.session.mediaRecorder.pause();
+    }
+  }
+
+  resume(): void {
+    if (!this.session) {
+      return;
+    }
+    if (this.session.mediaRecorder.state === "paused") {
+      this.session.mediaRecorder.resume();
+    }
+  }
+
   async abort(): Promise<void> {
     if (!this.session || !window.ethos?.audio) {
       return;
