@@ -34,15 +34,39 @@ export type SessionToken = {
 
 export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 
+export type PatientRules = {
+  confirmation_required: boolean;
+  reschedule_deadline_hours: number;
+  replacement_policy: "allowed" | "case_by_case" | "blocked";
+};
+
+export type PatientAlertState = {
+  level: "none" | "low" | "medium" | "high";
+  reason: string;
+  missed_sessions_last_90_days: number;
+  last_missed_at?: string;
+  updated_at: string;
+};
+
+export type PatientDecision = {
+  decided_at: string;
+  decided_by: UUID;
+  summary: string;
+};
+
 export type Patient = Owned & {
   external_id: string;
   label: string;
+  rules?: PatientRules;
+  alert?: PatientAlertState;
+  decision_history?: PatientDecision[];
 };
 
 export type ClinicalSession = Owned & {
   patient_id: string;
   scheduled_at: string;
   status: SessionStatus;
+  rules_snapshot?: PatientRules;
 };
 
 export type AudioRecord = Owned & {

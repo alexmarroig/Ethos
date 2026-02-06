@@ -21,6 +21,9 @@ import type {
   LocalEntitlementSnapshot,
   ObservabilityAlert,
   Patient,
+  PatientAlertState,
+  PatientDecision,
+  PatientRules,
   ScaleRecord,
   SessionStatus,
   TelemetryEvent,
@@ -30,6 +33,19 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+
+const defaultPatientRules: PatientRules = {
+  confirmation_required: false,
+  reschedule_deadline_hours: 24,
+  replacement_policy: "case_by_case",
+};
+
+const buildDefaultPatientAlert = (): PatientAlertState => ({
+  level: "none",
+  reason: "Sem faltas recentes",
+  missed_sessions_last_90_days: 0,
+  updated_at: now(),
+});
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
   const id = uid();
@@ -219,11 +235,69 @@ export const getByOwner = <T extends { owner_user_id: string; id: string }>(map:
 
 const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((item) => item.owner_user_id === owner);
 
+const summarizePatientDecision = (rules: PatientRules) =>
+  `Prazos: ${rules.reschedule_deadline_hours}h · Reposição: ${rules.replacement_policy} · Confirmação: ${rules.confirmation_required ? "obrigatória" : "flexível"}`;
+
+const evaluatePatientAlertState = (owner: string, patientId: string, referenceDate = Date.now()): PatientAlertState => {
+  const cutoff = referenceDate - 90 * DAY_MS;
+  const missedSessions = Array.from(db.sessions.values()).filter((session) => {
+    if (session.owner_user_id !== owner || session.patient_id !== patientId) return false;
+    if (session.status !== "missed") return false;
+    return Date.parse(session.scheduled_at) >= cutoff;
+  });
+  const missedCount = missedSessions.length;
+  const lastMissedAt = missedSessions
+    .map((session) => session.scheduled_at)
+    .sort((a, b) => Date.parse(b) - Date.parse(a))[0];
+
+  if (missedCount === 0) {
+    return { ...buildDefaultPatientAlert(), updated_at: now() };
+  }
+
+  const level = missedCount >= 3 ? "high" : missedCount === 2 ? "medium" : "low";
+  const reason = missedCount >= 3
+    ? "Histórico de faltas recorrentes"
+    : "Faltas recentes com necessidade de atenção";
+  return {
+    level,
+    reason,
+    missed_sessions_last_90_days: missedCount,
+    last_missed_at: lastMissedAt,
+    updated_at: now(),
+  };
+};
+
+const refreshPatientAlertState = (owner: string, patientId: string, decidedBy?: string) => {
+  const patient = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
+  if (!patient) return null;
+  const nextAlert = evaluatePatientAlertState(owner, patientId);
+  const previousLevel = patient.alert?.level ?? "none";
+  patient.alert = nextAlert;
+  if (previousLevel !== nextAlert.level && decidedBy) {
+    const decision: PatientDecision = {
+      decided_at: now(),
+      decided_by: decidedBy,
+      summary: `Alerta ajustado para ${nextAlert.level} (${nextAlert.missed_sessions_last_90_days} faltas em 90 dias).`,
+    };
+    patient.decision_history = [...(patient.decision_history ?? []), decision];
+  }
+  return patient.alert;
+};
+
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
   const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
   if (existing) return existing;
 
-  const patient: Patient = { id: uid(), owner_user_id: owner, external_id: patientId, label: `Paciente ${patientId}`, created_at: now() };
+  const patient: Patient = {
+    id: uid(),
+    owner_user_id: owner,
+    external_id: patientId,
+    label: `Paciente ${patientId}`,
+    created_at: now(),
+    rules: { ...defaultPatientRules },
+    alert: buildDefaultPatientAlert(),
+    decision_history: [],
+  };
   db.patients.set(patient.id, patient);
   return patient;
 };
@@ -231,9 +305,31 @@ export const createPatientIfMissing = (owner: string, patientId: string): Patien
 export const listPatients = (owner: string) => byOwner(db.patients.values(), owner);
 export const getPatient = (owner: string, patientId: string) => getByOwner(db.patients, owner, patientId);
 
+export const updatePatientRules = (owner: string, patientId: string, patch: Partial<PatientRules>, decidedBy: string) => {
+  const patient = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
+  if (!patient) return null;
+  const nextRules = { ...defaultPatientRules, ...(patient.rules ?? {}), ...patch };
+  patient.rules = nextRules;
+  const decision: PatientDecision = {
+    decided_at: now(),
+    decided_by: decidedBy,
+    summary: summarizePatientDecision(nextRules),
+  };
+  patient.decision_history = [...(patient.decision_history ?? []), decision];
+  return patient;
+};
+
 export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
-  createPatientIfMissing(owner, patientId);
-  const session: ClinicalSession = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled", created_at: now() };
+  const patient = createPatientIfMissing(owner, patientId);
+  const session: ClinicalSession = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patientId,
+    scheduled_at: scheduledAt,
+    status: "scheduled",
+    created_at: now(),
+    rules_snapshot: { ...(patient.rules ?? defaultPatientRules) },
+  };
   db.sessions.set(session.id, session);
   return session;
 };
@@ -242,6 +338,7 @@ export const patchSessionStatus = (owner: string, sessionId: string, status: Ses
   const session = getByOwner(db.sessions, owner, sessionId);
   if (!session) return null;
   session.status = status;
+  refreshPatientAlertState(owner, session.patient_id, owner);
   return session;
 };
 
