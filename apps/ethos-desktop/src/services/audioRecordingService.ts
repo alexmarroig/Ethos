@@ -82,6 +82,7 @@ export class AudioRecordingService {
   }
 
   resume(): void {
+  async resume(): Promise<void> {
     if (!this.session) {
       return;
     }

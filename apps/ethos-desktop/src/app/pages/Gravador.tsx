@@ -26,12 +26,15 @@ const toFileUrl = (filePath: string) => `file://${encodeURI(filePath.replace(/\\
 export const Gravador = () => {
   const [recordings, setRecordings] = useState<RecordingEntry[]>([]);
   const [status, setStatus] = useState<"idle" | "recording" | "paused" | "stopping">("idle");
+  const [recordingStatus, setRecordingStatus] = useState<"idle" | "recording" | "paused" | "stopping">("idle");
   const [elapsedMs, setElapsedMs] = useState(0);
   const [currentName, setCurrentName] = useState("");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingName, setEditingName] = useState("");
   const streamRef = useRef<MediaStream | null>(null);
+  const recordingStreamRef = useRef<MediaStream | null>(null);
+  const audioRecordingService = useMemo(() => new AudioRecordingService(), []);
   const startTimeRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
@@ -59,6 +62,14 @@ export const Gravador = () => {
       const parsed = JSON.parse(stored) as RecordingEntry[];
       if (Array.isArray(parsed)) {
         setRecordings(parsed);
+    if (stored) {
+      try {
+        const parsed = JSON.parse(stored) as RecordingEntry[];
+        if (Array.isArray(parsed)) {
+          setRecordings(parsed);
+        }
+      } catch {
+        // ignore invalid storage
       }
     } catch {
       localStorage.removeItem(STORAGE_KEY);
@@ -347,15 +358,127 @@ export const Gravador = () => {
           </div>
         ) : (
           <div style={{ display: "grid", gap: 16 }}>
+  const statusLabel =
+    recordingStatus === "recording"
+      ? "Gravando"
+      : recordingStatus === "paused"
+        ? "Pausado"
+        : recordingStatus === "stopping"
+          ? "Finalizando"
+          : "Pronto";
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <header>
+        <h2 style={{ margin: 0, fontSize: 24 }}>Gravador</h2>
+        <p style={{ margin: "8px 0 0", color: "#94A3B8" }}>
+          Controle suas gravações de áudio e mantenha tudo organizado na sua biblioteca.
+        </p>
+      </header>
+
+      <section
+        style={{
+          background: "#111827",
+          padding: 24,
+          borderRadius: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 24, flexWrap: "wrap" }}>
+          <div>
+            <p style={{ margin: 0, fontSize: 12, color: "#94A3B8" }}>Status</p>
+            <strong style={{ fontSize: 18 }}>{statusLabel}</strong>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 12, color: "#94A3B8" }}>Timer</p>
+            <strong style={{ fontSize: 18 }}>{formatDuration(elapsedMs)}</strong>
+          </div>
+          {errorMessage ? <span style={{ color: "#F87171", marginLeft: "auto" }}>{errorMessage}</span> : null}
+        </div>
+
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+          <button
+            type="button"
+            onClick={handleStart}
+            disabled={recordingStatus !== "idle"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "none",
+              background: recordingStatus === "idle" ? "#16A34A" : "#334155",
+              color: "#F8FAFC",
+              cursor: recordingStatus === "idle" ? "pointer" : "not-allowed",
+            }}
+          >
+            Gravar
+          </button>
+          <button
+            type="button"
+            onClick={recordingStatus === "paused" ? handleResume : handlePause}
+            disabled={recordingStatus === "idle" || recordingStatus === "stopping"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "none",
+              background: recordingStatus === "idle" ? "#334155" : "#0EA5E9",
+              color: "#F8FAFC",
+              cursor: recordingStatus === "idle" ? "not-allowed" : "pointer",
+            }}
+          >
+            {recordingStatus === "paused" ? "Retomar" : "Pausar"}
+          </button>
+          <button
+            type="button"
+            onClick={handleStop}
+            disabled={recordingStatus === "idle"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 12,
+              border: "none",
+              background: recordingStatus === "idle" ? "#334155" : "#DC2626",
+              color: "#F8FAFC",
+              cursor: recordingStatus === "idle" ? "not-allowed" : "pointer",
+            }}
+          >
+            Parar
+          </button>
+        </div>
+      </section>
+
+      <section
+        style={{
+          background: "#0B1220",
+          padding: 24,
+          borderRadius: 16,
+          display: "flex",
+          flexDirection: "column",
+          gap: 16,
+        }}
+      >
+        <header>
+          <h3 style={{ margin: 0 }}>Biblioteca</h3>
+          <p style={{ margin: "6px 0 0", color: "#94A3B8" }}>
+            Histórico de gravações salvas no seu dispositivo.
+          </p>
+        </header>
+        {recordings.length === 0 ? (
+          <p style={{ color: "#94A3B8" }}>Nenhuma gravação encontrada.</p>
+        ) : (
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {recordings.map((recording) => (
               <div
                 key={recording.id}
                 style={{
                   background: "#111827",
-                  borderRadius: 16,
-                  padding: 20,
-                  display: "grid",
-                  gap: 12,
+                  padding: 16,
+                  borderRadius: 12,
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  gap: 16,
+                  flexWrap: "wrap",
                 }}
               >
                 <div style={{ display: "flex", flexWrap: "wrap", gap: 16, justifyContent: "space-between" }}>
@@ -476,6 +599,13 @@ export const Gravador = () => {
                 </div>
 
                 <audio controls style={{ width: "100%" }} src={toFileUrl(recording.filePath)} />
+                <div>
+                  <strong>{recording.name}</strong>
+                  <div style={{ fontSize: 12, color: "#94A3B8", marginTop: 4 }}>
+                    {formatDuration(recording.durationMs)} • {formatDate(recording.createdAt)}
+                  </div>
+                </div>
+                <span style={{ fontSize: 12, color: "#64748B" }}>{recording.filePath}</span>
               </div>
             ))}
           </div>
