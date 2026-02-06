@@ -141,6 +141,44 @@ export type ScaleTemplate = {
   description: string;
 };
 
+export type TemplateField = {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "date";
+  scope: "global" | "document";
+  required?: boolean;
+  placeholder?: string;
+};
+
+export type TemplateGlobals = {
+  psychologist: { name: string; crp: string };
+  patient: { name: string; document: string };
+  city: string;
+  date: string;
+  signature: string;
+};
+
+export type ClinicalTemplate = Owned & {
+  title: string;
+  description?: string;
+  version: number;
+  html: string;
+  fields: TemplateField[];
+};
+
+export type TemplateRenderRequest = {
+  globals: TemplateGlobals;
+  fields: Record<string, string>;
+  format: "html" | "pdf" | "docx";
+};
+
+export type TemplateRenderResponse = {
+  template_id: string;
+  format: "html" | "pdf" | "docx";
+  content_type: string;
+  content_base64: string;
+};
+
 export type TelemetryEvent = {
   id: UUID;
   user_id?: UUID;

@@ -51,6 +51,7 @@ export const AppLayout = () => {
             { to: "/agenda", label: "Agenda" },
             { to: "/sessao", label: "Sessão" },
             { to: "/pacientes", label: "Pacientes" },
+            { to: "/templates", label: "Templates" },
           ].map((item) => (
             <NavLink
               key={item.to}
