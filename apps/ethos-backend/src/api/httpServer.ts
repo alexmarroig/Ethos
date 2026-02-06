@@ -16,22 +16,27 @@ import {
   createInvite,
   createJob,
   createReport,
+  createContract,
   createScaleRecord,
   createSession,
   exportCase,
   createTemplate,
   deleteTemplate,
   evaluateObservability,
+  exportContract,
   getByOwner,
   getClinicalNote,
+  getContract,
   getJob,
   getTemplate,
   getUserFromToken,
+  getContractByPortalToken,
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
   listObservabilityAlerts,
   listPatients,
+  listContracts,
   listScales,
   listSessionClinicalNotes,
   listTemplates,
@@ -44,7 +49,9 @@ import {
   renderTemplate,
   resolveLocalEntitlements,
   runJob,
+  sendContract,
   syncLocalEntitlements,
+  acceptContract,
   updateTemplate,
   validateClinicalNote,
 } from "../application/service";
@@ -143,6 +150,11 @@ const parsePagination = (url: URL) => {
 
 const hashRequestBody = (body: Record<string, unknown>) => crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
 const idempotencyCacheKey = (userId: string, method: string, pathname: string, idempotencyKey: string, bodyHash: string) => `${userId}:${method}:${pathname}:${idempotencyKey}:${bodyHash}`;
+const getRemoteIp = (req: IncomingMessage) => {
+  const forwarded = req.headers["x-forwarded-for"]?.toString();
+  if (forwarded) return forwarded.split(",")[0]?.trim() ?? "unknown";
+  return req.socket.remoteAddress ?? "unknown";
+};
 
 export const createEthosBackend = () => createServer(async (req, res) => {
   const requestId = crypto.randomUUID();
@@ -156,12 +168,24 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       return res.end(openApi);
     }
 
-    if (method === "GET" && url.pathname === "/contracts") {
-      return ok(res, requestId, 200, {
-        openapi: "/openapi.yaml",
-        response_envelope: { request_id: "string", data: "any" },
-        error_envelope: { request_id: "string", error: { code: "string", message: "string" } },
-      });
+    if (method === "GET" && url.pathname.startsWith("/portal/contracts/")) {
+      const token = url.pathname.split("/")[3];
+      if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
+      const contract = getContractByPortalToken(token);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
+    }
+
+    if (method === "POST" && url.pathname.startsWith("/portal/contracts/") && url.pathname.endsWith("/accept")) {
+      const parts = url.pathname.split("/");
+      const token = parts[3];
+      if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
+      const body = await readJson(req);
+      const acceptedBy = String(body.accepted_by ?? "");
+      if (!acceptedBy) return error(res, requestId, 422, "VALIDATION_ERROR", "accepted_by is required");
+      const contract = acceptContract(token, acceptedBy, getRemoteIp(req));
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
     }
 
     if (method === "POST" && url.pathname === "/auth/login") {
@@ -208,6 +232,54 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     if (method === "GET" && url.pathname === "/local/entitlements") {
       return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
+    }
+
+    if (method === "GET" && url.pathname === "/contracts") {
+      return ok(res, requestId, 200, listContracts(auth.user.id));
+    }
+
+    if (method === "POST" && url.pathname === "/contracts") {
+      const body = await readJson(req);
+      const requiredFields = [
+        "patient_id",
+        "psychologist",
+        "patient",
+        "terms",
+      ];
+      const missing = requiredFields.filter((field) => body[field] === undefined);
+      if (missing.length > 0) return error(res, requestId, 422, "VALIDATION_ERROR", `Missing fields: ${missing.join(", ")}`);
+      const contract = createContract(auth.user.id, {
+        patient_id: String(body.patient_id ?? ""),
+        psychologist: body.psychologist as { name: string; license: string; email: string; phone?: string },
+        patient: body.patient as { name: string; email: string; document: string },
+        terms: body.terms as { value: string; periodicity: string; absence_policy: string; payment_method: string },
+      });
+      return ok(res, requestId, 201, contract);
+    }
+
+    if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/send")) {
+      const contractId = url.pathname.split("/")[2];
+      const contract = sendContract(auth.user.id, contractId);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, {
+        contract,
+        portal_url: contract.portal_token ? `/portal/contracts/${contract.portal_token}` : null,
+      });
+    }
+
+    if (method === "GET" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/export")) {
+      const contractId = url.pathname.split("/")[2];
+      const format = url.searchParams.get("format") === "docx" ? "docx" : "pdf";
+      const payload = exportContract(auth.user.id, contractId, format);
+      if (!payload) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, payload);
+    }
+
+    if (method === "GET" && url.pathname.startsWith("/contracts/")) {
+      const contractId = url.pathname.split("/")[2];
+      const contract = getContract(auth.user.id, contractId);
+      if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+      return ok(res, requestId, 200, contract);
     }
 
     const idemKey = req.headers["idempotency-key"]?.toString();

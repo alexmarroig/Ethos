@@ -4,6 +4,7 @@ export type Role = "user" | "admin";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
+export type ContractStatus = "draft" | "sent" | "signed";
 
 export type User = {
   id: UUID;
@@ -123,6 +124,43 @@ export type FinancialEntry = Owned & {
   due_date: string;
   status: "open" | "paid";
   description: string;
+};
+
+export type ContractSignature = {
+  accepted_by: string;
+  accepted_at: string;
+  accepted_ip: string;
+};
+
+export type Contract = Owned & {
+  patient_id: string;
+  psychologist: {
+    name: string;
+    license: string;
+    email: string;
+    phone?: string;
+  };
+  patient: {
+    name: string;
+    email: string;
+    document: string;
+  };
+  terms: {
+    value: string;
+    periodicity: string;
+    absence_policy: string;
+    payment_method: string;
+  };
+  status: ContractStatus;
+  version: number;
+  sent_at?: string;
+  portal_token?: string;
+  signature?: ContractSignature;
+  signed_document?: {
+    version: number;
+    content: string;
+    recorded_in_chart_at: string;
+  };
 };
 
 export type JobType = "transcription" | "export" | "backup";

@@ -15,6 +15,7 @@ import type {
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  Contract,
   ClinicalTemplate,
   FinancialEntry,
   FormEntry,
@@ -38,6 +39,7 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+const PORTAL_TOKEN_BYTES = 18;
 const DEFAULT_CASE_HISTORY_POLICY: CaseHistoryPolicy = {
   window_days: 365,
   max_sessions: 20,
@@ -518,6 +520,89 @@ export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
   db.financial.set(item.id, item);
   return item;
+};
+
+const buildContractContent = (contract: Contract) => {
+  return [
+    "CONTRATO TERAPÊUTICO",
+    "",
+    `Psicólogo(a): ${contract.psychologist.name} (CRP ${contract.psychologist.license})`,
+    `Contato: ${contract.psychologist.email}${contract.psychologist.phone ? ` · ${contract.psychologist.phone}` : ""}`,
+    "",
+    `Paciente: ${contract.patient.name}`,
+    `Documento: ${contract.patient.document}`,
+    `Email: ${contract.patient.email}`,
+    "",
+    "Condições:",
+    `• Valor: ${contract.terms.value}`,
+    `• Periodicidade: ${contract.terms.periodicity}`,
+    `• Política de faltas: ${contract.terms.absence_policy}`,
+    `• Forma de pagamento: ${contract.terms.payment_method}`,
+    "",
+    "Ao aceitar este contrato, ambas as partes concordam com os termos acima.",
+  ].join("\n");
+};
+
+export const listContracts = (owner: string) => byOwner(db.contracts.values(), owner);
+
+export const createContract = (owner: string, payload: Omit<Contract, "id" | "owner_user_id" | "created_at" | "status" | "version">) => {
+  const contract: Contract = {
+    ...payload,
+    id: uid(),
+    owner_user_id: owner,
+    created_at: now(),
+    status: "draft",
+    version: 1,
+  };
+  db.contracts.set(contract.id, contract);
+  return contract;
+};
+
+export const getContract = (owner: string, contractId: string) => getByOwner(db.contracts, owner, contractId);
+
+export const sendContract = (owner: string, contractId: string) => {
+  const contract = getByOwner(db.contracts, owner, contractId);
+  if (!contract) return null;
+  contract.status = "sent";
+  contract.sent_at = now();
+  if (!contract.portal_token) {
+    contract.portal_token = crypto.randomBytes(PORTAL_TOKEN_BYTES).toString("hex");
+  }
+  return contract;
+};
+
+export const getContractByPortalToken = (token: string) => Array.from(db.contracts.values()).find((contract) => contract.portal_token === token) ?? null;
+
+export const acceptContract = (token: string, acceptedBy: string, acceptedIp: string) => {
+  const contract = getContractByPortalToken(token);
+  if (!contract) return null;
+  if (contract.status === "signed") return contract;
+
+  contract.status = "signed";
+  contract.signature = {
+    accepted_by: acceptedBy,
+    accepted_at: now(),
+    accepted_ip: acceptedIp,
+  };
+  contract.signed_document = {
+    version: contract.version,
+    content: buildContractContent(contract),
+    recorded_in_chart_at: now(),
+  };
+  return contract;
+};
+
+export const exportContract = (owner: string, contractId: string, format: "pdf" | "docx") => {
+  const contract = getByOwner(db.contracts, owner, contractId);
+  if (!contract) return null;
+  const content = contract.signed_document?.content ?? buildContractContent(contract);
+  const filename = `contrato-${contract.patient.name.replace(/\s+/g, "-").toLowerCase()}.${format}`;
+  return {
+    format,
+    filename,
+    generated_at: now(),
+    content,
+  };
 };
 
 export const createJob = (owner: string, type: JobType, resourceId?: string): Job => {
