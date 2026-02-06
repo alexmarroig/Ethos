@@ -27,7 +27,6 @@ type AppTab = "clinical" | "admin";
 
 /**
  * Bridge minimalista (compatível com preload antigo e refatorado).
- * Evita espalhar window.ethos?.whatever pelo componente.
  */
 type EthosBridge = {
   audio: {
@@ -155,7 +154,6 @@ function safeLocalStorageRemove(key: string) {
 
 /**
  * Cria um bridge compatível com preload antigo/refatorado.
- * Se faltar algo, jogamos erro claro (melhor do que falhar silenciosamente).
  */
 function createEthosBridge(): EthosBridge {
   const ethos = window.ethos;
@@ -200,22 +198,18 @@ function createEthosBridge(): EthosBridge {
 // Main Component
 // -----------------------------
 export const App = () => {
-  // =========================
-  // Tabs (separa Admin da UI clínica)
-  // =========================
+  // Tabs
   const [tab, setTab] = useState<AppTab>("clinical");
 
-  // =========================
   // Session context (proto)
-  // =========================
   const sessionId = "session-marina-alves";
   const patientName = "Marina Alves";
   const clinicianName = "Dra. Ana Souza";
   const sessionDate = "15/02/2025";
 
-  // =========================
+  // -------------------------
   // Clinical note state
-  // =========================
+  // -------------------------
   const [consentForNote, setConsentForNote] = useState(false);
   const [draft, setDraft] = useState(
     "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
@@ -267,9 +261,14 @@ export const App = () => {
     [canExport, clinicianName, draft, patientName, sessionDate, status, validatedAt]
   );
 
-  // =========================
+  // UX: se estiver editando rascunho, limpa feedback antigo para evitar confusão
+  useEffect(() => {
+    if (!isValidated) setExportFeedback(null);
+  }, [draft, isValidated]);
+
+  // -------------------------
   // Audio recording + transcription
-  // =========================
+  // -------------------------
   const bridge = useMemo(() => createEthosBridge(), []);
   const recorder = useAudioRecorder({ sessionId });
 
@@ -302,7 +301,6 @@ export const App = () => {
     await recorder.startRecording();
   }, [recorder]);
 
-  // Subscribe to worker events (uma vez)
   useEffect(() => {
     const offMsg = bridge.transcription.onMessage((m) => {
       if (typeof m === "object" && m && (m as any).type === "job_update") {
@@ -354,7 +352,7 @@ export const App = () => {
   }, [bridge, selectedModel, sessionId]);
 
   const handleTranscribeRecordedAudio = useCallback(async () => {
-    // ⚠️ depende do hook expor audioBuffer/mimeType. Se não existir, avisa.
+    // depende do hook expor audioBuffer/mimeType.
     const audioBuffer: ArrayBuffer | undefined = (recorder as any).audioBuffer;
     const mimeType: string | undefined = (recorder as any).mimeType;
 
@@ -388,9 +386,9 @@ export const App = () => {
     setJobId(id);
   }, [bridge, recorder, selectedModel, sessionId]);
 
-  // =========================
-  // Admin control plane (central observability)
-  // =========================
+  // -------------------------
+  // Admin control plane
+  // -------------------------
   const defaultControlPlaneUrl = "http://localhost:8788";
 
   const [adminBaseUrl, setAdminBaseUrl] = useState(() =>
@@ -399,7 +397,6 @@ export const App = () => {
   const [adminEmail, setAdminEmail] = useState(() => safeLocalStorageGet("ethos-admin-email", "camila@ethos.local"));
   const [adminPassword, setAdminPassword] = useState("");
 
-  // Persistência de token é tradeoff: manter sob "remember me"
   const [rememberSession, setRememberSession] = useState(() => safeLocalStorageGet("ethos-admin-remember", "0") === "1");
   const [adminToken, setAdminToken] = useState(() => safeLocalStorageGet("ethos-admin-token", ""));
   const [adminRole, setAdminRole] = useState<Role>(() => (safeLocalStorageGet("ethos-admin-role", "unknown") as Role) ?? "unknown");
@@ -413,12 +410,10 @@ export const App = () => {
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
 
-  // Persist preferences (URL/email sempre)
   useEffect(() => safeLocalStorageSet("ethos-control-plane-url", adminBaseUrl), [adminBaseUrl]);
   useEffect(() => safeLocalStorageSet("ethos-admin-email", adminEmail), [adminEmail]);
   useEffect(() => safeLocalStorageSet("ethos-admin-remember", rememberSession ? "1" : "0"), [rememberSession]);
 
-  // Persist token/role somente se "rememberSession"
   useEffect(() => {
     if (!rememberSession) {
       safeLocalStorageRemove("ethos-admin-token");
@@ -445,7 +440,6 @@ export const App = () => {
     return "Sessão ativa, aguardando validação.";
   }, [adminLastSync, adminLoading, adminRole, hasAdminToken, isAdmin]);
 
-  // Abort para evitar race (mudança de URL/token/logout)
   const adminAbortRef = useRef<AbortController | null>(null);
 
   const refreshAdminData = useCallback(async () => {
@@ -459,10 +453,6 @@ export const App = () => {
     setAdminError("");
 
     try {
-      // fetchAdminOverview/fetchAdminUsers hoje não recebem signal.
-      // Se você puder, recomendo adicionar optional { signal } nelas.
-      // Aqui, ao menos evitamos aplicar resultado "stale" checando ac.signal.aborted no final.
-
       const [overview, users] = await Promise.all([
         fetchAdminOverview(adminBaseUrl, adminToken),
         fetchAdminUsers(adminBaseUrl, adminToken),
@@ -472,8 +462,6 @@ export const App = () => {
 
       setAdminMetrics(overview);
       setAdminUsers(users);
-
-      // Se os endpoints admin responderam, assumimos admin.
       setAdminRole("admin");
       setAdminLastSync(safeNowPtBr());
     } catch (error) {
@@ -494,7 +482,6 @@ export const App = () => {
     }
   }, [adminBaseUrl, adminToken]);
 
-  // Auto-refresh quando token/url mudam — MAS apenas se você estiver na aba Admin
   useEffect(() => {
     if (tab !== "admin") return;
     if (!adminToken) return;
@@ -513,7 +500,6 @@ export const App = () => {
         setAdminPassword("");
         setAdminLastSync(safeNowPtBr());
 
-        // Carrega dados logo após login (se não for admin, vai cair em forbidden e a UI limita)
         await Promise.allSettled([
           fetchAdminOverview(adminBaseUrl, response.token).then(setAdminMetrics),
           fetchAdminUsers(adminBaseUrl, response.token).then(setAdminUsers),
@@ -545,38 +531,30 @@ export const App = () => {
     safeLocalStorageRemove("ethos-admin-role");
   }, []);
 
-  // =========================
+  // -------------------------
   // Render
-  // =========================
+  // -------------------------
   return (
     <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ color: "#F8FAFC", fontSize: 28, marginBottom: 4 }}>ETHOS — Agenda Clínica</h1>
         <p style={subtleText}>Offline: prontuário + gravação/transcrição local + control plane admin.</p>
 
-        {/* Tabs */}
         <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
           <button
-            style={{
-              ...buttonStyle,
-              background: tab === "clinical" ? "#6366F1" : "#334155",
-            }}
+            style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }}
             onClick={() => setTab("clinical")}
           >
             Clínica
           </button>
           <button
-            style={{
-              ...buttonStyle,
-              background: tab === "admin" ? "#6366F1" : "#334155",
-            }}
+            style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }}
             onClick={() => setTab("admin")}
           >
             Admin
           </button>
-          {tab === "admin" && hasAdminToken ? (
-            <span style={badgeStyle}>{adminStatusLabel}</span>
-          ) : null}
+
+          {tab === "admin" && hasAdminToken ? <span style={badgeStyle}>{adminStatusLabel}</span> : null}
         </div>
       </header>
 
@@ -596,7 +574,9 @@ export const App = () => {
         />
       ) : null}
 
-      {showEthicsModal ? <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} /> : null}
+      {showEthicsModal ? (
+        <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} />
+      ) : null}
 
       {/* -------------------------
           CLINICAL TAB
@@ -654,7 +634,9 @@ export const App = () => {
               {consentForRecording ? <span style={badgeStyle}>Consentimento de gravação registrado</span> : null}
             </div>
 
-            {recorder.errorMessage ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro de gravação: {recorder.errorMessage}</p> : null}
+            {recorder.errorMessage ? (
+              <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro de gravação: {recorder.errorMessage}</p>
+            ) : null}
 
             {recorder.audioUrl ? (
               <div style={{ marginTop: 12 }}>
@@ -676,7 +658,11 @@ export const App = () => {
             </div>
 
             <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
-              <input type="checkbox" checked={consentForNote} onChange={(event) => setConsentForNote(event.target.checked)} />{" "}
+              <input
+                type="checkbox"
+                checked={consentForNote}
+                onChange={(event) => setConsentForNote(event.target.checked)}
+              />{" "}
               Tenho consentimento do paciente (registro/uso do prontuário)
             </label>
           </section>
@@ -734,6 +720,7 @@ export const App = () => {
                 }}
                 onClick={handleValidate}
                 disabled={!canValidate}
+                title={!consentForNote ? "Confirme o consentimento do paciente para validar." : undefined}
               >
                 Validar prontuário
               </button>
@@ -764,11 +751,15 @@ export const App = () => {
             </div>
 
             {!consentForNote ? (
-              <p style={{ color: "#FCA5A5", marginTop: 8 }}>É necessário confirmar o consentimento do paciente para validar o prontuário.</p>
+              <p style={{ color: "#FCA5A5", marginTop: 8 }}>
+                É necessário confirmar o consentimento do paciente para validar o prontuário.
+              </p>
             ) : null}
 
             {exportFeedback ? (
-              <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>{exportFeedback}</p>
+              <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
+                {exportFeedback}
+              </p>
             ) : null}
           </section>
         </>
@@ -898,7 +889,11 @@ function ConsentModal(props: {
           <button style={outlineButtonStyle} onClick={onCancel}>
             Cancelar
           </button>
-          <button style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }} onClick={onConfirm} disabled={!checked}>
+          <button
+            style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }}
+            onClick={onConfirm}
+            disabled={!checked}
+          >
             {confirmLabel}
           </button>
         </div>
