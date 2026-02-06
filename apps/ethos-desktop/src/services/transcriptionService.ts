@@ -1,5 +1,19 @@
 import type { TranscriptionJob } from "@ethos/shared";
 
+export type TranscriptionResult = {
+  jobId: string;
+  transcript: {
+    language: string;
+    fullText: string;
+    segments: Array<{ start: number; end: number; text: string }>;
+  };
+};
+
+export type TranscriptionError = {
+  jobId: string;
+  error: string;
+};
+
 declare global {
   interface Window {
     ethos?: {
@@ -13,6 +27,8 @@ declare global {
 
 export class TranscriptionService {
   private listeners: Array<(job: TranscriptionJob) => void> = [];
+  private resultListeners: Array<(result: TranscriptionResult) => void> = [];
+  private errorListeners: Array<(error: TranscriptionError) => void> = [];
 
   constructor() {
     window.ethos?.onTranscriptionMessage((message) => {
@@ -20,6 +36,14 @@ export class TranscriptionService {
         const payload = JSON.parse(message);
         if (payload.type === "job_update") {
           this.listeners.forEach((listener) => listener(payload.payload));
+          return;
+        }
+        if (payload.type === "job_result") {
+          this.resultListeners.forEach((listener) => listener(payload.payload));
+          return;
+        }
+        if (payload.type === "job_error") {
+          this.errorListeners.forEach((listener) => listener(payload.payload));
         }
       } catch {
         // ignore malformed messages
@@ -29,6 +53,14 @@ export class TranscriptionService {
 
   onJobUpdate(handler: (job: TranscriptionJob) => void) {
     this.listeners.push(handler);
+  }
+
+  onJobResult(handler: (result: TranscriptionResult) => void) {
+    this.resultListeners.push(handler);
+  }
+
+  onJobError(handler: (error: TranscriptionError) => void) {
+    this.errorListeners.push(handler);
   }
 
   async pickAudio() {

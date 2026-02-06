@@ -8,7 +8,15 @@ import crypto from "node:crypto";
 import type { TranscriptionJob, TranscriptSegment } from "@ethos/shared";
 
 type JobMessage =
-  | { type: "enqueue"; payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" } }
+  | {
+      type: "enqueue";
+      payload: {
+        sessionId: string;
+        audioPath: string;
+        model: "ptbr-fast" | "ptbr-accurate";
+        jobId?: string;
+      };
+    }
   | { type: "cancel"; payload: { jobId: string } }
   | { type: "status"; payload: { jobId: string } };
 
@@ -172,9 +180,12 @@ const scheduleNext = () => {
 
 jobEmitter.on("next", scheduleNext);
 
-const enqueueJob = (payload: JobMessage["payload"] & { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }) => {
+const enqueueJob = (
+  payload: JobMessage["payload"] & { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }
+) => {
+  const id = payload.jobId ?? generateId();
   const job: TranscriptionJob = {
-    id: generateId(),
+    id,
     sessionId: payload.sessionId,
     audioPath: payload.audioPath,
     model: payload.model,
