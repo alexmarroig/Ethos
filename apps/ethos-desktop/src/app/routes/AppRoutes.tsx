@@ -30,6 +30,7 @@ const PatientPortalRoutes = () => {
     </Routes>
   );
 };
+import { Templates } from "../pages/Templates";
 
 export const AppRoutes = () => {
   const { status } = useAuth();
@@ -57,6 +58,7 @@ export const AppRoutes = () => {
           <Route path="/sessao" element={<Sessao />} />
           <Route path="/pacientes" element={<Pacientes />} />
           <Route path="/formularios" element={<Forms />} />
+          <Route path="/templates" element={<Templates />} />
           <Route path="*" element={<Navigate to="/home" replace />} />
         </Route>
       ) : (
