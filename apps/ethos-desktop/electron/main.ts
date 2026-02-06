@@ -143,6 +143,13 @@ ipcMain.handle("audio:deleteRecording", async (_event, payload: { filePath: stri
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Falha ao excluir arquivo." };
   }
+  await fs.promises.unlink(payload.filePath);
+  return { ok: true };
+});
+
+ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string }) => {
+  await shell.openPath(payload.filePath);
+  return { ok: true };
 });
 
 ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: string }) => {
@@ -176,3 +183,41 @@ ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string
     return { ok: false, error: error instanceof Error ? error.message : "Falha ao abrir arquivo." };
   }
 });
+    return { ok: false };
+  }
+  const defaultPath = path.basename(payload.filePath);
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Exportar gravação",
+    defaultPath,
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false };
+  }
+  await fs.promises.copyFile(payload.filePath, result.filePath);
+  return { ok: true, filePath: result.filePath };
+});
+  const error = await shell.openPath(payload.filePath);
+  return { ok: !error, error };
+});
+
+ipcMain.handle("audio:showRecording", async (_event, payload: { filePath: string }) => {
+  shell.showItemInFolder(payload.filePath);
+  return { ok: true };
+});
+
+ipcMain.handle(
+  "audio:exportRecording",
+  async (_event, payload: { filePath: string; defaultName?: string }) => {
+    if (!mainWindow) {
+      return { ok: false, canceled: true };
+    }
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: payload.defaultName ?? path.basename(payload.filePath),
+    });
+    if (result.canceled || !result.filePath) {
+      return { ok: false, canceled: true };
+    }
+    await fs.promises.copyFile(payload.filePath, result.filePath);
+    return { ok: true, filePath: result.filePath };
+  }
+);
