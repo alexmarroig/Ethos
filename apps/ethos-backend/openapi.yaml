@@ -22,6 +22,13 @@ paths:
 
   /patients: { get: { summary: List patients } }
   /patients/{id}: { get: { summary: Patient detail } }
+  /patients/access: { post: { summary: Grant patient app access } }
+  /patient/permissions: { get: { summary: Patient permissions } }
+  /patient/sessions: { get: { summary: List patient sessions } }
+  /patient/sessions/{id}/confirm: { post: { summary: Patient confirms session } }
+  /patient/scales/record: { post: { summary: Patient records scale response } }
+  /patient/diary/entries: { post: { summary: Patient diary entry } }
+  /patient/messages: { post: { summary: Patient async message (limited) } }
 
   /sessions:
     post: { summary: Create session (gated by entitlements) }
@@ -150,6 +157,46 @@ components:
           properties:
             code: { type: string }
             message: { type: string }
+    ScaleCatalogItem:
+      type: object
+      properties:
+        id: { type: string, example: "phq-9" }
+        name: { type: string, example: "PHQ-9" }
+        domain: { type: string, example: "Depressão" }
+        total_questions: { type: integer, example: 9 }
+        scoring_range: { type: string, example: "0-27" }
+    ScaleRecord:
+      type: object
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        scale_id: { type: string }
+        score: { type: number }
+        severity: { type: string }
+        applied_at: { type: string, format: date-time }
+        answers:
+          type: array
+          items:
+            type: object
+            properties:
+              question_id: { type: string }
+              value: { type: number }
+    ScaleSchedule:
+      type: object
+      properties:
+        id: { type: string }
+        patient_id: { type: string }
+        scale_id: { type: string }
+        recurrence: { type: string, example: "every_2_weeks" }
+        next_due_at: { type: string, format: date-time }
+        auto_apply: { type: boolean }
+        active: { type: boolean }
+    ScaleEvolutionPoint:
+      type: object
+      properties:
+        applied_at: { type: string, format: date-time }
+        score: { type: number }
+        severity: { type: string }
 paths:
   /openapi.yaml:
     get: { summary: OpenAPI spec }
@@ -262,6 +309,40 @@ paths:
     get:
       summary: List scale records
       security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: patient_id
+          schema: { type: string }
+        - in: query
+          name: scale_id
+          schema: { type: string }
+  /scales:
+    get:
+      summary: List scales catalog (PHQ-9, GAD-7, etc.)
+      security: [{ bearerAuth: [] }]
+  /scales/schedules:
+    get:
+      summary: List scale recurring schedules
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: patient_id
+          schema: { type: string }
+    post:
+      summary: Create recurring scale schedule (auto-apply)
+      security: [{ bearerAuth: [] }]
+  /scales/schedules/{id}:
+    patch:
+      summary: Update recurring scale schedule
+      security: [{ bearerAuth: [] }]
+  /patients/{id}/scales/evolution:
+    get:
+      summary: Get scale evolution points for patient chart
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: scale_id
+          schema: { type: string }
 
   /forms/entry:
     post:
@@ -294,6 +375,10 @@ paths:
     post:
       summary: Enqueue DOCX export
       security: [{ bearerAuth: [] }]
+  /export/case:
+    post:
+      summary: Export complete case with controlled history
+      security: [{ bearerAuth: [] }]
 
   /backup:
     post:
@@ -306,6 +391,10 @@ paths:
   /purge:
     post:
       summary: Purge user data
+      security: [{ bearerAuth: [] }]
+  /cases/close:
+    post:
+      summary: Close case and apply history control protocol
       security: [{ bearerAuth: [] }]
 
   /api/webhook:
