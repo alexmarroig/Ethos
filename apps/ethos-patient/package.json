@@ -8,5 +8,10 @@
   },
   "dependencies": {
     "@ethos/sdk": "*"
+  "private": true,
+  "scripts": {
+    "dev": "python -m http.server 5173 --directory .",
+    "build": "echo \"static app: no build step\"",
+    "preview": "python -m http.server 5173 --directory ."
   }
 }
