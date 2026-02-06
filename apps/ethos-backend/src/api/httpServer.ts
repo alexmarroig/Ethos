@@ -15,6 +15,8 @@ import {
   createFormEntry,
   createInvite,
   createJob,
+  createPatientAccess,
+  confirmPatientSession,
   createReport,
   createScaleRecord,
   createSession,
@@ -22,10 +24,12 @@ import {
   getByOwner,
   getClinicalNote,
   getJob,
+  getPatientAccessForUser,
   getUserFromToken,
   handleTranscriberWebhook,
   ingestErrorLog,
   ingestPerformanceSample,
+  listPatientSessions,
   listObservabilityAlerts,
   listPatients,
   listScales,
@@ -35,8 +39,11 @@ import {
   paginate,
   patchSessionStatus,
   purgeUserData,
+  recordPatientDiaryEntry,
+  recordPatientScale,
   resolveLocalEntitlements,
   runJob,
+  sendPatientAsyncMessage,
   syncLocalEntitlements,
   validateClinicalNote,
 } from "../application/service";
@@ -182,6 +189,97 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     if (!auth) return;
     const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
     if (isClinicalPath && auth.user.role !== "user") return error(res, requestId, 403, "FORBIDDEN", "Clinical routes are user-only");
+
+    if (method === "POST" && url.pathname === "/patients/access") {
+      if (auth.user.role !== "user") return error(res, requestId, 403, "FORBIDDEN", "Missing permission");
+      const body = await readJson(req);
+      if (typeof body.patient_id !== "string" || typeof body.patient_email !== "string" || typeof body.patient_name !== "string") {
+        return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id, patient_email, and patient_name required");
+      }
+      const result = createPatientAccess(auth.user.id, {
+        patient_id: body.patient_id,
+        patient_email: body.patient_email,
+        patient_name: body.patient_name,
+        patient_password: typeof body.patient_password === "string" ? body.patient_password : undefined,
+        permissions: typeof body.permissions === "object" && body.permissions !== null ? {
+          scales: Boolean((body.permissions as any).scales),
+          diary: Boolean((body.permissions as any).diary),
+          session_confirmation: Boolean((body.permissions as any).session_confirmation),
+          async_messages_per_day: Number((body.permissions as any).async_messages_per_day ?? 3),
+        } : undefined,
+      });
+      if ("error" in result) return error(res, requestId, 409, "EMAIL_IN_USE", "Email already in use by a non-patient");
+      return ok(res, requestId, 201, {
+        access: result.access,
+        patient_user: { id: result.patientUser.id, email: result.patientUser.email, name: result.patientUser.name },
+        temporary_password: result.temporaryPassword ?? null,
+      });
+    }
+
+    if (method === "GET" && url.pathname === "/patient/permissions") {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      return ok(res, requestId, 200, { permissions: access.permissions, patient_id: access.patient_id, owner_user_id: access.owner_user_id });
+    }
+
+    if (method === "GET" && url.pathname === "/patient/sessions") {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
+      return ok(res, requestId, 200, paginate(listPatientSessions(access), page, pageSize));
+    }
+
+    const patientSessionConfirm = url.pathname.match(/^\/patient\/sessions\/([^/]+)\/confirm$/);
+    if (method === "POST" && patientSessionConfirm) {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      const result = confirmPatientSession(access, patientSessionConfirm[1]);
+      if ("error" in result) {
+        if (result.error === "PERMISSION_DENIED") return error(res, requestId, 403, "FORBIDDEN", "Session confirmation not allowed");
+        return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+      }
+      return ok(res, requestId, 200, result.session);
+    }
+
+    if (method === "POST" && url.pathname === "/patient/scales/record") {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      const body = await readJson(req);
+      const result = recordPatientScale(access, String(body.scale_id ?? ""), Number(body.score ?? 0));
+      if ("error" in result) return error(res, requestId, 403, "FORBIDDEN", "Scale responses not allowed");
+      return ok(res, requestId, 201, result.record);
+    }
+
+    if (method === "POST" && url.pathname === "/patient/diary/entries") {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      const body = await readJson(req);
+      if (typeof body.content !== "string" || !body.content.trim()) return error(res, requestId, 422, "VALIDATION_ERROR", "content required");
+      const result = recordPatientDiaryEntry(access, body.content.trim());
+      if ("error" in result) return error(res, requestId, 403, "FORBIDDEN", "Diary entries not allowed");
+      return ok(res, requestId, 201, result.entry);
+    }
+
+    if (method === "POST" && url.pathname === "/patient/messages") {
+      if (auth.user.role !== "patient") return error(res, requestId, 403, "FORBIDDEN", "Patient-only route");
+      const access = getPatientAccessForUser(auth.user.id);
+      if (!access) return error(res, requestId, 403, "FORBIDDEN", "Patient access not configured");
+      const body = await readJson(req);
+      if (typeof body.message !== "string" || !body.message.trim()) return error(res, requestId, 422, "VALIDATION_ERROR", "message required");
+      const result = sendPatientAsyncMessage(access, body.message.trim());
+      if ("error" in result) {
+        if (result.error === "LIMIT_REACHED") return error(res, requestId, 429, "LIMIT_REACHED", "Async message limit reached");
+        return error(res, requestId, 403, "FORBIDDEN", "Async messages not allowed");
+      }
+      return ok(res, requestId, 201, { message: result.payload, remaining: result.remaining, disclaimer: result.disclaimer });
+    }
 
     if (method === "POST" && url.pathname === "/local/entitlements/sync") {
       const body = await readJson(req);

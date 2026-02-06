@@ -1,6 +1,6 @@
 export type UUID = string;
 
-export type Role = "user" | "admin";
+export type Role = "user" | "admin" | "patient";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
@@ -37,6 +37,32 @@ export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 export type Patient = Owned & {
   external_id: string;
   label: string;
+};
+
+export type PatientPermission = {
+  scales: boolean;
+  diary: boolean;
+  session_confirmation: boolean;
+  async_messages_per_day: number;
+};
+
+export type PatientAccess = Owned & {
+  patient_user_id: UUID;
+  patient_id: string;
+  permissions: PatientPermission;
+};
+
+export type PatientDiaryEntry = Owned & {
+  patient_id: string;
+  patient_user_id: UUID;
+  content: string;
+};
+
+export type PatientAsyncMessage = Owned & {
+  patient_id: string;
+  patient_user_id: UUID;
+  message: string;
+  disclaimer: string;
 };
 
 export type ClinicalSession = Owned & {
