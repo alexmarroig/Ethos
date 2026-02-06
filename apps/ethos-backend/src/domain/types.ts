@@ -141,6 +141,44 @@ export type ScaleTemplate = {
   description: string;
 };
 
+export type TemplateField = {
+  key: string;
+  label: string;
+  type: "text" | "textarea" | "date";
+  scope: "global" | "document";
+  required?: boolean;
+  placeholder?: string;
+};
+
+export type TemplateGlobals = {
+  psychologist: { name: string; crp: string };
+  patient: { name: string; document: string };
+  city: string;
+  date: string;
+  signature: string;
+};
+
+export type ClinicalTemplate = Owned & {
+  title: string;
+  description?: string;
+  version: number;
+  html: string;
+  fields: TemplateField[];
+};
+
+export type TemplateRenderRequest = {
+  globals: TemplateGlobals;
+  fields: Record<string, string>;
+  format: "html" | "pdf" | "docx";
+};
+
+export type TemplateRenderResponse = {
+  template_id: string;
+  format: "html" | "pdf" | "docx";
+  content_type: string;
+  content_base64: string;
+};
+
 export type TelemetryEvent = {
   id: UUID;
   user_id?: UUID;
@@ -190,6 +228,43 @@ export type CaseClosureProtocol = Owned & {
   retained: { sessions: number; notes: number; reports: number };
   discarded: { sessions: number; notes: number; reports: number };
   supporting_pruned: { anamnesis: number; scales: number; forms: number; financial_entries: number };
+export type NotificationChannel = "email" | "whatsapp";
+export type NotificationScheduleStatus = "scheduled" | "sent" | "failed";
+
+export type NotificationTemplate = Owned & {
+  name: string;
+  channel: NotificationChannel;
+  content: string;
+  subject?: string;
+};
+
+export type NotificationConsent = Owned & {
+  patient_id: UUID;
+  channel: NotificationChannel;
+  source: string;
+  granted_at: string;
+};
+
+export type NotificationSchedule = Owned & {
+  session_id: UUID;
+  patient_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  scheduled_for: string;
+  recipient: string;
+  status: NotificationScheduleStatus;
+  last_sent_at?: string;
+  last_error?: string;
+};
+
+export type NotificationLog = Owned & {
+  schedule_id: UUID;
+  channel: NotificationChannel;
+  provider: "smtp" | "whatsapp_api";
+  recipient: string;
+  status: "sent" | "failed";
+  error?: string;
+  sent_at: string;
 };
 
 export type ApiEnvelope<T> = {

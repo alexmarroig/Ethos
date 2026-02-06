@@ -13,6 +13,7 @@ import type {
   Patient,
   ScaleRecord,
   SessionToken,
+  ClinicalTemplate,
   TelemetryEvent,
   Transcript,
   User,
@@ -20,6 +21,10 @@ import type {
   ScaleTemplate,
   ObservabilityAlert,
   CaseClosureProtocol,
+  NotificationConsent,
+  NotificationLog,
+  NotificationSchedule,
+  NotificationTemplate,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -72,6 +77,7 @@ export const db = {
   jobs: new Map<string, Job>(),
   localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
+  templates: new Map<string, ClinicalTemplate>(),
 
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
@@ -79,6 +85,11 @@ export const db = {
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   caseClosures: new Map<string, CaseClosureProtocol>(),
   idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+
+  notificationTemplates: new Map<string, NotificationTemplate>(),
+  notificationConsents: new Map<string, NotificationConsent>(),
+  notificationSchedules: new Map<string, NotificationSchedule>(),
+  notificationLogs: new Map<string, NotificationLog>(),
 };
 
 export const getIdempotencyEntry = (key: string, at = Date.now()) => {
@@ -115,3 +126,100 @@ export const seeds = { camilaId, now };
 
 db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
 db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
+
+const baseTemplateFields: ClinicalTemplate["fields"] = [
+  { key: "psychologist.name", label: "Nome do(a) psicólogo(a)", type: "text", scope: "global", required: true },
+  { key: "psychologist.crp", label: "CRP", type: "text", scope: "global", required: true },
+  { key: "patient.name", label: "Nome do paciente", type: "text", scope: "global", required: true },
+  { key: "patient.document", label: "Documento do paciente", type: "text", scope: "global" },
+  { key: "city", label: "Cidade", type: "text", scope: "global", required: true },
+  { key: "date", label: "Data", type: "date", scope: "global", required: true },
+  { key: "signature", label: "Assinatura", type: "text", scope: "global", required: true },
+];
+
+const createTemplateSeed = (template: Omit<ClinicalTemplate, "id" | "owner_user_id" | "created_at">) => {
+  const id = uid();
+  db.templates.set(id, { ...template, id, owner_user_id: camilaId, created_at: now() });
+};
+
+createTemplateSeed({
+  title: "Declaração de Comparecimento",
+  description: "Modelo alinhado à Resolução CFP nº 06/2019 para declaração de comparecimento.",
+  version: 1,
+  fields: [
+    ...baseTemplateFields,
+    { key: "session_date", label: "Data do atendimento", type: "date", scope: "document", required: true },
+    { key: "session_time", label: "Horário", type: "text", scope: "document" },
+    { key: "purpose", label: "Finalidade", type: "textarea", scope: "document" },
+  ],
+  html: `
+  <h2 style="text-align:center;">Declaração de Comparecimento</h2>
+  <p>Declaro, para os devidos fins, que {{patient.name}} ({{patient.document}}) compareceu para atendimento psicológico em {{session_date}} às {{session_time}}.</p>
+  <p>Finalidade: {{purpose}}</p>
+  <p style="margin-top:40px;">{{city}}, {{date}}.</p>
+  <p style="margin-top:40px;">{{signature}}</p>
+  <p>{{psychologist.name}} - CRP {{psychologist.crp}}</p>
+  `,
+});
+
+createTemplateSeed({
+  title: "Declaração de Atendimento",
+  description: "Confirmação de atendimento psicológico conforme CFP nº 06/2019.",
+  version: 1,
+  fields: [
+    ...baseTemplateFields,
+    { key: "service_period", label: "Período do atendimento", type: "text", scope: "document", required: true },
+    { key: "observations", label: "Observações", type: "textarea", scope: "document" },
+  ],
+  html: `
+  <h2 style="text-align:center;">Declaração de Atendimento</h2>
+  <p>Declaro que {{patient.name}} ({{patient.document}}) encontra-se em atendimento psicológico no período {{service_period}}.</p>
+  <p>{{observations}}</p>
+  <p style="margin-top:40px;">{{city}}, {{date}}.</p>
+  <p style="margin-top:40px;">{{signature}}</p>
+  <p>{{psychologist.name}} - CRP {{psychologist.crp}}</p>
+  `,
+});
+
+createTemplateSeed({
+  title: "Relatório Psicológico",
+  description: "Modelo base para relatório psicológico (CFP nº 06/2019).",
+  version: 1,
+  fields: [
+    ...baseTemplateFields,
+    { key: "demand", label: "Demanda", type: "textarea", scope: "document", required: true },
+    { key: "procedures", label: "Procedimentos", type: "textarea", scope: "document", required: true },
+    { key: "analysis", label: "Análise", type: "textarea", scope: "document", required: true },
+    { key: "conclusion", label: "Conclusão", type: "textarea", scope: "document" },
+  ],
+  html: `
+  <h2 style="text-align:center;">Relatório Psicológico</h2>
+  <p><strong>Identificação:</strong> {{patient.name}} ({{patient.document}}).</p>
+  <p><strong>Demanda:</strong> {{demand}}</p>
+  <p><strong>Procedimentos:</strong> {{procedures}}</p>
+  <p><strong>Análise:</strong> {{analysis}}</p>
+  <p><strong>Conclusão:</strong> {{conclusion}}</p>
+  <p style="margin-top:40px;">{{city}}, {{date}}.</p>
+  <p style="margin-top:40px;">{{signature}}</p>
+  <p>{{psychologist.name}} - CRP {{psychologist.crp}}</p>
+  `,
+});
+
+createTemplateSeed({
+  title: "Encaminhamento",
+  description: "Modelo de encaminhamento clínico baseado na resolução CFP nº 06/2019.",
+  version: 1,
+  fields: [
+    ...baseTemplateFields,
+    { key: "receiver", label: "Destinatário", type: "text", scope: "document", required: true },
+    { key: "summary", label: "Resumo do encaminhamento", type: "textarea", scope: "document", required: true },
+  ],
+  html: `
+  <h2 style="text-align:center;">Encaminhamento</h2>
+  <p>Encaminho {{patient.name}} ({{patient.document}}) para {{receiver}}.</p>
+  <p><strong>Resumo:</strong> {{summary}}</p>
+  <p style="margin-top:40px;">{{city}}, {{date}}.</p>
+  <p style="margin-top:40px;">{{signature}}</p>
+  <p>{{psychologist.name}} - CRP {{psychologist.crp}}</p>
+  `,
+});
