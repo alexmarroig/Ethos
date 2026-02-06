@@ -51,6 +51,7 @@ export const AppLayout = () => {
             { to: "/agenda", label: "Agenda" },
             { to: "/sessao", label: "Sessão" },
             { to: "/contratos", label: "Contratos" },
+            { to: "/gravador", label: "Gravador" },
             { to: "/pacientes", label: "Pacientes" },
             { to: "/formularios", label: "Formulários" },
             { to: "/templates", label: "Templates" },

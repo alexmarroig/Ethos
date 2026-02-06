@@ -6,6 +6,7 @@ import { AppLayout } from "../layout/AppLayout";
 import { Agenda } from "../pages/Agenda";
 import { Contratos } from "../pages/Contratos";
 import { Forms } from "../pages/Forms";
+import { Gravador } from "../pages/Gravador";
 import { Home } from "../pages/Home";
 import { Login } from "../pages/Login";
 import { Pacientes } from "../pages/Pacientes";
@@ -60,6 +61,7 @@ export const AppRoutes = () => {
           <Route path="/agenda" element={<Agenda />} />
           <Route path="/sessao" element={<Sessao />} />
           <Route path="/contratos" element={<Contratos />} />
+          <Route path="/gravador" element={<Gravador />} />
           <Route path="/pacientes" element={<Pacientes />} />
           <Route path="/formularios" element={<Forms />} />
           <Route path="/templates" element={<Templates />} />
