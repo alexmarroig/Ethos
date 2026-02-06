@@ -294,6 +294,10 @@ paths:
     post:
       summary: Enqueue DOCX export
       security: [{ bearerAuth: [] }]
+  /export/case:
+    post:
+      summary: Export complete case with controlled history
+      security: [{ bearerAuth: [] }]
 
   /backup:
     post:
@@ -306,6 +310,10 @@ paths:
   /purge:
     post:
       summary: Purge user data
+      security: [{ bearerAuth: [] }]
+  /cases/close:
+    post:
+      summary: Close case and apply history control protocol
       security: [{ bearerAuth: [] }]
 
   /api/webhook:
