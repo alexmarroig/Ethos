@@ -1,3 +1,4 @@
+// apps/ethos-desktop/src/hooks/useAudioRecorder.ts
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audioService } from "../services/audioService";
 
@@ -44,12 +45,7 @@ const formatElapsed = (seconds: number) => {
 
 function pickBestMimeType(): string {
   // Ordem: mais comum/boa para áudio no Electron/Chromium.
-  const candidates = [
-    "audio/webm;codecs=opus",
-    "audio/webm",
-    "audio/ogg;codecs=opus",
-    "audio/ogg",
-  ];
+  const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/ogg;codecs=opus", "audio/ogg"];
 
   for (const c of candidates) {
     if (typeof MediaRecorder !== "undefined" && MediaRecorder.isTypeSupported?.(c)) return c;
@@ -57,18 +53,20 @@ function pickBestMimeType(): string {
   return ""; // deixa o browser escolher
 }
 
-async function saveAudioBridge(payload: { data: ArrayBuffer; mimeType: string }) {
+function getBridgeSaver(): (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string; mimeType?: string } | null> {
   const ethos = window.ethos;
-
-  const fn =
-    ethos?.audio?.save ??
-    ethos?.saveAudio;
+  const fn = ethos?.audio?.save ?? ethos?.saveAudio;
 
   if (!fn) {
     throw new Error("Bridge do Electron não disponível: window.ethos.audio.save / window.ethos.saveAudio.");
   }
 
-  return fn(payload);
+  // Normaliza o retorno (legado não tem mimeType)
+  return async (payload) => {
+    const res = await fn(payload);
+    if (!res) return null;
+    return res as { filePath: string; mimeType?: string };
+  };
 }
 
 export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudioRecorderReturn => {
@@ -79,7 +77,10 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
 
   const mountedRef = useRef(true);
   const lastUrlRef = useRef<string | null>(null);
+
+  // Evita corrida de stop/save/reset
   const stoppingRef = useRef(false);
+  const savingRef = useRef(false);
 
   const [status, setStatus] = useState<RecorderStatus>("idle");
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -97,11 +98,6 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
     }
   }, []);
 
-  const stopStream = useCallback(() => {
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    streamRef.current = null;
-  }, []);
-
   const revokeLastUrl = useCallback(() => {
     if (lastUrlRef.current) {
       URL.revokeObjectURL(lastUrlRef.current);
@@ -109,10 +105,26 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
     }
   }, []);
 
-  const stopRecording = useCallback(() => {
+  const stopStream = useCallback(() => {
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    streamRef.current = null;
+  }, []);
+
+  const hardStopRecorder = useCallback(() => {
+    // tenta parar sem explodir
     const recorder = recorderRef.current;
     if (!recorder) return;
 
+    try {
+      if (recorder.state !== "inactive") recorder.stop();
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const stopRecording = useCallback(() => {
+    const recorder = recorderRef.current;
+    if (!recorder) return;
     if (recorder.state === "inactive") return;
     if (stoppingRef.current) return;
 
@@ -127,11 +139,14 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
   const resetRecording = useCallback(() => {
     // Se estiver gravando, para antes de limpar estado
     stopRecording();
+    hardStopRecorder();
+
     clearTimer();
     stopStream();
 
     chunksRef.current = [];
     stoppingRef.current = false;
+    savingRef.current = false;
 
     revokeLastUrl();
     setAudioUrl(null);
@@ -140,7 +155,7 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
     setElapsedSeconds(0);
     setErrorMessage(null);
     setStatus("idle");
-  }, [clearTimer, revokeLastUrl, stopRecording, stopStream]);
+  }, [clearTimer, hardStopRecorder, revokeLastUrl, stopRecording, stopStream]);
 
   const startRecording = useCallback(async () => {
     if (status === "recording" || status === "saving") return;
@@ -150,17 +165,24 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
     setMimeType(null);
     chunksRef.current = [];
     stoppingRef.current = false;
+    savingRef.current = false;
 
     // revoga preview anterior pra não vazar memória
     revokeLastUrl();
     setAudioUrl(null);
 
     try {
+      if (!navigator?.mediaDevices?.getUserMedia) {
+        throw new Error("Captura de áudio não suportada neste ambiente.");
+      }
+      if (typeof MediaRecorder === "undefined") {
+        throw new Error("MediaRecorder não suportado neste ambiente.");
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
 
       const chosenMime = pickBestMimeType();
-
       const recorder = chosenMime ? new MediaRecorder(stream, { mimeType: chosenMime }) : new MediaRecorder(stream);
       recorderRef.current = recorder;
 
@@ -173,17 +195,23 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
       recorder.onerror = () => {
         if (!mountedRef.current) return;
         setStatus("error");
-        setErrorMessage("Falha no MediaRecorder.");
+        setErrorMessage("Falha no gravador de áudio.");
         clearTimer();
         stopStream();
+        stoppingRef.current = false;
+        savingRef.current = false;
       };
 
       recorder.onstop = async () => {
         clearTimer();
         stopStream();
 
-        // onstop pode disparar depois do unmount
+        // onstop pode disparar depois do unmount/reset
         if (!mountedRef.current) return;
+
+        // Evita salvar duas vezes se houver corrida estranha
+        if (savingRef.current) return;
+        savingRef.current = true;
 
         setStatus("saving");
 
@@ -194,21 +222,23 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
           const blob = new Blob(chunksRef.current, { type: mt });
           const buffer = await blob.arrayBuffer();
 
-          const response = await saveAudioBridge({ data: buffer, mimeType: mt });
+          const save = getBridgeSaver();
+          const response = await save({ data: buffer, mimeType: mt });
 
           if (!mountedRef.current) return;
 
           if (response?.filePath) {
+            // attach pode falhar; não derruba a gravação
             try {
               const audioAsset = audioService.attach(sessionId, response.filePath);
               setAudioFilePath(audioAsset.filePath);
             } catch {
-              // não deixa o attach derrubar a gravação
               setAudioFilePath(response.filePath);
             }
           }
 
           const url = URL.createObjectURL(blob);
+          revokeLastUrl();
           lastUrlRef.current = url;
           setAudioUrl(url);
 
@@ -219,6 +249,7 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
           setErrorMessage(error instanceof Error ? error.message : "Falha ao salvar o áudio.");
         } finally {
           stoppingRef.current = false;
+          savingRef.current = false;
         }
       };
 
@@ -237,11 +268,14 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
       setErrorMessage(error instanceof Error ? error.message : "Permissão de microfone negada.");
       clearTimer();
       stopStream();
+      stoppingRef.current = false;
+      savingRef.current = false;
     }
   }, [clearTimer, revokeLastUrl, sessionId, status, stopStream]);
 
   useEffect(() => {
     mountedRef.current = true;
+
     return () => {
       mountedRef.current = false;
       clearTimer();
@@ -253,6 +287,8 @@ export const useAudioRecorder = ({ sessionId }: UseAudioRecorderParams): UseAudi
       } catch {
         // ignore
       }
+      stoppingRef.current = false;
+      savingRef.current = false;
     };
   }, [clearTimer, revokeLastUrl, stopStream]);
 
