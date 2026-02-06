@@ -28,7 +28,7 @@ type EnqueueTranscriptionPayload =
     };
 
 // Mensagens do worker podem ser JSON (objeto) ou logs em texto.
-// (No seu main melhorado eu mandei objetos estruturados.)
+// No seu main melhorado você envia objeto estruturado em ambos casos.
 type WorkerMessage = unknown;
 
 type ModelsProgressEvent = { id: string; progress: number };
@@ -37,10 +37,6 @@ type ModelsProgressEvent = { id: string; progress: number };
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Wrapper seguro para invoke.
- * Centraliza o canal e reduz repetição.
- */
 function invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T> {
   return ipcRenderer.invoke(channel, ...args) as Promise<T>;
 }
@@ -52,6 +48,13 @@ function on<T = unknown>(channel: string, handler: (payload: T) => void): Unsubs
   const listener = (_event: unknown, payload: T) => handler(payload);
   ipcRenderer.on(channel, listener);
   return () => ipcRenderer.removeListener(channel, listener);
+}
+
+/**
+ * Versão "once" (útil para evitar múltiplos listeners acidentais).
+ */
+function once<T = unknown>(channel: string, handler: (payload: T) => void): void {
+  ipcRenderer.once(channel, (_event: unknown, payload: T) => handler(payload));
 }
 
 /**
@@ -76,17 +79,21 @@ function assertMimeType(value: unknown): asserts value is string {
   if (!value.includes("/")) throw new Error("Invalid mimeType format");
 }
 
+function assertMaxBytes(byteLength: number, maxBytes: number, label: string) {
+  if (byteLength > maxBytes) {
+    throw new Error(`${label} excede o limite permitido (${Math.floor(maxBytes / (1024 * 1024))}MB).`);
+  }
+}
+
 function validateEnqueuePayload(payload: EnqueueTranscriptionPayload) {
   assertString(payload.sessionId, "sessionId");
   assertString(payload.model, "model");
 
-  // áudio via caminho
   if ("audioPath" in payload) {
     assertString(payload.audioPath, "audioPath");
     return;
   }
 
-  // áudio via buffer
   assertArrayBuffer(payload.audioData, "audioData");
   assertMimeType(payload.mimeType);
 }
@@ -97,7 +104,7 @@ function validateEnqueuePayload(payload: EnqueueTranscriptionPayload) {
 
 const ethosApi = Object.freeze({
   // ------------------------
-  // App / Safe Mode (se você já tem no main)
+  // App / Safe Mode
   // ------------------------
   app: Object.freeze({
     isSafeMode: () => invoke<boolean>("app:isSafeMode"),
@@ -136,44 +143,35 @@ const ethosApi = Object.freeze({
   // Audio & Transcription
   // ------------------------
   audio: Object.freeze({
-    /**
-     * Abre um file picker nativo e retorna um caminho de arquivo.
-     */
     openDialog: () => invoke<string | null>("dialog:openAudio"),
 
-    /**
-     * NOVO: salva áudio gravado no renderer (MediaRecorder) no lado do main.
-     * Retorna { filePath, mimeType }.
-     */
     save: (payload: SaveAudioPayload) => {
       assertArrayBuffer(payload.data, "data");
       assertMimeType(payload.mimeType);
+
+      // limite pragmático no renderer (evita travar o front por acidente)
+      // Ajuste conforme sua estratégia. Para 2h, ideal é streaming incremental.
+      const MAX_BYTES = 150 * 1024 * 1024;
+      assertMaxBytes(payload.data.byteLength, MAX_BYTES, "Áudio");
+
       return invoke<{ filePath: string; mimeType: string }>("audio:save", payload);
     },
   }),
 
   transcription: Object.freeze({
-    /**
-     * Enfileira transcrição.
-     * Pode receber audioPath (arquivo) ou audioData (buffer) + mimeType (gravado).
-     */
     enqueue: (payload: EnqueueTranscriptionPayload) => {
       validateEnqueuePayload(payload);
       return invoke<string>("transcription:enqueue", payload);
     },
 
-    /**
-     * Escuta mensagens estruturadas do worker (progresso, logs, etc).
-     * Retorna unsubscribe para evitar listeners duplicados no React.
-     */
     onMessage: (handler: (message: WorkerMessage) => void): Unsubscribe =>
       on<WorkerMessage>("transcription:message", handler),
 
-    /**
-     * Escuta stderr / logs de erro do worker.
-     */
     onError: (handler: (message: string) => void): Unsubscribe =>
       on<string>("transcription:stderr", handler),
+
+    // opcional: ouvir uma mensagem só (debug / UX)
+    onceMessage: (handler: (message: WorkerMessage) => void) => once<WorkerMessage>("transcription:message", handler),
   }),
 
   // ------------------------
@@ -199,23 +197,34 @@ const ethosApi = Object.freeze({
     getStatus: (id: string) => invoke("models:getStatus", id),
     download: (id: string) => invoke("models:download", id),
 
-    /**
-     * Progresso de download de modelos (stream via ipcRenderer.on).
-     * Retorna unsubscribe.
-     */
     onProgress: (handler: (data: ModelsProgressEvent) => void): Unsubscribe =>
       on<ModelsProgressEvent>("models:progress", handler),
   }),
+
+  // -----------------------------------------------------------------------
+  // Compat LEGADO (para não quebrar hooks/renderer antigo)
+  // -----------------------------------------------------------------------
+  // Estes nomes imitam a “adição proposta”, mas sem perder as boas práticas.
+  openAudioDialog: () => invoke<string | null>("dialog:openAudio"),
+
+  // compat com o hook antigo: window.ethos.saveAudio(...)
+  saveAudio: (payload: SaveAudioPayload) => ethosApi.audio.save(payload),
+
+  // compat com assinatura antiga (só audioPath). Se quiser audioData, use ethosApi.transcription.enqueue.
+  enqueueTranscription: (payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }) => {
+    assertString(payload.sessionId, "sessionId");
+    assertString(payload.audioPath, "audioPath");
+    assertString(payload.model, "model");
+    return invoke<string>("transcription:enqueue", payload);
+  },
+
+  // compat: registra listener e devolve unsubscribe (melhor que o proposto)
+  onTranscriptionMessage: (handler: (message: WorkerMessage) => void): Unsubscribe =>
+    on<WorkerMessage>("transcription:message", handler),
+
+  onTranscriptionError: (handler: (message: string) => void): Unsubscribe =>
+    on<string>("transcription:stderr", handler),
 });
 
 // Expor API com nome estável
 contextBridge.exposeInMainWorld("ethos", ethosApi);
-
-/**
- * Dica prática para o renderer (React):
- * useEffect(() => {
- *   const off1 = window.ethos.transcription.onMessage(...)
- *   const off2 = window.ethos.transcription.onError(...)
- *   return () => { off1(); off2(); }
- * }, [])
- */
