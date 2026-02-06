@@ -1,5 +1,6 @@
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
+import { promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 
@@ -66,4 +67,16 @@ ipcMain.handle("transcription:enqueue", async (_event, payload) => {
     `${JSON.stringify({ type: "enqueue", payload: { ...payload, jobId } })}\n`
   );
   return jobId;
+});
+
+ipcMain.handle("audio:save", async (_event, payload: { data: ArrayBuffer; mimeType: string }) => {
+  if (!mainWindow) {
+    return null;
+  }
+  const extension = payload.mimeType.split("/")[1] || "webm";
+  const fileName = `ethos-audio-${Date.now()}-${randomUUID()}.${extension}`;
+  const filePath = path.join(app.getPath("userData"), fileName);
+  const buffer = Buffer.from(payload.data);
+  await fs.writeFile(filePath, buffer);
+  return { filePath };
 });
