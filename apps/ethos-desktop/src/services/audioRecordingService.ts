@@ -28,6 +28,7 @@ export class AudioRecordingService {
       sessionId: options.sessionId,
       mimeType,
     });
+
     const mediaRecorder = new MediaRecorder(options.stream, { mimeType });
     mediaRecorder.addEventListener("dataavailable", async (event) => {
       if (!event.data || event.data.size === 0) return;
@@ -42,6 +43,7 @@ export class AudioRecordingService {
       options.onError?.(new Error("MediaRecorder failed"));
     });
     mediaRecorder.start(timesliceMs);
+
     this.session = { recordingId, filePath, mediaRecorder };
     return { recordingId, filePath };
   }
@@ -58,34 +60,24 @@ export class AudioRecordingService {
       }
       mediaRecorder.addEventListener("stop", () => resolve(), { once: true });
     });
+
     if (mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
     }
     await stopPromise;
+
     const finishedSession = await window.ethos.audio.finishSession({ recordingId });
     this.session = null;
     return { recordingId, filePath: finishedSession.filePath ?? filePath };
   }
 
-  async pause(): Promise<void> {
+  pause(): void {
     if (!this.session) {
       return;
     }
     const { mediaRecorder } = this.session;
     if (mediaRecorder.state === "recording") {
       mediaRecorder.pause();
-    }
-  }
-
-  async resume(): Promise<void> {
-    if (!this.session) {
-      return;
-  pause(): void {
-    if (!this.session) {
-      return;
-    }
-    if (this.session.mediaRecorder.state === "recording") {
-      this.session.mediaRecorder.pause();
     }
   }
 
@@ -93,34 +85,10 @@ export class AudioRecordingService {
     if (!this.session) {
       return;
     }
-    if (this.session.mediaRecorder.state === "paused") {
-      this.session.mediaRecorder.resume();
-    }
-  }
-
-  pause(): boolean {
-    if (!this.session) {
-      return false;
-    }
-    const { mediaRecorder } = this.session;
-    if (mediaRecorder.state === "recording") {
-      mediaRecorder.pause();
-      return true;
-    }
-    return false;
-  }
-
-  resume(): boolean {
-    if (!this.session) {
-      return false;
-    }
     const { mediaRecorder } = this.session;
     if (mediaRecorder.state === "paused") {
       mediaRecorder.resume();
     }
-      return true;
-    }
-    return false;
   }
 
   async abort(): Promise<void> {
