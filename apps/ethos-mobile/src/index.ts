@@ -12,4 +12,5 @@ export const mobileV1Capabilities = {
 export const controlClient = new EthosControlPlaneClient("http://localhost:8788");
 export const clinicalClient = new EthosClinicalPlaneClient("http://localhost:8787");
 
+export { GravadorScreen } from "./screens/GravadorScreen";
 export { default as App } from "./App";
