@@ -2,11 +2,18 @@
   "name": "ethos-mobile",
   "version": "0.1.0",
   "main": "src/index.ts",
+  "private": true,
   "scripts": {
     "dev": "echo 'mobile app placeholder: react-native/expo wiring'",
     "build": "echo 'mobile build placeholder'"
   },
   "dependencies": {
-    "@ethos/sdk": "*"
+    "@ethos/sdk": "*",
+    "@react-native-async-storage/async-storage": "^1.23.1",
+    "expo": "^50.0.0",
+    "expo-av": "^13.10.5",
+    "expo-file-system": "^16.0.8",
+    "react": "^18.2.0",
+    "react-native": "^0.73.6"
   }
 }
