@@ -61,9 +61,39 @@ export type Transcript = Owned & {
 export type ClinicalNote = Owned & {
   session_id: UUID;
   content: string;
+  structured_content?: ClinicalNoteContent;
   status: ClinicalNoteStatus;
   version: number;
   validated_at?: string;
+};
+
+export type ClinicalNoteLevel = "registro_factual" | "impressoes" | "planejamento";
+
+export type ClinicalNoteThemeEntry = {
+  id: UUID;
+  level: ClinicalNoteLevel;
+  text: string;
+  source: "paciente" | "profissional" | "documento";
+  recorded_at: string;
+};
+
+export type ClinicalNoteTheme = {
+  id: string;
+  label: string;
+  entries: ClinicalNoteThemeEntry[];
+};
+
+export type ClinicalNoteSessionTimeline = {
+  session_id: UUID;
+  occurred_at: string;
+  themes: ClinicalNoteTheme[];
+};
+
+export type ClinicalNoteContent = {
+  organization_policy: "organize_only";
+  levels: Record<ClinicalNoteLevel, string[]>;
+  themes: ClinicalNoteTheme[];
+  timeline: ClinicalNoteSessionTimeline[];
 };
 
 export type ClinicalReport = Owned & {
