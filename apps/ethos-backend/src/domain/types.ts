@@ -232,11 +232,20 @@ export type FormEntry = Owned & {
 
 export type FinancialEntry = Owned & {
   patient_id: string;
+  session_id?: string;
   type: "receivable" | "payable";
   amount: number;
   due_date: string;
-  status: "open" | "paid";
+  status: "open" | "paid" | "overdue" | "canceled";
   description: string;
+  missed_session?: boolean;
+  receipt?: {
+    id: UUID;
+    issued_at: string;
+    status: "queued" | "sent" | "failed";
+    delivery_channel: "email" | "whatsapp" | "print";
+    document_url?: string;
+  };
 };
 
 export type JobType = "transcription" | "export" | "export_full" | "backup";
