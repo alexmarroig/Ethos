@@ -142,6 +142,25 @@ ipcMain.handle("audio:deleteRecording", async (_event, payload: { filePath: stri
 });
 
 ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string }) => {
+  await shell.openPath(payload.filePath);
+  return { ok: true };
+});
+
+ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: string }) => {
+  if (!mainWindow) {
+    return { ok: false };
+  }
+  const defaultPath = path.basename(payload.filePath);
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Exportar gravação",
+    defaultPath,
+  });
+  if (result.canceled || !result.filePath) {
+    return { ok: false };
+  }
+  await fs.promises.copyFile(payload.filePath, result.filePath);
+  return { ok: true, filePath: result.filePath };
+});
   const error = await shell.openPath(payload.filePath);
   return { ok: !error, error };
 });
