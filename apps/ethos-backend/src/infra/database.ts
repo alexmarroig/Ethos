@@ -11,6 +11,7 @@ import type {
   Invite,
   Job,
   Patient,
+  Contract,
   ScaleRecord,
   SessionToken,
   TelemetryEvent,
@@ -69,6 +70,7 @@ export const db = {
   forms: new Map<string, FormEntry>(),
   financial: new Map<string, FinancialEntry>(),
   jobs: new Map<string, Job>(),
+  contracts: new Map<string, Contract>(),
   localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
 
