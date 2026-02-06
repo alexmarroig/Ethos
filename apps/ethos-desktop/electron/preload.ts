@@ -18,6 +18,9 @@ contextBridge.exposeInMainWorld("ethos", {
     openRecording: (payload: { filePath: string }) =>
       ipcRenderer.invoke("audio:openRecording", payload),
     exportRecording: (payload: { filePath: string }) =>
+    showRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:showRecording", payload),
+    exportRecording: (payload: { filePath: string; defaultName?: string }) =>
       ipcRenderer.invoke("audio:exportRecording", payload),
   },
   onTranscriptionMessage: (handler: (message: string) => void) =>

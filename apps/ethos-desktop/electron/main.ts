@@ -161,3 +161,28 @@ ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: stri
   await fs.promises.copyFile(payload.filePath, result.filePath);
   return { ok: true, filePath: result.filePath };
 });
+  const error = await shell.openPath(payload.filePath);
+  return { ok: !error, error };
+});
+
+ipcMain.handle("audio:showRecording", async (_event, payload: { filePath: string }) => {
+  shell.showItemInFolder(payload.filePath);
+  return { ok: true };
+});
+
+ipcMain.handle(
+  "audio:exportRecording",
+  async (_event, payload: { filePath: string; defaultName?: string }) => {
+    if (!mainWindow) {
+      return { ok: false, canceled: true };
+    }
+    const result = await dialog.showSaveDialog(mainWindow, {
+      defaultPath: payload.defaultName ?? path.basename(payload.filePath),
+    });
+    if (result.canceled || !result.filePath) {
+      return { ok: false, canceled: true };
+    }
+    await fs.promises.copyFile(payload.filePath, result.filePath);
+    return { ok: true, filePath: result.filePath };
+  }
+);

@@ -7,6 +7,15 @@ type RecordingMetadata = {
   durationMs: number;
   createdAt: string;
   filePath: string;
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AudioRecordingService } from "../../services/audioRecordingService";
+
+type RecordingEntry = {
+  id: string;
+  name: string;
+  filePath: string;
+  durationMs: number;
+  createdAt: string;
 };
 
 const STORAGE_KEY = "ethos.recordings";
@@ -65,6 +74,96 @@ export const Gravador = () => {
     }
     return undefined;
   }, [status, activeStartedAt]);
+  return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+};
+
+const formatDate = (dateIso: string) => {
+  return new Date(dateIso).toLocaleString("pt-BR");
+};
+
+const toFileUrl = (filePath: string) => {
+  const normalized = filePath.replace(/\\/g, "/");
+  return `file://${encodeURI(normalized)}`;
+};
+
+const getFileExtension = (filePath: string) => {
+  const parts = filePath.split(".");
+  if (parts.length > 1) {
+    return parts[parts.length - 1];
+  }
+  return "webm";
+};
+
+const recorderService = new AudioRecordingService();
+
+export const Gravador = () => {
+  const [recordings, setRecordings] = useState<RecordingEntry[]>([]);
+  const [status, setStatus] = useState<"idle" | "recording" | "paused">("idle");
+  const [error, setError] = useState<string | null>(null);
+  const [elapsedMs, setElapsedMs] = useState(0);
+  const [currentName, setCurrentName] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [currentRecordingId, setCurrentRecordingId] = useState<string | null>(null);
+  const [currentFilePath, setCurrentFilePath] = useState<string | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const pausedAtRef = useRef<number | null>(null);
+  const pausedDurationRef = useRef<number>(0);
+  const intervalRef = useRef<number | null>(null);
+
+  const persistRecordings = useCallback((entries: RecordingEntry[]) => {
+    setRecordings(entries);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  }, []);
+
+  const updateRecordings = useCallback((updater: (entries: RecordingEntry[]) => RecordingEntry[]) => {
+    setRecordings((prev) => {
+      const next = updater(prev);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    try {
+      const parsed = JSON.parse(raw) as RecordingEntry[];
+      setRecordings(parsed);
+    } catch {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+  }, []);
+
+  const clearIntervalTimer = () => {
+    if (intervalRef.current !== null) {
+      window.clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+  };
+
+  const startIntervalTimer = () => {
+    clearIntervalTimer();
+    intervalRef.current = window.setInterval(() => {
+      if (!startTimeRef.current) {
+        return;
+      }
+      setElapsedMs(Date.now() - startTimeRef.current - pausedDurationRef.current);
+    }, 500);
+  };
+
+  useEffect(() => {
+    return () => {
+      clearIntervalTimer();
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+    };
+  }, []);
+
+  const isRecording = status === "recording";
+  const isPaused = status === "paused";
 
   const startRecording = async () => {
     setError(null);
@@ -83,6 +182,22 @@ export const Gravador = () => {
       setError(err instanceof Error ? err.message : "Não foi possível iniciar a gravação.");
       streamRef.current?.getTracks().forEach((track) => track.stop());
       streamRef.current = null;
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      streamRef.current = stream;
+      const startInfo = await recorderService.start({ stream });
+      const now = new Date();
+      const defaultName = `Gravação ${now.toLocaleString("pt-BR")}`;
+      setCurrentRecordingId(startInfo.recordingId);
+      setCurrentFilePath(startInfo.filePath);
+      setCurrentName(defaultName);
+      startTimeRef.current = Date.now();
+      pausedDurationRef.current = 0;
+      pausedAtRef.current = null;
+      setElapsedMs(0);
+      setStatus("recording");
+      startIntervalTimer();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao iniciar gravação.");
     }
   };
 
@@ -307,6 +422,283 @@ export const Gravador = () => {
                             border: "none",
                             background: "#22C55E",
                             color: "#0B1220",
+    if (!isRecording) return;
+    recorderService.pause();
+    pausedAtRef.current = Date.now();
+    setStatus("paused");
+    clearIntervalTimer();
+  };
+
+  const resumeRecording = () => {
+    if (!isPaused) return;
+    recorderService.resume();
+    if (pausedAtRef.current) {
+      pausedDurationRef.current += Date.now() - pausedAtRef.current;
+    }
+    pausedAtRef.current = null;
+    setStatus("recording");
+    startIntervalTimer();
+  };
+
+  const stopRecording = async () => {
+    clearIntervalTimer();
+    try {
+      const result = await recorderService.stop();
+      if (!result) {
+        return;
+      }
+      const durationMs = elapsedMs;
+      const entry: RecordingEntry = {
+        id: currentRecordingId ?? result.recordingId,
+        name: currentName || `Gravação ${formatDate(new Date().toISOString())}`,
+        filePath: result.filePath ?? currentFilePath ?? "",
+        durationMs,
+        createdAt: new Date().toISOString(),
+      };
+      updateRecordings((prev) => [entry, ...prev]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao encerrar gravação.");
+    } finally {
+      streamRef.current?.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+      setStatus("idle");
+      setCurrentRecordingId(null);
+      setCurrentFilePath(null);
+      setCurrentName("");
+      setElapsedMs(0);
+    }
+  };
+
+  const deleteRecording = async (entry: RecordingEntry) => {
+    try {
+      await window.ethos?.audio.deleteRecording({ filePath: entry.filePath });
+      updateRecordings((prev) => prev.filter((item) => item.id !== entry.id));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao excluir gravação.");
+    }
+  };
+
+  const openRecording = async (entry: RecordingEntry) => {
+    try {
+      await window.ethos?.audio.openRecording({ filePath: entry.filePath });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao abrir gravação.");
+    }
+  };
+
+  const showRecording = async (entry: RecordingEntry) => {
+    try {
+      await window.ethos?.audio.showRecording({ filePath: entry.filePath });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao abrir pasta.");
+    }
+  };
+
+  const exportRecording = async (entry: RecordingEntry) => {
+    try {
+      await window.ethos?.audio.exportRecording({
+        filePath: entry.filePath,
+        defaultName: `${entry.name}.${getFileExtension(entry.filePath)}`,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Falha ao exportar gravação.");
+    }
+  };
+
+  const startEditing = (entry: RecordingEntry) => {
+    setEditingId(entry.id);
+    setEditingName(entry.name);
+  };
+
+  const saveEditing = () => {
+    if (!editingId) {
+      return;
+    }
+    const updated = recordings.map((entry) =>
+      entry.id === editingId ? { ...entry, name: editingName.trim() || entry.name } : entry
+    );
+    persistRecordings(updated);
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setEditingName("");
+  };
+
+  const currentDuration = useMemo(() => formatDuration(elapsedMs), [elapsedMs]);
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 24 }}>
+      <header>
+        <h2 style={{ margin: 0, fontSize: 24 }}>Gravador</h2>
+        <p style={{ margin: "8px 0 0", color: "#94A3B8" }}>
+          Grave sessões de áudio e gerencie seus arquivos localmente.
+        </p>
+      </header>
+
+      <section
+        style={{
+          background: "#111827",
+          borderRadius: 16,
+          padding: 24,
+          display: "grid",
+          gap: 16,
+        }}
+      >
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div>
+            <h3 style={{ margin: 0, fontSize: 18 }}>Controles de gravação</h3>
+            <p style={{ margin: "6px 0 0", color: "#94A3B8" }}>
+              Status:{" "}
+              <strong style={{ color: isRecording ? "#38BDF8" : isPaused ? "#FBBF24" : "#E2E8F0" }}>
+                {status === "recording" ? "Gravando" : status === "paused" ? "Pausado" : "Parado"}
+              </strong>
+            </p>
+          </div>
+          <div style={{ textAlign: "right" }}>
+            <p style={{ margin: 0, fontSize: 28, fontWeight: 600 }}>{currentDuration}</p>
+            <span style={{ color: "#94A3B8", fontSize: 12 }}>Duração atual</span>
+          </div>
+        </div>
+
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+          <button
+            type="button"
+            onClick={startRecording}
+            disabled={status !== "idle"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: status === "idle" ? "#2563EB" : "#1E293B",
+              color: "#F8FAFC",
+              cursor: status === "idle" ? "pointer" : "not-allowed",
+            }}
+          >
+            Iniciar
+          </button>
+          <button
+            type="button"
+            onClick={pauseRecording}
+            disabled={!isRecording}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: isRecording ? "#F59E0B" : "#1E293B",
+              color: "#F8FAFC",
+              cursor: isRecording ? "pointer" : "not-allowed",
+            }}
+          >
+            Pausar
+          </button>
+          <button
+            type="button"
+            onClick={resumeRecording}
+            disabled={!isPaused}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: isPaused ? "#22C55E" : "#1E293B",
+              color: "#F8FAFC",
+              cursor: isPaused ? "pointer" : "not-allowed",
+            }}
+          >
+            Retomar
+          </button>
+          <button
+            type="button"
+            onClick={stopRecording}
+            disabled={status === "idle"}
+            style={{
+              padding: "10px 16px",
+              borderRadius: 10,
+              border: "none",
+              background: status !== "idle" ? "#EF4444" : "#1E293B",
+              color: "#F8FAFC",
+              cursor: status !== "idle" ? "pointer" : "not-allowed",
+            }}
+          >
+            Parar
+          </button>
+        </div>
+
+        <label style={{ display: "grid", gap: 6 }}>
+          <span style={{ color: "#94A3B8", fontSize: 12 }}>Nome da gravação</span>
+          <input
+            value={currentName}
+            onChange={(event) => setCurrentName(event.target.value)}
+            placeholder="Ex.: Sessão com João"
+            style={{
+              padding: "10px 12px",
+              borderRadius: 10,
+              border: "1px solid #334155",
+              background: "#0B1220",
+              color: "#E2E8F0",
+            }}
+          />
+        </label>
+
+        {error ? <p style={{ margin: 0, color: "#FCA5A5" }}>{error}</p> : null}
+      </section>
+
+      <section style={{ display: "grid", gap: 16 }}>
+        <h3 style={{ margin: 0, fontSize: 18 }}>Gravações salvas</h3>
+        {recordings.length === 0 ? (
+          <div style={{ padding: 24, background: "#0B1220", borderRadius: 16, color: "#94A3B8" }}>
+            Nenhuma gravação ainda. Inicie uma gravação para vê-la aqui.
+          </div>
+        ) : (
+          <div style={{ display: "grid", gap: 16 }}>
+            {recordings.map((entry) => (
+              <div
+                key={entry.id}
+                style={{
+                  background: "#111827",
+                  borderRadius: 16,
+                  padding: 20,
+                  display: "grid",
+                  gap: 12,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                  <div>
+                    {editingId === entry.id ? (
+                      <input
+                        value={editingName}
+                        onChange={(event) => setEditingName(event.target.value)}
+                        style={{
+                          padding: "8px 12px",
+                          borderRadius: 8,
+                          border: "1px solid #334155",
+                          background: "#0B1220",
+                          color: "#E2E8F0",
+                          width: "100%",
+                        }}
+                      />
+                    ) : (
+                      <h4 style={{ margin: 0, fontSize: 16 }}>{entry.name}</h4>
+                    )}
+                    <p style={{ margin: "6px 0 0", color: "#94A3B8", fontSize: 12 }}>
+                      {formatDate(entry.createdAt)} • {formatDuration(entry.durationMs)}
+                    </p>
+                    <p style={{ margin: "6px 0 0", color: "#64748B", fontSize: 11 }}>{entry.filePath}</p>
+                  </div>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    {editingId === entry.id ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={saveEditing}
+                          style={{
+                            padding: "6px 12px",
+                            borderRadius: 8,
+                            border: "none",
+                            background: "#22C55E",
+                            color: "#0F172A",
                             cursor: "pointer",
                           }}
                         >
@@ -318,6 +710,11 @@ export const Gravador = () => {
                           onClick={() => handleRename(recording)}
                           style={{
                             padding: "6px 10px",
+                        <button
+                          type="button"
+                          onClick={cancelEditing}
+                          style={{
+                            padding: "6px 12px",
                             borderRadius: 8,
                             border: "none",
                             background: "#334155",
@@ -336,6 +733,18 @@ export const Gravador = () => {
                           borderRadius: 8,
                           border: "none",
                           background: "#1D4ED8",
+                          Cancelar
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => startEditing(entry)}
+                        style={{
+                          padding: "6px 12px",
+                          borderRadius: 8,
+                          border: "none",
+                          background: "#334155",
                           color: "#E2E8F0",
                           cursor: "pointer",
                         }}
@@ -378,6 +787,74 @@ export const Gravador = () => {
                 </div>
               );
             })}
+                        Renomear
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => deleteRecording(entry)}
+                      style={{
+                        padding: "6px 12px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "#991B1B",
+                        color: "#F8FAFC",
+                        cursor: "pointer",
+                      }}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                </div>
+
+                <audio controls style={{ width: "100%" }} src={toFileUrl(entry.filePath)} />
+
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                  <button
+                    type="button"
+                    onClick={() => openRecording(entry)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "#1D4ED8",
+                      color: "#F8FAFC",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Abrir
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => showRecording(entry)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "#475569",
+                      color: "#F8FAFC",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Mostrar na pasta
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => exportRecording(entry)}
+                    style={{
+                      padding: "6px 12px",
+                      borderRadius: 8,
+                      border: "none",
+                      background: "#0EA5E9",
+                      color: "#0F172A",
+                      cursor: "pointer",
+                    }}
+                  >
+                    Exportar
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </section>
