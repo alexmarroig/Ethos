@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { exportClinicalNote } from "../services/exportService";
 import {
   type AdminOverviewMetrics,
   type AdminUser,
@@ -6,6 +7,9 @@ import {
   fetchAdminUsers,
   loginControlPlane,
 } from "../services/controlPlaneAdmin";
+
+type NoteStatus = "draft" | "validated";
+type Role = "admin" | "user" | "unknown";
 
 const sectionStyle: React.CSSProperties = {
   borderRadius: 16,
@@ -33,59 +37,187 @@ const inputStyle: React.CSSProperties = {
   width: "100%",
 };
 
+const subtleText: React.CSSProperties = { color: "#94A3B8" };
+
+const clamp = (s: string, max = 160) => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
+
+const safeNowPtBr = () => new Date().toLocaleString("pt-BR");
+
+const isLikelyForbidden = (msg: string) => msg.toLowerCase().includes("forbidden") || msg.toLowerCase().includes("403");
+const isLikelyUnauthorized = (msg: string) =>
+  msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("401") || msg.toLowerCase().includes("token");
+
 export const App = () => {
+  // =========================
+  // Clinical note state
+  // =========================
   const [consent, setConsent] = useState(false);
   const [draft, setDraft] = useState(
     "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
   );
-  const [status, setStatus] = useState("draft");
+  const [status, setStatus] = useState<NoteStatus>("draft");
+  const [validatedAt, setValidatedAt] = useState<string | null>(null);
+  const [showEthicsModal, setShowEthicsModal] = useState(false);
+
+  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
+  const [exportingFormat, setExportingFormat] = useState<"pdf" | "docx" | null>(null);
+
+  const isValidated = status === "validated";
+  const canValidate = consent && !isValidated;
+  const canExport = isValidated && exportingFormat === null;
+
+  const handleValidate = () => setShowEthicsModal(true);
+
+  const confirmValidation = () => {
+    const now = safeNowPtBr();
+    setStatus("validated");
+    setValidatedAt(now);
+    setShowEthicsModal(false);
+  };
+
+  const handleExport = async (format: "pdf" | "docx") => {
+    if (!canExport) return;
+    setExportingFormat(format);
+    setExportFeedback(null);
+    try {
+      const fileName = await exportClinicalNote(
+        {
+          patientName: "Marina Alves",
+          clinicianName: "Dra. Ana Souza",
+          sessionDate: "15/02/2025",
+          status,
+          noteText: draft,
+          validatedAt: validatedAt ?? undefined,
+        },
+        format
+      );
+      setExportFeedback(`Arquivo gerado: ${fileName}`);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Falha ao exportar.";
+      setExportFeedback(`Erro: ${message}`);
+    } finally {
+      setExportingFormat(null);
+    }
+  };
+
+  // =========================
+  // Control Plane (Admin) state
+  // =========================
   const defaultControlPlaneUrl = "http://localhost:8788";
-  const [adminBaseUrl, setAdminBaseUrl] = useState(
-    () => localStorage.getItem("ethos-control-plane-url") ?? defaultControlPlaneUrl
-  );
-  const [adminEmail, setAdminEmail] = useState(
-    () => localStorage.getItem("ethos-admin-email") ?? "camila@ethos.local"
-  );
+
+  const [adminBaseUrl, setAdminBaseUrl] = useState(() => {
+    try {
+      return localStorage.getItem("ethos-control-plane-url") ?? defaultControlPlaneUrl;
+    } catch {
+      return defaultControlPlaneUrl;
+    }
+  });
+
+  const [adminEmail, setAdminEmail] = useState(() => {
+    try {
+      return localStorage.getItem("ethos-admin-email") ?? "camila@ethos.local";
+    } catch {
+      return "camila@ethos.local";
+    }
+  });
+
   const [adminPassword, setAdminPassword] = useState("");
-  const [adminToken, setAdminToken] = useState(() => localStorage.getItem("ethos-admin-token") ?? "");
-  const [adminRole, setAdminRole] = useState<"admin" | "user" | "unknown">(
-    () => (localStorage.getItem("ethos-admin-role") as "admin" | "user" | "unknown") ?? "unknown"
-  );
+
+  // IMPORTANT: token persistence is a tradeoff. We keep it, but with explicit "remember me".
+  const [rememberSession, setRememberSession] = useState(() => {
+    try {
+      return (localStorage.getItem("ethos-admin-remember") ?? "0") === "1";
+    } catch {
+      return false;
+    }
+  });
+
+  const [adminToken, setAdminToken] = useState(() => {
+    try {
+      return localStorage.getItem("ethos-admin-token") ?? "";
+    } catch {
+      return "";
+    }
+  });
+
+  const [adminRole, setAdminRole] = useState<Role>(() => {
+    try {
+      return (localStorage.getItem("ethos-admin-role") as Role) ?? "unknown";
+    } catch {
+      return "unknown";
+    }
+  });
+
   const [adminMetrics, setAdminMetrics] = useState<AdminOverviewMetrics | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminError, setAdminError] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
+  const [adminLastSync, setAdminLastSync] = useState<string | null>(null);
+
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
-  const adminStatusLabel = useMemo(() => {
-    if (!hasAdminToken) return "Sem sessão ativa.";
-    if (adminLoading) return "Sincronizando dados administrativos…";
-    if (isAdmin) return "Acesso administrativo confirmado.";
-    if (adminRole === "user") return "Sessão válida sem permissão admin.";
-    return "Sessão precisa de validação.";
-  }, [adminLoading, adminRole, hasAdminToken, isAdmin]);
 
+  // Persist preferences
   useEffect(() => {
-    localStorage.setItem("ethos-control-plane-url", adminBaseUrl);
+    try {
+      localStorage.setItem("ethos-control-plane-url", adminBaseUrl);
+    } catch {
+      // ignore
+    }
   }, [adminBaseUrl]);
 
   useEffect(() => {
-    localStorage.setItem("ethos-admin-email", adminEmail);
+    try {
+      localStorage.setItem("ethos-admin-email", adminEmail);
+    } catch {
+      // ignore
+    }
   }, [adminEmail]);
 
   useEffect(() => {
-    if (adminToken) {
-      localStorage.setItem("ethos-admin-token", adminToken);
-    } else {
-      localStorage.removeItem("ethos-admin-token");
+    try {
+      localStorage.setItem("ethos-admin-remember", rememberSession ? "1" : "0");
+    } catch {
+      // ignore
     }
-  }, [adminToken]);
+  }, [rememberSession]);
 
   useEffect(() => {
-    localStorage.setItem("ethos-admin-role", adminRole);
-  }, [adminRole]);
+    try {
+      if (!rememberSession) {
+        // If not remembering, keep token only in memory
+        localStorage.removeItem("ethos-admin-token");
+        localStorage.removeItem("ethos-admin-role");
+        return;
+      }
+      if (adminToken) localStorage.setItem("ethos-admin-token", adminToken);
+      else localStorage.removeItem("ethos-admin-token");
+    } catch {
+      // ignore
+    }
+  }, [adminToken, rememberSession]);
 
-  const refreshAdminData = async () => {
+  useEffect(() => {
+    try {
+      if (!rememberSession) {
+        localStorage.removeItem("ethos-admin-role");
+        return;
+      }
+      localStorage.setItem("ethos-admin-role", adminRole);
+    } catch {
+      // ignore
+    }
+  }, [adminRole, rememberSession]);
+
+  const adminStatusLabel = useMemo(() => {
+    if (!hasAdminToken) return "Sem sessão ativa.";
+    if (adminLoading) return "Sincronizando dados administrativos…";
+    if (isAdmin) return `Acesso administrativo confirmado.${adminLastSync ? ` Última sync: ${adminLastSync}` : ""}`;
+    if (adminRole === "user") return "Sessão válida, mas sem permissão admin.";
+    return "Sessão ativa, aguardando validação.";
+  }, [adminLastSync, adminLoading, adminRole, hasAdminToken, isAdmin]);
+
+  const refreshAdminData = useCallback(async () => {
     if (!adminToken) return;
     setAdminLoading(true);
     setAdminError("");
@@ -96,24 +228,29 @@ export const App = () => {
       ]);
       setAdminMetrics(overview);
       setAdminUsers(users);
+      // Prefer to trust backend role if your login returns it; for refresh, we infer admin if calls succeed
       setAdminRole("admin");
+      setAdminLastSync(safeNowPtBr());
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha ao acessar admin.";
       setAdminError(message);
       setAdminMetrics(null);
       setAdminUsers([]);
-      if (message.toLowerCase().includes("forbidden")) {
-        setAdminRole("user");
+      if (isLikelyForbidden(message)) setAdminRole("user");
+      if (isLikelyUnauthorized(message)) {
+        setAdminRole("unknown");
+        // Token likely expired/invalid
+        setAdminToken("");
       }
     } finally {
       setAdminLoading(false);
     }
-  };
+  }, [adminBaseUrl, adminToken]);
 
   useEffect(() => {
     if (!adminToken) return;
     void refreshAdminData();
-  }, [adminBaseUrl, adminToken]);
+  }, [adminBaseUrl, adminToken, refreshAdminData]);
 
   const handleAdminLogin = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -122,12 +259,21 @@ export const App = () => {
     try {
       const response = await loginControlPlane(adminBaseUrl, adminEmail, adminPassword);
       setAdminToken(response.token);
-      setAdminRole(response.user.role);
+      setAdminRole((response.user?.role as Role) ?? "unknown");
       setAdminPassword("");
+      setAdminLastSync(safeNowPtBr());
+      // Pull data right after login
+      // If role isn't admin, refresh might fail with forbidden (handled)
+      // Avoid awaiting to keep UI snappy; but here awaiting is fine
+      await Promise.allSettled([
+        fetchAdminOverview(adminBaseUrl, response.token).then(setAdminMetrics),
+        fetchAdminUsers(adminBaseUrl, response.token).then(setAdminUsers),
+      ]);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Falha no login.";
       setAdminError(message);
       setAdminRole("unknown");
+      setAdminToken("");
     } finally {
       setAdminLoading(false);
     }
@@ -138,13 +284,25 @@ export const App = () => {
     setAdminRole("unknown");
     setAdminMetrics(null);
     setAdminUsers([]);
+    setAdminError("");
+    setAdminLastSync(null);
+    // also drop persisted token if any
+    try {
+      localStorage.removeItem("ethos-admin-token");
+      localStorage.removeItem("ethos-admin-role");
+    } catch {
+      // ignore
+    }
   };
 
+  // =========================
+  // Render
+  // =========================
   return (
     <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ color: "#F8FAFC", fontSize: 28, marginBottom: 4 }}>ETHOS — Agenda Clínica</h1>
-        <p style={{ color: "#94A3B8" }}>Fluxo offline com prontuário rascunho e validação explícita.</p>
+        <p style={subtleText}>Fluxo offline com prontuário rascunho e validação explícita + control plane admin.</p>
       </header>
 
       <section style={sectionStyle}>
@@ -161,49 +319,167 @@ export const App = () => {
           <button style={{ ...buttonStyle, background: "#475569" }}>Gravar áudio</button>
         </div>
         <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
-          <input
-            type="checkbox"
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
-          />{" "}
-          Tenho consentimento do paciente
+          <input type="checkbox" checked={consent} onChange={(event) => setConsent(event.target.checked)} /> Tenho
+          consentimento do paciente
         </label>
-        <p style={{ color: "#94A3B8", marginTop: 8 }}>
-          Status da transcrição: aguardando envio para o worker local.
-        </p>
+        <p style={{ ...subtleText, marginTop: 8 }}>Status da transcrição: aguardando envio para o worker local.</p>
       </section>
 
       <section style={sectionStyle}>
         <h2>Prontuário automático</h2>
-        <p style={{ color: "#FBBF24", fontWeight: 600 }}>Status: {status === "draft" ? "Rascunho" : "Validado"}</p>
+
+        <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
+          <span
+            style={{
+              padding: "4px 10px",
+              borderRadius: 999,
+              background: status === "draft" ? "#FBBF24" : "#22C55E",
+              color: "#0F172A",
+              fontWeight: 700,
+              fontSize: 12,
+            }}
+          >
+            {status === "draft" ? "Rascunho" : "Validado"}
+          </span>
+          <span style={{ ...subtleText, fontSize: 14 }}>
+            {isValidated
+              ? `Bloqueado para edição · ${validatedAt ?? "Validado"}`
+              : "Edição liberada até validação ética."}
+          </span>
+        </div>
+
+        {isValidated && (
+          <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
+            Prontuário validado e congelado para assegurar integridade clínica.
+          </p>
+        )}
+
         <textarea
           value={draft}
-          onChange={(event) => setDraft(event.target.value)}
-          style={{ width: "100%", minHeight: 140, marginTop: 12, borderRadius: 12, padding: 12 }}
+          onChange={(event) => {
+            if (!isValidated) setDraft(event.target.value);
+          }}
+          readOnly={isValidated}
+          style={{
+            width: "100%",
+            minHeight: 140,
+            marginTop: 12,
+            borderRadius: 12,
+            padding: 12,
+            background: isValidated ? "#1E293B" : "#F8FAFC",
+            color: isValidated ? "#E2E8F0" : "#0F172A",
+          }}
         />
-        <div style={{ display: "flex", gap: 12, marginTop: 12 }}>
-          <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={() => setStatus("validated")}>
+
+        <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+          <button
+            style={{
+              ...buttonStyle,
+              background: canValidate ? "#22C55E" : "#334155",
+              cursor: canValidate ? "pointer" : "not-allowed",
+            }}
+            onClick={handleValidate}
+            disabled={!canValidate}
+          >
             Validar prontuário
           </button>
-          <button style={{ ...buttonStyle, background: "#6366F1" }}>Exportar DOCX</button>
-          <button style={{ ...buttonStyle, background: "#6366F1" }}>Exportar PDF</button>
+
+          <button
+            style={{
+              ...buttonStyle,
+              background: canExport ? "#6366F1" : "#334155",
+              cursor: canExport ? "pointer" : "not-allowed",
+            }}
+            onClick={() => handleExport("docx")}
+            disabled={!canExport}
+          >
+            {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
+          </button>
+
+          <button
+            style={{
+              ...buttonStyle,
+              background: canExport ? "#6366F1" : "#334155",
+              cursor: canExport ? "pointer" : "not-allowed",
+            }}
+            onClick={() => handleExport("pdf")}
+            disabled={!canExport}
+          >
+            {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
+          </button>
         </div>
+
+        {!consent && (
+          <p style={{ color: "#FCA5A5", marginTop: 8 }}>
+            É necessário confirmar o consentimento do paciente para validar o prontuário.
+          </p>
+        )}
+
+        {exportFeedback && (
+          <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
+            {exportFeedback}
+          </p>
+        )}
       </section>
+
+      {showEthicsModal && (
+        <div
+          style={{
+            position: "fixed",
+            inset: 0,
+            background: "rgba(15, 23, 42, 0.8)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 24,
+            zIndex: 10,
+          }}
+        >
+          <div
+            style={{
+              background: "#111827",
+              borderRadius: 16,
+              padding: 24,
+              maxWidth: 520,
+              width: "100%",
+              color: "#F8FAFC",
+              boxShadow: "0 25px 50px rgba(0, 0, 0, 0.35)",
+            }}
+          >
+            <h3 style={{ marginTop: 0 }}>Confirmação ética</h3>
+            <p style={{ color: "#CBD5F5" }}>
+              Antes de validar, confirme que o registro está fiel ao relato do paciente, sem interpretações clínicas,
+              que o consentimento foi obtido e que você está ciente do bloqueio permanente após a validação.
+            </p>
+            <div style={{ display: "flex", gap: 12, marginTop: 20, flexWrap: "wrap" }}>
+              <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={confirmValidation}>
+                Confirmar e validar
+              </button>
+              <button style={{ ...buttonStyle, background: "#475569" }} onClick={() => setShowEthicsModal(false)}>
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section style={sectionStyle}>
         <h2>Admin — Control Plane</h2>
-        <p style={{ color: "#94A3B8", marginBottom: 12 }}>
-          Painel restrito à role=admin, com métricas agregadas e lista de usuários sem conteúdo clínico.
+        <p style={{ ...subtleText, marginBottom: 12 }}>
+          Painel restrito à role=admin, com métricas agregadas e lista de usuários sanitizada (sem conteúdo clínico).
         </p>
+
         <form onSubmit={handleAdminLogin} style={{ display: "grid", gap: 12, marginBottom: 16 }}>
           <div style={{ display: "grid", gap: 8 }}>
             <label style={{ color: "#E2E8F0" }}>URL do control plane</label>
             <input value={adminBaseUrl} onChange={(event) => setAdminBaseUrl(event.target.value)} style={inputStyle} />
           </div>
+
           <div style={{ display: "grid", gap: 8 }}>
             <label style={{ color: "#E2E8F0" }}>Email</label>
             <input value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} style={inputStyle} />
           </div>
+
           <div style={{ display: "grid", gap: 8 }}>
             <label style={{ color: "#E2E8F0" }}>Senha</label>
             <input
@@ -211,78 +487,44 @@ export const App = () => {
               value={adminPassword}
               onChange={(event) => setAdminPassword(event.target.value)}
               style={inputStyle}
+              autoComplete="current-password"
             />
           </div>
-          <div style={{ display: "flex", gap: 12 }}>
+
+          <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0" }}>
+            <input
+              type="checkbox"
+              checked={rememberSession}
+              onChange={(e) => setRememberSession(e.target.checked)}
+            />
+            Lembrar sessão neste dispositivo (salva token localmente)
+          </label>
+
+          <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
             <button style={{ ...buttonStyle, background: "#22C55E" }} disabled={adminLoading}>
               Entrar como admin
             </button>
             <button type="button" style={{ ...buttonStyle, background: "#475569" }} onClick={handleAdminLogout}>
               Encerrar sessão
             </button>
-            <button type="button" style={{ ...buttonStyle, background: "#6366F1" }} onClick={refreshAdminData}>
-              Atualizar dados
+            <button
+              type="button"
+              style={{ ...buttonStyle, background: hasAdminToken ? "#6366F1" : "#334155", cursor: hasAdminToken ? "pointer" : "not-allowed" }}
+              onClick={() => void refreshAdminData()}
+              disabled={!hasAdminToken || adminLoading}
+              title={!hasAdminToken ? "Faça login primeiro" : "Atualizar"}
+            >
+              {adminLoading ? "Atualizando..." : "Atualizar dados"}
             </button>
           </div>
         </form>
+
         <p style={{ color: "#CBD5F5", marginBottom: 8 }}>{adminStatusLabel}</p>
-        {adminError ? (
-          <p style={{ color: "#FCA5A5" }}>{adminError}</p>
-        ) : null}
+
+        {adminError ? <p style={{ color: "#FCA5A5" }}>{clamp(adminError, 240)}</p> : null}
+
         {isAdmin ? (
           <div style={{ display: "grid", gap: 16 }}>
             <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
               <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, minWidth: 180 }}>
-                <p style={{ color: "#94A3B8", marginBottom: 6 }}>Usuários ativos</p>
-                <p style={{ fontSize: 24, fontWeight: 700 }}>{adminMetrics?.users_total ?? "--"}</p>
-              </div>
-              <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, minWidth: 180 }}>
-                <p style={{ color: "#94A3B8", marginBottom: 6 }}>Eventos de telemetria</p>
-                <p style={{ fontSize: 24, fontWeight: 700 }}>{adminMetrics?.telemetry_total ?? "--"}</p>
-              </div>
-            </div>
-            <div>
-              <h3 style={{ marginBottom: 8 }}>Usuários (sanitizado)</h3>
-              <div style={{ display: "grid", gap: 8 }}>
-                {adminUsers.length === 0 ? (
-                  <p style={{ color: "#94A3B8" }}>Nenhum usuário encontrado.</p>
-                ) : (
-                  adminUsers.map((user) => (
-                    <div
-                      key={user.id}
-                      style={{
-                        display: "grid",
-                        gridTemplateColumns: "1.5fr 1fr 1fr",
-                        gap: 12,
-                        padding: 12,
-                        background: "#0B1120",
-                        borderRadius: 12,
-                      }}
-                    >
-                      <div>
-                        <p style={{ color: "#E2E8F0", marginBottom: 2 }}>{user.email}</p>
-                        <p style={{ color: "#94A3B8", fontSize: 12 }}>ID: {user.id}</p>
-                      </div>
-                      <div>
-                        <p style={{ color: "#94A3B8", fontSize: 12 }}>Role</p>
-                        <p style={{ color: "#E2E8F0" }}>{user.role}</p>
-                      </div>
-                      <div>
-                        <p style={{ color: "#94A3B8", fontSize: 12 }}>Status</p>
-                        <p style={{ color: "#E2E8F0" }}>{user.status}</p>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        ) : (
-          <div style={{ marginTop: 16, padding: 12, borderRadius: 12, background: "#1F2937", color: "#FBBF24" }}>
-            Acesso restrito: role=admin necessária para visualizar métricas e usuários.
-          </div>
-        )}
-      </section>
-    </div>
-  );
-};
+                <p style={subtleText}
