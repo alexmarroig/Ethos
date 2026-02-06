@@ -14,6 +14,7 @@
     "dev:control-plane": "npm --workspace apps/ethos-control-plane run dev",
     "dev:backend": "npm --workspace apps/ethos-backend run dev",
     "dev:mobile": "npm --workspace apps/ethos-mobile run dev",
+    "dev:patient": "npm --workspace apps/ethos-patient run dev",
     "test": "npm --workspace apps/ethos-backend run test && npm --workspace apps/ethos-control-plane run test"
   }
 }

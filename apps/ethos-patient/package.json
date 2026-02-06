@@ -1,6 +1,13 @@
 {
   "name": "ethos-patient",
   "version": "0.1.0",
+  "main": "src/index.ts",
+  "scripts": {
+    "dev": "echo 'patient app placeholder: web/mobile/desktop shell'",
+    "build": "echo 'patient build placeholder'"
+  },
+  "dependencies": {
+    "@ethos/sdk": "*"
   "private": true,
   "scripts": {
     "dev": "python -m http.server 5173 --directory .",

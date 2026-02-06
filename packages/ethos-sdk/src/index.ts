@@ -41,3 +41,26 @@ export class EthosClinicalPlaneClient {
   getJob(jobId: string) { return this.req(`/jobs/${jobId}`); }
   syncEntitlements(snapshot: unknown) { return this.req("/local/entitlements/sync", "POST", { snapshot }); }
 }
+
+export class EthosPatientClient {
+  constructor(private readonly baseUrl: string, private readonly fetcher: Fetcher = fetch, private token?: string) {}
+  setToken(token: string) { this.token = token; }
+  private async req(path: string, method = "GET", body?: unknown) {
+    const res = await this.fetcher(`${this.baseUrl}${path}`, {
+      method,
+      headers: {
+        "content-type": "application/json",
+        ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+    });
+    return res.json() as Promise<any>;
+  }
+  login(email: string, password: string) { return this.req("/auth/login", "POST", { email, password }); }
+  permissions() { return this.req("/patient/permissions"); }
+  listSessions() { return this.req("/patient/sessions"); }
+  confirmSession(sessionId: string) { return this.req(`/patient/sessions/${sessionId}/confirm`, "POST"); }
+  recordScale(scale_id: string, score: number) { return this.req("/patient/scales/record", "POST", { scale_id, score }); }
+  diaryEntry(content: string) { return this.req("/patient/diary/entries", "POST", { content }); }
+  sendMessage(message: string) { return this.req("/patient/messages", "POST", { message }); }
+}

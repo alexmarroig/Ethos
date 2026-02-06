@@ -25,6 +25,10 @@ import type {
   JobType,
   LocalEntitlementSnapshot,
   ObservabilityAlert,
+  PatientAccess,
+  PatientAsyncMessage,
+  PatientDiaryEntry,
+  PatientPermission,
   Patient,
   PrivateComment,
   RetentionPolicy,
@@ -42,6 +46,13 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+const PATIENT_MESSAGE_DISCLAIMER = "Aviso: mensagem assíncrona não substitui sessão.";
+const DEFAULT_PATIENT_PERMISSIONS: PatientPermission = {
+  scales: true,
+  diary: true,
+  session_confirmation: true,
+  async_messages_per_day: 3,
+};
 const PORTAL_TOKEN_BYTES = 18;
 const DEFAULT_CASE_HISTORY_POLICY: CaseHistoryPolicy = {
   window_days: 365,
@@ -248,6 +259,125 @@ export const login = (email: string, password: string) => {
   });
   user.last_seen_at = now();
   return { user, token };
+};
+
+const findUserByEmail = (email: string) =>
+  Array.from(db.users.values()).find((entry) => entry.email.toLowerCase() === email.toLowerCase()) ?? null;
+
+export const createPatientAccess = (
+  owner: string,
+  payload: {
+    patient_id: string;
+    patient_email: string;
+    patient_name: string;
+    patient_password?: string;
+    permissions?: Partial<PatientPermission>;
+  },
+) => {
+  const existingUser = findUserByEmail(payload.patient_email);
+  if (existingUser && existingUser.role !== "patient") {
+    return { error: "EMAIL_IN_USE" as const };
+  }
+
+  let patientUser = existingUser;
+  let temporaryPassword: string | undefined;
+  if (!patientUser) {
+    temporaryPassword = payload.patient_password ?? crypto.randomBytes(8).toString("hex");
+    patientUser = {
+      id: uid(),
+      email: payload.patient_email,
+      name: payload.patient_name,
+      password_hash: hashPassword(temporaryPassword),
+      role: "patient",
+      status: "active",
+      created_at: now(),
+    };
+    db.users.set(patientUser.id, patientUser);
+  }
+
+  const permissions: PatientPermission = { ...DEFAULT_PATIENT_PERMISSIONS, ...(payload.permissions ?? {}) };
+  const existingAccess = Array.from(db.patientAccess.values()).find(
+    (item) => item.owner_user_id === owner && item.patient_user_id === patientUser?.id && item.patient_id === payload.patient_id,
+  );
+
+  if (existingAccess) {
+    existingAccess.permissions = permissions;
+    return { access: existingAccess, patientUser, temporaryPassword };
+  }
+
+  const access: PatientAccess = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_user_id: patientUser.id,
+    patient_id: payload.patient_id,
+    permissions,
+    created_at: now(),
+  };
+  db.patientAccess.set(access.id, access);
+  return { access, patientUser, temporaryPassword };
+};
+
+export const getPatientAccessForUser = (patientUserId: string) =>
+  Array.from(db.patientAccess.values()).find((item) => item.patient_user_id === patientUserId) ?? null;
+
+export const listPatientSessions = (access: PatientAccess) =>
+  Array.from(db.sessions.values()).filter((item) => item.owner_user_id === access.owner_user_id && item.patient_id === access.patient_id);
+
+export const recordPatientScale = (access: PatientAccess, scaleId: string, score: number) => {
+  if (!access.permissions.scales) return { error: "PERMISSION_DENIED" as const };
+  const record = createScaleRecord(access.owner_user_id, scaleId, access.patient_id, score);
+  createPatientNote(access.owner_user_id, access.patient_id, `Paciente respondeu escala ${scaleId} (score ${score}).`);
+  return { record };
+};
+
+export const recordPatientDiaryEntry = (access: PatientAccess, content: string) => {
+  if (!access.permissions.diary) return { error: "PERMISSION_DENIED" as const };
+  const entry: PatientDiaryEntry = {
+    id: uid(),
+    owner_user_id: access.owner_user_id,
+    patient_id: access.patient_id,
+    patient_user_id: access.patient_user_id,
+    content,
+    created_at: now(),
+  };
+  db.patientDiary.set(entry.id, entry);
+  createPatientNote(access.owner_user_id, access.patient_id, `Diário do paciente: ${content}`);
+  return { entry };
+};
+
+export const confirmPatientSession = (access: PatientAccess, sessionId: string) => {
+  if (!access.permissions.session_confirmation) return { error: "PERMISSION_DENIED" as const };
+  const session = getByOwner(db.sessions, access.owner_user_id, sessionId);
+  if (!session || session.patient_id !== access.patient_id) return { error: "NOT_FOUND" as const };
+  session.status = "confirmed";
+  createPatientNote(access.owner_user_id, access.patient_id, `Paciente confirmou sessão ${session.scheduled_at}.`);
+  return { session };
+};
+
+const countMessagesInWindow = (patientUserId: string, windowMs: number) => {
+  const since = Date.now() - windowMs;
+  return Array.from(db.patientAsyncMessages.values()).filter(
+    (item) => item.patient_user_id === patientUserId && Date.parse(item.created_at) >= since,
+  ).length;
+};
+
+export const sendPatientAsyncMessage = (access: PatientAccess, message: string) => {
+  const limit = access.permissions.async_messages_per_day;
+  if (limit <= 0) return { error: "PERMISSION_DENIED" as const };
+  const used = countMessagesInWindow(access.patient_user_id, DAY_MS);
+  if (used >= limit) return { error: "LIMIT_REACHED" as const, limit };
+  const payload: PatientAsyncMessage = {
+    id: uid(),
+    owner_user_id: access.owner_user_id,
+    patient_id: access.patient_id,
+    patient_user_id: access.patient_user_id,
+    message,
+    disclaimer: PATIENT_MESSAGE_DISCLAIMER,
+    created_at: now(),
+  };
+  db.patientAsyncMessages.set(payload.id, payload);
+  createPatientNote(access.owner_user_id, access.patient_id, `Mensagem assíncrona do paciente: ${message} (${PATIENT_MESSAGE_DISCLAIMER})`);
+  return { payload, remaining: Math.max(0, limit - used - 1), disclaimer: PATIENT_MESSAGE_DISCLAIMER };
 };
 
 export const getUserFromToken = (token: string) => {
@@ -492,6 +622,8 @@ export const createClinicalNoteDraft = (owner: string, sessionId: string, conten
   return note;
 };
 
+const createPatientNote = (owner: string, patientId: string, content: string) =>
+  createClinicalNoteDraft(owner, patientId, content);
 export const createPrivateComment = (owner: string, noteId: string, content: string): PrivateComment | null => {
   const note = getByOwner(db.clinicalNotes, owner, noteId);
   if (!note) return null;
