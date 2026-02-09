@@ -28,7 +28,9 @@ export const sessionsService = {
 
   update: (id: string, updates: Partial<Session>): void => {
     const db = getDb();
-    const keys = Object.keys(updates);
+    const allowedKeys = ['status', 'scheduledAt', 'audioId', 'transcriptId', 'noteId'];
+    const keys = Object.keys(updates).filter(k => allowedKeys.includes(k));
+
     if (keys.length === 0) return;
 
     const setClause = keys.map(key => `${key} = @${key}`).join(', ');
