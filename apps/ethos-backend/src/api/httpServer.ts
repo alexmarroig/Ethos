@@ -801,6 +801,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
       const job = createJob(auth.user.id, "export_full");
       void runJob(job.id, {});
       return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+    }
     if (method === "POST" && url.pathname === "/export/case") {
       const body = await readJson(req);
       const patientId = String(body.patient_id ?? "");
@@ -842,6 +843,7 @@ export const createEthosBackend = () => createServer(async (req, res) => {
         export_days: typeof body.export_days === "number" ? body.export_days : undefined,
       });
       return ok(res, requestId, 200, updated);
+    }
     if (method === "POST" && url.pathname === "/cases/close") {
       const body = await readJson(req);
       const patientId = String(body.patient_id ?? "");
