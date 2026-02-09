@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { db, encrypt, hashInviteToken, hashPassword, seeds, uid, verifyPassword } from "../infra/database";
+import { db, hashInviteToken, hashPassword, seeds, uid, verifyPassword } from "../infra/database";
+import { encryptVaultAudioPath } from "../infra/vaultAudioCrypto";
 import {
   detectAnomalousBehavior,
   detectBottlenecks,
@@ -630,7 +631,7 @@ export const addAudio = (owner: string, sessionId: string, filePath: string) => 
     id: uid(),
     owner_user_id: owner,
     session_id: sessionId,
-    file_path_encrypted: encrypt(filePath),
+    file_path_encrypted: encryptVaultAudioPath(filePath),
     consent_confirmed: true as const,
     expires_at: new Date(Date.now() + 30 * DAY_MS).toISOString(),
     created_at: now(),
