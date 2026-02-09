@@ -234,6 +234,7 @@ export const App = () => {
   const [formTemplates, setFormTemplates] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [formTemplates, setFormTemplates] = useState<any[]>([]);
 
   const refreshData = useCallback(async () => {
     if (window.ethos?.patients) {
@@ -305,8 +306,34 @@ export const App = () => {
   }, []);
 
   useEffect(() => {
-    refreshData();
-  }, [refreshData]);
+    if (user) refreshData();
+  }, [refreshData, user]);
+
+  const loadNote = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      const note = await window.ethos.notes.getBySession(selectedSessionId);
+      if (note) {
+        setNoteId(note.id);
+        setDraft(note.editedText || note.generatedText || "");
+        setStatus(note.status);
+        setValidatedAt(note.validatedAt || null);
+      } else {
+        setNoteId(null);
+        setDraft("");
+        setStatus("draft");
+        setValidatedAt(null);
+      }
+    } else {
+      setNoteId(null);
+      setDraft("");
+      setStatus("draft");
+      setValidatedAt(null);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    loadNote();
+  }, [loadNote]);
 
   // =========================
   // Session context (proto)
@@ -1042,7 +1069,7 @@ export const App = () => {
                         <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
                         <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
                         <button
-                          style={{ ...outlineButtonStyle, marginTop: 8, fontSize: 12, padding: "4px 8px" }}
+                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
                           onClick={async () => {
                             if (window.ethos?.sessions) {
                               await window.ethos.sessions.create({
