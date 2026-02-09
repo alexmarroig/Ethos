@@ -4,6 +4,7 @@ import {
   Alert,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   TouchableOpacity,
@@ -26,6 +27,10 @@ import { storeEncryptedAudio } from "../storage/vaultStorage";
 import { loadTranscriptions, upsertTranscription } from "../storage/transcriptionsStorage";
 import { withDecryptedAudio } from "../services/audioCache";
 import { transcribeRecording, TranscriptionStatus } from "../services/transcriptionPipeline";
+import {
+  loadRecordingSettings,
+  saveRecordingSettings,
+} from "../storage/recordingSettings";
 
 const formatDuration = (durationMs: number) => {
   const totalSeconds = Math.floor(durationMs / 1000);
@@ -60,6 +65,7 @@ export const RecorderScreen = () => {
   const [transcriptionsByRecording, setTranscriptionsByRecording] = useState<Record<string, string>>(
     {}
   );
+  const [manualDeletionEnabled, setManualDeletionEnabled] = useState(false);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -125,6 +131,9 @@ export const RecorderScreen = () => {
       );
       await saveRecordings(migrated);
       setRecordings(migrated);
+      const settings = await loadRecordingSettings();
+      setRecordings(stored);
+      setManualDeletionEnabled(settings.manualDeletionEnabled);
       setIsLoading(false);
     };
     load();
@@ -243,7 +252,7 @@ export const RecorderScreen = () => {
     }
   };
 
-  const handleDelete = async (entry: RecordingEntry) => {
+  const performDelete = async (entry: RecordingEntry) => {
     try {
       if (entry.fileUri) {
         await FileSystem.deleteAsync(entry.fileUri, { idempotent: true });
@@ -255,6 +264,29 @@ export const RecorderScreen = () => {
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao excluir gravação.");
     }
+  };
+
+  const handleDelete = (entry: RecordingEntry) => {
+    if (!manualDeletionEnabled) {
+      Alert.alert(
+        "Exclusão manual desativada",
+        "Ative a exclusão manual nas configurações avançadas para remover áudios."
+      );
+      return;
+    }
+    Alert.alert(
+      "Excluir gravação",
+      "Tem certeza de que deseja excluir este áudio? Esta ação não apaga dados automaticamente do vault, apenas remove o arquivo selecionado.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Excluir", style: "destructive", onPress: () => performDelete(entry) },
+      ]
+    );
+  };
+
+  const handleToggleManualDeletion = async (value: boolean) => {
+    setManualDeletionEnabled(value);
+    await saveRecordingSettings({ manualDeletionEnabled: value });
   };
 
   const handleExport = async (entry: RecordingEntry) => {
@@ -476,6 +508,25 @@ export const RecorderScreen = () => {
         </Text>
       </View>
 
+      <View style={styles.settingsCard}>
+        <Text style={styles.sectionTitle}>Configurações avançadas</Text>
+        <View style={styles.settingRow}>
+          <View style={styles.settingText}>
+            <Text style={styles.settingLabel}>Permitir exclusão manual de áudios</Text>
+            <Text style={styles.settingDescription}>
+              Nenhuma rotina automática remove áudios do vault. A exclusão só ocorre quando
+              habilitada e confirmada pelo psicólogo.
+            </Text>
+          </View>
+          <Switch
+            value={manualDeletionEnabled}
+            onValueChange={handleToggleManualDeletion}
+            thumbColor={manualDeletionEnabled ? "#38BDF8" : "#94A3B8"}
+            trackColor={{ false: "#1F2937", true: "#0EA5E9" }}
+          />
+        </View>
+      </View>
+
       <View style={styles.listSection}>
         <Text style={styles.sectionTitle}>Gravações salvas</Text>
         {isLoading ? (
@@ -554,12 +605,18 @@ export const RecorderScreen = () => {
                 >
                   <Text style={styles.smallButtonText}>Exportar</Text>
                 </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.smallButton, styles.dangerButton]}
-                  onPress={() => handleDelete(entry)}
-                >
-                  <Text style={styles.smallButtonText}>Excluir</Text>
-                </TouchableOpacity>
+                {manualDeletionEnabled ? (
+                  <TouchableOpacity
+                    style={[styles.smallButton, styles.dangerButton]}
+                    onPress={() => handleDelete(entry)}
+                  >
+                    <Text style={styles.smallButtonText}>Excluir</Text>
+                  </TouchableOpacity>
+                ) : (
+                  <View style={styles.deletionDisabled}>
+                    <Text style={styles.deletionDisabledText}>Exclusão manual desativada</Text>
+                  </View>
+                )}
               </View>
               {transcriptionsByRecording[entry.id] ? (
                 <View style={styles.transcriptionCard}>
@@ -600,6 +657,30 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     gap: 16,
+  },
+  settingsCard: {
+    backgroundColor: "#111827",
+    padding: 20,
+    borderRadius: 16,
+    gap: 12,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingText: {
+    flex: 1,
+    gap: 6,
+  },
+  settingLabel: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  settingDescription: {
+    color: "#94A3B8",
+    fontSize: 12,
   },
   statusRow: {
     flexDirection: "row",
@@ -724,6 +805,18 @@ const styles = StyleSheet.create({
   },
   dangerButton: {
     backgroundColor: "#DC2626",
+  },
+  deletionDisabled: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#475569",
+  },
+  deletionDisabledText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
   },
   editInput: {
     borderRadius: 10,
