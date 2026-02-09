@@ -3,13 +3,19 @@ import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
   TextInput,
   View,
 } from "react-native";
+import {
+  loadRecordingSettings,
+  saveRecordingSettings,
+} from "../storage/recordingSettings";
 
 type RecordingEntry = {
   id: string;
@@ -76,6 +82,7 @@ export const GravadorScreen = () => {
     id: null,
     isPlaying: false,
   });
+  const [manualDeletionEnabled, setManualDeletionEnabled] = useState(false);
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
@@ -110,7 +117,9 @@ export const GravadorScreen = () => {
     void (async () => {
       await ensureRecordingDir();
       const stored = await loadStoredRecordings();
+      const settings = await loadRecordingSettings();
       setRecordings(stored);
+      setManualDeletionEnabled(settings.manualDeletionEnabled);
     })();
   }, []);
 
@@ -227,7 +236,7 @@ export const GravadorScreen = () => {
     }
   };
 
-  const handleDelete = async (entry: RecordingEntry) => {
+  const performDelete = async (entry: RecordingEntry) => {
     try {
       await FileSystem.deleteAsync(entry.uri, { idempotent: true });
       const updated = recordings.filter((item) => item.id !== entry.id);
@@ -239,6 +248,29 @@ export const GravadorScreen = () => {
           : "Não foi possível excluir a gravação."
       );
     }
+  };
+
+  const handleDelete = (entry: RecordingEntry) => {
+    if (!manualDeletionEnabled) {
+      Alert.alert(
+        "Exclusão manual desativada",
+        "Ative a exclusão manual nas configurações avançadas para remover áudios."
+      );
+      return;
+    }
+    Alert.alert(
+      "Excluir gravação",
+      "Tem certeza de que deseja excluir este áudio? Esta ação não apaga dados automaticamente do vault, apenas remove o arquivo selecionado.",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Excluir", style: "destructive", onPress: () => void performDelete(entry) },
+      ]
+    );
+  };
+
+  const handleToggleManualDeletion = async (value: boolean) => {
+    setManualDeletionEnabled(value);
+    await saveRecordingSettings({ manualDeletionEnabled: value });
   };
 
   const handleRename = (entry: RecordingEntry) => {
@@ -379,6 +411,25 @@ export const GravadorScreen = () => {
         </View>
       </View>
 
+      <View style={styles.settingsCard}>
+        <Text style={styles.sectionTitle}>Configurações avançadas</Text>
+        <View style={styles.settingRow}>
+          <View style={styles.settingText}>
+            <Text style={styles.settingLabel}>Permitir exclusão manual de áudios</Text>
+            <Text style={styles.settingDescription}>
+              Nenhuma rotina automática remove áudios do vault. A exclusão só ocorre quando
+              habilitada e confirmada pelo psicólogo.
+            </Text>
+          </View>
+          <Switch
+            value={manualDeletionEnabled}
+            onValueChange={handleToggleManualDeletion}
+            thumbColor={manualDeletionEnabled ? "#38BDF8" : "#94A3B8"}
+            trackColor={{ false: "#1F2937", true: "#0EA5E9" }}
+          />
+        </View>
+      </View>
+
       <View style={styles.listSection}>
         <Text style={styles.sectionTitle}>Gravações salvas</Text>
         {recordings.length === 0 ? (
@@ -452,9 +503,15 @@ export const GravadorScreen = () => {
                       styles.buttonDanger,
                       pressed && styles.buttonPressed,
                     ]}
+                    disabled={!manualDeletionEnabled}
                   >
                     <Text style={styles.smallButtonText}>Excluir</Text>
                   </Pressable>
+                  {!manualDeletionEnabled ? (
+                    <View style={styles.deletionDisabled}>
+                      <Text style={styles.deletionDisabledText}>Exclusão manual desativada</Text>
+                    </View>
+                  ) : null}
                 </View>
               </View>
             ))}
@@ -487,6 +544,30 @@ const styles = StyleSheet.create({
     padding: 20,
     borderRadius: 16,
     gap: 16,
+  },
+  settingsCard: {
+    backgroundColor: "#111827",
+    padding: 20,
+    borderRadius: 16,
+    gap: 12,
+  },
+  settingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  settingText: {
+    flex: 1,
+    gap: 6,
+  },
+  settingLabel: {
+    color: "#F8FAFC",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  settingDescription: {
+    color: "#94A3B8",
+    fontSize: 12,
   },
   cardHeader: {
     flexDirection: "row",
@@ -540,6 +621,19 @@ const styles = StyleSheet.create({
   },
   buttonPressed: {
     opacity: 0.8,
+  },
+  deletionDisabled: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: "#475569",
+    alignSelf: "flex-start",
+  },
+  deletionDisabledText: {
+    color: "#94A3B8",
+    fontSize: 11,
+    fontWeight: "600",
   },
   listSection: {
     marginTop: 24,
