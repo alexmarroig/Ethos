@@ -70,9 +70,19 @@ const resolveModelPath = (model: "ptbr-fast" | "ptbr-accurate") => {
   return path.join(modelsRoot, "large-v3-ct2");
 };
 
+const cacheDirectory = path.join(os.tmpdir(), "ethos-transcriber-cache");
+
+const clearCacheDirectory = async () => {
+  await fs.mkdir(cacheDirectory, { recursive: true });
+  const entries = await fs.readdir(cacheDirectory);
+  await Promise.all(
+    entries.map((entry) => fs.rm(path.join(cacheDirectory, entry), { recursive: true, force: true }))
+  );
+};
+
 const convertToWav = async (inputPath: string) => {
   const ffmpegPath = resolveFfmpegPath();
-  const outputPath = path.join(os.tmpdir(), `ethos-${crypto.randomUUID()}.wav`);
+  const outputPath = path.join(cacheDirectory, `ethos-${crypto.randomUUID()}.wav`);
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(ffmpegPath, [
       "-y",
@@ -101,7 +111,7 @@ const runFasterWhisper = async (audioPath: string, model: "ptbr-fast" | "ptbr-ac
   const pythonPath = resolvePythonPath();
   const modelPath = resolveModelPath(model);
   const scriptPath = path.resolve(__dirname, "../scripts/whisper_transcribe.py");
-  const outputPath = path.join(os.tmpdir(), `ethos-transcript-${crypto.randomUUID()}.json`);
+  const outputPath = path.join(cacheDirectory, `ethos-transcript-${crypto.randomUUID()}.json`);
 
   await new Promise<void>((resolve, reject) => {
     const proc = spawn(pythonPath, [scriptPath, "--audio", audioPath, "--model", modelPath, "--output", outputPath]);
@@ -132,6 +142,7 @@ const processJob = async (job: TranscriptionJob) => {
     job.progress = 0.1;
     respond({ type: "job_update", payload: job });
 
+    await clearCacheDirectory();
     const wavPath = await convertToWav(job.audioPath);
     job.progress = 0.4;
     respond({ type: "job_update", payload: job });
@@ -162,6 +173,13 @@ const processJob = async (job: TranscriptionJob) => {
       payload: { jobId: job.id, error: job.error ?? "Erro desconhecido" },
     });
   } finally {
+    try {
+      await clearCacheDirectory();
+    } catch (error) {
+      process.stderr.write(
+        `Failed to clear transcriber cache: ${error instanceof Error ? error.message : error}\n`
+      );
+    }
     runningJobs.delete(job.id);
     jobEmitter.emit("next");
   }
@@ -179,6 +197,12 @@ const scheduleNext = () => {
 };
 
 jobEmitter.on("next", scheduleNext);
+
+void clearCacheDirectory().catch((error) => {
+  process.stderr.write(
+    `Failed to clear transcriber cache on boot: ${error instanceof Error ? error.message : error}\n`
+  );
+});
 
 const enqueueJob = (
   payload: JobMessage["payload"] & { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }
