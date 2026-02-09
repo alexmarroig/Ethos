@@ -6,7 +6,9 @@ export type RecordingEntry = {
   name: string;
   durationMs: number;
   createdAt: string;
-  fileUri: string;
+  fileUri: string | null;
+  vaultUri: string;
+  transcriptionId?: string | null;
 };
 
 const STORAGE_KEY = "ethos.mobile.recordings";
