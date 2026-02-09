@@ -22,6 +22,10 @@ import { backupService } from "./services/backup.service";
 import { authService } from "./services/auth.service";
 import { genaiService } from "./services/genai.service";
 import { formsService } from "./services/forms.service";
+import { backupService } from "./services/backup.service";
+import { authService } from "./services/auth.service";
+import { genaiService } from "./services/genai.service";
+import { formsService } from "./services/forms.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isSafeMode = false;

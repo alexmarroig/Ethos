@@ -27,6 +27,7 @@ type WorkerMessage =
 
 type AppTab = "clinical" | "admin";
 type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "financeiro" | "diarios" | "relatorios" | "config";
+type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "config";
 
 type EthosBridge = {
   audio: {
@@ -231,6 +232,9 @@ export const App = () => {
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [formTemplates, setFormTemplates] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [formTemplates, setFormTemplates] = useState<any[]>([]);
 
   const refreshData = useCallback(async () => {
     if (window.ethos?.patients) {
@@ -268,6 +272,37 @@ export const App = () => {
       setTimeout(() => setShowSplash(false), 2500);
     };
     initAuth();
+  }, []);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [refreshData, user]);
+
+  const loadNote = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      const note = await window.ethos.notes.getBySession(selectedSessionId);
+      if (note) {
+        setNoteId(note.id);
+        setDraft(note.editedText || note.generatedText || "");
+        setStatus(note.status);
+        setValidatedAt(note.validatedAt || null);
+      } else {
+        setNoteId(null);
+        setDraft("");
+        setStatus("draft");
+        setValidatedAt(null);
+      }
+    } else {
+      setNoteId(null);
+      setDraft("");
+      setStatus("draft");
+      setValidatedAt(null);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    loadNote();
+  }, [loadNote]);
   }, []);
 
   useEffect(() => {
@@ -989,6 +1024,12 @@ export const App = () => {
                     onClick={() => {
                       setEditingPatient(null);
                       setShowPatientModal(true);
+                    onClick={async () => {
+                      const name = prompt("Nome completo do paciente:");
+                      if (name && window.ethos?.patients) {
+                        await window.ethos.patients.create({ fullName: name });
+                        refreshData();
+                      }
                     }}
                   >
                     + Novo Paciente
@@ -1023,6 +1064,10 @@ export const App = () => {
                         >
                           Ficha Completa
                         </button>
+                        <button
+                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
+                        <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
+                        <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
                         <button
                           style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
                           onClick={async () => {
@@ -1090,6 +1135,9 @@ export const App = () => {
                                 </button>
                               )}
                             </div>
+                            <strong>{p?.fullName || "Paciente desconhecido"}</strong>
+                            <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
+                            <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
                           </div>
                         );
                       })
@@ -1125,6 +1173,7 @@ export const App = () => {
                       </button>
                     )}
                   </div>
+                  <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
                     <button style={buttonStyle} onClick={handleImportAudio} type="button">

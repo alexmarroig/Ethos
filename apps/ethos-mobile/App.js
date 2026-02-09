@@ -98,6 +98,19 @@ export default function App() {
             <Text style={{ color: '#F87171' }}>Sair</Text>
           </TouchableOpacity>
         </View>
+import React, { useState } from 'react';
+import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+
+export default function App() {
+  const [role, setRole] = useState('patient'); // 'patient' or 'psychologist'
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar style="auto" />
+      <View style={styles.header}>
+        <Text style={styles.title}>ETHOS MOBILE</Text>
+        <Text style={styles.subtitle}>Portal do Paciente (V1 Alpha)</Text>
       </View>
 
       <ScrollView style={styles.content}>
@@ -115,6 +128,27 @@ export default function App() {
             <Text style={styles.buttonText}>Iniciar Sessão</Text>
           </TouchableOpacity>
         </View>
+          <Text style={styles.cardTitle}>Minha Próxima Sessão</Text>
+          <Text style={styles.cardText}>Data: 22/02/2025 às 14:00</Text>
+          <TouchableOpacity style={styles.button}>
+            <Text style={styles.buttonText}>Confirmar Presença</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Meus Diários</Text>
+          <TouchableOpacity style={styles.outlineButton}>
+            <Text style={styles.outlineButtonText}>+ Diário de Emoções</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.outlineButton}>
+            <Text style={styles.outlineButtonText}>+ Diário dos Sonhos</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Documentos Disponíveis</Text>
+          <Text style={styles.emptyText}>Nenhum documento compartilhado ainda.</Text>
+        </View>
       </ScrollView>
 
       <View style={styles.nav}>
@@ -122,6 +156,9 @@ export default function App() {
         <Text style={styles.navItem}>Pacientes</Text>
         <Text style={styles.navItem}>Finanças</Text>
         <Text style={styles.navItem}>Ajustes</Text>
+        <Text style={styles.navItem}>Agenda</Text>
+        <Text style={styles.navItem}>Diários</Text>
+        <Text style={styles.navItem}>Perfil</Text>
       </View>
     </SafeAreaView>
   );
@@ -195,6 +232,12 @@ const styles = StyleSheet.create({
     color: '#E2E8F0',
     fontSize: 14,
     marginBottom: 4,
+    fontSize: 16,
+    marginBottom: 12,
+  },
+  emptyText: {
+    color: '#64748B',
+    fontStyle: 'italic',
   },
   button: {
     backgroundColor: '#3B82F6',
@@ -213,6 +256,7 @@ const styles = StyleSheet.create({
     padding: 10,
     borderRadius: 8,
     alignItems: 'center',
+    marginTop: 8,
   },
   outlineButtonText: {
     color: '#3B82F6',
