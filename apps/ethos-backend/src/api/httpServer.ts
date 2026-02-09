@@ -87,6 +87,7 @@ import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
+const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
 const CLINICAL_PATHS = [
   /^\/sessions/,
   /^\/clinical-notes/,
@@ -98,15 +99,13 @@ const CLINICAL_PATHS = [
   /^\/documents/,
   /^\/document-templates/,
   /^\/jobs/,
+  /^\/notifications/,
   /^\/export/,
   /^\/backup/,
   /^\/restore/,
   /^\/purge/,
-];
   /^\/cases/,
 ];
-const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
-const CLINICAL_PATHS = [/^\/sessions/, /^\/clinical-notes/, /^\/reports/, /^\/anamnesis/, /^\/scales/, /^\/forms/, /^\/financial/, /^\/jobs/, /^\/notifications/, /^\/export/, /^\/backup/, /^\/restore/, /^\/purge/];
 
 class BadRequestError extends Error {
   readonly statusCode = 400;
