@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { Platform } from "react-native";
 import { Audio } from "expo-av";
 import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
@@ -20,6 +21,11 @@ import {
   RECORDINGS_DIR,
   saveRecordings,
 } from "../storage/recordingsStorage";
+import { ensureSecureDirectories } from "../storage/secureDirectories";
+import { storeEncryptedAudio } from "../storage/vaultStorage";
+import { loadTranscriptions, upsertTranscription } from "../storage/transcriptionsStorage";
+import { withDecryptedAudio } from "../services/audioCache";
+import { transcribeRecording, TranscriptionStatus } from "../services/transcriptionPipeline";
 
 const formatDuration = (durationMs: number) => {
   const totalSeconds = Math.floor(durationMs / 1000);
@@ -48,9 +54,16 @@ export const RecorderScreen = () => {
   const [currentName, setCurrentName] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [playingId, setPlayingId] = useState<string | null>(null);
+  const [transcribingId, setTranscribingId] = useState<string | null>(null);
+  const [transcriptionStatus, setTranscriptionStatus] = useState<TranscriptionStatus>("idle");
+  const [transcriptionMessage, setTranscriptionMessage] = useState<string | null>(null);
+  const [transcriptionsByRecording, setTranscriptionsByRecording] = useState<Record<string, string>>(
+    {}
+  );
 
   const recordingRef = useRef<Audio.Recording | null>(null);
   const soundRef = useRef<Audio.Sound | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
   const startTimeRef = useRef<number | null>(null);
   const pausedAtRef = useRef<number | null>(null);
   const pausedTotalRef = useRef(0);
@@ -91,9 +104,27 @@ export const RecorderScreen = () => {
 
   useEffect(() => {
     const load = async () => {
+      await ensureSecureDirectories();
       await ensureRecordingsDir();
       const stored = await loadRecordings();
-      setRecordings(stored);
+      const transcriptions = await loadTranscriptions();
+      const map: Record<string, string> = {};
+      transcriptions.forEach((entry) => {
+        map[entry.recordingId] = entry.text;
+      });
+      setTranscriptionsByRecording(map);
+
+      const migrated = await Promise.all(
+        stored.map(async (entry) => {
+          if (!entry.vaultUri && entry.fileUri) {
+            const vaultUri = await storeEncryptedAudio(entry.id, entry.fileUri);
+            return { ...entry, vaultUri, fileUri: null };
+          }
+          return entry;
+        })
+      );
+      await saveRecordings(migrated);
+      setRecordings(migrated);
       setIsLoading(false);
     };
     load();
@@ -189,12 +220,14 @@ export const RecorderScreen = () => {
       const fileUri = await finalizeRecordingFile(recordingRef.current, recordingId);
       const createdAt = new Date().toISOString();
       const name = currentName.trim() || `Gravação ${formatDate(createdAt)}`;
+      const vaultUri = await storeEncryptedAudio(recordingId, fileUri);
       const newRecording: RecordingEntry = {
         id: recordingId,
         name,
         durationMs: finalDuration,
         createdAt,
-        fileUri,
+        fileUri: null,
+        vaultUri,
       };
       updateRecordings((prev) => [newRecording, ...prev]);
       setCurrentName("");
@@ -212,7 +245,12 @@ export const RecorderScreen = () => {
 
   const handleDelete = async (entry: RecordingEntry) => {
     try {
-      await FileSystem.deleteAsync(entry.fileUri, { idempotent: true });
+      if (entry.fileUri) {
+        await FileSystem.deleteAsync(entry.fileUri, { idempotent: true });
+      }
+      if (entry.vaultUri) {
+        await FileSystem.deleteAsync(entry.vaultUri, { idempotent: true });
+      }
       updateRecordings((prev) => prev.filter((item) => item.id !== entry.id));
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao excluir gravação.");
@@ -226,9 +264,11 @@ export const RecorderScreen = () => {
         Alert.alert("Exportação indisponível", "Compartilhamento não suportado neste dispositivo.");
         return;
       }
-      await Sharing.shareAsync(entry.fileUri, {
-        dialogTitle: "Exportar gravação",
-        mimeType: "audio/m4a",
+      await withDecryptedAudio(entry.id, entry.vaultUri, "export", async (tempPath) => {
+        await Sharing.shareAsync(tempPath, {
+          dialogTitle: "Exportar gravação",
+          mimeType: "audio/m4a",
+        });
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao exportar gravação.");
@@ -242,17 +282,19 @@ export const RecorderScreen = () => {
       setEditingName("");
       return;
     }
-    const extension = entry.fileUri.split(".").pop() || "m4a";
+    const extension = entry.fileUri?.split(".").pop() || "m4a";
     const slug = sanitizeFileName(trimmed);
     const targetUri = `${RECORDINGS_DIR}/${slug}-${entry.id}.${extension}`;
 
     try {
-      if (targetUri !== entry.fileUri) {
+      if (entry.fileUri && targetUri !== entry.fileUri) {
         await FileSystem.moveAsync({ from: entry.fileUri, to: targetUri });
       }
       updateRecordings((prev) =>
         prev.map((item) =>
-          item.id === entry.id ? { ...item, name: trimmed, fileUri: targetUri } : item
+          item.id === entry.id
+            ? { ...item, name: trimmed, fileUri: entry.fileUri ? targetUri : item.fileUri }
+            : item
         )
       );
     } catch (error) {
@@ -278,20 +320,68 @@ export const RecorderScreen = () => {
       }
 
       await soundRef.current?.unloadAsync();
-      const { sound } = await Audio.Sound.createAsync(
-        { uri: entry.fileUri },
-        { shouldPlay: true }
-      );
-      soundRef.current = sound;
-      setPlayingId(entry.id);
-      sound.setOnPlaybackStatusUpdate((statusInfo) => {
-        if (statusInfo.isLoaded && statusInfo.didJustFinish) {
-          setPlayingId(null);
-        }
+      await withDecryptedAudio(entry.id, entry.vaultUri, "playback", async (tempPath) => {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri: tempPath },
+          { shouldPlay: true }
+        );
+        soundRef.current = sound;
+        setPlayingId(entry.id);
+        sound.setOnPlaybackStatusUpdate((statusInfo) => {
+          if (statusInfo.isLoaded && statusInfo.didJustFinish) {
+            setPlayingId(null);
+          }
+        });
       });
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "Falha ao reproduzir gravação.");
     }
+  };
+
+  const handleTranscribe = async (entry: RecordingEntry) => {
+    if (transcribingId) return;
+    setErrorMessage(null);
+    setTranscriptionMessage(null);
+    setTranscribingId(entry.id);
+    setTranscriptionStatus("preparing");
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const result = await transcribeRecording({
+      recordingId: entry.id,
+      vaultUri: entry.vaultUri,
+      durationMs: entry.durationMs,
+      onStatus: setTranscriptionStatus,
+      signal: controller.signal,
+    });
+
+    if (result.status === "done" && result.text) {
+      const transcription = await upsertTranscription({
+        id: `${entry.id}-${Date.now()}`,
+        recordingId: entry.id,
+        createdAt: new Date().toISOString(),
+        modelId: result.modelId ?? "unknown",
+        rtf: result.rtf ?? 0,
+        latencyMs: result.latencyMs ?? 0,
+        text: result.text,
+      });
+      const latest = transcription.find((item) => item.recordingId === entry.id);
+      if (latest) {
+        setTranscriptionsByRecording((prev) => ({ ...prev, [entry.id]: latest.text }));
+      }
+      if (result.shouldSuggestDowngrade) {
+        setTranscriptionMessage("Performance baixa detectada. Sugerido downgrade de modelo.");
+      }
+    } else if (result.status === "failed") {
+      setTranscriptionMessage(result.error ?? "Falha ao transcrever.");
+    }
+
+    setTranscribingId(null);
+    abortRef.current = null;
+  };
+
+  const handleCancelTranscription = () => {
+    abortRef.current?.abort();
   };
 
   return (
@@ -320,6 +410,25 @@ export const RecorderScreen = () => {
             <Text style={styles.statusValue}>{recordingDuration}</Text>
           </View>
           {status === "stopping" ? <ActivityIndicator color="#38BDF8" /> : null}
+        </View>
+        <View style={styles.statusRow}>
+          <View>
+            <Text style={styles.label}>Transcrição</Text>
+            <Text style={styles.statusValue}>
+              {transcriptionStatus === "downloading"
+                ? "Baixando modelo"
+                : transcriptionStatus === "preparing"
+                  ? "Preparando"
+                  : transcriptionStatus === "transcribing"
+                    ? "Transcrevendo"
+                    : transcriptionStatus === "done"
+                      ? "Concluído"
+                      : transcriptionStatus === "failed"
+                        ? "Falhou"
+                        : "Pronto"}
+            </Text>
+          </View>
+          {transcribingId ? <ActivityIndicator color="#38BDF8" /> : null}
         </View>
         <TextInput
           style={styles.input}
@@ -351,7 +460,20 @@ export const RecorderScreen = () => {
             <Text style={styles.buttonText}>Parar</Text>
           </TouchableOpacity>
         </View>
+        {transcribingId ? (
+          <TouchableOpacity style={styles.cancelButton} onPress={handleCancelTranscription}>
+            <Text style={styles.buttonText}>Cancelar transcrição</Text>
+          </TouchableOpacity>
+        ) : null}
         {errorMessage ? <Text style={styles.errorText}>{errorMessage}</Text> : null}
+        {transcriptionMessage ? (
+          <Text style={styles.warningText}>{transcriptionMessage}</Text>
+        ) : null}
+        <Text style={styles.helperText}>
+          {Platform.OS === "android"
+            ? "Transcrição em foreground; minimize apenas se o serviço de foreground estiver ativo."
+            : "Transcrição ocorre em foreground. Em background, o iOS pode pausar o job."}
+        </Text>
       </View>
 
       <View style={styles.listSection}>
@@ -420,6 +542,13 @@ export const RecorderScreen = () => {
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
+                  style={[styles.smallButton, styles.primaryButton]}
+                  onPress={() => handleTranscribe(entry)}
+                  disabled={!!transcribingId}
+                >
+                  <Text style={styles.smallButtonText}>Transcrever</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
                   style={[styles.smallButton, styles.neutralButton]}
                   onPress={() => handleExport(entry)}
                 >
@@ -432,7 +561,12 @@ export const RecorderScreen = () => {
                   <Text style={styles.smallButtonText}>Excluir</Text>
                 </TouchableOpacity>
               </View>
-              <Text style={styles.recordingPath}>{entry.fileUri}</Text>
+              {transcriptionsByRecording[entry.id] ? (
+                <View style={styles.transcriptionCard}>
+                  <Text style={styles.transcriptionLabel}>Transcrição</Text>
+                  <Text style={styles.transcriptionText}>{transcriptionsByRecording[entry.id]}</Text>
+                </View>
+              ) : null}
             </View>
           ))
         )}
@@ -507,6 +641,12 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderRadius: 12,
   },
+  cancelButton: {
+    backgroundColor: "#7C3AED",
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+  },
   buttonDisabled: {
     opacity: 0.5,
   },
@@ -516,6 +656,14 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: "#FCA5A5",
+  },
+  warningText: {
+    color: "#FCD34D",
+  },
+  helperText: {
+    color: "#94A3B8",
+    fontSize: 12,
+    lineHeight: 16,
   },
   listSection: {
     gap: 16,
@@ -589,5 +737,20 @@ const styles = StyleSheet.create({
   recordingPath: {
     color: "#64748B",
     fontSize: 11,
+  },
+  transcriptionCard: {
+    backgroundColor: "#0F172A",
+    padding: 12,
+    borderRadius: 12,
+    gap: 6,
+  },
+  transcriptionLabel: {
+    color: "#94A3B8",
+    fontSize: 11,
+  },
+  transcriptionText: {
+    color: "#E2E8F0",
+    fontSize: 12,
+    lineHeight: 16,
   },
 });
