@@ -182,6 +182,14 @@ const ethosApi = Object.freeze({
   }),
 
   // ------------------------
+  // Backup
+  // ------------------------
+  backup: Object.freeze({
+    create: (password: string) => invoke<boolean>("backup:create", password),
+    restore: (password: string) => invoke<boolean>("backup:restore", password),
+  }),
+
+  // ------------------------
   // Export
   // ------------------------
   export: Object.freeze({
