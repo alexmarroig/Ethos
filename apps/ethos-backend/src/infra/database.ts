@@ -54,7 +54,6 @@ export const verifyPassword = (password: string, stored: string) => {
 };
 
 export const hashInviteToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
-export const encrypt = (raw: string) => `enc:${Buffer.from(raw).toString("base64")}`;
 
 const DEFAULT_IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_IDEMPOTENCY_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
