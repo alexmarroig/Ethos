@@ -89,7 +89,7 @@ import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database"
 const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
 const CLINICAL_ROLES: Role[] = ["assistente", "supervisor"];
 const CLINICAL_PATHS = [
-  /^\/sessions/,
+  /^\/(sessions|cases)/,
   /^\/clinical-notes/,
   /^\/reports/,
   /^\/anamnesis/,
@@ -104,7 +104,6 @@ const CLINICAL_PATHS = [
   /^\/backup/,
   /^\/restore/,
   /^\/purge/,
-  /^\/cases/,
 ];
 
 class BadRequestError extends Error {
