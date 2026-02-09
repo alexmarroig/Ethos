@@ -502,7 +502,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     const sessionNotes = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-notes$/);
     if (method === "GET" && sessionNotes) {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
       return ok(res, requestId, 200, paginate(listSessionClinicalNotes(auth.user.id, sessionNotes[1]), page, pageSize));
     }
@@ -517,7 +519,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && notePrivateComments) {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       return ok(res, requestId, 200, paginate(listPrivateComments(auth.user.id, notePrivateComments[1]), page, pageSize));
     }
 
@@ -531,7 +535,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/cases/anonymized") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       return ok(res, requestId, 200, paginate(listAnonymizedCases(auth.user.id), page, pageSize));
     if (method === "POST" && url.pathname === "/notifications/templates") {
       const body = await readJson(req);
@@ -612,7 +618,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/reports") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.reports.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "report");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
@@ -637,7 +645,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
 
     if (method === "GET" && url.pathname === "/documents") {
       const caseId = String(url.searchParams.get("case_id") ?? "");
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = caseId
         ? listDocumentsByCase(auth.user.id, caseId)
         : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id);
@@ -665,7 +675,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/anamnesis") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.anamnesis.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "anamnesis");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
@@ -679,7 +691,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/scales/records") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.scales.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "scale_record");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
@@ -691,7 +705,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/forms") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
@@ -765,7 +781,9 @@ export const createEthosBackend = () => createServer(async (req, res) => {
     }
 
     if (method === "GET" && url.pathname === "/financial/entries") {
-      const { page, pageSize } = parsePagination(url);
+      const pagination = parsePagination(url);
+      if ("error" in pagination) return error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+      const { page, pageSize } = pagination;
       const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
       recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
       return ok(res, requestId, 200, paginate(items, page, pageSize));
