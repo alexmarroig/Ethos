@@ -111,11 +111,21 @@ const ethosApi = Object.freeze({
   }),
 
   // ------------------------
+  // Auth
+  // ------------------------
+  auth: Object.freeze({
+    login: (credentials: any) => invoke<any>("auth:login", credentials),
+    encryptToken: (token: string) => invoke<string>("auth:encryptToken", token),
+    decryptToken: (encrypted: string) => invoke<string | null>("auth:decryptToken", encrypted),
+  }),
+
+  // ------------------------
   // Patients
   // ------------------------
   patients: Object.freeze({
     getAll: () => invoke("patients:getAll"),
     create: (p: unknown) => invoke("patients:create", p),
+    update: (id: string, p: unknown) => invoke("patients:update", id, p),
     delete: (id: string) => invoke("patients:delete", id),
   }),
 
@@ -129,6 +139,17 @@ const ethosApi = Object.freeze({
   }),
 
   // ------------------------
+  // Financial
+  // ------------------------
+  financial: Object.freeze({
+    getAll: () => invoke("financial:getAll"),
+    getByPatient: (id: string) => invoke("financial:getByPatient", id),
+    create: (e: unknown) => invoke("financial:create", e),
+    update: (id: string, e: unknown) => invoke("financial:update", id, e),
+    delete: (id: string) => invoke("financial:delete", id),
+  }),
+
+  // ------------------------
   // Notes
   // ------------------------
   notes: Object.freeze({
@@ -137,6 +158,25 @@ const ethosApi = Object.freeze({
     upsertDraft: (sessionId: string, text: string) => invoke("notes:upsertDraft", sessionId, text),
     updateDraft: (id: string, text: string) => invoke("notes:updateDraft", id, text),
     validate: (id: string, by: string) => invoke("notes:validate", id, by),
+  }),
+
+  // ------------------------
+  // GenAI
+  // ------------------------
+  genai: Object.freeze({
+    transformNote: (payload: { transcriptText: string; sessionId: string; templateType: string }) =>
+      invoke<string>("genai:transformNote", payload),
+    generateRecibo: (payload: { patientId: string; amount: number; date: string }) =>
+      invoke<string>("genai:generateRecibo", payload),
+  }),
+
+  // ------------------------
+  // Forms
+  // ------------------------
+  forms: Object.freeze({
+    getTemplates: () => invoke<any[]>("forms:getTemplates"),
+    getResponses: (patientId: string) => invoke<any[]>("forms:getResponses", patientId),
+    submitResponse: (payload: any) => invoke<any>("forms:submitResponse", payload),
   }),
 
   // ------------------------

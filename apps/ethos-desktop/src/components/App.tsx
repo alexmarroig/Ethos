@@ -9,6 +9,8 @@ import {
   loginControlPlane,
 } from "../services/controlPlaneAdmin";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
+import { EthicsValidationModal, RecordingConsentModal, PatientModal } from "./Modals";
+import { AdminPanel } from "./Admin";
 
 // -----------------------------
 // Types
@@ -24,6 +26,7 @@ type WorkerMessage =
   | unknown;
 
 type AppTab = "clinical" | "admin";
+type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "financeiro" | "diarios" | "relatorios" | "config";
 type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "config";
 
 type EthosBridge = {
@@ -198,10 +201,22 @@ const clinicalNavItems: Array<{ id: ClinicalSection; label: string; helper: stri
   { id: "agenda", label: "Agenda", helper: "Semana clínica" },
   { id: "sessao", label: "Sessão", helper: "Registro guiado" },
   { id: "prontuario", label: "Prontuário", helper: "Validação + export" },
+  { id: "financeiro", label: "Financeiro", helper: "Cobranças e Pagamentos" },
+  { id: "diarios", label: "Diários", helper: "Formulários e Evolução" },
+  { id: "relatorios", label: "Relatórios", helper: "Documentos e Declarações" },
   { id: "config", label: "Configurações", helper: "Segurança e Backup" },
 ];
 
 export const App = () => {
+  // =========================
+  // Auth & Lifecycle
+  // =========================
+  const [showSplash, setShowSplash] = useState(true);
+  const [user, setUser] = useState<any>(null);
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(true);
+
   // =========================
   // Tabs
   // =========================
@@ -213,6 +228,10 @@ export const App = () => {
   // =========================
   const [patients, setPatients] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [financialEntries, setFinancialEntries] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [formTemplates, setFormTemplates] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
@@ -225,6 +244,64 @@ export const App = () => {
       const s = await window.ethos.sessions.getAll();
       setSessions(s || []);
     }
+    if (window.ethos?.financial) {
+      const f = await window.ethos.financial.getAll();
+      setFinancialEntries(f || []);
+    }
+    if (window.ethos?.forms) {
+      const t = await window.ethos.forms.getTemplates();
+      setFormTemplates(t || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      const savedEncrypted = safeLocalStorageGet("ethos-auth-token", "");
+      if (savedEncrypted && window.ethos?.auth) {
+        const decrypted = await window.ethos.auth.decryptToken(savedEncrypted);
+        if (decrypted) {
+          try {
+            const parsed = JSON.parse(decrypted);
+            setUser(parsed);
+          } catch (e) {}
+        }
+      }
+
+      // Artificial splash delay
+      setTimeout(() => setShowSplash(false), 2500);
+    };
+    initAuth();
+  }, []);
+
+  useEffect(() => {
+    if (user) refreshData();
+  }, [refreshData, user]);
+
+  const loadNote = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      const note = await window.ethos.notes.getBySession(selectedSessionId);
+      if (note) {
+        setNoteId(note.id);
+        setDraft(note.editedText || note.generatedText || "");
+        setStatus(note.status);
+        setValidatedAt(note.validatedAt || null);
+      } else {
+        setNoteId(null);
+        setDraft("");
+        setStatus("draft");
+        setValidatedAt(null);
+      }
+    } else {
+      setNoteId(null);
+      setDraft("");
+      setStatus("draft");
+      setValidatedAt(null);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    loadNote();
+  }, [loadNote]);
   }, []);
 
   useEffect(() => {
@@ -246,15 +323,41 @@ export const App = () => {
   // Clinical note state
   // =========================
   const [consentForNote, setConsentForNote] = useState(false);
-  const [draft, setDraft] = useState(
-    "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
-  );
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<NoteStatus>("draft");
   const [validatedAt, setValidatedAt] = useState<string | null>(null);
   const [showEthicsModal, setShowEthicsModal] = useState(false);
+  const [showPatientModal, setShowPatientModal] = useState(false);
+  const [editingPatient, setEditingPatient] = useState<any>(null);
+
+  // =========================
+  // Reports state
+  // =========================
+  const [reportType, setReportType] = useState<"declaration" | "clinical_report">("declaration");
 
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
+  const [isGeneratingNote, setIsGeneratingNote] = useState(false);
+
+  const handleAiTransform = useCallback(async (templateType: string = 'prontuario') => {
+    if (!selectedSessionId || !window.ethos?.genai) return;
+
+    setIsGeneratingNote(true);
+    try {
+      const transcriptText = workerLog || "Transcrição da sessão iniciada. O paciente relatou estar se sentindo melhor esta semana, embora ainda apresente dificuldades pontuais no sono.";
+      const generated = await window.ethos.genai.transformNote({
+        transcriptText,
+        sessionId: selectedSessionId,
+        templateType
+      });
+      setDraft(generated);
+    } catch (e) {
+      alert("Falha ao gerar nota com IA.");
+    } finally {
+      setIsGeneratingNote(false);
+    }
+  }, [selectedSessionId, workerLog]);
 
   const isValidated = status === "validated";
   const canValidate = consentForNote && !isValidated;
@@ -262,11 +365,25 @@ export const App = () => {
 
   const handleValidate = useCallback(() => setShowEthicsModal(true), []);
 
-  const confirmValidation = useCallback(() => {
-    setStatus("validated");
-    setValidatedAt(safeNowPtBr());
+  const confirmValidation = useCallback(async () => {
+    if (noteId && window.ethos?.notes) {
+      await window.ethos.notes.validate(noteId, clinicianName);
+      await loadNote();
+    } else if (selectedSessionId && window.ethos?.notes) {
+      // Create and validate
+      const newNote = await window.ethos.notes.upsertDraft(selectedSessionId, draft);
+      await window.ethos.notes.validate(newNote.id, clinicianName);
+      await loadNote();
+    }
     setShowEthicsModal(false);
-  }, []);
+  }, [noteId, selectedSessionId, draft, clinicianName, loadNote]);
+
+  const saveDraft = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      await window.ethos.notes.upsertDraft(selectedSessionId, draft);
+      await loadNote();
+    }
+  }, [selectedSessionId, draft, loadNote]);
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
@@ -441,6 +558,36 @@ export const App = () => {
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminLastSync, setAdminLastSync] = useState<string | null>(null);
 
+  // =========================
+  // WhatsApp Reminders (V1)
+  // =========================
+  const [whatsappTemplate, setWhatsappTemplate] = useState(() =>
+    safeLocalStorageGet("ethos-wa-template", "Olá {{nome}}, confirmo nossa sessão em {{data}} às {{hora}}. Até breve!")
+  );
+
+  useEffect(() => safeLocalStorageSet("ethos-wa-template", whatsappTemplate), [whatsappTemplate]);
+
+  const handleSendReminder = useCallback((patient: any, session: any) => {
+    if (!patient.phoneNumber) {
+      alert("Paciente sem telefone cadastrado.");
+      return;
+    }
+
+    const date = new Date(session.scheduledAt);
+    const dateStr = date.toLocaleDateString("pt-BR");
+    const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+    const message = whatsappTemplate
+      .replace("{{nome}}", patient.fullName)
+      .replace("{{data}}", dateStr)
+      .replace("{{hora}}", timeStr);
+
+    const cleanPhone = patient.phoneNumber.replace(/\D/g, "");
+    const waUrl = `https://wa.me/${cleanPhone.startsWith("55") ? cleanPhone : "55" + cleanPhone}?text=${encodeURIComponent(message)}`;
+
+    window.open(waUrl, "_blank");
+  }, [whatsappTemplate]);
+
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
 
@@ -550,6 +697,27 @@ export const App = () => {
     [adminBaseUrl, adminEmail, adminPassword]
   );
 
+  const handleLogin = useCallback(async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (window.ethos?.auth) {
+      const res = await window.ethos.auth.login({ email: loginEmail, password: loginPassword });
+      if (res.success) {
+        setUser(res.user);
+        if (rememberMe) {
+          const encrypted = await window.ethos.auth.encryptToken(JSON.stringify(res.user));
+          safeLocalStorageSet("ethos-auth-token", encrypted);
+        }
+      } else {
+        alert(res.message);
+      }
+    }
+  }, [loginEmail, loginPassword, rememberMe]);
+
+  const handleLogout = useCallback(() => {
+    setUser(null);
+    safeLocalStorageRemove("ethos-auth-token");
+  }, []);
+
   const handleAdminLogout = useCallback(() => {
     adminAbortRef.current?.abort();
     adminAbortRef.current = null;
@@ -602,20 +770,112 @@ export const App = () => {
   // =========================
   // Render
   // =========================
+  if (showSplash) {
+    return (
+      <div style={{
+        fontFamily: "Inter, sans-serif",
+        background: "#0F172A",
+        height: "100vh",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "white"
+      }}>
+        <style>{`
+          @keyframes breathe {
+            0%, 100% { transform: scale(1); opacity: 0.8; }
+            50% { transform: scale(1.1); opacity: 1; }
+          }
+          .breathe { animation: breathe 3s ease-in-out infinite; }
+        `}</style>
+        <div className="breathe" style={{ fontSize: 64, fontWeight: 800, letterSpacing: -2, marginBottom: 12 }}>ETHOS</div>
+        <p style={{ color: "#94A3B8", fontSize: 18 }}>Seu ambiente clínico seguro</p>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div style={{
+        fontFamily: "Inter, sans-serif",
+        background: "#0F172A",
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 20
+      }}>
+        <div style={{ ...sectionStyle, width: "100%", maxWidth: 400, marginBottom: 0 }}>
+          <h1 style={{ textAlign: "center", fontSize: 32, marginBottom: 8 }}>ETHOS</h1>
+          <p style={{ ...subtleText, textAlign: "center", marginBottom: 24 }}>Acesse sua conta clínica</p>
+
+          <form onSubmit={handleLogin} style={{ display: "grid", gap: 16 }}>
+            <label>
+              Email
+              <input
+                style={inputStyle}
+                type="email"
+                value={loginEmail}
+                onChange={e => setLoginEmail(e.target.value)}
+                placeholder="ex: psico@ethos.app"
+                required
+              />
+            </label>
+            <label>
+              Senha
+              <input
+                style={inputStyle}
+                type="password"
+                value={loginPassword}
+                onChange={e => setLoginPassword(e.target.value)}
+                placeholder="••••••••"
+                required
+              />
+            </label>
+            <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
+              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
+              <span style={{ fontSize: 14 }}>Lembrar de mim</span>
+            </label>
+            <button style={{ ...buttonStyle, marginTop: 8 }} type="submit">Entrar</button>
+          </form>
+
+          <div style={{ marginTop: 24, borderTop: "1px solid #1E293B", paddingTop: 16 }}>
+            <p style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
+              Logins de teste:<br/>
+              psico@ethos.app / ethos2026<br/>
+              paciente@ethos.app / ethos2026
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
       <header style={{ marginBottom: 24 }}>
         <h1 style={{ color: "#F8FAFC", fontSize: 28, marginBottom: 4 }}>ETHOS — Agenda Clínica</h1>
         <p style={subtleText}>Offline: prontuário + gravação/transcrição local + control plane admin.</p>
 
-        <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
-          <button style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }} onClick={() => setTab("clinical")}>
-            Clínica
-          </button>
-          <button style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }} onClick={() => setTab("admin")}>
-            Admin
-          </button>
-          {tab === "admin" && hasAdminToken ? <span style={badgeStyle}>{adminStatusLabel}</span> : null}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
+          <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
+            <button style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }} onClick={() => setTab("clinical")}>
+              Clínica
+            </button>
+            <button style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }} onClick={() => setTab("admin")}>
+              Admin
+            </button>
+            {tab === "admin" && hasAdminToken ? <span style={badgeStyle}>{adminStatusLabel}</span> : null}
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            <div style={{ textAlign: "right" }}>
+              <p style={{ margin: 0, color: "white", fontWeight: 600 }}>{user.fullName}</p>
+              <p style={{ margin: 0, color: "#94A3B8", fontSize: 12 }}>{user.role}</p>
+            </div>
+            <button style={{ ...outlineButtonStyle, padding: "6px 12px", fontSize: 12 }} onClick={handleLogout}>Sair</button>
+          </div>
         </div>
       </header>
 
@@ -634,6 +894,26 @@ export const App = () => {
 
       {showEthicsModal ? (
         <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} />
+      ) : null}
+
+      {showPatientModal ? (
+        <PatientModal
+          patient={editingPatient}
+          onCancel={() => {
+            setShowPatientModal(false);
+            setEditingPatient(null);
+          }}
+          onSave={async (data) => {
+            if (editingPatient) {
+              await window.ethos.patients.update(editingPatient.id, data);
+            } else {
+              await window.ethos.patients.create(data);
+            }
+            refreshData();
+            setShowPatientModal(false);
+            setEditingPatient(null);
+          }}
+        />
       ) : null}
 
       {/* -------------------------
@@ -714,6 +994,9 @@ export const App = () => {
                   <h2>Gestão de Pacientes</h2>
                   <button
                     style={{ ...buttonStyle, marginBottom: 16 }}
+                    onClick={() => {
+                      setEditingPatient(null);
+                      setShowPatientModal(true);
                     onClick={async () => {
                       const name = prompt("Nome completo do paciente:");
                       if (name && window.ethos?.patients) {
@@ -728,6 +1011,34 @@ export const App = () => {
                   <div className="grid">
                     {patients.map(p => (
                       <div key={p.id} style={{ background: "#0B1120", padding: 12, borderRadius: 12, border: "1px solid #1E293B" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between" }}>
+                          <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
+                          <span style={{ fontSize: 10, color: "#64748B" }}>CPF: {p.cpf || "--"}</span>
+                        </div>
+                        {p.phoneNumber && <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p>}
+                        {p.address && <p style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{p.address}</p>}
+                        {(() => {
+                          const entries = financialEntries.filter(e => e.patientId === p.id);
+                          const balance = entries.reduce((acc, e) => e.type === "payment" ? acc - e.amount : acc + e.amount, 0);
+                          return balance > 0 ? (
+                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600 }}>Débito: R$ {(balance/100).toFixed(2)}</p>
+                          ) : balance < 0 ? (
+                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600 }}>Crédito: R$ {(-balance/100).toFixed(2)}</p>
+                          ) : null;
+                        })()}
+                        <p style={{ ...subtleText, fontSize: 11 }}>ID: {p.id.slice(0, 8)}...</p>
+                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
+                        <button
+                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
+                          onClick={() => {
+                            setEditingPatient(p);
+                            setShowPatientModal(true);
+                          }}
+                        >
+                          Ficha Completa
+                        </button>
+                        <button
+                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
                         <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
                         <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
                         <button
@@ -746,6 +1057,7 @@ export const App = () => {
                         >
                           Agendar Sessão
                         </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -777,6 +1089,25 @@ export const App = () => {
                               setClinicalSection("sessao");
                             }}
                           >
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <strong>{p?.fullName || "Paciente desconhecido"}</strong>
+                                <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
+                                <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
+                              </div>
+                              {p?.phoneNumber && (
+                                <button
+                                  style={{ ...buttonStyle, background: "#25D366", padding: "6px 10px", fontSize: 12 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendReminder(p, s);
+                                  }}
+                                  title="Enviar lembrete WhatsApp"
+                                >
+                                  WhatsApp
+                                </button>
+                              )}
+                            </div>
                             <strong>{p?.fullName || "Paciente desconhecido"}</strong>
                             <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
                             <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
@@ -804,6 +1135,17 @@ export const App = () => {
                     <p style={{ color: "#FBBF24" }}>Selecione uma sessão na Agenda para começar.</p>
                   ) : (
                     <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p style={{ color: "#CBD5F5", margin: 0 }}>Paciente: {patientName}</p>
+                    {currentPatient?.phoneNumber && (
+                      <button
+                        style={{ ...buttonStyle, background: "#25D366", display: "flex", alignItems: "center", gap: 8 }}
+                        onClick={() => handleSendReminder(currentPatient, currentSession)}
+                      >
+                        📱 Enviar Lembrete (WhatsApp)
+                      </button>
+                    )}
+                  </div>
                   <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
@@ -923,7 +1265,9 @@ export const App = () => {
                     onChange={(event) => {
                       if (!isValidated) setDraft(event.target.value);
                     }}
+                    onBlur={saveDraft}
                     readOnly={isValidated}
+                    placeholder="Escreva aqui o prontuário..."
                     style={{
                       width: "100%",
                       minHeight: 140,
@@ -937,6 +1281,29 @@ export const App = () => {
                   />
 
                   <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                    {!isValidated && (
+                      <div style={{ display: "flex", gap: 12 }}>
+                        <select
+                          style={{ ...buttonStyle, background: "#8B5CF6", width: "auto" }}
+                          onChange={(e) => handleAiTransform(e.target.value)}
+                          disabled={isGeneratingNote}
+                          value=""
+                        >
+                          <option value="" disabled>{isGeneratingNote ? "Processando..." : "✨ Gerar com IA"}</option>
+                          <option value="prontuario">Prontuário (CRP)</option>
+                          <option value="relatorio">Relatório Clínico</option>
+                        </select>
+                      </div>
+                    )}
+                    {!isValidated && (
+                      <button
+                        style={secondaryButtonStyle}
+                        onClick={saveDraft}
+                        type="button"
+                      >
+                        Salvar rascunho
+                      </button>
+                    )}
                     <button
                       style={{
                         ...buttonStyle,
@@ -993,6 +1360,225 @@ export const App = () => {
                 </div>
               </section>
 
+              {/* FINANCEIRO */}
+              <section className={`panel ${clinicalSection === "financeiro" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Gestão Financeira</h2>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                    <button
+                      style={buttonStyle}
+                      onClick={async () => {
+                        const pId = prompt("ID do Paciente (cole aqui):");
+                        if (!pId) return;
+                        const amount = prompt("Valor (em reais, ex: 150.00):");
+                        if (!amount) return;
+                        if (window.ethos?.financial) {
+                          await window.ethos.financial.create({
+                            patientId: pId,
+                            amount: Math.round(parseFloat(amount) * 100),
+                            type: "charge",
+                            category: "session",
+                            status: "pending",
+                            date: new Date().toISOString()
+                          });
+                          refreshData();
+                        }
+                      }}
+                    >
+                      + Nova Cobrança
+                    </button>
+                    <button
+                      style={{ ...buttonStyle, background: "#10B981" }}
+                      onClick={async () => {
+                        const pId = prompt("ID do Paciente (cole aqui):");
+                        if (!pId) return;
+                        const amount = prompt("Valor (em reais, ex: 150.00):");
+                        if (!amount) return;
+                        if (window.ethos?.financial) {
+                          await window.ethos.financial.create({
+                            patientId: pId,
+                            amount: Math.round(parseFloat(amount) * 100),
+                            type: "payment",
+                            category: "session",
+                            status: "completed",
+                            method: "pix",
+                            date: new Date().toISOString()
+                          });
+                          refreshData();
+                        }
+                      }}
+                    >
+                      + Registrar Pagamento
+                    </button>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {financialEntries.length === 0 ? (
+                      <p style={subtleText}>Nenhum registro financeiro.</p>
+                    ) : (
+                      financialEntries.map(e => {
+                        const p = patients.find(patient => patient.id === e.patientId);
+                        return (
+                          <div
+                            key={e.id}
+                            style={{
+                              background: "#0B1120",
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid #1E293B",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center"
+                            }}
+                          >
+                            <div>
+                              <strong style={{ color: e.type === "payment" ? "#10B981" : "#FBBF24" }}>
+                                {e.type === "payment" ? "PAGAMENTO" : "COBRANÇA"}
+                              </strong>
+                              <p style={{ color: "#E2E8F0", fontSize: 14 }}>{p?.fullName || "Desconhecido"}</p>
+                              <p style={{ ...subtleText, fontSize: 12 }}>{new Date(e.date).toLocaleDateString("pt-BR")}</p>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <p style={{ fontSize: 18, fontWeight: 700 }}>R$ {(e.amount / 100).toFixed(2)}</p>
+                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
+                                {e.type === "payment" && (
+                                  <button
+                                    style={{ ...outlineButtonStyle, padding: "2px 8px", fontSize: 10 }}
+                                    onClick={async () => {
+                                      if (window.ethos?.genai) {
+                                        const recibo = await window.ethos.genai.generateRecibo({
+                                          patientId: e.patientId,
+                                          amount: e.amount,
+                                          date: e.date
+                                        });
+                                        if (window.ethos?.export) {
+                                          await window.ethos.export.pdf(recibo, `Recibo_${p?.fullName}_${new Date(e.date).toISOString().split('T')[0]}`);
+                                        }
+                                      }
+                                    }}
+                                  >
+                                    Recibo PDF
+                                  </button>
+                                )}
+                                <span style={{ ...badgeStyle, background: e.status === "completed" ? "#064E3B" : "#451A03" }}>
+                                  {e.status}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* DIÁRIOS */}
+              <section className={`panel ${clinicalSection === "diarios" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Diários e Formulários</h2>
+                  <p style={subtleText}>Acompanhe a evolução do paciente entre as sessões.</p>
+
+                  <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "250px 1fr", gap: 24 }}>
+                    <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, border: "1px solid #1E293B" }}>
+                      <h4 style={{ marginTop: 0 }}>Pacientes</h4>
+                      <div style={{ display: "grid", gap: 8 }}>
+                        {patients.map(p => (
+                          <button
+                            key={p.id}
+                            style={{
+                              ...outlineButtonStyle,
+                              textAlign: "left",
+                              background: selectedPatientId === p.id ? "#1E293B" : "transparent",
+                              borderColor: selectedPatientId === p.id ? "#3B82F6" : "#1E293B"
+                            }}
+                            onClick={() => setSelectedPatientId(p.id)}
+                          >
+                            {p.fullName}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      {!selectedPatientId ? (
+                        <p style={subtleText}>Selecione um paciente para ver as respostas.</p>
+                      ) : (
+                        <PatientDiariesView patientId={selectedPatientId} templates={formTemplates} />
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* RELATÓRIOS */}
+              <section className={`panel ${clinicalSection === "relatorios" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Geração de Documentos</h2>
+                  <p style={subtleText}>Gere documentos oficiais com base nos dados clínicos.</p>
+
+                  <div style={{ marginTop: 16, display: "grid", gap: 16, maxWidth: 400 }}>
+                    <label style={{ display: "grid", gap: 8 }}>
+                      Tipo de Documento
+                      <select
+                        style={inputStyle}
+                        value={reportType}
+                        onChange={(e) => setReportType(e.target.value as any)}
+                      >
+                        <option value="declaration">Declaração de Comparecimento</option>
+                        <option value="clinical_report">Relatório Psicológico (baseado em nota validada)</option>
+                      </select>
+                    </label>
+
+                    {reportType === "declaration" ? (
+                      <div>
+                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
+                          Gera uma declaração simples confirmando a presença do paciente na sessão selecionada.
+                        </p>
+                        <button
+                          style={buttonStyle}
+                          disabled={!selectedSessionId}
+                          onClick={async () => {
+                            if (!currentPatient || !currentSession) return;
+                            const text = `DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro para os devidos fins que o(a) paciente ${currentPatient.fullName} compareceu à sessão de psicoterapia no dia ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}.\n\nEmitido em: ${new Date().toLocaleDateString("pt-BR")}\n\nResponsável: ${clinicianName}`;
+                            if (window.ethos?.export) {
+                              await window.ethos.export.pdf(text, `Declaracao_${currentPatient.fullName}`);
+                            }
+                          }}
+                        >
+                          Gerar PDF
+                        </button>
+                        {!selectedSessionId && <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>Selecione uma sessão na Agenda primeiro.</p>}
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
+                          Gera um relatório clínico detalhado baseado no prontuário VALIDADO da sessão selecionada.
+                        </p>
+                        <button
+                          style={buttonStyle}
+                          disabled={!selectedSessionId || status !== "validated"}
+                          onClick={async () => {
+                            if (!currentPatient || !currentSession || status !== "validated") return;
+                            const text = `RELATÓRIO PSICOLÓGICO\n\nIDENTIFICAÇÃO\nPaciente: ${currentPatient.fullName}\nProfissional: ${clinicianName}\nData da Sessão: ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}\n\nDESCRIÇÃO E EVOLUÇÃO\n${draft}\n\nDocumento validado eletronicamente em ${validatedAt}.`;
+                            if (window.ethos?.export) {
+                              await window.ethos.export.pdf(text, `Relatorio_${currentPatient.fullName}`);
+                            }
+                          }}
+                        >
+                          Gerar PDF (Relatório)
+                        </button>
+                        {(!selectedSessionId || status !== "validated") && (
+                          <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>
+                            Requer uma sessão selecionada e um prontuário VALIDADO.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
               {/* CONFIGURAÇÕES */}
               <section className={`panel ${clinicalSection === "config" ? "active" : ""}`}>
                 <div style={sectionStyle}>
@@ -1001,6 +1587,16 @@ export const App = () => {
 
                   <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
                     <div>
+                      <strong>Lembrete WhatsApp (Template)</strong>
+                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Use {{nome}}, {{data}} e {{hora}} como variáveis.</p>
+                      <textarea
+                        style={{ ...inputStyle, minHeight: 80, fontSize: 14 }}
+                        value={whatsappTemplate}
+                        onChange={(e) => setWhatsappTemplate(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={{ borderTop: "1px solid #1E293B", paddingTop: 16 }}>
                       <strong>Backup Local</strong>
                       <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Cria uma cópia criptografada do banco de dados.</p>
                       <button
@@ -1147,127 +1743,77 @@ export const App = () => {
   );
 };
 
-// -----------------------------
-// Modals/Subcomponents
-// -----------------------------
-function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div style={modalBackdropStyle}>
-      <div style={{ ...modalStyle, width: "min(90vw, 520px)" }}>
-        <h3 style={{ marginTop: 0 }}>Confirmação ética</h3>
-        <p style={{ color: "#CBD5F5" }}>
-          Antes de validar, confirme que o registro está fiel ao relato do paciente, sem interpretações clínicas,
-          que o consentimento foi obtido e que você está ciente do bloqueio permanente após a validação.
-        </p>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button style={outlineButtonStyle} onClick={onCancel} type="button">
-            Cancelar
-          </button>
-          <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={onConfirm} type="button">
-            Confirmar e validar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-/**
- * Modal de gravação no estilo do seu snippet (compacto).
- */
-function RecordingConsentModal(props: {
-  checked: boolean;
-  onCheck: (value: boolean) => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const { checked, onCheck, onCancel, onConfirm } = props;
+function PatientDiariesView({ patientId, templates }: { patientId: string; templates: any[] }) {
+  const [responses, setResponses] = useState<any[]>([]);
 
-  // modal menor (como no snippet)
-  const compactModalStyle: React.CSSProperties = {
-    ...modalStyle,
-    width: "min(90vw, 420px)",
-  };
+  const loadResponses = useCallback(async () => {
+    if (window.ethos?.forms) {
+      const res = await window.ethos.forms.getResponses(patientId);
+      setResponses(res || []);
+    }
+  }, [patientId]);
 
-  return (
-    <div style={modalBackdropStyle}>
-      <div style={compactModalStyle}>
-        <h3 style={{ marginTop: 0 }}>Confirmar consentimento</h3>
-        <p style={{ color: "#CBD5F5" }}>Antes de iniciar a gravação, confirme que o paciente autorizou o registro de áudio.</p>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#E2E8F0" }}>
-          <input type="checkbox" checked={checked} onChange={(event) => onCheck(event.target.checked)} />
-          Tenho consentimento explícito do paciente para gravar a sessão.
-        </label>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end" }}>
-          <button style={outlineButtonStyle} onClick={onCancel} type="button">
-            Cancelar
-          </button>
-          <button
-            style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }}
-            onClick={onConfirm}
-            disabled={!checked}
-            type="button"
-          >
-            Iniciar gravação
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
+  useEffect(() => {
+    loadResponses();
+  }, [loadResponses]);
 
-function AdminPanel({ metrics, users }: { metrics: AdminOverviewMetrics | null; users: AdminUser[] }) {
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <StatCard label="Usuários ativos" value={metrics?.users_total ?? "--"} />
-        <StatCard label="Eventos de telemetria" value={metrics?.telemetry_total ?? "--"} />
-      </div>
-
-      <div>
-        <h3 style={{ marginBottom: 8 }}>Usuários (sanitizado)</h3>
-        <div style={{ display: "grid", gap: 8 }}>
-          {users.length === 0 ? (
-            <p style={subtleText}>Nenhum usuário encontrado.</p>
-          ) : (
-            users.map((user) => (
-              <div
-                key={user.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 1fr 1fr",
-                  gap: 12,
-                  padding: 12,
-                  background: "#0B1120",
-                  borderRadius: 12,
-                }}
-              >
-                <div>
-                  <p style={{ color: "#E2E8F0", marginBottom: 2 }}>{user.email}</p>
-                  <p style={{ ...subtleText, fontSize: 12 }}>ID: {user.id}</p>
-                </div>
-                <div>
-                  <p style={{ ...subtleText, fontSize: 12 }}>Role</p>
-                  <p style={{ color: "#E2E8F0" }}>{user.role}</p>
-                </div>
-                <div>
-                  <p style={{ ...subtleText, fontSize: 12 }}>Status</p>
-                  <p style={{ color: "#E2E8F0" }}>{user.status}</p>
-                </div>
-              </div>
-            ))
-          )}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <h3 style={{ margin: 0 }}>Histórico de Respostas</h3>
+        <div style={{ display: "flex", gap: 12 }}>
+          {templates.map(t => (
+            <button
+              key={t.id}
+              style={{ ...buttonStyle, padding: "6px 12px", fontSize: 12 }}
+              onClick={async () => {
+                const schema = JSON.parse(t.schema);
+                const answers: any = {};
+                for (const field of schema) {
+                  const val = prompt(field.question);
+                  if (val === null) return;
+                  answers[field.id] = val;
+                }
+                await window.ethos.forms.submitResponse({
+                  formId: t.id,
+                  patientId,
+                  answers
+                });
+                loadResponses();
+              }}
+            >
+              + {t.title}
+            </button>
+          ))}
         </div>
       </div>
-    </div>
-  );
-}
 
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, minWidth: 180 }}>
-      <p style={subtleText}>{label}</p>
-      <p style={{ fontSize: 24, fontWeight: 700 }}>{value}</p>
+      <div style={{ display: "grid", gap: 12 }}>
+        {responses.length === 0 ? (
+          <p style={{ color: "#94A3B8" }}>Nenhuma resposta registrada ainda.</p>
+        ) : (
+          responses.map(r => {
+            const answers = JSON.parse(r.answers);
+            return (
+              <div key={r.id} style={{ background: "#0B1120", padding: 16, borderRadius: 12, border: "1px solid #1E293B" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
+                  <strong style={{ color: "#3B82F6" }}>{r.formTitle}</strong>
+                  <span style={{ fontSize: 12, color: "#64748B" }}>{new Date(r.createdAt).toLocaleString("pt-BR")}</span>
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {Object.entries(answers).map(([key, val]: [string, any]) => (
+                    <div key={key}>
+                      <p style={{ margin: 0, fontSize: 12, color: "#94A3B8" }}>Pergunta ID: {key}</p>
+                      <p style={{ margin: 0, color: "#E2E8F0" }}>{val}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }

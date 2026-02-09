@@ -20,11 +20,22 @@ export const patientsService = {
     const newPatient = { ...patient, id, createdAt };
 
     db.prepare(`
-      INSERT INTO patients (id, fullName, birthDate, notes, createdAt)
-      VALUES (@id, @fullName, @birthDate, @notes, @createdAt)
+      INSERT INTO patients (id, fullName, phoneNumber, cpf, cep, address, supportNetwork, sessionPrice, birthDate, notes, createdAt)
+      VALUES (@id, @fullName, @phoneNumber, @cpf, @cep, @address, @supportNetwork, @sessionPrice, @birthDate, @notes, @createdAt)
     `).run(newPatient);
 
     return newPatient;
+  },
+
+  update: (id: string, updates: Partial<Patient>): void => {
+    const db = getDb();
+    const allowedKeys = ['fullName', 'phoneNumber', 'cpf', 'cep', 'address', 'supportNetwork', 'sessionPrice', 'birthDate', 'notes'];
+    const keys = Object.keys(updates).filter(k => allowedKeys.includes(k));
+
+    if (keys.length === 0) return;
+
+    const setClause = keys.map(key => `${key} = @${key}`).join(', ');
+    db.prepare(`UPDATE patients SET ${setClause} WHERE id = @id`).run({ ...updates, id });
   },
 
   delete: (id: string): void => {
