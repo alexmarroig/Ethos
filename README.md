@@ -12,12 +12,14 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
 - **Registro Clínico Ético:** Geração de rascunhos de prontuário baseados na transcrição. O sistema exige validação humana explícita antes de considerar a nota como final.
 - **Segurança de Dados:** Banco de dados SQLite criptografado via SQLCipher. Áudios e rascunhos são armazenados localmente e criptografados em repouso (AES-256-GCM).
 - **Exportação:** Geração de documentos em formatos PDF e DOCX para prontuários validados.
-- **Agenda e Pacientes:** Gestão completa de cadastro de pacientes e agendamento de sessões com persistência local.
-- **WhatsApp Satélite:** Geração de lembretes manuais com templates customizáveis.
-- **Financeiro Clínico:** Registro de cobranças e pagamentos com controle de saldo por paciente.
-- **Documentos e Relatórios:** Geração automática de declarações de comparecimento e relatórios psicológicos em PDF.
-- **Segurança e Backup:** Ferramentas integradas para criação de backups criptografados, restauração de dados e expurgo total (purge).
-- **Admin Control Plane:** Interface para monitoramento sanitizado de métricas de uso e saúde do sistema (sem acesso a dados clínicos).
+- **Autenticação Segura:** Sistema de login com persistência via biometria/token criptografado.
+- **Ficha do Paciente:** Cadastro detalhado com CPF, endereço, rede de apoio e controle financeiro.
+- **Transcrição e IA:** Processamento de áudio local e transformação inteligente de transcrições em documentos (Prontuário CRP, Relatórios).
+- **Diários e Formulários:** Ferramentas adicionais para acompanhamento (Diário dos Sonhos/Emoções) com histórico integrado.
+- **WhatsApp Satélite:** Lembretes manuais automatizados.
+- **Gestão Financeira:** Controle de cobranças, pagamentos e emissão de recibos em PDF.
+- **Segurança e Backup:** Backups criptografados e controle local total.
+- **Admin Control Plane:** Métricas sanitizadas e saúde do sistema.
 - **Modo Seguro:** Detecção automática de corrupção de banco de dados com travamento de funcionalidades críticas para proteção de dados.
 
 ## 🛠 Estrutura do Projeto (Monorepo)

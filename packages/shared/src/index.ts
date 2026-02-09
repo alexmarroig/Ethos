@@ -2,6 +2,11 @@ export type Patient = {
   id: string;
   fullName: string;
   phoneNumber?: string;
+  cpf?: string;
+  cep?: string;
+  address?: string;
+  supportNetwork?: string;
+  sessionPrice?: number; // em centavos
   birthDate?: string;
   notes?: string;
   createdAt: string;

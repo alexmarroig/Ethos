@@ -10,6 +10,7 @@
     "dev:desktop": "npm --workspace apps/ethos-desktop run dev",
     "dev:electron": "npm --workspace apps/ethos-desktop run electron:dev",
     "dev:transcriber": "npm --workspace apps/ethos-transcriber run dev",
+    "dev:mobile": "npm --workspace apps/ethos-mobile run start",
     "build": "npm --workspace apps/ethos-desktop run build && npm --workspace apps/ethos-transcriber run build",
     "lint": "echo 'lint placeholder'",
     "test": "vitest"

@@ -20,8 +20,8 @@ export const patientsService = {
     const newPatient = { ...patient, id, createdAt };
 
     db.prepare(`
-      INSERT INTO patients (id, fullName, phoneNumber, birthDate, notes, createdAt)
-      VALUES (@id, @fullName, @phoneNumber, @birthDate, @notes, @createdAt)
+      INSERT INTO patients (id, fullName, phoneNumber, cpf, cep, address, supportNetwork, sessionPrice, birthDate, notes, createdAt)
+      VALUES (@id, @fullName, @phoneNumber, @cpf, @cep, @address, @supportNetwork, @sessionPrice, @birthDate, @notes, @createdAt)
     `).run(newPatient);
 
     return newPatient;
@@ -29,7 +29,7 @@ export const patientsService = {
 
   update: (id: string, updates: Partial<Patient>): void => {
     const db = getDb();
-    const allowedKeys = ['fullName', 'phoneNumber', 'birthDate', 'notes'];
+    const allowedKeys = ['fullName', 'phoneNumber', 'cpf', 'cep', 'address', 'supportNetwork', 'sessionPrice', 'birthDate', 'notes'];
     const keys = Object.keys(updates).filter(k => allowedKeys.includes(k));
 
     if (keys.length === 0) return;

@@ -19,6 +19,9 @@ import { transcriptionJobsService } from "./services/transcription-jobs.service"
 import { integrityService } from "./services/integrity.service";
 import { financialService } from "./services/financial.service";
 import { backupService } from "./services/backup.service";
+import { authService } from "./services/auth.service";
+import { genaiService } from "./services/genai.service";
+import { formsService } from "./services/forms.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isSafeMode = false;
@@ -560,6 +563,59 @@ ipcMain.handle("models:download", async (event, id) => {
     event.sender.send("models:progress", { id, progress });
   });
   return true;
+});
+
+// ---------------------
+// Auth IPC
+// ---------------------
+ipcMain.handle("auth:login", (_e, { email, password }) => {
+  return authService.login(email, password);
+});
+
+ipcMain.handle("auth:encryptToken", (_e, token) => {
+  return authService.saveCredentials("", token);
+});
+
+ipcMain.handle("auth:decryptToken", (_e, encrypted) => {
+  return authService.decryptToken(encrypted);
+});
+
+// ---------------------
+// GenAI IPC
+// ---------------------
+ipcMain.handle("genai:transformNote", async (_e, { transcriptText, sessionId, templateType }) => {
+  requireNotSafeMode();
+  const session = sessionsService.getAll().find(s => s.id === sessionId);
+  if (!session) throw new Error("Sessão não encontrada");
+  const patient = patientsService.getById(session.patientId);
+  if (!patient) throw new Error("Paciente não encontrado");
+
+  return genaiService.transformToClinicalNote(transcriptText, patient, session, templateType);
+});
+
+ipcMain.handle("genai:generateRecibo", (_e, { patientId, amount, date }) => {
+  requireNotSafeMode();
+  const patient = patientsService.getById(patientId);
+  if (!patient) throw new Error("Paciente não encontrado");
+  return genaiService.generateRecibo(patient, amount, date);
+});
+
+// ---------------------
+// Forms IPC
+// ---------------------
+ipcMain.handle("forms:getTemplates", () => {
+  requireNotSafeMode();
+  return formsService.getAllTemplates();
+});
+
+ipcMain.handle("forms:getResponses", (_e, patientId) => {
+  requireNotSafeMode();
+  return formsService.getResponsesByPatient(patientId);
+});
+
+ipcMain.handle("forms:submitResponse", (_e, payload) => {
+  requireNotSafeMode();
+  return formsService.submitResponse(payload);
 });
 
 // ---------------------
