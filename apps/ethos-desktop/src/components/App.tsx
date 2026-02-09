@@ -24,7 +24,7 @@ type WorkerMessage =
   | unknown;
 
 type AppTab = "clinical" | "admin";
-type ClinicalSection = "login" | "agenda" | "sessao" | "prontuario";
+type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "config";
 
 type EthosBridge = {
   audio: {
@@ -194,9 +194,11 @@ function createEthosBridge(): EthosBridge {
 // -----------------------------
 const clinicalNavItems: Array<{ id: ClinicalSection; label: string; helper: string }> = [
   { id: "login", label: "Login", helper: "Acesso seguro" },
+  { id: "pacientes", label: "Pacientes", helper: "Gestão de prontuários" },
   { id: "agenda", label: "Agenda", helper: "Semana clínica" },
   { id: "sessao", label: "Sessão", helper: "Registro guiado" },
   { id: "prontuario", label: "Prontuário", helper: "Validação + export" },
+  { id: "config", label: "Configurações", helper: "Segurança e Backup" },
 ];
 
 export const App = () => {
@@ -207,12 +209,38 @@ export const App = () => {
   const [clinicalSection, setClinicalSection] = useState<ClinicalSection>("agenda");
 
   // =========================
+  // Real Data State
+  // =========================
+  const [patients, setPatients] = useState<any[]>([]);
+  const [sessions, setSessions] = useState<any[]>([]);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+
+  const refreshData = useCallback(async () => {
+    if (window.ethos?.patients) {
+      const p = await window.ethos.patients.getAll();
+      setPatients(p || []);
+    }
+    if (window.ethos?.sessions) {
+      const s = await window.ethos.sessions.getAll();
+      setSessions(s || []);
+    }
+  }, []);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // =========================
   // Session context (proto)
   // =========================
-  const sessionId = "session-marina-alves";
-  const patientName = "Marina Alves";
+  const currentSession = useMemo(() => sessions.find(s => s.id === selectedSessionId), [sessions, selectedSessionId]);
+  const currentPatient = useMemo(() => patients.find(p => p.id === currentSession?.patientId), [patients, currentSession]);
+
+  const sessionId = currentSession?.id || "no-session";
+  const patientName = currentPatient?.fullName || "Nenhum paciente selecionado";
   const clinicianName = "Dra. Ana Souza";
-  const sessionDate = "15/02/2025";
+  const sessionDate = currentSession ? new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR") : "--/--/----";
 
   // =========================
   // Clinical note state
@@ -680,35 +708,90 @@ export const App = () => {
                 </div>
               </section>
 
+              {/* PACIENTES */}
+              <section className={`panel ${clinicalSection === "pacientes" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Gestão de Pacientes</h2>
+                  <button
+                    style={{ ...buttonStyle, marginBottom: 16 }}
+                    onClick={async () => {
+                      const name = prompt("Nome completo do paciente:");
+                      if (name && window.ethos?.patients) {
+                        await window.ethos.patients.create({ fullName: name });
+                        refreshData();
+                      }
+                    }}
+                  >
+                    + Novo Paciente
+                  </button>
+
+                  <div className="grid">
+                    {patients.map(p => (
+                      <div key={p.id} style={{ background: "#0B1120", padding: 12, borderRadius: 12, border: "1px solid #1E293B" }}>
+                        <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
+                        <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
+                        <button
+                          style={{ ...outlineButtonStyle, marginTop: 8, fontSize: 12, padding: "4px 8px" }}
+                          onClick={async () => {
+                            if (window.ethos?.sessions) {
+                              await window.ethos.sessions.create({
+                                patientId: p.id,
+                                scheduledAt: new Date().toISOString(),
+                                status: "scheduled"
+                              });
+                              refreshData();
+                              setClinicalSection("agenda");
+                            }
+                          }}
+                        >
+                          Agendar Sessão
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+
               {/* AGENDA */}
               <section className={`panel ${clinicalSection === "agenda" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Agenda semanal</h2>
+                  <h2>Agenda / Sessões</h2>
                   <div className="grid" style={{ marginTop: 12 }}>
-                    <div>
-                      <strong>Segunda</strong>
-                      <p style={{ color: "#CBD5F5" }}>14:00 · {patientName}</p>
-                      <p style={{ color: "#94A3B8" }}>Sala 2 · Presencial</p>
-                    </div>
-                    <div>
-                      <strong>Terça</strong>
-                      <p style={{ color: "#CBD5F5" }}>09:30 · João Costa</p>
-                      <p style={{ color: "#94A3B8" }}>Teleatendimento</p>
-                    </div>
-                    <div>
-                      <strong>Quarta</strong>
-                      <p style={{ color: "#CBD5F5" }}>16:15 · Luísa Martins</p>
-                      <p style={{ color: "#94A3B8" }}>Sala 3 · Avaliação inicial</p>
-                    </div>
+                    {sessions.length === 0 ? (
+                      <p style={subtleText}>Nenhuma sessão agendada.</p>
+                    ) : (
+                      sessions.map(s => {
+                        const p = patients.find(patient => patient.id === s.patientId);
+                        return (
+                          <div
+                            key={s.id}
+                            style={{
+                              background: selectedSessionId === s.id ? "#1E293B" : "#0B1120",
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid #1E293B",
+                              cursor: "pointer"
+                            }}
+                            onClick={() => {
+                              setSelectedSessionId(s.id);
+                              setClinicalSection("sessao");
+                            }}
+                          >
+                            <strong>{p?.fullName || "Paciente desconhecido"}</strong>
+                            <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
+                            <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
+                          </div>
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 
                 <div style={sectionStyle}>
                   <h2>Próximas tarefas</h2>
                   <ul style={{ color: "#CBD5F5", paddingLeft: 18, margin: 0 }}>
-                    <li>Revisar formulário de intake (Marina).</li>
-                    <li>Confirmar autorização de gravação (João).</li>
-                    <li>Enviar lembrete de sessão (Luísa).</li>
+                    <li>Validar prontuários pendentes</li>
+                    <li>Realizar backup semanal</li>
                   </ul>
                 </div>
               </section>
@@ -717,6 +800,10 @@ export const App = () => {
               <section className={`panel ${clinicalSection === "sessao" ? "active" : ""}`}>
                 <div style={sectionStyle}>
                   <h2>Sessão</h2>
+                  {selectedSessionId === null ? (
+                    <p style={{ color: "#FBBF24" }}>Selecione uma sessão na Agenda para começar.</p>
+                  ) : (
+                    <>
                   <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
 
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
@@ -794,6 +881,8 @@ export const App = () => {
                   <p style={{ color: "#94A3B8", marginTop: 8 }}>
                     Status da transcrição: aguardando envio para o worker local.
                   </p>
+                  </>
+                  )}
                 </div>
               </section>
 
@@ -801,7 +890,10 @@ export const App = () => {
               <section className={`panel ${clinicalSection === "prontuario" ? "active" : ""}`}>
                 <div style={sectionStyle}>
                   <h2>Prontuário automático</h2>
-
+                  {selectedSessionId === null ? (
+                    <p style={{ color: "#FBBF24" }}>Selecione uma sessão na Agenda para visualizar o prontuário.</p>
+                  ) : (
+                    <>
                   <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
                     <span
                       style={{
@@ -896,6 +988,69 @@ export const App = () => {
                       {exportFeedback}
                     </p>
                   ) : null}
+                  </>
+                  )}
+                </div>
+              </section>
+
+              {/* CONFIGURAÇÕES */}
+              <section className={`panel ${clinicalSection === "config" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Segurança e Backup</h2>
+                  <p style={subtleText}>Gerencie a integridade e o backup dos seus dados clínicos.</p>
+
+                  <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
+                    <div>
+                      <strong>Backup Local</strong>
+                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Cria uma cópia criptografada do banco de dados.</p>
+                      <button
+                        style={buttonStyle}
+                        onClick={async () => {
+                          const pwd = prompt("Defina uma senha para o arquivo de backup:");
+                          if (pwd && window.ethos?.backup) {
+                            const ok = await window.ethos.backup.create(pwd);
+                            if (ok) alert("Backup concluído com sucesso!");
+                          }
+                        }}
+                      >
+                        Criar Backup
+                      </button>
+                    </div>
+
+                    <div style={{ borderTop: "1px solid #1E293B", paddingTop: 16 }}>
+                      <strong>Restaurar Backup</strong>
+                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Substitui o banco de dados atual por um backup.</p>
+                      <button
+                        style={secondaryButtonStyle}
+                        onClick={async () => {
+                          const pwd = prompt("Digite a senha do arquivo de backup:");
+                          if (pwd && window.ethos?.backup) {
+                            const ok = await window.ethos.backup.restore(pwd);
+                            if (ok) alert("Restauração concluída! Reinicie o aplicativo.");
+                          }
+                        }}
+                      >
+                        Restaurar Backup
+                      </button>
+                    </div>
+
+                    <div style={{ borderTop: "1px solid #1E293B", paddingTop: 16 }}>
+                      <strong>Limpeza de Dados (Purge)</strong>
+                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Apaga todos os dados locais permanentemente.</p>
+                      <button
+                        style={{ ...buttonStyle, background: "#EF4444" }}
+                        onClick={async () => {
+                          if (confirm("TEM CERTEZA? Isso apagará todos os pacientes, sessões e áudios.") && window.ethos?.privacy) {
+                            await window.ethos.privacy.purgeAll();
+                            refreshData();
+                            alert("Todos os dados foram apagados.");
+                          }
+                        }}
+                      >
+                        Apagar Tudo
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </section>
             </main>

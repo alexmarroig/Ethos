@@ -17,6 +17,7 @@ import { generationService } from "./services/generation.service";
 import { exportService } from "./services/export.service";
 import { transcriptionJobsService } from "./services/transcription-jobs.service";
 import { integrityService } from "./services/integrity.service";
+import { backupService } from "./services/backup.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isSafeMode = false;
@@ -530,4 +531,34 @@ ipcMain.handle("models:download", async (event, id) => {
     event.sender.send("models:progress", { id, progress });
   });
   return true;
+});
+
+// ---------------------
+// Backup IPC
+// ---------------------
+ipcMain.handle("backup:create", async (_e, password) => {
+  requireNotSafeMode();
+  if (!mainWindow) return;
+  const { filePath } = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: `ethos-backup-${new Date().toISOString().split("T")[0]}.db`,
+    filters: [{ name: "Ethos Backup", extensions: ["db"] }],
+  });
+  if (filePath) {
+    await backupService.createBackup(filePath, password);
+    return true;
+  }
+  return false;
+});
+
+ipcMain.handle("backup:restore", async (_e, password) => {
+  if (!mainWindow) return;
+  const { filePaths } = await dialog.showOpenDialog(mainWindow, {
+    properties: ["openFile"],
+    filters: [{ name: "Ethos Backup", extensions: ["db"] }],
+  });
+  if (filePaths[0]) {
+    await backupService.restoreBackup(filePaths[0], password);
+    return true;
+  }
+  return false;
 });
