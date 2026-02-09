@@ -11,13 +11,13 @@ Este documento descreve a visão completa para a versão 1.0 do ETHOS, detalhand
 - [x] **Exportações PDF/DOCX:** Funcional para notas validadas.
 - [x] **Agenda e organização de sessões:** Implementado com integração ao banco de dados local.
 - [x] **Gestão de Pacientes:** Implementado com integração ao banco de dados local.
-- [ ] **Relatórios (Declarações/Relatórios):** [Not Implemented] Requer templates e finalidade explícita.
+- [x] **Relatórios (Declarações/Relatórios):** Implementado (Declaração e Relatório Psicológico).
 - [x] **Backup/Restore/Purge:** Implementado e exposto na UI de Configurações.
 
 ## 2. Gestão Financeira
-- [ ] **Lançamento de cobranças e pagamentos:** [Not Implemented]
+- [x] **Lançamento de cobranças e pagamentos:** Implementado com persistência local.
 - [ ] **Gestão de pacotes e isenções:** [Not Implemented]
-- [ ] **Relatórios financeiros básicos:** [Not Implemented]
+- [x] **Relatórios financeiros básicos:** Resumo de saldo por paciente implementado.
 
 ## 3. Portal do Paciente
 - [ ] **Acesso do paciente:** [Not Implemented]
@@ -26,7 +26,7 @@ Este documento descreve a visão completa para a versão 1.0 do ETHOS, detalhand
 - [ ] **Mensagens:** [Not Implemented]
 
 ## 4. Integrações e UX
-- [ ] **Lembretes WhatsApp (Manual):** [Not Implemented] Geração de texto e link wa.me.
+- [x] **Lembretes WhatsApp (Manual):** Implementado (Satélite) com templates customizáveis.
 - [x] **Admin Global (Camila):** [Implemented] Visão sanitizada de uso e erros.
 - [ ] **Multi-usuário Real:** [Not Implemented] Isolamento completo de dados entre profissionais (atualmente focado em uso individual).
 - [x] **Offline-First:** [Implemented] Arquitetura baseada em banco local e processamento no device.

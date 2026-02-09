@@ -24,6 +24,7 @@ export const initDb = (encryptionKey: string) => {
     CREATE TABLE IF NOT EXISTS patients (
       id TEXT PRIMARY KEY,
       fullName TEXT NOT NULL,
+      phoneNumber TEXT,
       birthDate TEXT,
       notes TEXT,
       createdAt TEXT NOT NULL
@@ -73,6 +74,22 @@ export const initDb = (encryptionKey: string) => {
       error TEXT,
       createdAt TEXT NOT NULL,
       updatedAt TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS financial_entries (
+      id TEXT PRIMARY KEY,
+      patientId TEXT NOT NULL,
+      sessionId TEXT,
+      amount INTEGER NOT NULL,
+      type TEXT NOT NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL,
+      method TEXT,
+      date TEXT NOT NULL,
+      notes TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(patientId) REFERENCES patients(id),
+      FOREIGN KEY(sessionId) REFERENCES sessions(id)
     );
   `);
 

@@ -13,6 +13,9 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
 - **Segurança de Dados:** Banco de dados SQLite criptografado via SQLCipher. Áudios e rascunhos são armazenados localmente e criptografados em repouso (AES-256-GCM).
 - **Exportação:** Geração de documentos em formatos PDF e DOCX para prontuários validados.
 - **Agenda e Pacientes:** Gestão completa de cadastro de pacientes e agendamento de sessões com persistência local.
+- **WhatsApp Satélite:** Geração de lembretes manuais com templates customizáveis.
+- **Financeiro Clínico:** Registro de cobranças e pagamentos com controle de saldo por paciente.
+- **Documentos e Relatórios:** Geração automática de declarações de comparecimento e relatórios psicológicos em PDF.
 - **Segurança e Backup:** Ferramentas integradas para criação de backups criptografados, restauração de dados e expurgo total (purge).
 - **Admin Control Plane:** Interface para monitoramento sanitizado de métricas de uso e saúde do sistema (sem acesso a dados clínicos).
 - **Modo Seguro:** Detecção automática de corrupção de banco de dados com travamento de funcionalidades críticas para proteção de dados.
@@ -43,5 +46,4 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
 
 ## ⚠️ Limitações Atuais (Mocks na UI)
 Algumas seções da interface ainda utilizam dados de exemplo (mocks) enquanto a integração completa com os serviços de banco de dados está sendo finalizada:
-- **Financeiro:** Seção ainda não implementada na interface.
 - **Portal do Paciente:** Ainda não disponível.

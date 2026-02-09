@@ -1,6 +1,7 @@
 export type Patient = {
   id: string;
   fullName: string;
+  phoneNumber?: string;
   birthDate?: string;
   notes?: string;
   createdAt: string;
@@ -69,6 +70,20 @@ export type ModelOption = {
   description: string;
   checksum: string;
   version: string;
+};
+
+export type FinancialEntry = {
+  id: string;
+  patientId: string;
+  sessionId?: string;
+  amount: number; // em centavos para evitar float issues
+  type: "payment" | "charge";
+  category: "session" | "package" | "other";
+  status: "pending" | "completed";
+  method?: "pix" | "card" | "cash" | "transfer";
+  date: string;
+  notes?: string;
+  createdAt: string;
 };
 
 // IPC Message Types

@@ -9,6 +9,8 @@ import {
   loginControlPlane,
 } from "../services/controlPlaneAdmin";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
+import { EthicsValidationModal, RecordingConsentModal } from "./Modals";
+import { AdminPanel } from "./Admin";
 
 // -----------------------------
 // Types
@@ -24,7 +26,7 @@ type WorkerMessage =
   | unknown;
 
 type AppTab = "clinical" | "admin";
-type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "config";
+type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "financeiro" | "relatorios" | "config";
 
 type EthosBridge = {
   audio: {
@@ -198,6 +200,8 @@ const clinicalNavItems: Array<{ id: ClinicalSection; label: string; helper: stri
   { id: "agenda", label: "Agenda", helper: "Semana clínica" },
   { id: "sessao", label: "Sessão", helper: "Registro guiado" },
   { id: "prontuario", label: "Prontuário", helper: "Validação + export" },
+  { id: "financeiro", label: "Financeiro", helper: "Cobranças e Pagamentos" },
+  { id: "relatorios", label: "Relatórios", helper: "Documentos e Declarações" },
   { id: "config", label: "Configurações", helper: "Segurança e Backup" },
 ];
 
@@ -213,6 +217,7 @@ export const App = () => {
   // =========================
   const [patients, setPatients] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
+  const [financialEntries, setFinancialEntries] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
 
@@ -225,11 +230,41 @@ export const App = () => {
       const s = await window.ethos.sessions.getAll();
       setSessions(s || []);
     }
+    if (window.ethos?.financial) {
+      const f = await window.ethos.financial.getAll();
+      setFinancialEntries(f || []);
+    }
   }, []);
 
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  const loadNote = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      const note = await window.ethos.notes.getBySession(selectedSessionId);
+      if (note) {
+        setNoteId(note.id);
+        setDraft(note.editedText || note.generatedText || "");
+        setStatus(note.status);
+        setValidatedAt(note.validatedAt || null);
+      } else {
+        setNoteId(null);
+        setDraft("");
+        setStatus("draft");
+        setValidatedAt(null);
+      }
+    } else {
+      setNoteId(null);
+      setDraft("");
+      setStatus("draft");
+      setValidatedAt(null);
+    }
+  }, [selectedSessionId]);
+
+  useEffect(() => {
+    loadNote();
+  }, [loadNote]);
 
   // =========================
   // Session context (proto)
@@ -246,12 +281,16 @@ export const App = () => {
   // Clinical note state
   // =========================
   const [consentForNote, setConsentForNote] = useState(false);
-  const [draft, setDraft] = useState(
-    "RASCUNHO — Em 15/02/2025, o profissional realizou sessão com a paciente. A paciente relatou dificuldades recentes em organizar a rotina e descreveu sensação de cansaço ao final do dia. O relato foi ouvido sem interpretações adicionais."
-  );
+  const [noteId, setNoteId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
   const [status, setStatus] = useState<NoteStatus>("draft");
   const [validatedAt, setValidatedAt] = useState<string | null>(null);
   const [showEthicsModal, setShowEthicsModal] = useState(false);
+
+  // =========================
+  // Reports state
+  // =========================
+  const [reportType, setReportType] = useState<"declaration" | "clinical_report">("declaration");
 
   const [exportFeedback, setExportFeedback] = useState<string | null>(null);
   const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
@@ -262,11 +301,25 @@ export const App = () => {
 
   const handleValidate = useCallback(() => setShowEthicsModal(true), []);
 
-  const confirmValidation = useCallback(() => {
-    setStatus("validated");
-    setValidatedAt(safeNowPtBr());
+  const confirmValidation = useCallback(async () => {
+    if (noteId && window.ethos?.notes) {
+      await window.ethos.notes.validate(noteId, clinicianName);
+      await loadNote();
+    } else if (selectedSessionId && window.ethos?.notes) {
+      // Create and validate
+      const newNote = await window.ethos.notes.upsertDraft(selectedSessionId, draft);
+      await window.ethos.notes.validate(newNote.id, clinicianName);
+      await loadNote();
+    }
     setShowEthicsModal(false);
-  }, []);
+  }, [noteId, selectedSessionId, draft, clinicianName, loadNote]);
+
+  const saveDraft = useCallback(async () => {
+    if (selectedSessionId && window.ethos?.notes) {
+      await window.ethos.notes.upsertDraft(selectedSessionId, draft);
+      await loadNote();
+    }
+  }, [selectedSessionId, draft, loadNote]);
 
   const handleExport = useCallback(
     async (format: ExportFormat) => {
@@ -440,6 +493,36 @@ export const App = () => {
   const [adminError, setAdminError] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminLastSync, setAdminLastSync] = useState<string | null>(null);
+
+  // =========================
+  // WhatsApp Reminders (V1)
+  // =========================
+  const [whatsappTemplate, setWhatsappTemplate] = useState(() =>
+    safeLocalStorageGet("ethos-wa-template", "Olá {{nome}}, confirmo nossa sessão em {{data}} às {{hora}}. Até breve!")
+  );
+
+  useEffect(() => safeLocalStorageSet("ethos-wa-template", whatsappTemplate), [whatsappTemplate]);
+
+  const handleSendReminder = useCallback((patient: any, session: any) => {
+    if (!patient.phoneNumber) {
+      alert("Paciente sem telefone cadastrado.");
+      return;
+    }
+
+    const date = new Date(session.scheduledAt);
+    const dateStr = date.toLocaleDateString("pt-BR");
+    const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+    const message = whatsappTemplate
+      .replace("{{nome}}", patient.fullName)
+      .replace("{{data}}", dateStr)
+      .replace("{{hora}}", timeStr);
+
+    const cleanPhone = patient.phoneNumber.replace(/\D/g, "");
+    const waUrl = `https://wa.me/${cleanPhone.startsWith("55") ? cleanPhone : "55" + cleanPhone}?text=${encodeURIComponent(message)}`;
+
+    window.open(waUrl, "_blank");
+  }, [whatsappTemplate]);
 
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
@@ -716,8 +799,10 @@ export const App = () => {
                     style={{ ...buttonStyle, marginBottom: 16 }}
                     onClick={async () => {
                       const name = prompt("Nome completo do paciente:");
-                      if (name && window.ethos?.patients) {
-                        await window.ethos.patients.create({ fullName: name });
+                      if (!name) return;
+                      const phone = prompt("Telefone (com DDD):");
+                      if (window.ethos?.patients) {
+                        await window.ethos.patients.create({ fullName: name, phoneNumber: phone || "" });
                         refreshData();
                       }
                     }}
@@ -729,9 +814,32 @@ export const App = () => {
                     {patients.map(p => (
                       <div key={p.id} style={{ background: "#0B1120", padding: 12, borderRadius: 12, border: "1px solid #1E293B" }}>
                         <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
+                        {p.phoneNumber && <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p>}
+                        {(() => {
+                          const entries = financialEntries.filter(e => e.patientId === p.id);
+                          const balance = entries.reduce((acc, e) => e.type === "payment" ? acc - e.amount : acc + e.amount, 0);
+                          return balance > 0 ? (
+                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600 }}>Débito: R$ {(balance/100).toFixed(2)}</p>
+                          ) : balance < 0 ? (
+                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600 }}>Crédito: R$ {(-balance/100).toFixed(2)}</p>
+                          ) : null;
+                        })()}
                         <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
+                        <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                         <button
-                          style={{ ...outlineButtonStyle, marginTop: 8, fontSize: 12, padding: "4px 8px" }}
+                          style={{ ...outlineButtonStyle, fontSize: 12, padding: "4px 8px" }}
+                          onClick={async () => {
+                            const phone = prompt("Novo telefone:", p.phoneNumber || "");
+                            if (phone !== null && window.ethos?.patients) {
+                              await window.ethos.patients.update(p.id, { phoneNumber: phone });
+                              refreshData();
+                            }
+                          }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          style={{ ...outlineButtonStyle, fontSize: 12, padding: "4px 8px" }}
                           onClick={async () => {
                             if (window.ethos?.sessions) {
                               await window.ethos.sessions.create({
@@ -746,6 +854,7 @@ export const App = () => {
                         >
                           Agendar Sessão
                         </button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -777,9 +886,25 @@ export const App = () => {
                               setClinicalSection("sessao");
                             }}
                           >
-                            <strong>{p?.fullName || "Paciente desconhecido"}</strong>
-                            <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
-                            <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
+                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                              <div>
+                                <strong>{p?.fullName || "Paciente desconhecido"}</strong>
+                                <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
+                                <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
+                              </div>
+                              {p?.phoneNumber && (
+                                <button
+                                  style={{ ...buttonStyle, background: "#25D366", padding: "6px 10px", fontSize: 12 }}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleSendReminder(p, s);
+                                  }}
+                                  title="Enviar lembrete WhatsApp"
+                                >
+                                  WhatsApp
+                                </button>
+                              )}
+                            </div>
                           </div>
                         );
                       })
@@ -923,7 +1048,9 @@ export const App = () => {
                     onChange={(event) => {
                       if (!isValidated) setDraft(event.target.value);
                     }}
+                    onBlur={saveDraft}
                     readOnly={isValidated}
+                    placeholder="Escreva aqui o prontuário..."
                     style={{
                       width: "100%",
                       minHeight: 140,
@@ -937,6 +1064,15 @@ export const App = () => {
                   />
 
                   <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
+                    {!isValidated && (
+                      <button
+                        style={secondaryButtonStyle}
+                        onClick={saveDraft}
+                        type="button"
+                      >
+                        Salvar rascunho
+                      </button>
+                    )}
                     <button
                       style={{
                         ...buttonStyle,
@@ -993,6 +1129,166 @@ export const App = () => {
                 </div>
               </section>
 
+              {/* FINANCEIRO */}
+              <section className={`panel ${clinicalSection === "financeiro" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Gestão Financeira</h2>
+                  <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+                    <button
+                      style={buttonStyle}
+                      onClick={async () => {
+                        const pId = prompt("ID do Paciente (cole aqui):");
+                        if (!pId) return;
+                        const amount = prompt("Valor (em reais, ex: 150.00):");
+                        if (!amount) return;
+                        if (window.ethos?.financial) {
+                          await window.ethos.financial.create({
+                            patientId: pId,
+                            amount: Math.round(parseFloat(amount) * 100),
+                            type: "charge",
+                            category: "session",
+                            status: "pending",
+                            date: new Date().toISOString()
+                          });
+                          refreshData();
+                        }
+                      }}
+                    >
+                      + Nova Cobrança
+                    </button>
+                    <button
+                      style={{ ...buttonStyle, background: "#10B981" }}
+                      onClick={async () => {
+                        const pId = prompt("ID do Paciente (cole aqui):");
+                        if (!pId) return;
+                        const amount = prompt("Valor (em reais, ex: 150.00):");
+                        if (!amount) return;
+                        if (window.ethos?.financial) {
+                          await window.ethos.financial.create({
+                            patientId: pId,
+                            amount: Math.round(parseFloat(amount) * 100),
+                            type: "payment",
+                            category: "session",
+                            status: "completed",
+                            method: "pix",
+                            date: new Date().toISOString()
+                          });
+                          refreshData();
+                        }
+                      }}
+                    >
+                      + Registrar Pagamento
+                    </button>
+                  </div>
+
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {financialEntries.length === 0 ? (
+                      <p style={subtleText}>Nenhum registro financeiro.</p>
+                    ) : (
+                      financialEntries.map(e => {
+                        const p = patients.find(patient => patient.id === e.patientId);
+                        return (
+                          <div
+                            key={e.id}
+                            style={{
+                              background: "#0B1120",
+                              padding: 12,
+                              borderRadius: 12,
+                              border: "1px solid #1E293B",
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center"
+                            }}
+                          >
+                            <div>
+                              <strong style={{ color: e.type === "payment" ? "#10B981" : "#FBBF24" }}>
+                                {e.type === "payment" ? "PAGAMENTO" : "COBRANÇA"}
+                              </strong>
+                              <p style={{ color: "#E2E8F0", fontSize: 14 }}>{p?.fullName || "Desconhecido"}</p>
+                              <p style={{ ...subtleText, fontSize: 12 }}>{new Date(e.date).toLocaleDateString("pt-BR")}</p>
+                            </div>
+                            <div style={{ textAlign: "right" }}>
+                              <p style={{ fontSize: 18, fontWeight: 700 }}>R$ {(e.amount / 100).toFixed(2)}</p>
+                              <span style={{ ...badgeStyle, background: e.status === "completed" ? "#064E3B" : "#451A03" }}>
+                                {e.status}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </div>
+              </section>
+
+              {/* RELATÓRIOS */}
+              <section className={`panel ${clinicalSection === "relatorios" ? "active" : ""}`}>
+                <div style={sectionStyle}>
+                  <h2>Geração de Documentos</h2>
+                  <p style={subtleText}>Gere documentos oficiais com base nos dados clínicos.</p>
+
+                  <div style={{ marginTop: 16, display: "grid", gap: 16, maxWidth: 400 }}>
+                    <label style={{ display: "grid", gap: 8 }}>
+                      Tipo de Documento
+                      <select
+                        style={inputStyle}
+                        value={reportType}
+                        onChange={(e) => setReportType(e.target.value as any)}
+                      >
+                        <option value="declaration">Declaração de Comparecimento</option>
+                        <option value="clinical_report">Relatório Psicológico (baseado em nota validada)</option>
+                      </select>
+                    </label>
+
+                    {reportType === "declaration" ? (
+                      <div>
+                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
+                          Gera uma declaração simples confirmando a presença do paciente na sessão selecionada.
+                        </p>
+                        <button
+                          style={buttonStyle}
+                          disabled={!selectedSessionId}
+                          onClick={async () => {
+                            if (!currentPatient || !currentSession) return;
+                            const text = `DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro para os devidos fins que o(a) paciente ${currentPatient.fullName} compareceu à sessão de psicoterapia no dia ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}.\n\nEmitido em: ${new Date().toLocaleDateString("pt-BR")}\n\nResponsável: ${clinicianName}`;
+                            if (window.ethos?.export) {
+                              await window.ethos.export.pdf(text, `Declaracao_${currentPatient.fullName}`);
+                            }
+                          }}
+                        >
+                          Gerar PDF
+                        </button>
+                        {!selectedSessionId && <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>Selecione uma sessão na Agenda primeiro.</p>}
+                      </div>
+                    ) : (
+                      <div>
+                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
+                          Gera um relatório clínico detalhado baseado no prontuário VALIDADO da sessão selecionada.
+                        </p>
+                        <button
+                          style={buttonStyle}
+                          disabled={!selectedSessionId || status !== "validated"}
+                          onClick={async () => {
+                            if (!currentPatient || !currentSession || status !== "validated") return;
+                            const text = `RELATÓRIO PSICOLÓGICO\n\nIDENTIFICAÇÃO\nPaciente: ${currentPatient.fullName}\nProfissional: ${clinicianName}\nData da Sessão: ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}\n\nDESCRIÇÃO E EVOLUÇÃO\n${draft}\n\nDocumento validado eletronicamente em ${validatedAt}.`;
+                            if (window.ethos?.export) {
+                              await window.ethos.export.pdf(text, `Relatorio_${currentPatient.fullName}`);
+                            }
+                          }}
+                        >
+                          Gerar PDF (Relatório)
+                        </button>
+                        {(!selectedSessionId || status !== "validated") && (
+                          <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>
+                            Requer uma sessão selecionada e um prontuário VALIDADO.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </section>
+
               {/* CONFIGURAÇÕES */}
               <section className={`panel ${clinicalSection === "config" ? "active" : ""}`}>
                 <div style={sectionStyle}>
@@ -1001,6 +1297,16 @@ export const App = () => {
 
                   <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
                     <div>
+                      <strong>Lembrete WhatsApp (Template)</strong>
+                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Use {{nome}}, {{data}} e {{hora}} como variáveis.</p>
+                      <textarea
+                        style={{ ...inputStyle, minHeight: 80, fontSize: 14 }}
+                        value={whatsappTemplate}
+                        onChange={(e) => setWhatsappTemplate(e.target.value)}
+                      />
+                    </div>
+
+                    <div style={{ borderTop: "1px solid #1E293B", paddingTop: 16 }}>
                       <strong>Backup Local</strong>
                       <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Cria uma cópia criptografada do banco de dados.</p>
                       <button
@@ -1147,127 +1453,3 @@ export const App = () => {
   );
 };
 
-// -----------------------------
-// Modals/Subcomponents
-// -----------------------------
-function EthicsValidationModal({ onCancel, onConfirm }: { onCancel: () => void; onConfirm: () => void }) {
-  return (
-    <div style={modalBackdropStyle}>
-      <div style={{ ...modalStyle, width: "min(90vw, 520px)" }}>
-        <h3 style={{ marginTop: 0 }}>Confirmação ética</h3>
-        <p style={{ color: "#CBD5F5" }}>
-          Antes de validar, confirme que o registro está fiel ao relato do paciente, sem interpretações clínicas,
-          que o consentimento foi obtido e que você está ciente do bloqueio permanente após a validação.
-        </p>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end", flexWrap: "wrap" }}>
-          <button style={outlineButtonStyle} onClick={onCancel} type="button">
-            Cancelar
-          </button>
-          <button style={{ ...buttonStyle, background: "#22C55E" }} onClick={onConfirm} type="button">
-            Confirmar e validar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/**
- * Modal de gravação no estilo do seu snippet (compacto).
- */
-function RecordingConsentModal(props: {
-  checked: boolean;
-  onCheck: (value: boolean) => void;
-  onCancel: () => void;
-  onConfirm: () => void;
-}) {
-  const { checked, onCheck, onCancel, onConfirm } = props;
-
-  // modal menor (como no snippet)
-  const compactModalStyle: React.CSSProperties = {
-    ...modalStyle,
-    width: "min(90vw, 420px)",
-  };
-
-  return (
-    <div style={modalBackdropStyle}>
-      <div style={compactModalStyle}>
-        <h3 style={{ marginTop: 0 }}>Confirmar consentimento</h3>
-        <p style={{ color: "#CBD5F5" }}>Antes de iniciar a gravação, confirme que o paciente autorizou o registro de áudio.</p>
-        <label style={{ display: "flex", gap: 8, alignItems: "center", color: "#E2E8F0" }}>
-          <input type="checkbox" checked={checked} onChange={(event) => onCheck(event.target.checked)} />
-          Tenho consentimento explícito do paciente para gravar a sessão.
-        </label>
-        <div style={{ display: "flex", gap: 12, marginTop: 16, justifyContent: "flex-end" }}>
-          <button style={outlineButtonStyle} onClick={onCancel} type="button">
-            Cancelar
-          </button>
-          <button
-            style={{ ...buttonStyle, background: checked ? "#22C55E" : "#334155" }}
-            onClick={onConfirm}
-            disabled={!checked}
-            type="button"
-          >
-            Iniciar gravação
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AdminPanel({ metrics, users }: { metrics: AdminOverviewMetrics | null; users: AdminUser[] }) {
-  return (
-    <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-        <StatCard label="Usuários ativos" value={metrics?.users_total ?? "--"} />
-        <StatCard label="Eventos de telemetria" value={metrics?.telemetry_total ?? "--"} />
-      </div>
-
-      <div>
-        <h3 style={{ marginBottom: 8 }}>Usuários (sanitizado)</h3>
-        <div style={{ display: "grid", gap: 8 }}>
-          {users.length === 0 ? (
-            <p style={subtleText}>Nenhum usuário encontrado.</p>
-          ) : (
-            users.map((user) => (
-              <div
-                key={user.id}
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "1.5fr 1fr 1fr",
-                  gap: 12,
-                  padding: 12,
-                  background: "#0B1120",
-                  borderRadius: 12,
-                }}
-              >
-                <div>
-                  <p style={{ color: "#E2E8F0", marginBottom: 2 }}>{user.email}</p>
-                  <p style={{ ...subtleText, fontSize: 12 }}>ID: {user.id}</p>
-                </div>
-                <div>
-                  <p style={{ ...subtleText, fontSize: 12 }}>Role</p>
-                  <p style={{ color: "#E2E8F0" }}>{user.role}</p>
-                </div>
-                <div>
-                  <p style={{ ...subtleText, fontSize: 12 }}>Status</p>
-                  <p style={{ color: "#E2E8F0" }}>{user.status}</p>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function StatCard({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, minWidth: 180 }}>
-      <p style={subtleText}>{label}</p>
-      <p style={{ fontSize: 24, fontWeight: 700 }}>{value}</p>
-    </div>
-  );
-}

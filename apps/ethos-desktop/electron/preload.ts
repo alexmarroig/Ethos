@@ -116,6 +116,7 @@ const ethosApi = Object.freeze({
   patients: Object.freeze({
     getAll: () => invoke("patients:getAll"),
     create: (p: unknown) => invoke("patients:create", p),
+    update: (id: string, p: unknown) => invoke("patients:update", id, p),
     delete: (id: string) => invoke("patients:delete", id),
   }),
 
@@ -126,6 +127,17 @@ const ethosApi = Object.freeze({
     getAll: () => invoke("sessions:getAll"),
     getByPatient: (id: string) => invoke("sessions:getByPatient", id),
     create: (s: unknown) => invoke("sessions:create", s),
+  }),
+
+  // ------------------------
+  // Financial
+  // ------------------------
+  financial: Object.freeze({
+    getAll: () => invoke("financial:getAll"),
+    getByPatient: (id: string) => invoke("financial:getByPatient", id),
+    create: (e: unknown) => invoke("financial:create", e),
+    update: (id: string, e: unknown) => invoke("financial:update", id, e),
+    delete: (id: string) => invoke("financial:delete", id),
   }),
 
   // ------------------------
