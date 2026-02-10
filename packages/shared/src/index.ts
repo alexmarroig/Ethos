@@ -1,6 +1,8 @@
 export type Patient = {
   id: string;
-  fullName: string;
+  name: string;
+  email: string;
+  fullName?: string;
   birthDate?: string;
   notes?: string;
   createdAt: string;
@@ -67,3 +69,18 @@ export type ModelOption = {
   checksum: string;
   version: string;
 };
+
+export interface IEthosAudioAPI {
+  save?: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string } | null>;
+}
+
+export interface IEthosAPI {
+  saveAudio?: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string } | null>;
+  audio?: IEthosAudioAPI;
+}
+
+declare global {
+  interface Window {
+    ethos?: IEthosAPI;
+  }
+}

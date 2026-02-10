@@ -43,6 +43,7 @@ const startWorker = () => {
   if (workerProcess) {
     return;
   }
+
   const workerPath = path.resolve(__dirname, "../../ethos-transcriber/dist/index.js");
   workerProcess = spawn(process.execPath, [workerPath]);
   workerProcess.stdout.on("data", (data) => {
@@ -68,13 +69,16 @@ ipcMain.handle("dialog:openAudio", async () => {
   if (!mainWindow) {
     return null;
   }
+
   const result = await dialog.showOpenDialog(mainWindow, {
     properties: ["openFile"],
     filters: [{ name: "Audio", extensions: ["wav", "mp3", "m4a", "ogg"] }],
   });
+
   if (result.canceled) {
     return null;
   }
+
   return result.filePaths[0];
 });
 
@@ -82,10 +86,9 @@ ipcMain.handle("transcription:enqueue", async (_event, payload) => {
   if (!workerProcess) {
     startWorker();
   }
+
   const jobId = randomUUID();
-  workerProcess?.stdin.write(
-    `${JSON.stringify({ type: "enqueue", payload: { ...payload, jobId } })}\n`
-  );
+  workerProcess?.stdin.write(`${JSON.stringify({ type: "enqueue", payload: { ...payload, jobId } })}\n`);
   return jobId;
 });
 
@@ -93,10 +96,12 @@ ipcMain.handle("audio:startSession", async (_event, payload: { sessionId?: strin
   const recordingId = randomUUID();
   const recordingsDir = path.join(app.getPath("userData"), "recordings");
   await fs.promises.mkdir(recordingsDir, { recursive: true });
+
   const extension = getRecordingExtension(payload.mimeType);
   const filePath = path.join(recordingsDir, `${payload.sessionId ?? recordingId}.${extension}`);
   const stream = fs.createWriteStream(filePath, { flags: "w" });
   recordingSessions.set(recordingId, { filePath, stream, mimeType: payload.mimeType });
+
   return { recordingId, filePath };
 });
 
@@ -105,10 +110,12 @@ ipcMain.handle("audio:appendChunk", async (_event, payload: { recordingId: strin
   if (!session) {
     throw new Error("Recording session not found");
   }
+
   const buffer = Buffer.from(new Uint8Array(payload.data));
   if (!session.stream.write(buffer)) {
     await waitForDrain(session.stream);
   }
+
   return { ok: true };
 });
 
@@ -117,10 +124,12 @@ ipcMain.handle("audio:finishSession", async (_event, payload: { recordingId: str
   if (!session) {
     throw new Error("Recording session not found");
   }
+
   await new Promise<void>((resolve, reject) => {
     session.stream.end(() => resolve());
     session.stream.once("error", reject);
   });
+
   recordingSessions.delete(payload.recordingId);
   return { filePath: session.filePath };
 });
@@ -130,6 +139,7 @@ ipcMain.handle("audio:abortSession", async (_event, payload: { recordingId: stri
   if (!session) {
     return { ok: false };
   }
+
   session.stream.destroy();
   await fs.promises.unlink(session.filePath).catch(() => undefined);
   recordingSessions.delete(payload.recordingId);
@@ -143,33 +153,6 @@ ipcMain.handle("audio:deleteRecording", async (_event, payload: { filePath: stri
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Falha ao excluir arquivo." };
   }
-  await fs.promises.unlink(payload.filePath);
-  return { ok: true };
-});
-
-ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string }) => {
-  await shell.openPath(payload.filePath);
-  return { ok: true };
-});
-
-ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: string }) => {
-  if (!mainWindow) {
-    return { ok: false, error: "Janela principal indisponível." };
-  }
-  const defaultName = path.basename(payload.filePath);
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: "Exportar gravação",
-    defaultPath: defaultName,
-  });
-  if (result.canceled || !result.filePath) {
-    return { ok: false, error: "Exportação cancelada." };
-  }
-  try {
-    await fs.promises.copyFile(payload.filePath, result.filePath);
-    return { ok: true };
-  } catch (error) {
-    return { ok: false, error: error instanceof Error ? error.message : "Falha ao exportar arquivo." };
-  }
 });
 
 ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string }) => {
@@ -178,26 +161,11 @@ ipcMain.handle("audio:openRecording", async (_event, payload: { filePath: string
     if (result) {
       return { ok: false, error: result };
     }
+
     return { ok: true };
   } catch (error) {
     return { ok: false, error: error instanceof Error ? error.message : "Falha ao abrir arquivo." };
   }
-});
-    return { ok: false };
-  }
-  const defaultPath = path.basename(payload.filePath);
-  const result = await dialog.showSaveDialog(mainWindow, {
-    title: "Exportar gravação",
-    defaultPath,
-  });
-  if (result.canceled || !result.filePath) {
-    return { ok: false };
-  }
-  await fs.promises.copyFile(payload.filePath, result.filePath);
-  return { ok: true, filePath: result.filePath };
-});
-  const error = await shell.openPath(payload.filePath);
-  return { ok: !error, error };
 });
 
 ipcMain.handle("audio:showRecording", async (_event, payload: { filePath: string }) => {
@@ -205,19 +173,19 @@ ipcMain.handle("audio:showRecording", async (_event, payload: { filePath: string
   return { ok: true };
 });
 
-ipcMain.handle(
-  "audio:exportRecording",
-  async (_event, payload: { filePath: string; defaultName?: string }) => {
-    if (!mainWindow) {
-      return { ok: false, canceled: true };
-    }
-    const result = await dialog.showSaveDialog(mainWindow, {
-      defaultPath: payload.defaultName ?? path.basename(payload.filePath),
-    });
-    if (result.canceled || !result.filePath) {
-      return { ok: false, canceled: true };
-    }
-    await fs.promises.copyFile(payload.filePath, result.filePath);
-    return { ok: true, filePath: result.filePath };
+ipcMain.handle("audio:exportRecording", async (_event, payload: { filePath: string; defaultName?: string }) => {
+  if (!mainWindow) {
+    return { ok: false, canceled: true };
   }
-);
+
+  const result = await dialog.showSaveDialog(mainWindow, {
+    defaultPath: payload.defaultName ?? path.basename(payload.filePath),
+  });
+
+  if (result.canceled || !result.filePath) {
+    return { ok: false, canceled: true };
+  }
+
+  await fs.promises.copyFile(payload.filePath, result.filePath);
+  return { ok: true, filePath: result.filePath };
+});

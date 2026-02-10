@@ -167,7 +167,7 @@ export const PatientPortal = () => {
                             type="number"
                             min={1}
                             max={5}
-                            value={value}
+                            value={typeof value === "number" || typeof value === "string" ? value : ""}
                             onChange={(event) =>
                               handleChangeAnswer(form.id, question.id, Number(event.target.value))
                             }

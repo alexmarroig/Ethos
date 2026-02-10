@@ -1,4 +1,5 @@
 import type { TranscriptionJob } from "@ethos/shared";
+import type { TranscriptionModel } from "../types/ethos";
 
 export type TranscriptionResult = {
   jobId: string;
@@ -14,29 +15,10 @@ export type TranscriptionError = {
   error: string;
 };
 
-declare global {
-  interface Window {
-    ethos?: {
-      openAudioDialog: () => Promise<string | null>;
-      enqueueTranscription: (payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }) => Promise<string>;
-      audio: {
-        startSession: (payload: { sessionId?: string; mimeType: string }) => Promise<{ recordingId: string; filePath: string }>;
-        appendChunk: (payload: { recordingId: string; data: ArrayBuffer }) => Promise<{ ok: boolean }>;
-        finishSession: (payload: { recordingId: string }) => Promise<{ filePath: string }>;
-        abortSession: (payload: { recordingId: string }) => Promise<{ ok: boolean }>;
-        deleteRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
-        exportRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
-        openRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
-        deleteRecording: (payload: { filePath: string }) => Promise<{ ok: boolean }>;
-        openRecording: (payload: { filePath: string }) => Promise<{ ok: boolean; error?: string }>;
-        showRecording: (payload: { filePath: string }) => Promise<{ ok: boolean }>;
-        exportRecording: (payload: { filePath: string; defaultName?: string }) => Promise<{ ok: boolean; canceled?: boolean; filePath?: string }>;
-      };
-      onTranscriptionMessage: (handler: (message: string) => void) => void;
-      onTranscriptionError: (handler: (message: string) => void) => void;
-    };
-  }
-}
+type TranscriptionEventPayload =
+  | { type: "job_update"; payload: TranscriptionJob }
+  | { type: "job_result"; payload: TranscriptionResult }
+  | { type: "job_error"; payload: TranscriptionError };
 
 export class TranscriptionService {
   private listeners: Array<(job: TranscriptionJob) => void> = [];
@@ -44,17 +26,19 @@ export class TranscriptionService {
   private errorListeners: Array<(error: TranscriptionError) => void> = [];
 
   constructor() {
-    window.ethos?.onTranscriptionMessage((message) => {
+    window.ethos?.onTranscriptionMessage?.((message: string) => {
       try {
-        const payload = JSON.parse(message);
+        const payload = JSON.parse(message) as TranscriptionEventPayload;
         if (payload.type === "job_update") {
           this.listeners.forEach((listener) => listener(payload.payload));
           return;
         }
+
         if (payload.type === "job_result") {
           this.resultListeners.forEach((listener) => listener(payload.payload));
           return;
         }
+
         if (payload.type === "job_error") {
           this.errorListeners.forEach((listener) => listener(payload.payload));
         }
@@ -64,23 +48,27 @@ export class TranscriptionService {
     });
   }
 
-  onJobUpdate(handler: (job: TranscriptionJob) => void) {
+  onJobUpdate(handler: (job: TranscriptionJob) => void): void {
     this.listeners.push(handler);
   }
 
-  onJobResult(handler: (result: TranscriptionResult) => void) {
+  onJobResult(handler: (result: TranscriptionResult) => void): void {
     this.resultListeners.push(handler);
   }
 
-  onJobError(handler: (error: TranscriptionError) => void) {
+  onJobError(handler: (error: TranscriptionError) => void): void {
     this.errorListeners.push(handler);
   }
 
-  async pickAudio() {
-    return window.ethos?.openAudioDialog();
+  async pickAudio(): Promise<string | null | undefined> {
+    return window.ethos?.openAudioDialog?.();
   }
 
-  async enqueueTranscription(sessionId: string, audioPath: string, model: "ptbr-fast" | "ptbr-accurate") {
-    return window.ethos?.enqueueTranscription({ sessionId, audioPath, model });
+  async enqueueTranscription(
+    sessionId: string,
+    audioPath: string,
+    model: TranscriptionModel,
+  ): Promise<string | undefined> {
+    return window.ethos?.enqueueTranscription?.({ sessionId, audioPath, model });
   }
 }

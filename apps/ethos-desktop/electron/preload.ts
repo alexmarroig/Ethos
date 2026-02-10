@@ -15,17 +15,12 @@ contextBridge.exposeInMainWorld("ethos", {
       ipcRenderer.invoke("audio:abortSession", payload),
     deleteRecording: (payload: { filePath: string }) =>
       ipcRenderer.invoke("audio:deleteRecording", payload),
-    exportRecording: (payload: { filePath: string }) =>
-      ipcRenderer.invoke("audio:exportRecording", payload),
-    openRecording: (payload: { filePath: string }) =>
-      ipcRenderer.invoke("audio:openRecording", payload),
-    openRecording: (payload: { filePath: string }) =>
-      ipcRenderer.invoke("audio:openRecording", payload),
-    exportRecording: (payload: { filePath: string }) =>
-    showRecording: (payload: { filePath: string }) =>
-      ipcRenderer.invoke("audio:showRecording", payload),
     exportRecording: (payload: { filePath: string; defaultName?: string }) =>
       ipcRenderer.invoke("audio:exportRecording", payload),
+    openRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:openRecording", payload),
+    showRecording: (payload: { filePath: string }) =>
+      ipcRenderer.invoke("audio:showRecording", payload),
   },
   onTranscriptionMessage: (handler: (message: string) => void) =>
     ipcRenderer.on("transcription:message", (_event, message) => handler(message)),
