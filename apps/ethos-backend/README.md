@@ -22,6 +22,13 @@ npm run dev
 npm test
 ```
 
+## Configuração recomendada de deploy (monorepo)
+Para serviços com gatilho por caminhos (ex.: *Included Paths*), mantenha a configuração abaixo:
+
+- **Included Paths**: `apps/ethos-backend`
+  - Opcional: adicionar `packages/shared` quando o backend depender de mudanças no pacote compartilhado.
+- **Root Directory**: `apps/ethos-backend`
+- **Build Command** (local ao backend): `npm run build`
 ## Deploy (Start Command x Root Directory)
 - Se `Root Directory` ficar em branco, use:
   - `node apps/ethos-backend/dist/index.js`
