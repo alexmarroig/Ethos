@@ -26,8 +26,16 @@ type WorkerMessage =
   | unknown;
 
 type AppTab = "clinical" | "admin";
-type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "financeiro" | "diarios" | "relatorios" | "config";
-type ClinicalSection = "login" | "pacientes" | "agenda" | "sessao" | "prontuario" | "config";
+type ClinicalSection =
+  | "login"
+  | "pacientes"
+  | "agenda"
+  | "sessao"
+  | "prontuario"
+  | "financeiro"
+  | "diarios"
+  | "relatorios"
+  | "config";
 
 type EthosBridge = {
   audio: {
@@ -61,142 +69,170 @@ const sectionStyle: React.CSSProperties = {
 const buttonStyle: React.CSSProperties = {
   padding: "10px 16px",
   borderRadius: 12,
-  border: "none",
-  background: "#3B82F6",
-  color: "white",
+  border: "1px solid #334155",
+  background: "#2563EB",
+  color: "#FFFFFF",
+  fontWeight: 700,
   cursor: "pointer",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  background: "#475569",
+  background: "#334155",
 };
 
 const outlineButtonStyle: React.CSSProperties = {
-  ...buttonStyle,
+  padding: "8px 12px",
+  borderRadius: 12,
+  border: "1px solid #334155",
   background: "transparent",
-  border: "1px solid #475569",
+  color: "#E2E8F0",
+  fontWeight: 700,
+  cursor: "pointer",
 };
 
 const inputStyle: React.CSSProperties = {
   padding: "10px 12px",
-  borderRadius: 10,
-  border: "1px solid #1F2937",
-  background: "#0B1120",
+  borderRadius: 12,
+  border: "1px solid #334155",
+  background: "#0B1220",
   color: "#E2E8F0",
-  width: "100%",
+  outline: "none",
 };
 
-const subtleText: React.CSSProperties = { color: "#94A3B8" };
+const subtleText: React.CSSProperties = {
+  color: "#94A3B8",
+};
 
-const badgeStyle: React.CSSProperties = {
-  display: "inline-flex",
-  alignItems: "center",
-  gap: 6,
-  padding: "4px 10px",
-  borderRadius: 999,
+const dividerStyle: React.CSSProperties = {
+  height: 1,
   background: "#1E293B",
-  color: "#E2E8F0",
-  fontSize: 12,
+  margin: "14px 0",
 };
 
-const modalBackdropStyle: React.CSSProperties = {
-  position: "fixed",
-  inset: 0,
-  background: "rgba(15, 23, 42, 0.72)",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  zIndex: 10,
-};
+const clamp = (s: string, max = 180) => (s.length > max ? s.slice(0, max - 1) + "…" : s);
 
-const modalStyle: React.CSSProperties = {
-  background: "#0B1120",
-  padding: 24,
-  borderRadius: 16,
-  width: "min(90vw, 520px)",
-  border: "1px solid #1E293B",
-  color: "#F8FAFC",
-};
-
-// -----------------------------
-// Small utils
-// -----------------------------
-const clamp = (s: string, max = 160) => (s.length <= max ? s : `${s.slice(0, max - 1)}…`);
-const safeNowPtBr = () => new Date().toLocaleString("pt-BR");
-
-const isLikelyForbidden = (msg: string) => msg.toLowerCase().includes("forbidden") || msg.toLowerCase().includes("403");
-const isLikelyUnauthorized = (msg: string) =>
-  msg.toLowerCase().includes("unauthorized") || msg.toLowerCase().includes("401") || msg.toLowerCase().includes("token");
-
-function safeLocalStorageGet(key: string, fallback: string) {
+const safeLocalStorageGet = (k: string, fallback = "") => {
   try {
-    return localStorage.getItem(key) ?? fallback;
+    return localStorage.getItem(k) ?? fallback;
   } catch {
     return fallback;
   }
-}
+};
 
-function safeLocalStorageSet(key: string, value: string) {
+const safeLocalStorageSet = (k: string, v: string) => {
   try {
-    localStorage.setItem(key, value);
-  } catch {
-    // ignore
-  }
-}
-
-function safeLocalStorageRemove(key: string) {
-  try {
-    localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
-}
-
-function createEthosBridge(): EthosBridge {
-  const ethos = window.ethos;
-
-  const openDialog = async () => {
-    if (ethos?.audio?.openDialog) return ethos.audio.openDialog();
-    if (ethos?.openAudioDialog) return ethos.openAudioDialog();
-    throw new Error("ETHOS bridge: audio.openDialog/openAudioDialog não disponível no preload.");
-  };
-
-  const save = async (payload: { data: ArrayBuffer; mimeType: string }) => {
-    if (ethos?.audio?.save) return ethos.audio.save(payload);
-    if (ethos?.saveAudio) return ethos.saveAudio(payload);
-    throw new Error("ETHOS bridge: audio.save/saveAudio não disponível no preload.");
-  };
-
-  const enqueue = async (payload: any) => {
-    if (ethos?.transcription?.enqueue) return ethos.transcription.enqueue(payload);
-    if (ethos?.enqueueTranscription) return ethos.enqueueTranscription(payload);
-    throw new Error("ETHOS bridge: transcription.enqueue/enqueueTranscription não disponível no preload.");
-  };
-
-  const onMessage = (handler: (m: WorkerMessage) => void) => {
-    if (ethos?.transcription?.onMessage) return ethos.transcription.onMessage(handler);
-    if (ethos?.onTranscriptionMessage) return ethos.onTranscriptionMessage(handler);
-    return () => {};
-  };
-
-  const onError = (handler: (m: string) => void) => {
-    if (ethos?.transcription?.onError) return ethos.transcription.onError(handler);
-    if (ethos?.onTranscriptionError) return ethos.onTranscriptionError(handler);
-    return () => {};
-  };
-
-  return {
-    audio: { openDialog, save },
-    transcription: { enqueue, onMessage, onError },
-  };
-}
+    localStorage.setItem(k, v);
+  } catch {}
+};
 
 // -----------------------------
-// Main Component
+// Clinical Shell CSS (PWA-like)
+// -----------------------------
+const clinicalShellStyles = `
+.pwa-app{
+  min-height: calc(100vh - 24px);
+  border-radius: 20px;
+  border: 1px solid #1E293B;
+  background: radial-gradient(1200px 600px at 10% 0%, rgba(59,130,246,0.20), transparent 60%),
+              radial-gradient(800px 400px at 90% 10%, rgba(16,185,129,0.14), transparent 60%),
+              #0B1220;
+  padding: 18px;
+}
+.pwa-header{
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap: 16px;
+  padding: 10px 10px 16px 10px;
+  border-bottom: 1px solid #1E293B;
+  margin-bottom: 14px;
+}
+.pwa-header h2{ margin: 0; font-size: 18px; }
+.pwa-header p{ margin: 6px 0 0 0; color:#94A3B8; font-size: 12px;}
+.status-pill{
+  font-size: 12px;
+  border: 1px solid #334155;
+  padding: 8px 12px;
+  border-radius: 999px;
+  color:#E2E8F0;
+  background: rgba(30,41,59,0.55);
+}
+.shell{
+  display:grid;
+  grid-template-columns: 240px 1fr;
+  gap: 14px;
+  min-height: 60vh;
+}
+.nav{
+  border: 1px solid #1E293B;
+  border-radius: 16px;
+  padding: 10px;
+  background: rgba(2,6,23,0.55);
+}
+.nav button{
+  width:100%;
+  text-align:left;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color:#E2E8F0;
+  cursor:pointer;
+  display:flex;
+  flex-direction:column;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.nav button span{ font-size: 11px; color:#94A3B8;}
+.nav button.active{
+  background: rgba(37,99,235,0.14);
+  border-color: rgba(37,99,235,0.45);
+}
+.content{
+  border: 1px solid #1E293B;
+  border-radius: 16px;
+  background: rgba(2,6,23,0.55);
+  padding: 10px;
+}
+.panel{ display:none; }
+.panel.active{ display:block; }
+
+.grid{ display:grid; gap: 12px; }
+@media (max-width: 980px){
+  .shell{ grid-template-columns: 1fr; }
+  .nav{ display:none; }
+}
+.bottom-nav{
+  position: sticky;
+  bottom: 0;
+  margin-top: 12px;
+  display:flex;
+  gap: 8px;
+  padding: 10px;
+  border-radius: 16px;
+  border: 1px solid #1E293B;
+  background: rgba(2,6,23,0.75);
+}
+.bottom-nav button{
+  flex:1;
+  padding: 10px 8px;
+  border-radius: 12px;
+  border: 1px solid #334155;
+  background: transparent;
+  color:#E2E8F0;
+  cursor:pointer;
+  font-size: 12px;
+}
+.bottom-nav button.active{
+  background: rgba(37,99,235,0.18);
+  border-color: rgba(37,99,235,0.55);
+}
+`;
+
+// -----------------------------
+// Nav items
 // -----------------------------
 const clinicalNavItems: Array<{ id: ClinicalSection; label: string; helper: string }> = [
-  { id: "login", label: "Login", helper: "Acesso seguro" },
+  { id: "login", label: "Login", helper: "Acesso rápido local" },
   { id: "pacientes", label: "Pacientes", helper: "Gestão de prontuários" },
   { id: "agenda", label: "Agenda", helper: "Semana clínica" },
   { id: "sessao", label: "Sessão", helper: "Registro guiado" },
@@ -229,9 +265,6 @@ export const App = () => {
   const [patients, setPatients] = useState<any[]>([]);
   const [sessions, setSessions] = useState<any[]>([]);
   const [financialEntries, setFinancialEntries] = useState<any[]>([]);
-  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
-  const [formTemplates, setFormTemplates] = useState<any[]>([]);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [formTemplates, setFormTemplates] = useState<any[]>([]);
@@ -278,68 +311,11 @@ export const App = () => {
     if (user) refreshData();
   }, [refreshData, user]);
 
-  const loadNote = useCallback(async () => {
-    if (selectedSessionId && window.ethos?.notes) {
-      const note = await window.ethos.notes.getBySession(selectedSessionId);
-      if (note) {
-        setNoteId(note.id);
-        setDraft(note.editedText || note.generatedText || "");
-        setStatus(note.status);
-        setValidatedAt(note.validatedAt || null);
-      } else {
-        setNoteId(null);
-        setDraft("");
-        setStatus("draft");
-        setValidatedAt(null);
-      }
-    } else {
-      setNoteId(null);
-      setDraft("");
-      setStatus("draft");
-      setValidatedAt(null);
-    }
-  }, [selectedSessionId]);
-
-  useEffect(() => {
-    loadNote();
-  }, [loadNote]);
-  }, []);
-
-  useEffect(() => {
-    if (user) refreshData();
-  }, [refreshData, user]);
-
-  const loadNote = useCallback(async () => {
-    if (selectedSessionId && window.ethos?.notes) {
-      const note = await window.ethos.notes.getBySession(selectedSessionId);
-      if (note) {
-        setNoteId(note.id);
-        setDraft(note.editedText || note.generatedText || "");
-        setStatus(note.status);
-        setValidatedAt(note.validatedAt || null);
-      } else {
-        setNoteId(null);
-        setDraft("");
-        setStatus("draft");
-        setValidatedAt(null);
-      }
-    } else {
-      setNoteId(null);
-      setDraft("");
-      setStatus("draft");
-      setValidatedAt(null);
-    }
-  }, [selectedSessionId]);
-
-  useEffect(() => {
-    loadNote();
-  }, [loadNote]);
-
   // =========================
   // Session context (proto)
   // =========================
-  const currentSession = useMemo(() => sessions.find(s => s.id === selectedSessionId), [sessions, selectedSessionId]);
-  const currentPatient = useMemo(() => patients.find(p => p.id === currentSession?.patientId), [patients, currentSession]);
+  const currentSession = useMemo(() => sessions.find((s) => s.id === selectedSessionId), [sessions, selectedSessionId]);
+  const currentPatient = useMemo(() => patients.find((p) => p.id === currentSession?.patientId), [patients, currentSession]);
 
   const sessionId = currentSession?.id || "no-session";
   const patientName = currentPatient?.fullName || "Nenhum paciente selecionado";
@@ -358,521 +334,317 @@ export const App = () => {
   const [showPatientModal, setShowPatientModal] = useState(false);
   const [editingPatient, setEditingPatient] = useState<any>(null);
 
-  // =========================
-  // Reports state
-  // =========================
-  const [reportType, setReportType] = useState<"declaration" | "clinical_report">("declaration");
-
-  const [exportFeedback, setExportFeedback] = useState<string | null>(null);
-  const [exportingFormat, setExportingFormat] = useState<ExportFormat | null>(null);
-  const [isGeneratingNote, setIsGeneratingNote] = useState(false);
-
-  const handleAiTransform = useCallback(async (templateType: string = 'prontuario') => {
-    if (!selectedSessionId || !window.ethos?.genai) return;
-
-    setIsGeneratingNote(true);
-    try {
-      const transcriptText = workerLog || "Transcrição da sessão iniciada. O paciente relatou estar se sentindo melhor esta semana, embora ainda apresente dificuldades pontuais no sono.";
-      const generated = await window.ethos.genai.transformNote({
-        transcriptText,
-        sessionId: selectedSessionId,
-        templateType
-      });
-      setDraft(generated);
-    } catch (e) {
-      alert("Falha ao gerar nota com IA.");
-    } finally {
-      setIsGeneratingNote(false);
-    }
-  }, [selectedSessionId, workerLog]);
-
-  const isValidated = status === "validated";
-  const canValidate = consentForNote && !isValidated;
-  const canExport = isValidated && exportingFormat === null;
-
-  const handleValidate = useCallback(() => setShowEthicsModal(true), []);
-
-  const confirmValidation = useCallback(async () => {
-    if (noteId && window.ethos?.notes) {
-      await window.ethos.notes.validate(noteId, clinicianName);
-      await loadNote();
-    } else if (selectedSessionId && window.ethos?.notes) {
-      // Create and validate
-      const newNote = await window.ethos.notes.upsertDraft(selectedSessionId, draft);
-      await window.ethos.notes.validate(newNote.id, clinicianName);
-      await loadNote();
-    }
-    setShowEthicsModal(false);
-  }, [noteId, selectedSessionId, draft, clinicianName, loadNote]);
-
-  const saveDraft = useCallback(async () => {
+  const loadNote = useCallback(async () => {
     if (selectedSessionId && window.ethos?.notes) {
-      await window.ethos.notes.upsertDraft(selectedSessionId, draft);
-      await loadNote();
-    }
-  }, [selectedSessionId, draft, loadNote]);
-
-  const handleExport = useCallback(
-    async (format: ExportFormat) => {
-      if (!canExport) return;
-      setExportingFormat(format);
-      setExportFeedback(null);
-      try {
-        const fileName = await exportClinicalNote(
-          {
-            patientName,
-            clinicianName,
-            sessionDate,
-            status,
-            noteText: draft,
-            validatedAt: validatedAt ?? undefined,
-          },
-          format
-        );
-        setExportFeedback(`Arquivo gerado: ${fileName}`);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : "Falha ao exportar.";
-        setExportFeedback(`Erro: ${message}`);
-      } finally {
-        setExportingFormat(null);
+      const note = await window.ethos.notes.getBySession(selectedSessionId);
+      if (note) {
+        setNoteId(note.id);
+        setDraft(note.editedText || note.generatedText || "");
+        setStatus(note.status);
+        setValidatedAt(note.validatedAt || null);
+      } else {
+        setNoteId(null);
+        setDraft("");
+        setStatus("draft");
+        setValidatedAt(null);
       }
-    },
-    [canExport, clinicianName, draft, patientName, sessionDate, status, validatedAt]
-  );
+    } else {
+      setNoteId(null);
+      setDraft("");
+      setStatus("draft");
+      setValidatedAt(null);
+    }
+  }, [selectedSessionId]);
 
   useEffect(() => {
-    if (!isValidated) setExportFeedback(null);
-  }, [draft, isValidated]);
+    loadNote();
+  }, [loadNote]);
+
+  const canValidate = useMemo(() => {
+    if (!draft.trim()) return false;
+    if (!consentForNote) return false;
+    if (status === "validated") return false;
+    return true;
+  }, [draft, consentForNote, status]);
+
+  const confirmValidation = useCallback(async () => {
+    if (!selectedSessionId || !window.ethos?.notes) return;
+
+    await window.ethos.notes.validate(selectedSessionId);
+    await loadNote();
+    setShowEthicsModal(false);
+  }, [selectedSessionId, loadNote]);
 
   // =========================
-  // Audio recording + transcription
+  // Transcription (worker bridge)
   // =========================
-  const bridge = useMemo(() => createEthosBridge(), []);
-  const recorder = useAudioRecorder({ sessionId });
-
-  // Consentimento de gravação (adição 1)
-  const [consentForRecording, setConsentForRecording] = useState(false);
-  const [showRecordingConsentModal, setShowRecordingConsentModal] = useState(false);
-  const [recordingConsentChecked, setRecordingConsentChecked] = useState(false);
-
-  const [selectedModel, setSelectedModel] = useState<ModelId>("ptbr-accurate");
-
-  const [jobId, setJobId] = useState<string | null>(null);
+  const [workerLogs, setWorkerLogs] = useState<string[]>([]);
   const [jobStatus, setJobStatus] = useState<string>("idle");
   const [jobProgress, setJobProgress] = useState<number>(0);
   const [jobError, setJobError] = useState<string | null>(null);
-  const [workerLog, setWorkerLog] = useState<string | null>(null);
+  const [modelId, setModelId] = useState<ModelId>("ptbr-fast");
+  const [transcriptionText, setTranscriptionText] = useState<string>("");
 
-  const currentJobIdRef = useRef<string | null>(null);
-
-  const handleStartRecording = useCallback(async () => {
-    if (!consentForRecording) {
-      setShowRecordingConsentModal(true);
-      return;
-    }
-    await recorder.startRecording();
-  }, [consentForRecording, recorder]);
-
-  const handleConfirmRecordingConsent = useCallback(async () => {
-    setConsentForRecording(true);
-    setShowRecordingConsentModal(false);
-    setRecordingConsentChecked(false);
-    await recorder.startRecording();
-  }, [recorder]);
+  const appendLog = useCallback((line: string) => {
+    setWorkerLogs((prev) => {
+      const next = [...prev, line];
+      return next.slice(-200);
+    });
+  }, []);
 
   useEffect(() => {
-    const offMsg = bridge.transcription.onMessage((m) => {
-      if (typeof m === "object" && m && (m as any).type === "job_update") {
-        const payload = (m as any).payload || {};
-        const incomingId = String(payload.id || "");
-        if (!incomingId) return;
-        if (currentJobIdRef.current && incomingId !== currentJobIdRef.current) return;
+    if (!window.ethos?.transcription?.onMessage) return;
+    const unsubscribe = window.ethos.transcription.onMessage((m: WorkerMessage) => {
+      const msg = m as any;
+      if (!msg || !msg.type) return;
 
-        setJobStatus(String(payload.status || "unknown"));
-        setJobProgress(Number(payload.progress ?? 0));
-        setJobError(payload.error ? String(payload.error) : null);
-        return;
+      if (msg.type === "worker_log") {
+        appendLog(String(msg.payload?.line || ""));
       }
 
-      if (typeof m === "object" && m && (m as any).type === "worker_log") {
-        const line = (m as any).payload?.line;
-        if (typeof line === "string") setWorkerLog(clamp(line, 240));
+      if (msg.type === "job_update") {
+        const payload = msg.payload || {};
+        setJobStatus(String(payload.status || "unknown"));
+        setJobProgress(typeof payload.progress === "number" ? payload.progress : 0);
+        setJobError(payload.error ? String(payload.error) : null);
       }
     });
 
-    const offErr = bridge.transcription.onError((msg) => {
-      if (typeof msg === "string") setWorkerLog(clamp(msg, 240));
+    const unsubscribeErr = window.ethos.transcription.onError((err: string) => {
+      appendLog("Worker error: " + err);
+      setJobError(err);
     });
 
     return () => {
-      offMsg?.();
-      offErr?.();
+      try {
+        unsubscribe?.();
+        unsubscribeErr?.();
+      } catch {}
     };
-  }, [bridge]);
-
-  const handleImportAudio = useCallback(async () => {
-    setWorkerLog(null);
-    setJobError(null);
-
-    const audioPath = await bridge.audio.openDialog();
-    if (!audioPath) return;
-
-    setJobStatus("queued");
-    setJobProgress(0);
-
-    const id = await bridge.transcription.enqueue({
-      sessionId,
-      audioPath,
-      model: selectedModel,
-    });
-
-    currentJobIdRef.current = id;
-    setJobId(id);
-  }, [bridge, selectedModel, sessionId]);
-
-  const handleTranscribeRecordedAudio = useCallback(async () => {
-    const audioBuffer: ArrayBuffer | undefined = (recorder as any).audioBuffer;
-    const mimeType: string | undefined = (recorder as any).mimeType;
-
-    if (!audioBuffer || !mimeType) {
-      setWorkerLog(
-        "Sem buffer de áudio disponível para transcrever. Ajuste o hook useAudioRecorder para expor audioBuffer + mimeType (ou implemente 'Salvar e transcrever' fora do hook)."
-      );
-      return;
-    }
-
-    setWorkerLog(null);
-    setJobError(null);
-    setJobStatus("saving_audio");
-    setJobProgress(0);
-
-    const saved = await bridge.audio.save({ data: audioBuffer, mimeType });
-    if (!saved?.filePath) {
-      setJobStatus("error");
-      setJobError("Falha ao salvar o áudio no disco.");
-      return;
-    }
-
-    setJobStatus("queued");
-    const id = await bridge.transcription.enqueue({
-      sessionId,
-      audioPath: saved.filePath,
-      model: selectedModel,
-    });
-
-    currentJobIdRef.current = id;
-    setJobId(id);
-  }, [bridge, recorder, selectedModel, sessionId]);
+  }, [appendLog]);
 
   // =========================
-  // Admin control plane
+  // Audio Recorder (hook)
   // =========================
-  const defaultControlPlaneUrl = "http://localhost:8788";
+  const { isRecording, durationMs, startRecording, stopRecording, lastBlob } = useAudioRecorder();
 
-  const [adminBaseUrl, setAdminBaseUrl] = useState(() =>
-    safeLocalStorageGet("ethos-control-plane-url", defaultControlPlaneUrl)
-  );
-  const [adminEmail, setAdminEmail] = useState(() => safeLocalStorageGet("ethos-admin-email", "camila@ethos.local"));
+  // =========================
+  // Modals
+  // =========================
+  const [showConsentModal, setShowConsentModal] = useState(false);
+
+  // =========================
+  // Admin plane
+  // =========================
+  const [adminBaseUrl, setAdminBaseUrl] = useState("http://localhost:8787");
+  const [adminEmail, setAdminEmail] = useState("");
   const [adminPassword, setAdminPassword] = useState("");
+  const [rememberSession, setRememberSession] = useState(true);
 
-  const [rememberSession, setRememberSession] = useState(() => safeLocalStorageGet("ethos-admin-remember", "0") === "1");
-  const [adminToken, setAdminToken] = useState(() => safeLocalStorageGet("ethos-admin-token", ""));
-  const [adminRole, setAdminRole] = useState<Role>(() => (safeLocalStorageGet("ethos-admin-role", "unknown") as Role) ?? "unknown");
-
+  const [adminToken, setAdminToken] = useState<string | null>(null);
+  const [adminRole, setAdminRole] = useState<Role>("unknown");
   const [adminMetrics, setAdminMetrics] = useState<AdminOverviewMetrics | null>(null);
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
-  const [adminError, setAdminError] = useState("");
   const [adminLoading, setAdminLoading] = useState(false);
-  const [adminLastSync, setAdminLastSync] = useState<string | null>(null);
-
-  // =========================
-  // WhatsApp Reminders (V1)
-  // =========================
-  const [whatsappTemplate, setWhatsappTemplate] = useState(() =>
-    safeLocalStorageGet("ethos-wa-template", "Olá {{nome}}, confirmo nossa sessão em {{data}} às {{hora}}. Até breve!")
-  );
-
-  useEffect(() => safeLocalStorageSet("ethos-wa-template", whatsappTemplate), [whatsappTemplate]);
-
-  const handleSendReminder = useCallback((patient: any, session: any) => {
-    if (!patient.phoneNumber) {
-      alert("Paciente sem telefone cadastrado.");
-      return;
-    }
-
-    const date = new Date(session.scheduledAt);
-    const dateStr = date.toLocaleDateString("pt-BR");
-    const timeStr = date.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-
-    const message = whatsappTemplate
-      .replace("{{nome}}", patient.fullName)
-      .replace("{{data}}", dateStr)
-      .replace("{{hora}}", timeStr);
-
-    const cleanPhone = patient.phoneNumber.replace(/\D/g, "");
-    const waUrl = `https://wa.me/${cleanPhone.startsWith("55") ? cleanPhone : "55" + cleanPhone}?text=${encodeURIComponent(message)}`;
-
-    window.open(waUrl, "_blank");
-  }, [whatsappTemplate]);
+  const [adminError, setAdminError] = useState<string | null>(null);
+  const [adminStatusLabel, setAdminStatusLabel] = useState<string>("Desconectado");
 
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
 
-  useEffect(() => safeLocalStorageSet("ethos-control-plane-url", adminBaseUrl), [adminBaseUrl]);
-  useEffect(() => safeLocalStorageSet("ethos-admin-email", adminEmail), [adminEmail]);
-  useEffect(() => safeLocalStorageSet("ethos-admin-remember", rememberSession ? "1" : "0"), [rememberSession]);
-
   useEffect(() => {
-    if (!rememberSession) {
-      safeLocalStorageRemove("ethos-admin-token");
-      safeLocalStorageRemove("ethos-admin-role");
-      return;
-    }
-    if (adminToken) safeLocalStorageSet("ethos-admin-token", adminToken);
-    else safeLocalStorageRemove("ethos-admin-token");
-  }, [adminToken, rememberSession]);
-
-  useEffect(() => {
-    if (!rememberSession) {
-      safeLocalStorageRemove("ethos-admin-role");
-      return;
-    }
-    safeLocalStorageSet("ethos-admin-role", adminRole);
-  }, [adminRole, rememberSession]);
-
-  const adminStatusLabel = useMemo(() => {
-    if (!hasAdminToken) return "Sem sessão ativa.";
-    if (adminLoading) return "Sincronizando dados administrativos…";
-    if (isAdmin) return `Acesso administrativo confirmado.${adminLastSync ? ` Última sync: ${adminLastSync}` : ""}`;
-    if (adminRole === "user") return "Sessão válida, mas sem permissão admin.";
-    return "Sessão ativa, aguardando validação.";
-  }, [adminLastSync, adminLoading, adminRole, hasAdminToken, isAdmin]);
-
-  const adminAbortRef = useRef<AbortController | null>(null);
+    const stored = safeLocalStorageGet("ethos-admin-token", "");
+    const storedRole = safeLocalStorageGet("ethos-admin-role", "");
+    if (stored) setAdminToken(stored);
+    if (storedRole === "admin" || storedRole === "user") setAdminRole(storedRole as Role);
+  }, []);
 
   const refreshAdminData = useCallback(async () => {
     if (!adminToken) return;
-
-    adminAbortRef.current?.abort();
-    const ac = new AbortController();
-    adminAbortRef.current = ac;
-
     setAdminLoading(true);
-    setAdminError("");
-
+    setAdminError(null);
     try {
-      const [overview, users] = await Promise.all([
-        fetchAdminOverview(adminBaseUrl, adminToken),
-        fetchAdminUsers(adminBaseUrl, adminToken),
-      ]);
-
-      if (ac.signal.aborted) return;
-
+      const overview = await fetchAdminOverview(adminBaseUrl, adminToken);
+      const users = await fetchAdminUsers(adminBaseUrl, adminToken);
       setAdminMetrics(overview);
       setAdminUsers(users);
-      setAdminRole("admin");
-      setAdminLastSync(safeNowPtBr());
-    } catch (error) {
-      if (ac.signal.aborted) return;
-
-      const message = error instanceof Error ? error.message : "Falha ao acessar admin.";
-      setAdminError(message);
-      setAdminMetrics(null);
-      setAdminUsers([]);
-
-      if (isLikelyForbidden(message)) setAdminRole("user");
-      if (isLikelyUnauthorized(message)) {
-        setAdminRole("unknown");
-        setAdminToken("");
-      }
+      setAdminStatusLabel("Dados atualizados");
+    } catch (e: any) {
+      setAdminError(e?.message || "Erro ao atualizar admin");
+      setAdminStatusLabel("Erro ao atualizar");
     } finally {
-      if (!ac.signal.aborted) setAdminLoading(false);
+      setAdminLoading(false);
     }
   }, [adminBaseUrl, adminToken]);
 
-  useEffect(() => {
-    if (tab !== "admin") return;
-    if (!adminToken) return;
-    void refreshAdminData();
-  }, [adminBaseUrl, adminToken, refreshAdminData, tab]);
-
   const handleAdminLogin = useCallback(
-    async (event: React.FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
+    async (e: React.FormEvent) => {
+      e.preventDefault();
       setAdminLoading(true);
-      setAdminError("");
+      setAdminError(null);
+      setAdminStatusLabel("Conectando...");
       try {
-        const response = await loginControlPlane(adminBaseUrl, adminEmail, adminPassword);
-        setAdminToken(response.token);
-        setAdminRole((response.user?.role as Role) ?? "unknown");
-        setAdminPassword("");
-        setAdminLastSync(safeNowPtBr());
+        const result = await loginControlPlane(adminBaseUrl, { email: adminEmail, password: adminPassword });
+        setAdminToken(result.token);
+        setAdminRole(result.role);
+        setAdminStatusLabel("Conectado");
 
-        await Promise.allSettled([
-          fetchAdminOverview(adminBaseUrl, response.token).then(setAdminMetrics),
-          fetchAdminUsers(adminBaseUrl, response.token).then(setAdminUsers),
-        ]);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Falha no login.";
-        setAdminError(message);
-        setAdminRole("unknown");
-        setAdminToken("");
+        if (rememberSession) {
+          safeLocalStorageSet("ethos-admin-token", result.token);
+          safeLocalStorageSet("ethos-admin-role", result.role);
+        }
+        await refreshAdminData();
+      } catch (err: any) {
+        setAdminError(err?.message || "Erro de login");
+        setAdminStatusLabel("Falha no login");
       } finally {
         setAdminLoading(false);
       }
     },
-    [adminBaseUrl, adminEmail, adminPassword]
+    [adminBaseUrl, adminEmail, adminPassword, rememberSession, refreshAdminData],
   );
 
-  const handleLogin = useCallback(async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (window.ethos?.auth) {
-      const res = await window.ethos.auth.login({ email: loginEmail, password: loginPassword });
-      if (res.success) {
-        setUser(res.user);
-        if (rememberMe) {
-          const encrypted = await window.ethos.auth.encryptToken(JSON.stringify(res.user));
-          safeLocalStorageSet("ethos-auth-token", encrypted);
-        }
-      } else {
-        alert(res.message);
-      }
-    }
-  }, [loginEmail, loginPassword, rememberMe]);
-
-  const handleLogout = useCallback(() => {
-    setUser(null);
-    safeLocalStorageRemove("ethos-auth-token");
-  }, []);
-
   const handleAdminLogout = useCallback(() => {
-    adminAbortRef.current?.abort();
-    adminAbortRef.current = null;
-
-    setAdminToken("");
+    setAdminToken(null);
     setAdminRole("unknown");
     setAdminMetrics(null);
     setAdminUsers([]);
-    setAdminError("");
-    setAdminLastSync(null);
-
-    safeLocalStorageRemove("ethos-admin-token");
-    safeLocalStorageRemove("ethos-admin-role");
+    safeLocalStorageSet("ethos-admin-token", "");
+    safeLocalStorageSet("ethos-admin-role", "");
+    setAdminStatusLabel("Desconectado");
   }, []);
 
   // =========================
-  // PWA/Mobile shell styles (adição 2)
+  // Export
   // =========================
-  const clinicalShellStyles = useMemo(
-    () => `
-      :root { color-scheme: dark; }
-      * { box-sizing: border-box; }
-      .pwa-app { display: flex; flex-direction: column; gap: 24px; }
-      .pwa-header { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
-      .pwa-header h2 { margin: 0; font-size: 20px; color: #f8fafc; }
-      .pwa-header p { margin: 6px 0 0; color: #94a3b8; }
-      .status-pill { background: #1f2937; color: #e2e8f0; padding: 8px 14px; border-radius: 999px; font-size: 14px; }
-      .shell { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
-      .nav { background: #0b1222; border-radius: 18px; padding: 16px; display: flex; flex-direction: column; gap: 12px; position: sticky; top: 24px; }
-      .nav button { background: transparent; border: 1px solid transparent; padding: 12px; border-radius: 12px; text-align: left; color: #cbd5f5; font-weight: 600; cursor: pointer; }
-      .nav button span { display: block; font-size: 12px; color: #64748b; margin-top: 4px; font-weight: 500; }
-      .nav button.active { border-color: #3b82f6; background: rgba(59, 130, 246, 0.15); color: #f8fafc; }
-      .content { display: flex; flex-direction: column; gap: 16px; }
-      .panel { display: none; gap: 16px; flex-direction: column; }
-      .panel.active { display: flex; }
-      .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
-      .input { width: 100%; padding: 12px 14px; border-radius: 12px; border: 1px solid #334155; background: #0f172a; color: #e2e8f0; }
-      .bottom-nav { display: none; }
-      @media (max-width: 960px) {
-        .shell { grid-template-columns: 1fr; }
-        .nav { display: none; }
-        .bottom-nav { display: flex; position: sticky; bottom: 16px; background: #0b1222; border-radius: 16px; padding: 12px; gap: 8px; justify-content: space-around; }
-        .bottom-nav button { background: transparent; border: none; color: #94a3b8; font-weight: 600; cursor: pointer; }
-        .bottom-nav button.active { color: #f8fafc; }
-      }
-    `,
-    []
-  );
+  const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf");
+  const [exporting, setExporting] = useState(false);
+
+  const doExport = useCallback(async () => {
+    setExporting(true);
+    try {
+      await exportClinicalNote({
+        sessionId,
+        patientName,
+        clinicianName,
+        sessionDate,
+        text: draft,
+        format: exportFormat,
+      });
+    } finally {
+      setExporting(false);
+    }
+  }, [sessionId, patientName, clinicianName, sessionDate, draft, exportFormat]);
 
   // =========================
-  // Render
+  // Auth actions
+  // =========================
+  const handleLogin = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!window.ethos?.auth) {
+        alert("Bridge de auth não disponível (window.ethos.auth).");
+        return;
+      }
+      try {
+        const payload = await window.ethos.auth.login({ email: loginEmail, password: loginPassword });
+        setUser(payload);
+        if (rememberMe) {
+          const token = JSON.stringify(payload);
+          const encrypted = await window.ethos.auth.encryptToken(token);
+          safeLocalStorageSet("ethos-auth-token", encrypted);
+        } else {
+          safeLocalStorageSet("ethos-auth-token", "");
+        }
+        await refreshData();
+      } catch (err: any) {
+        alert(err?.message || "Erro ao logar");
+      }
+    },
+    [loginEmail, loginPassword, rememberMe, refreshData],
+  );
+
+  const handleLogout = useCallback(async () => {
+    setUser(null);
+    safeLocalStorageSet("ethos-auth-token", "");
+    try {
+      await window.ethos?.auth?.logout?.();
+    } catch {}
+  }, []);
+
+  // =========================
+  // Session actions
+  // =========================
+  const handleOpenConsent = useCallback(() => setShowConsentModal(true), []);
+  const handleConsentConfirm = useCallback(() => {
+    setConsentForNote(true);
+    setShowConsentModal(false);
+  }, []);
+  const handleConsentCancel = useCallback(() => {
+    setConsentForNote(false);
+    setShowConsentModal(false);
+  }, []);
+
+  const handleStartRecording = useCallback(async () => {
+    if (!selectedSessionId) {
+      alert("Selecione uma sessão antes de gravar.");
+      return;
+    }
+    await startRecording();
+  }, [selectedSessionId, startRecording]);
+
+  const handleStopRecording = useCallback(async () => {
+    await stopRecording();
+  }, [stopRecording]);
+
+  const handleTranscribeLast = useCallback(async () => {
+    if (!lastBlob) {
+      alert("Nenhum áudio gravado ainda.");
+      return;
+    }
+    if (!window.ethos?.transcription?.enqueue) {
+      alert("Bridge de transcrição não disponível.");
+      return;
+    }
+
+    setJobStatus("queued");
+    setJobProgress(0);
+    setJobError(null);
+
+    const arrayBuffer = await lastBlob.arrayBuffer();
+    const jobId = await window.ethos.transcription.enqueue({
+      modelId,
+      sessionId: selectedSessionId,
+      audio: arrayBuffer,
+      mimeType: lastBlob.type || "audio/webm",
+    });
+
+    appendLog(`Job enfileirado: ${jobId}`);
+  }, [appendLog, lastBlob, modelId, selectedSessionId]);
+
+  // =========================
+  // Derived UI helpers
+  // =========================
+  const durationLabel = useMemo(() => {
+    const s = Math.floor(durationMs / 1000);
+    const mm = String(Math.floor(s / 60)).padStart(2, "0");
+    const ss = String(s % 60).padStart(2, "0");
+    return `${mm}:${ss}`;
+  }, [durationMs]);
+
+  // =========================
+  // UI
   // =========================
   if (showSplash) {
     return (
-      <div style={{
-        fontFamily: "Inter, sans-serif",
-        background: "#0F172A",
-        height: "100vh",
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        color: "white"
-      }}>
-        <style>{`
-          @keyframes breathe {
-            0%, 100% { transform: scale(1); opacity: 0.8; }
-            50% { transform: scale(1.1); opacity: 1; }
-          }
-          .breathe { animation: breathe 3s ease-in-out infinite; }
-        `}</style>
-        <div className="breathe" style={{ fontSize: 64, fontWeight: 800, letterSpacing: -2, marginBottom: 12 }}>ETHOS</div>
-        <p style={{ color: "#94A3B8", fontSize: 18 }}>Seu ambiente clínico seguro</p>
-      </div>
-    );
-  }
-
-  if (!user) {
-    return (
-      <div style={{
-        fontFamily: "Inter, sans-serif",
-        background: "#0F172A",
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 20
-      }}>
-        <div style={{ ...sectionStyle, width: "100%", maxWidth: 400, marginBottom: 0 }}>
-          <h1 style={{ textAlign: "center", fontSize: 32, marginBottom: 8 }}>ETHOS</h1>
-          <p style={{ ...subtleText, textAlign: "center", marginBottom: 24 }}>Acesse sua conta clínica</p>
-
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 16 }}>
-            <label>
-              Email
-              <input
-                style={inputStyle}
-                type="email"
-                value={loginEmail}
-                onChange={e => setLoginEmail(e.target.value)}
-                placeholder="ex: psico@ethos.app"
-                required
-              />
-            </label>
-            <label>
-              Senha
-              <input
-                style={inputStyle}
-                type="password"
-                value={loginPassword}
-                onChange={e => setLoginPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-              />
-            </label>
-            <label style={{ display: "flex", gap: 8, alignItems: "center", cursor: "pointer" }}>
-              <input type="checkbox" checked={rememberMe} onChange={e => setRememberMe(e.target.checked)} />
-              <span style={{ fontSize: 14 }}>Lembrar de mim</span>
-            </label>
-            <button style={{ ...buttonStyle, marginTop: 8 }} type="submit">Entrar</button>
-          </form>
-
-          <div style={{ marginTop: 24, borderTop: "1px solid #1E293B", paddingTop: 16 }}>
-            <p style={{ fontSize: 12, color: "#64748B", textAlign: "center" }}>
-              Logins de teste:<br/>
-              psico@ethos.app / ethos2026<br/>
-              paciente@ethos.app / ethos2026
-            </p>
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0B1220", color: "#E2E8F0" }}>
+        <div style={{ textAlign: "center", maxWidth: 520, padding: 20 }}>
+          <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 2 }}>ETHOS</div>
+          <p style={{ ...subtleText, marginTop: 10 }}>Plataforma clínica offline-first · Inicializando módulos…</p>
+          <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "center" }}>
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#2563EB" }} />
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#334155" }} />
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#334155" }} />
           </div>
         </div>
       </div>
@@ -880,44 +652,83 @@ export const App = () => {
   }
 
   return (
-    <div style={{ fontFamily: "Inter, sans-serif", background: "#0F172A", minHeight: "100vh", padding: 32 }}>
-      <header style={{ marginBottom: 24 }}>
-        <h1 style={{ color: "#F8FAFC", fontSize: 28, marginBottom: 4 }}>ETHOS — Agenda Clínica</h1>
-        <p style={subtleText}>Offline: prontuário + gravação/transcrição local + control plane admin.</p>
-
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-          <div style={{ display: "flex", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
-            <button style={{ ...buttonStyle, background: tab === "clinical" ? "#6366F1" : "#334155" }} onClick={() => setTab("clinical")}>
-              Clínica
-            </button>
-            <button style={{ ...buttonStyle, background: tab === "admin" ? "#6366F1" : "#334155" }} onClick={() => setTab("admin")}>
-              Admin
-            </button>
-            {tab === "admin" && hasAdminToken ? <span style={badgeStyle}>{adminStatusLabel}</span> : null}
-          </div>
-
-          <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-            <div style={{ textAlign: "right" }}>
-              <p style={{ margin: 0, color: "white", fontWeight: 600 }}>{user.fullName}</p>
-              <p style={{ margin: 0, color: "#94A3B8", fontSize: 12 }}>{user.role}</p>
-            </div>
-            <button style={{ ...outlineButtonStyle, padding: "6px 12px", fontSize: 12 }} onClick={handleLogout}>Sair</button>
-          </div>
+    <div style={{ padding: 12, background: "#0B1220", minHeight: "100vh", color: "#E2E8F0" }}>
+      {/* Top Bar */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+          <h1 style={{ margin: 0, fontSize: 22, letterSpacing: 1 }}>ETHOS</h1>
+          <span style={{ ...subtleText, fontSize: 12 }}>Desktop · Offline-first</span>
         </div>
-      </header>
 
-      {/* Modals globais */}
-      {showRecordingConsentModal ? (
-        <RecordingConsentModal
-          checked={recordingConsentChecked}
-          onCheck={setRecordingConsentChecked}
-          onCancel={() => {
-            setShowRecordingConsentModal(false);
-            setRecordingConsentChecked(false);
-          }}
-          onConfirm={handleConfirmRecordingConsent}
-        />
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <button
+            type="button"
+            style={{ ...outlineButtonStyle, borderColor: tab === "clinical" ? "#2563EB" : "#334155" }}
+            onClick={() => setTab("clinical")}
+          >
+            Clínica
+          </button>
+          <button
+            type="button"
+            style={{ ...outlineButtonStyle, borderColor: tab === "admin" ? "#2563EB" : "#334155" }}
+            onClick={() => setTab("admin")}
+          >
+            Admin
+          </button>
+
+          <div style={{ width: 1, height: 24, background: "#1E293B" }} />
+
+          {user ? (
+            <>
+              <span style={{ fontSize: 12, color: "#A7F3D0" }}>Logado</span>
+              <button type="button" style={secondaryButtonStyle} onClick={handleLogout}>
+                Sair
+              </button>
+            </>
+          ) : (
+            <span style={{ fontSize: 12, color: "#FBBF24" }}>Não logado</span>
+          )}
+        </div>
+      </div>
+
+      {/* Login Card (basic) */}
+      {!user ? (
+        <section style={sectionStyle}>
+          <h2 style={{ marginTop: 0 }}>Login</h2>
+          <p style={subtleText}>Autenticação local (placeholder). No Electron, isso pode virar PIN + biometria.</p>
+
+          <form onSubmit={handleLogin} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+            <input
+              style={inputStyle}
+              placeholder="Email"
+              value={loginEmail}
+              onChange={(e) => setLoginEmail(e.target.value)}
+              autoComplete="username"
+            />
+            <input
+              style={inputStyle}
+              placeholder="Senha"
+              type="password"
+              value={loginPassword}
+              onChange={(e) => setLoginPassword(e.target.value)}
+              autoComplete="current-password"
+            />
+            <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0", fontSize: 13 }}>
+              <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
+              Lembrar-me (salva token criptografado localmente)
+            </label>
+
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <button style={buttonStyle} type="submit">
+                Entrar
+              </button>
+            </div>
+          </form>
+        </section>
       ) : null}
+
+      {/* Consent Modal */}
+      {showConsentModal ? <RecordingConsentModal onCancel={handleConsentCancel} onConfirm={handleConsentConfirm} /> : null}
 
       {showEthicsModal ? (
         <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} />
@@ -982,11 +793,11 @@ export const App = () => {
                   <div className="grid" style={{ marginTop: 16 }}>
                     <label style={{ color: "#CBD5F5" }}>
                       Email
-                      <input className="input" type="email" placeholder="nome@clinica.com" />
+                      <input className="input" style={inputStyle} type="email" placeholder="nome@clinica.com" />
                     </label>
                     <label style={{ color: "#CBD5F5" }}>
                       PIN
-                      <input className="input" type="password" placeholder="••••" />
+                      <input className="input" style={inputStyle} type="password" placeholder="••••" />
                     </label>
                   </div>
                   <div style={{ display: "flex", gap: 12, marginTop: 16, flexWrap: "wrap" }}>
@@ -1019,74 +830,107 @@ export const App = () => {
               <section className={`panel ${clinicalSection === "pacientes" ? "active" : ""}`}>
                 <div style={sectionStyle}>
                   <h2>Gestão de Pacientes</h2>
+
                   <button
                     style={{ ...buttonStyle, marginBottom: 16 }}
+                    type="button"
                     onClick={() => {
                       setEditingPatient(null);
                       setShowPatientModal(true);
-                    onClick={async () => {
-                      const name = prompt("Nome completo do paciente:");
-                      if (name && window.ethos?.patients) {
-                        await window.ethos.patients.create({ fullName: name });
-                        refreshData();
-                      }
                     }}
                   >
                     + Novo Paciente
                   </button>
 
                   <div className="grid">
-                    {patients.map(p => (
-                      <div key={p.id} style={{ background: "#0B1120", padding: 12, borderRadius: 12, border: "1px solid #1E293B" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between" }}>
-                          <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
-                          <span style={{ fontSize: 10, color: "#64748B" }}>CPF: {p.cpf || "--"}</span>
-                        </div>
-                        {p.phoneNumber && <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p>}
-                        {p.address && <p style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{p.address}</p>}
-                        {(() => {
-                          const entries = financialEntries.filter(e => e.patientId === p.id);
-                          const balance = entries.reduce((acc, e) => e.type === "payment" ? acc - e.amount : acc + e.amount, 0);
-                          return balance > 0 ? (
-                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600 }}>Débito: R$ {(balance/100).toFixed(2)}</p>
+                    {patients.map((p) => {
+                      const entries = financialEntries.filter((e) => e.patientId === p.id);
+                      const balance = entries.reduce((acc: number, e: any) => {
+                        return e.type === "payment" ? acc - e.amount : acc + e.amount;
+                      }, 0);
+
+                      return (
+                        <div
+                          key={p.id}
+                          style={{
+                            background: "#0B1120",
+                            padding: 12,
+                            borderRadius: 12,
+                            border: "1px solid #1E293B",
+                          }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
+                            <div>
+                              <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
+                              {p.phoneNumber ? (
+                                <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p>
+                              ) : null}
+                              {p.address ? (
+                                <p style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{p.address}</p>
+                              ) : null}
+                            </div>
+
+                            <div style={{ textAlign: "right" }}>
+                              <span style={{ fontSize: 10, color: "#64748B" }}>CPF: {p.cpf || "--"}</span>
+                              <p style={{ ...subtleText, fontSize: 11, marginTop: 6 }}>ID: {String(p.id).slice(0, 8)}...</p>
+                            </div>
+                          </div>
+
+                          {balance > 0 ? (
+                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                              Débito: R$ {(balance / 100).toFixed(2)}
+                            </p>
                           ) : balance < 0 ? (
-                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600 }}>Crédito: R$ {(-balance/100).toFixed(2)}</p>
-                          ) : null;
-                        })()}
-                        <p style={{ ...subtleText, fontSize: 11 }}>ID: {p.id.slice(0, 8)}...</p>
-                        <div style={{ display: "flex", gap: 8, marginTop: 8, flexWrap: "wrap" }}>
-                        <button
-                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
-                          onClick={() => {
-                            setEditingPatient(p);
-                            setShowPatientModal(true);
-                          }}
-                        >
-                          Ficha Completa
-                        </button>
-                        <button
-                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
-                        <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
-                        <p style={{ ...subtleText, fontSize: 12 }}>ID: {p.id.slice(0, 8)}...</p>
-                        <button
-                          style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
-                          onClick={async () => {
-                            if (window.ethos?.sessions) {
-                              await window.ethos.sessions.create({
-                                patientId: p.id,
-                                scheduledAt: new Date().toISOString(),
-                                status: "scheduled"
-                              });
-                              refreshData();
-                              setClinicalSection("agenda");
-                            }
-                          }}
-                        >
-                          Agendar Sessão
-                        </button>
+                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
+                              Crédito: R$ {(-balance / 100).toFixed(2)}
+                            </p>
+                          ) : null}
+
+                          <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+                            <button
+                              type="button"
+                              style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
+                              onClick={() => {
+                                setEditingPatient(p);
+                                setShowPatientModal(true);
+                                setSelectedPatientId(p.id);
+                              }}
+                            >
+                              Ficha Completa
+                            </button>
+
+                            <button
+                              type="button"
+                              style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
+                              onClick={() => {
+                                setSelectedPatientId(p.id);
+                                setClinicalSection("diarios");
+                              }}
+                            >
+                              Diários
+                            </button>
+
+                            <button
+                              type="button"
+                              style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
+                              onClick={async () => {
+                                if (window.ethos?.sessions) {
+                                  await window.ethos.sessions.create({
+                                    patientId: p.id,
+                                    scheduledAt: new Date().toISOString(),
+                                    status: "scheduled",
+                                  });
+                                  refreshData();
+                                  setClinicalSection("agenda");
+                                }
+                              }}
+                            >
+                              Agendar Sessão
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </section>
@@ -1099,8 +943,8 @@ export const App = () => {
                     {sessions.length === 0 ? (
                       <p style={subtleText}>Nenhuma sessão agendada.</p>
                     ) : (
-                      sessions.map(s => {
-                        const p = patients.find(patient => patient.id === s.patientId);
+                      sessions.map((s) => {
+                        const p = patients.find((patient) => patient.id === s.patientId);
                         return (
                           <div
                             key={s.id}
@@ -1109,48 +953,28 @@ export const App = () => {
                               padding: 12,
                               borderRadius: 12,
                               border: "1px solid #1E293B",
-                              cursor: "pointer"
+                              cursor: "pointer",
                             }}
                             onClick={() => {
                               setSelectedSessionId(s.id);
+                              setSelectedPatientId(s.patientId);
                               setClinicalSection("sessao");
                             }}
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                               <div>
-                                <strong>{p?.fullName || "Paciente desconhecido"}</strong>
-                                <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
-                                <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
+                                <strong>{p?.fullName || "Paciente não encontrado"}</strong>
+                                <p style={{ ...subtleText, fontSize: 12, margin: "6px 0 0 0" }}>
+                                  {new Date(s.scheduledAt).toLocaleString("pt-BR")}
+                                </p>
                               </div>
-                              {p?.phoneNumber && (
-                                <button
-                                  style={{ ...buttonStyle, background: "#25D366", padding: "6px 10px", fontSize: 12 }}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleSendReminder(p, s);
-                                  }}
-                                  title="Enviar lembrete WhatsApp"
-                                >
-                                  WhatsApp
-                                </button>
-                              )}
+                              <span style={{ fontSize: 11, color: "#A7F3D0" }}>{s.status || "scheduled"}</span>
                             </div>
-                            <strong>{p?.fullName || "Paciente desconhecido"}</strong>
-                            <p style={{ color: "#CBD5F5", fontSize: 14 }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
-                            <span style={{ ...badgeStyle, marginTop: 8 }}>{s.status}</span>
                           </div>
                         );
                       })
                     )}
                   </div>
-                </div>
-
-                <div style={sectionStyle}>
-                  <h2>Próximas tarefas</h2>
-                  <ul style={{ color: "#CBD5F5", paddingLeft: 18, margin: 0 }}>
-                    <li>Validar prontuários pendentes</li>
-                    <li>Realizar backup semanal</li>
-                  </ul>
                 </div>
               </section>
 
@@ -1158,343 +982,183 @@ export const App = () => {
               <section className={`panel ${clinicalSection === "sessao" ? "active" : ""}`}>
                 <div style={sectionStyle}>
                   <h2>Sessão</h2>
-                  {selectedSessionId === null ? (
-                    <p style={{ color: "#FBBF24" }}>Selecione uma sessão na Agenda para começar.</p>
-                  ) : (
-                    <>
-                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                    <p style={{ color: "#CBD5F5", margin: 0 }}>Paciente: {patientName}</p>
-                    {currentPatient?.phoneNumber && (
-                      <button
-                        style={{ ...buttonStyle, background: "#25D366", display: "flex", alignItems: "center", gap: 8 }}
-                        onClick={() => handleSendReminder(currentPatient, currentSession)}
-                      >
-                        📱 Enviar Lembrete (WhatsApp)
-                      </button>
-                    )}
-                  </div>
-                  <p style={{ color: "#CBD5F5" }}>Paciente: {patientName}</p>
+                  <p style={subtleText}>
+                    Sessão atual: <strong>{patientName}</strong> · {sessionDate} · ID: {sessionId}
+                  </p>
 
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-                    <button style={buttonStyle} onClick={handleImportAudio} type="button">
-                      Importar áudio
+                  <div style={dividerStyle} />
+
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
+                    <button type="button" style={buttonStyle} onClick={handleOpenConsent}>
+                      Consentimento
                     </button>
 
                     <button
-                      style={recorder.status === "recording" ? { ...buttonStyle, background: "#EF4444" } : secondaryButtonStyle}
-                      onClick={recorder.status === "recording" ? recorder.stopRecording : handleStartRecording}
                       type="button"
+                      style={{ ...buttonStyle, background: isRecording ? "#EF4444" : "#22C55E" }}
+                      onClick={isRecording ? handleStopRecording : handleStartRecording}
+                      disabled={!selectedSessionId}
+                      title={!selectedSessionId ? "Selecione uma sessão" : ""}
                     >
-                      {recorder.status === "recording" ? "Parar gravação" : "Gravar áudio"}
+                      {isRecording ? "Parar gravação" : "Iniciar gravação"}
                     </button>
 
-                    {recorder.audioUrl ? (
-                      <button style={outlineButtonStyle} onClick={recorder.resetRecording} type="button">
-                        Limpar gravação
-                      </button>
-                    ) : null}
+                    <span style={{ ...subtleText, fontSize: 12 }}>Duração: {durationLabel}</span>
 
                     <select
-                      value={selectedModel}
-                      onChange={(e) => setSelectedModel(e.target.value as ModelId)}
-                      style={{ ...inputStyle, maxWidth: 220 }}
-                      title="Modelo de transcrição"
+                      value={modelId}
+                      onChange={(e) => setModelId(e.target.value as ModelId)}
+                      style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }}
                     >
-                      <option value="ptbr-accurate">ptbr-accurate (mais preciso)</option>
-                      <option value="ptbr-fast">ptbr-fast (mais rápido)</option>
+                      <option value="ptbr-fast">Modelo: ptbr-fast</option>
+                      <option value="ptbr-accurate">Modelo: ptbr-accurate</option>
                     </select>
 
-                    {recorder.audioUrl ? (
-                      <button style={{ ...buttonStyle, background: "#14B8A6" }} onClick={handleTranscribeRecordedAudio} type="button">
-                        Iniciar transcrição
-                      </button>
-                    ) : null}
+                    <button type="button" style={secondaryButtonStyle} onClick={handleTranscribeLast} disabled={!lastBlob}>
+                      Transcrever último áudio
+                    </button>
                   </div>
 
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginTop: 12, flexWrap: "wrap" }}>
-                    <span style={badgeStyle}>{recorder.status === "recording" ? "Gravando" : "Pronto para gravar"}</span>
-                    <span style={badgeStyle}>Tempo: {recorder.elapsedLabel}</span>
-                    {consentForRecording ? <span style={badgeStyle}>Consentimento registrado</span> : null}
-                  </div>
+                  <div style={dividerStyle} />
 
-                  {recorder.errorMessage ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro: {recorder.errorMessage}</p> : null}
-
-                  {recorder.audioUrl ? (
-                    <div style={{ marginTop: 12 }}>
-                      <p style={{ color: "#E2E8F0", marginBottom: 8 }}>
-                        Áudio salvo {recorder.audioFilePath ? `em ${recorder.audioFilePath}` : "localmente"}.
+                  <div style={{ display: "grid", gap: 12 }}>
+                    <div>
+                      <strong>Status do job</strong>
+                      <p style={{ ...subtleText, marginTop: 6 }}>
+                        {jobStatus} · {Math.round(jobProgress * 100)}%
                       </p>
-                      <audio controls src={recorder.audioUrl} style={{ width: "100%" }} />
+                      {jobError ? <p style={{ color: "#FCA5A5" }}>{clamp(jobError, 240)}</p> : null}
                     </div>
-                  ) : null}
 
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
-                      <span style={badgeStyle}>Transcrição: {jobStatus}</span>
-                      {jobId ? <span style={badgeStyle}>Job: {jobId.slice(0, 8)}…</span> : null}
-                      <span style={badgeStyle}>Progresso: {Math.round(jobProgress)}%</span>
+                    <div>
+                      <strong>Logs do worker</strong>
+                      <div
+                        style={{
+                          marginTop: 8,
+                          background: "#0B1120",
+                          border: "1px solid #1E293B",
+                          borderRadius: 12,
+                          padding: 10,
+                          maxHeight: 200,
+                          overflow: "auto",
+                          fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+                          fontSize: 11,
+                          color: "#C7D2FE",
+                          whiteSpace: "pre-wrap",
+                        }}
+                      >
+                        {workerLogs.length ? workerLogs.join("\n") : "Sem logs ainda."}
+                      </div>
                     </div>
-                    {jobError ? <p style={{ color: "#FCA5A5", marginTop: 8 }}>Erro do worker: {jobError}</p> : null}
-                    {workerLog ? <p style={{ ...subtleText, marginTop: 8 }}>{workerLog}</p> : null}
+
+                    <div>
+                      <strong>Texto transcrito (placeholder)</strong>
+                      <textarea
+                        style={{ ...inputStyle, width: "100%", minHeight: 120, marginTop: 8, fontFamily: "inherit" }}
+                        value={transcriptionText}
+                        onChange={(e) => setTranscriptionText(e.target.value)}
+                        placeholder="Cole ou sincronize o resultado da transcrição aqui…"
+                      />
+                      <button
+                        type="button"
+                        style={{ ...buttonStyle, marginTop: 10 }}
+                        onClick={() => {
+                          setDraft((prev) => (prev ? prev + "\n\n" : "") + transcriptionText);
+                          setClinicalSection("prontuario");
+                        }}
+                      >
+                        Enviar para Prontuário
+                      </button>
+                    </div>
                   </div>
-
-                  <label style={{ display: "block", marginTop: 12, color: "#E2E8F0" }}>
-                    <input
-                      type="checkbox"
-                      checked={consentForNote}
-                      onChange={(event) => setConsentForNote(event.target.checked)}
-                    />{" "}
-                    Tenho consentimento do paciente (registro/uso do prontuário)
-                  </label>
-
-                  <p style={{ color: "#94A3B8", marginTop: 8 }}>
-                    Status da transcrição: aguardando envio para o worker local.
-                  </p>
-                  </>
-                  )}
                 </div>
               </section>
 
               {/* PRONTUÁRIO */}
               <section className={`panel ${clinicalSection === "prontuario" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Prontuário automático</h2>
-                  {selectedSessionId === null ? (
-                    <p style={{ color: "#FBBF24" }}>Selecione uma sessão na Agenda para visualizar o prontuário.</p>
-                  ) : (
-                    <>
-                  <div style={{ display: "flex", gap: 12, alignItems: "center", marginBottom: 8, flexWrap: "wrap" }}>
-                    <span
-                      style={{
-                        padding: "4px 10px",
-                        borderRadius: 999,
-                        background: status === "draft" ? "#FBBF24" : "#22C55E",
-                        color: "#0F172A",
-                        fontWeight: 700,
-                        fontSize: 12,
-                      }}
-                    >
-                      {status === "draft" ? "Rascunho" : "Validado"}
-                    </span>
-                    <span style={{ ...subtleText, fontSize: 14 }}>
-                      {isValidated ? `Bloqueado para edição · ${validatedAt ?? "Validado"}` : "Edição liberada até validação ética."}
-                    </span>
-                  </div>
+                  <h2>Prontuário / Nota Clínica</h2>
+                  <p style={subtleText}>
+                    Sessão: <strong>{patientName}</strong> · Status: <strong>{status}</strong>{" "}
+                    {validatedAt ? `· Validado em ${new Date(validatedAt).toLocaleString("pt-BR")}` : ""}
+                  </p>
 
-                  {isValidated ? (
-                    <p style={{ color: "#38BDF8", fontSize: 14, marginBottom: 8 }}>
-                      Prontuário validado e congelado para assegurar integridade clínica.
-                    </p>
-                  ) : null}
+                  <div style={dividerStyle} />
 
                   <textarea
+                    style={{ ...inputStyle, width: "100%", minHeight: 240, fontFamily: "inherit", fontSize: 14 }}
                     value={draft}
-                    onChange={(event) => {
-                      if (!isValidated) setDraft(event.target.value);
-                    }}
-                    onBlur={saveDraft}
-                    readOnly={isValidated}
-                    placeholder="Escreva aqui o prontuário..."
-                    style={{
-                      width: "100%",
-                      minHeight: 140,
-                      marginTop: 12,
-                      borderRadius: 12,
-                      padding: 12,
-                      border: "1px solid #334155",
-                      background: isValidated ? "#1E293B" : "#0f172a",
-                      color: "#E2E8F0",
-                    }}
+                    onChange={(e) => setDraft(e.target.value)}
+                    placeholder="Escreva/edite aqui a nota clínica…"
                   />
 
-                  <div style={{ display: "flex", gap: 12, marginTop: 12, flexWrap: "wrap" }}>
-                    {!isValidated && (
-                      <div style={{ display: "flex", gap: 12 }}>
-                        <select
-                          style={{ ...buttonStyle, background: "#8B5CF6", width: "auto" }}
-                          onChange={(e) => handleAiTransform(e.target.value)}
-                          disabled={isGeneratingNote}
-                          value=""
-                        >
-                          <option value="" disabled>{isGeneratingNote ? "Processando..." : "✨ Gerar com IA"}</option>
-                          <option value="prontuario">Prontuário (CRP)</option>
-                          <option value="relatorio">Relatório Clínico</option>
-                        </select>
-                      </div>
-                    )}
-                    {!isValidated && (
-                      <button
-                        style={secondaryButtonStyle}
-                        onClick={saveDraft}
-                        type="button"
-                      >
-                        Salvar rascunho
-                      </button>
-                    )}
+                  <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12, alignItems: "center" }}>
+                    <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0", fontSize: 13 }}>
+                      <input type="checkbox" checked={consentForNote} onChange={(e) => setConsentForNote(e.target.checked)} />
+                      Tenho consentimento para registrar nota (sessão gravada)
+                    </label>
+
                     <button
-                      style={{
-                        ...buttonStyle,
-                        background: canValidate ? "#22C55E" : "#334155",
-                        cursor: canValidate ? "pointer" : "not-allowed",
-                      }}
-                      onClick={handleValidate}
+                      type="button"
+                      style={{ ...buttonStyle, background: canValidate ? "#22C55E" : "#334155" }}
                       disabled={!canValidate}
-                      type="button"
+                      onClick={() => setShowEthicsModal(true)}
+                      title={!canValidate ? "Preencha a nota e marque consentimento para validar." : "Validar"}
                     >
-                      Validar prontuário
+                      Validar
                     </button>
 
-                    <button
-                      style={{
-                        ...buttonStyle,
-                        background: canExport ? "#6366F1" : "#334155",
-                        cursor: canExport ? "pointer" : "not-allowed",
-                      }}
-                      onClick={() => handleExport("docx")}
-                      disabled={!canExport}
-                      type="button"
+                    <select
+                      value={exportFormat}
+                      onChange={(e) => setExportFormat(e.target.value as ExportFormat)}
+                      style={{ ...inputStyle, padding: "8px 10px", fontSize: 13 }}
                     >
-                      {exportingFormat === "docx" ? "Exportando DOCX..." : "Exportar DOCX"}
-                    </button>
+                      <option value="pdf">Exportar PDF</option>
+                      <option value="docx">Exportar DOCX</option>
+                    </select>
 
-                    <button
-                      style={{
-                        ...buttonStyle,
-                        background: canExport ? "#6366F1" : "#334155",
-                        cursor: canExport ? "pointer" : "not-allowed",
-                      }}
-                      onClick={() => handleExport("pdf")}
-                      disabled={!canExport}
-                      type="button"
-                    >
-                      {exportingFormat === "pdf" ? "Exportando PDF..." : "Exportar PDF"}
+                    <button type="button" style={secondaryButtonStyle} onClick={doExport} disabled={exporting || !draft.trim()}>
+                      {exporting ? "Exportando…" : "Exportar"}
                     </button>
                   </div>
 
-                  {!consentForNote ? (
-                    <p style={{ color: "#FCA5A5", marginTop: 8 }}>
-                      É necessário confirmar o consentimento do paciente para validar o prontuário.
-                    </p>
-                  ) : null}
+                  <div style={dividerStyle} />
 
-                  {exportFeedback ? (
-                    <p style={{ color: exportFeedback.startsWith("Erro:") ? "#FCA5A5" : "#A7F3D0", marginTop: 8 }}>
-                      {exportFeedback}
-                    </p>
-                  ) : null}
-                  </>
-                  )}
+                  <div style={{ display: "grid", gap: 10 }}>
+                    <strong>Metadados</strong>
+                    <p style={subtleText}>Note ID: {noteId || "--"}</p>
+                    <p style={subtleText}>Session ID: {selectedSessionId || "--"}</p>
+                    <p style={subtleText}>Patient ID: {selectedPatientId || "--"}</p>
+                  </div>
                 </div>
               </section>
 
               {/* FINANCEIRO */}
               <section className={`panel ${clinicalSection === "financeiro" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Gestão Financeira</h2>
-                  <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
-                    <button
-                      style={buttonStyle}
-                      onClick={async () => {
-                        const pId = prompt("ID do Paciente (cole aqui):");
-                        if (!pId) return;
-                        const amount = prompt("Valor (em reais, ex: 150.00):");
-                        if (!amount) return;
-                        if (window.ethos?.financial) {
-                          await window.ethos.financial.create({
-                            patientId: pId,
-                            amount: Math.round(parseFloat(amount) * 100),
-                            type: "charge",
-                            category: "session",
-                            status: "pending",
-                            date: new Date().toISOString()
-                          });
-                          refreshData();
-                        }
-                      }}
-                    >
-                      + Nova Cobrança
-                    </button>
-                    <button
-                      style={{ ...buttonStyle, background: "#10B981" }}
-                      onClick={async () => {
-                        const pId = prompt("ID do Paciente (cole aqui):");
-                        if (!pId) return;
-                        const amount = prompt("Valor (em reais, ex: 150.00):");
-                        if (!amount) return;
-                        if (window.ethos?.financial) {
-                          await window.ethos.financial.create({
-                            patientId: pId,
-                            amount: Math.round(parseFloat(amount) * 100),
-                            type: "payment",
-                            category: "session",
-                            status: "completed",
-                            method: "pix",
-                            date: new Date().toISOString()
-                          });
-                          refreshData();
-                        }
-                      }}
-                    >
-                      + Registrar Pagamento
-                    </button>
-                  </div>
+                  <h2>Financeiro</h2>
+                  <p style={subtleText}>Registro de cobranças e pagamentos (placeholder de UI).</p>
 
-                  <div style={{ display: "grid", gap: 8 }}>
+                  <div style={dividerStyle} />
+
+                  <div className="grid">
                     {financialEntries.length === 0 ? (
-                      <p style={subtleText}>Nenhum registro financeiro.</p>
+                      <p style={subtleText}>Sem lançamentos.</p>
                     ) : (
-                      financialEntries.map(e => {
-                        const p = patients.find(patient => patient.id === e.patientId);
-                        return (
-                          <div
-                            key={e.id}
-                            style={{
-                              background: "#0B1120",
-                              padding: 12,
-                              borderRadius: 12,
-                              border: "1px solid #1E293B",
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center"
-                            }}
-                          >
-                            <div>
-                              <strong style={{ color: e.type === "payment" ? "#10B981" : "#FBBF24" }}>
-                                {e.type === "payment" ? "PAGAMENTO" : "COBRANÇA"}
-                              </strong>
-                              <p style={{ color: "#E2E8F0", fontSize: 14 }}>{p?.fullName || "Desconhecido"}</p>
-                              <p style={{ ...subtleText, fontSize: 12 }}>{new Date(e.date).toLocaleDateString("pt-BR")}</p>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <p style={{ fontSize: 18, fontWeight: 700 }}>R$ {(e.amount / 100).toFixed(2)}</p>
-                              <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center" }}>
-                                {e.type === "payment" && (
-                                  <button
-                                    style={{ ...outlineButtonStyle, padding: "2px 8px", fontSize: 10 }}
-                                    onClick={async () => {
-                                      if (window.ethos?.genai) {
-                                        const recibo = await window.ethos.genai.generateRecibo({
-                                          patientId: e.patientId,
-                                          amount: e.amount,
-                                          date: e.date
-                                        });
-                                        if (window.ethos?.export) {
-                                          await window.ethos.export.pdf(recibo, `Recibo_${p?.fullName}_${new Date(e.date).toISOString().split('T')[0]}`);
-                                        }
-                                      }
-                                    }}
-                                  >
-                                    Recibo PDF
-                                  </button>
-                                )}
-                                <span style={{ ...badgeStyle, background: e.status === "completed" ? "#064E3B" : "#451A03" }}>
-                                  {e.status}
-                                </span>
-                              </div>
-                            </div>
+                      financialEntries.map((e) => (
+                        <div
+                          key={e.id}
+                          style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}
+                        >
+                          <div style={{ display: "flex", justifyContent: "space-between" }}>
+                            <strong>{e.type}</strong>
+                            <span style={{ fontSize: 12, color: "#A7F3D0" }}>R$ {(e.amount / 100).toFixed(2)}</span>
                           </div>
-                        );
-                      })
+                          <p style={{ ...subtleText, fontSize: 12, marginTop: 6 }}>
+                            Patient: {String(e.patientId).slice(0, 8)}… · {new Date(e.createdAt).toLocaleString("pt-BR")}
+                          </p>
+                        </div>
+                      ))
                     )}
                   </div>
                 </div>
@@ -1503,123 +1167,43 @@ export const App = () => {
               {/* DIÁRIOS */}
               <section className={`panel ${clinicalSection === "diarios" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Diários e Formulários</h2>
-                  <p style={subtleText}>Acompanhe a evolução do paciente entre as sessões.</p>
-
-                  <div style={{ marginTop: 20, display: "grid", gridTemplateColumns: "250px 1fr", gap: 24 }}>
-                    <div style={{ background: "#0B1120", padding: 16, borderRadius: 12, border: "1px solid #1E293B" }}>
-                      <h4 style={{ marginTop: 0 }}>Pacientes</h4>
-                      <div style={{ display: "grid", gap: 8 }}>
-                        {patients.map(p => (
-                          <button
-                            key={p.id}
-                            style={{
-                              ...outlineButtonStyle,
-                              textAlign: "left",
-                              background: selectedPatientId === p.id ? "#1E293B" : "transparent",
-                              borderColor: selectedPatientId === p.id ? "#3B82F6" : "#1E293B"
-                            }}
-                            onClick={() => setSelectedPatientId(p.id)}
-                          >
-                            {p.fullName}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div>
-                      {!selectedPatientId ? (
-                        <p style={subtleText}>Selecione um paciente para ver as respostas.</p>
-                      ) : (
-                        <PatientDiariesView patientId={selectedPatientId} templates={formTemplates} />
-                      )}
-                    </div>
-                  </div>
+                  <h2>Diários / Formulários</h2>
+                  <p style={subtleText}>Respostas de formulários vinculados ao paciente.</p>
+                  {selectedPatientId ? (
+                    <PatientDiariesView patientId={selectedPatientId} templates={formTemplates} />
+                  ) : (
+                    <p style={subtleText}>Selecione um paciente em “Pacientes” ou “Agenda”.</p>
+                  )}
                 </div>
               </section>
 
               {/* RELATÓRIOS */}
               <section className={`panel ${clinicalSection === "relatorios" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Geração de Documentos</h2>
-                  <p style={subtleText}>Gere documentos oficiais com base nos dados clínicos.</p>
-
-                  <div style={{ marginTop: 16, display: "grid", gap: 16, maxWidth: 400 }}>
-                    <label style={{ display: "grid", gap: 8 }}>
-                      Tipo de Documento
-                      <select
-                        style={inputStyle}
-                        value={reportType}
-                        onChange={(e) => setReportType(e.target.value as any)}
-                      >
-                        <option value="declaration">Declaração de Comparecimento</option>
-                        <option value="clinical_report">Relatório Psicológico (baseado em nota validada)</option>
-                      </select>
-                    </label>
-
-                    {reportType === "declaration" ? (
-                      <div>
-                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
-                          Gera uma declaração simples confirmando a presença do paciente na sessão selecionada.
-                        </p>
-                        <button
-                          style={buttonStyle}
-                          disabled={!selectedSessionId}
-                          onClick={async () => {
-                            if (!currentPatient || !currentSession) return;
-                            const text = `DECLARAÇÃO DE COMPARECIMENTO\n\nDeclaro para os devidos fins que o(a) paciente ${currentPatient.fullName} compareceu à sessão de psicoterapia no dia ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}.\n\nEmitido em: ${new Date().toLocaleDateString("pt-BR")}\n\nResponsável: ${clinicianName}`;
-                            if (window.ethos?.export) {
-                              await window.ethos.export.pdf(text, `Declaracao_${currentPatient.fullName}`);
-                            }
-                          }}
-                        >
-                          Gerar PDF
-                        </button>
-                        {!selectedSessionId && <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>Selecione uma sessão na Agenda primeiro.</p>}
-                      </div>
-                    ) : (
-                      <div>
-                        <p style={{ ...subtleText, fontSize: 14, marginBottom: 12 }}>
-                          Gera um relatório clínico detalhado baseado no prontuário VALIDADO da sessão selecionada.
-                        </p>
-                        <button
-                          style={buttonStyle}
-                          disabled={!selectedSessionId || status !== "validated"}
-                          onClick={async () => {
-                            if (!currentPatient || !currentSession || status !== "validated") return;
-                            const text = `RELATÓRIO PSICOLÓGICO\n\nIDENTIFICAÇÃO\nPaciente: ${currentPatient.fullName}\nProfissional: ${clinicianName}\nData da Sessão: ${new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR")}\n\nDESCRIÇÃO E EVOLUÇÃO\n${draft}\n\nDocumento validado eletronicamente em ${validatedAt}.`;
-                            if (window.ethos?.export) {
-                              await window.ethos.export.pdf(text, `Relatorio_${currentPatient.fullName}`);
-                            }
-                          }}
-                        >
-                          Gerar PDF (Relatório)
-                        </button>
-                        {(!selectedSessionId || status !== "validated") && (
-                          <p style={{ color: "#FBBF24", fontSize: 12, marginTop: 8 }}>
-                            Requer uma sessão selecionada e um prontuário VALIDADO.
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </div>
+                  <h2>Relatórios</h2>
+                  <p style={subtleText}>Modelos de documentos (declarações, atestados, etc.) — placeholder.</p>
                 </div>
               </section>
 
-              {/* CONFIGURAÇÕES */}
+              {/* CONFIG */}
               <section className={`panel ${clinicalSection === "config" ? "active" : ""}`}>
                 <div style={sectionStyle}>
-                  <h2>Segurança e Backup</h2>
-                  <p style={subtleText}>Gerencie a integridade e o backup dos seus dados clínicos.</p>
+                  <h2>Configurações</h2>
+                  <p style={subtleText}>Preferências locais, backup, templates e integrações.</p>
 
-                  <div style={{ marginTop: 20, display: "grid", gap: 16 }}>
+                  <div style={dividerStyle} />
+
+                  <div style={{ display: "grid", gap: 14 }}>
                     <div>
-                      <strong>Lembrete WhatsApp (Template)</strong>
-                      <p style={{ ...subtleText, fontSize: 14, marginBottom: 8 }}>Use {{nome}}, {{data}} e {{hora}} como variáveis.</p>
+                      <strong>Template WhatsApp</strong>
+                      <p style={{ ...subtleText, fontSize: 12 }}>
+                        Texto padrão para confirmação de sessão e lembretes automáticos.
+                      </p>
                       <textarea
-                        style={{ ...inputStyle, minHeight: 80, fontSize: 14 }}
-                        value={whatsappTemplate}
-                        onChange={(e) => setWhatsappTemplate(e.target.value)}
+                        style={{ ...inputStyle, width: "100%", minHeight: 80, fontSize: 14 }}
+                        value={""}
+                        onChange={() => {}}
+                        placeholder="(placeholder)"
                       />
                     </div>
 
@@ -1770,7 +1354,6 @@ export const App = () => {
   );
 };
 
-
 function PatientDiariesView({ patientId, templates }: { patientId: string; templates: any[] }) {
   const [responses, setResponses] = useState<any[]>([]);
 
@@ -1790,7 +1373,7 @@ function PatientDiariesView({ patientId, templates }: { patientId: string; templ
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <h3 style={{ margin: 0 }}>Histórico de Respostas</h3>
         <div style={{ display: "flex", gap: 12 }}>
-          {templates.map(t => (
+          {templates.map((t) => (
             <button
               key={t.id}
               style={{ ...buttonStyle, padding: "6px 12px", fontSize: 12 }}
@@ -1805,7 +1388,7 @@ function PatientDiariesView({ patientId, templates }: { patientId: string; templ
                 await window.ethos.forms.submitResponse({
                   formId: t.id,
                   patientId,
-                  answers
+                  answers,
                 });
                 loadResponses();
               }}
@@ -1816,31 +1399,29 @@ function PatientDiariesView({ patientId, templates }: { patientId: string; templ
         </div>
       </div>
 
-      <div style={{ display: "grid", gap: 12 }}>
-        {responses.length === 0 ? (
-          <p style={{ color: "#94A3B8" }}>Nenhuma resposta registrada ainda.</p>
-        ) : (
-          responses.map(r => {
-            const answers = JSON.parse(r.answers);
-            return (
-              <div key={r.id} style={{ background: "#0B1120", padding: 16, borderRadius: 12, border: "1px solid #1E293B" }}>
-                <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 12 }}>
-                  <strong style={{ color: "#3B82F6" }}>{r.formTitle}</strong>
-                  <span style={{ fontSize: 12, color: "#64748B" }}>{new Date(r.createdAt).toLocaleString("pt-BR")}</span>
-                </div>
-                <div style={{ display: "grid", gap: 8 }}>
-                  {Object.entries(answers).map(([key, val]: [string, any]) => (
-                    <div key={key}>
-                      <p style={{ margin: 0, fontSize: 12, color: "#94A3B8" }}>Pergunta ID: {key}</p>
-                      <p style={{ margin: 0, color: "#E2E8F0" }}>{val}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })
-        )}
-      </div>
+      {responses.length === 0 ? (
+        <p style={subtleText}>Nenhuma resposta registrada ainda.</p>
+      ) : (
+        responses.map((r) => (
+          <div key={r.id} style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+              <strong>{r.formTitle || "Formulário"}</strong>
+              <span style={{ fontSize: 12, color: "#94A3B8" }}>{new Date(r.createdAt).toLocaleString("pt-BR")}</span>
+            </div>
+            <pre
+              style={{
+                marginTop: 8,
+                whiteSpace: "pre-wrap",
+                fontSize: 12,
+                color: "#CBD5F5",
+                fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
+              }}
+            >
+              {JSON.stringify(r.answers, null, 2)}
+            </pre>
+          </div>
+        ))
+      )}
     </div>
   );
 }
