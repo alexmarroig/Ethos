@@ -4,7 +4,7 @@
   "main": "dist-electron/main.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build && tsc -p tsconfig.electron.json",
+    "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
     "electron:dev": "electron .",
     "preview": "vite preview"
   },
