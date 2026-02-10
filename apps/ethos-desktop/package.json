@@ -4,13 +4,21 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "echo 'run electron + vite in real setup'",
-    "build": "echo 'build placeholder'"
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.electron.json"
   },
   "dependencies": {
+    "@ethos/sdk": "*",
     "@ethos/shared": "*",
-    "react-router-dom": "^6.22.3",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "@ethos/sdk": "*"
+    "react-router-dom": "^6.22.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.10",
+    "@types/react": "^18.2.66",
+    "@types/react-dom": "^18.2.22",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.8",
+    "vitest": "^1.6.0"
   }
 }

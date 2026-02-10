@@ -19,13 +19,14 @@ export class AudioRecordingService {
   } | null = null;
 
   async start(options: RecordingStartOptions): Promise<RecordingSessionInfo> {
-    if (!window.ethos?.audio) {
+    const audioApi = window.ethos?.audio;
+    if (!audioApi?.startSession || !audioApi.appendChunk) {
       throw new Error("Audio bridge is not available");
     }
 
     const mimeType = options.mimeType ?? "audio/webm;codecs=opus";
     const timesliceMs = options.timesliceMs ?? 5000;
-    const { recordingId, filePath } = await window.ethos.audio.startSession({
+    const { recordingId, filePath } = await audioApi.startSession({
       sessionId: options.sessionId,
       mimeType,
     });
@@ -35,7 +36,7 @@ export class AudioRecordingService {
       if (!event.data || event.data.size === 0) return;
       try {
         const buffer = await event.data.arrayBuffer();
-        await window.ethos?.audio?.appendChunk({ recordingId, data: buffer });
+        await audioApi.appendChunk?.({ recordingId, data: buffer });
       } catch (error) {
         options.onError?.(error instanceof Error ? error : new Error("Failed to append audio chunk"));
       }
@@ -50,7 +51,8 @@ export class AudioRecordingService {
   }
 
   async stop(): Promise<RecordingSessionInfo | null> {
-    if (!this.session || !window.ethos?.audio) {
+    const audioApi = window.ethos?.audio;
+    if (!this.session || !audioApi?.finishSession) {
       return null;
     }
 
@@ -68,7 +70,7 @@ export class AudioRecordingService {
     }
     await stopPromise;
 
-    const finishedSession = await window.ethos.audio.finishSession({ recordingId });
+    const finishedSession = await audioApi.finishSession({ recordingId });
     this.session = null;
     return { recordingId, filePath: finishedSession.filePath ?? filePath };
   }
@@ -94,7 +96,8 @@ export class AudioRecordingService {
   }
 
   async abort(): Promise<void> {
-    if (!this.session || !window.ethos?.audio) {
+    const audioApi = window.ethos?.audio;
+    if (!this.session || !audioApi?.abortSession) {
       return;
     }
 
@@ -102,7 +105,7 @@ export class AudioRecordingService {
     if (mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
     }
-    await window.ethos.audio.abortSession({ recordingId });
+    await audioApi.abortSession({ recordingId });
     this.session = null;
   }
 }
