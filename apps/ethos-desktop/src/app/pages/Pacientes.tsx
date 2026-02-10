@@ -69,7 +69,7 @@ export const Pacientes = () => {
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!name.trim() || !email.trim()) return;
-    patientsService.create({ name: name.trim(), email: email.trim(), notes: "" });
+    patientsService.create({ name: name.trim(), email: email.trim() });
     setName("");
     setEmail("");
     refresh();
@@ -96,7 +96,7 @@ export const Pacientes = () => {
           {patients.map((patient) => (
             <div key={patient.id} style={{ display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid #1F2937" }}>
               <div>
-                <p style={{ margin: 0 }}>{patient.name}</p>
+                <p style={{ margin: 0 }}>{patient.fullName}</p>
                 <p style={{ margin: 0, color: "#94A3B8", fontSize: 12 }}>{patient.birthDate ?? "Sem data de nascimento"}</p>
               </div>
               <p style={{ margin: 0, color: "#CBD5F5", fontWeight: 600 }}>{patient.id.slice(0, 8)}</p>

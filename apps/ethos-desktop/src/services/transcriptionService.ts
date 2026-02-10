@@ -26,7 +26,7 @@ export class TranscriptionService {
   private errorListeners: Array<(error: TranscriptionError) => void> = [];
 
   constructor() {
-    window.ethos?.onTranscriptionMessage?.((message: string) => {
+    window.ethos?.onTranscriptionMessage((message: string) => {
       try {
         const payload = JSON.parse(message) as TranscriptionEventPayload;
         if (payload.type === "job_update") {
@@ -61,7 +61,7 @@ export class TranscriptionService {
   }
 
   async pickAudio(): Promise<string | null | undefined> {
-    return window.ethos?.openAudioDialog?.();
+    return window.ethos?.openAudioDialog();
   }
 
   async enqueueTranscription(
@@ -69,6 +69,6 @@ export class TranscriptionService {
     audioPath: string,
     model: TranscriptionModel,
   ): Promise<string | undefined> {
-    return window.ethos?.enqueueTranscription?.({ sessionId, audioPath, model });
+    return window.ethos?.enqueueTranscription({ sessionId, audioPath, model });
   }
 }
