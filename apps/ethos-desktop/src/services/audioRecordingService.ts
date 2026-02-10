@@ -22,6 +22,7 @@ export class AudioRecordingService {
     if (!window.ethos?.audio) {
       throw new Error("Audio bridge is not available");
     }
+
     const mimeType = options.mimeType ?? "audio/webm;codecs=opus";
     const timesliceMs = options.timesliceMs ?? 5000;
     const { recordingId, filePath } = await window.ethos.audio.startSession({
@@ -52,6 +53,7 @@ export class AudioRecordingService {
     if (!this.session || !window.ethos?.audio) {
       return null;
     }
+
     const { recordingId, filePath, mediaRecorder } = this.session;
     const stopPromise = new Promise<void>((resolve) => {
       if (mediaRecorder.state === "inactive") {
@@ -82,7 +84,6 @@ export class AudioRecordingService {
   }
 
   resume(): void {
-  async resume(): Promise<void> {
     if (!this.session) {
       return;
     }
@@ -96,6 +97,7 @@ export class AudioRecordingService {
     if (!this.session || !window.ethos?.audio) {
       return;
     }
+
     const { recordingId, mediaRecorder } = this.session;
     if (mediaRecorder.state !== "inactive") {
       mediaRecorder.stop();
