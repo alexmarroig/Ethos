@@ -62,3 +62,7 @@ Se o SHA no Render for diferente do HEAD do GitHub:
 - Cache limpo no deploy? (sim/não):
 - Ação tomada:
 - Resultado:
+
+## Leitura complementar
+
+- Para erros de TypeScript em monorepo/workspaces durante build no Render, veja: `docs/render-monorepo-typescript-failures.md`.
