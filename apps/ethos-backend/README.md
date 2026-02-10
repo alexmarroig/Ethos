@@ -22,6 +22,14 @@ npm run dev
 npm test
 ```
 
+## Deploy (Start Command x Root Directory)
+- Se `Root Directory` ficar em branco, use:
+  - `node apps/ethos-backend/dist/index.js`
+- Se `Root Directory` for `apps/ethos-backend` (recomendado), use:
+  - `node dist/index.js`
+
+Evite misturar `Root Directory` vazio com comandos relativos de subpasta.
+
 ## Documentação adicional
 - `docs/backend-hardening.md`
 - `docs/backend-endpoints-funcionalidades.md`
