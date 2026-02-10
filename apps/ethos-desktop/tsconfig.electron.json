@@ -5,9 +5,11 @@
     "module": "commonjs",
     "target": "ESNext",
     "lib": ["ESNext"],
+    "moduleResolution": "Node",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "types": ["node"],
     "baseUrl": ".",
     "paths": {
       "@ethos/shared": ["../../packages/shared/src"]
