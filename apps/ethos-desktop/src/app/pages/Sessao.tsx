@@ -557,6 +557,10 @@ export const Sessao = () => {
                 </ul>
               )}
             </div>
+          </div>
+        </div>
+      </section>
+
       <section style={{ background: "#0F172A", padding: 20, borderRadius: 16 }}>
         <header style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <h3 style={{ margin: 0 }}>Prontuário estruturado</h3>
