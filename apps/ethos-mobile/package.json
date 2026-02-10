@@ -1,11 +1,12 @@
 {
   "name": "ethos-mobile",
-  "version": "0.1.0",
-  "main": "src/index.ts",
-  "private": true,
+  "version": "1.0.0",
+  "main": "node_modules/expo/AppEntry.js",
   "scripts": {
-    "dev": "echo 'mobile app placeholder: react-native/expo wiring'",
-    "build": "echo 'mobile build placeholder'"
+    "start": "expo start",
+    "android": "expo start --android",
+    "ios": "expo start --ios",
+    "web": "expo start --web"
   },
   "dependencies": {
     "@ethos/sdk": "*",
