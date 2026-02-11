@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { initDb, getDb } from "./db";
 import { getVaultKey } from "./security";
 
+import { authService } from "./services/auth.service";
 import { patientsService } from "./services/patients.service";
 import { sessionsService } from "./services/sessions.service";
 import { notesService } from "./services/notes.service";
@@ -17,6 +18,12 @@ import { generationService } from "./services/generation.service";
 import { exportService } from "./services/export.service";
 import { transcriptionJobsService } from "./services/transcription-jobs.service";
 import { integrityService } from "./services/integrity.service";
+
+// Future V1 services (stubs for Part 1)
+import { financialService } from "./services/financial.service";
+import { formsService } from "./services/forms.service";
+import { genaiService } from "./services/genai.service";
+import { backupService } from "./services/backup.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isSafeMode = false;
@@ -247,6 +254,13 @@ function inferExtFromMime(mimeType: string) {
 // ---------------------
 ipcMain.handle("app:isSafeMode", () => isSafeMode);
 
+// Auth IPC
+ipcMain.handle("auth:login", (_e, { email, password }) => {
+  return authService.login(email, password);
+});
+ipcMain.handle("auth:encryptToken", (_e, token) => authService.encryptToken(token));
+ipcMain.handle("auth:decryptToken", (_e, encrypted) => authService.decryptToken(encrypted));
+
 // Dialog: open audio file
 ipcMain.handle("dialog:openAudio", async () => {
   if (!mainWindow) return null;
@@ -309,9 +323,17 @@ ipcMain.handle("patients:getAll", () => {
   if (isSafeMode) return [];
   return patientsService.getAll();
 });
+ipcMain.handle("patients:getById", (_e, id) => {
+  if (isSafeMode) return undefined;
+  return patientsService.getById(id);
+});
 ipcMain.handle("patients:create", (_e, p) => {
   requireNotSafeMode();
   return patientsService.create(p);
+});
+ipcMain.handle("patients:update", (_e, id, updates) => {
+  requireNotSafeMode();
+  return patientsService.update(id, updates);
 });
 ipcMain.handle("patients:delete", (_e, id) => {
   requireNotSafeMode();
@@ -486,6 +508,62 @@ ipcMain.handle("transcription:enqueue", async (_event, payload) => {
 ipcMain.handle("privacy:purge", () => {
   requireNotSafeMode();
   return privacyService.purgeAll();
+});
+
+// ---------------------
+// Financial IPC (V1)
+// ---------------------
+ipcMain.handle("financial:getAll", () => {
+  requireNotSafeMode();
+  return financialService.getAll();
+});
+ipcMain.handle("financial:getByPatient", (_e, patientId) => {
+  requireNotSafeMode();
+  return financialService.getByPatient(patientId);
+});
+ipcMain.handle("financial:create", (_e, entry) => {
+  requireNotSafeMode();
+  return financialService.create(entry);
+});
+
+// ---------------------
+// Forms IPC (V1)
+// ---------------------
+ipcMain.handle("forms:getTemplates", () => {
+  requireNotSafeMode();
+  return formsService.getTemplates();
+});
+ipcMain.handle("forms:getResponses", (_e, patientId) => {
+  requireNotSafeMode();
+  return formsService.getResponses(patientId);
+});
+ipcMain.handle("forms:submitResponse", (_e, response) => {
+  requireNotSafeMode();
+  return formsService.submitResponse(response);
+});
+
+// ---------------------
+// GenAI IPC (V1)
+// ---------------------
+ipcMain.handle("genai:transformNote", (_e, payload) => {
+  requireNotSafeMode();
+  return genaiService.transformNote(payload);
+});
+ipcMain.handle("genai:generateRecibo", (_e, payload) => {
+  requireNotSafeMode();
+  return genaiService.generateRecibo(payload);
+});
+
+// ---------------------
+// Backup IPC (V1)
+// ---------------------
+ipcMain.handle("backup:create", (_e, password) => {
+  requireNotSafeMode();
+  return backupService.create(password);
+});
+ipcMain.handle("backup:restore", (_e, password) => {
+  requireNotSafeMode();
+  return backupService.restore(password);
 });
 
 // ---------------------

@@ -1,22 +1,28 @@
-# ETHOS
+# ETHOS — Plataforma Clínica Offline-First
 
-Plataforma clínica offline para Windows com fluxo de agenda, sessões, transcrição local e prontuário em rascunho. A IA é usada apenas como apoio documental, sem diagnóstico ou conduta automática.
+ETHOS é um ambiente de trabalho clínico para psicólogos, projetado com foco em privacidade absoluta, segurança de dados e produtividade via ferramentas locais de IA.
 
-## Estrutura do monorepo
+**Estado Atual:** v1.0 (Lançamento Clínico).
 
-- `apps/ethos-desktop`: Electron + React (UI). Fluxo clínico completo, com consentimento, rascunho e validação.
-- `apps/ethos-transcriber`: Worker local para transcrição (faster-whisper + ffmpeg) via IPC.
-- `packages/shared`: Tipos e DTOs compartilhados.
+## 🚀 Funcionalidades Atuais (Operacionais)
 
-## Fluxo MVP (offline)
+- **Transcrição Offline:** Processamento local de áudio via Whisper (Faster-Whisper) rodando em CPU.
+- **Registro Clínico Ético:** Geração de rascunhos de prontuário baseados na transcrição (CRP-Compliant).
+- **Segurança de Dados:** SQLCipher + AES-256-GCM (OOM Safe).
+- **Exportação:** PDF e DOCX para prontuários validados.
+- **Gestão Financeira:** Controle de cobranças, pagamentos, pacotes e pacientes pro-bono.
+- **Admin Control Plane:** Métricas sanitizadas e **Admin Test Lab** para integridade local.
+- **Portal do Paciente:** Dashboard mobile completo para confirmação de presença, diários e avisos.
 
-1. Agenda semanal simples.
-2. Sessão → importar/gravar áudio (com consentimento).
-3. Worker local transcreve com timestamps.
-4. Gerar prontuário automático como **rascunho** (texto descritivo, sem inferências).
-5. Edição manual e validação explícita.
-6. Exportação DOCX/PDF.
+## 🛠 Estrutura do Projeto
 
-## Execução (placeholder)
+- `apps/ethos-desktop`: Electron + React.
+- `apps/ethos-mobile`: Expo (Android/iOS).
+- `apps/ethos-transcriber`: Worker local Whisper.
+- `packages/shared`: Tipos compartilhados.
 
-Este repositório contém a base do monorepo e pontos de integração. Scripts reais de build/electron-builder devem ser adicionados conforme o empacotamento Windows.
+## 💻 Como Executar
+
+1. `npm install`
+2. `npm run dev:electron` (Desktop)
+3. `npm run dev:mobile` (Mobile)

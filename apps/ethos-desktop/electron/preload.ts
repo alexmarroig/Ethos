@@ -111,11 +111,22 @@ const ethosApi = Object.freeze({
   }),
 
   // ------------------------
+  // Auth
+  // ------------------------
+  auth: Object.freeze({
+    login: (payload: any) => invoke("auth:login", payload),
+    encryptToken: (token: string) => invoke("auth:encryptToken", token),
+    decryptToken: (encrypted: string) => invoke("auth:decryptToken", encrypted),
+  }),
+
+  // ------------------------
   // Patients
   // ------------------------
   patients: Object.freeze({
     getAll: () => invoke("patients:getAll"),
+    getById: (id: string) => invoke("patients:getById", id),
     create: (p: unknown) => invoke("patients:create", p),
+    update: (id: string, updates: any) => invoke("patients:update", id, updates),
     delete: (id: string) => invoke("patients:delete", id),
   }),
 
@@ -179,6 +190,40 @@ const ethosApi = Object.freeze({
   // ------------------------
   privacy: Object.freeze({
     purgeAll: () => invoke("privacy:purge"),
+  }),
+
+  // ------------------------
+  // Financial (V1)
+  // ------------------------
+  financial: Object.freeze({
+    getAll: () => invoke("financial:getAll"),
+    getByPatient: (patientId: string) => invoke("financial:getByPatient", patientId),
+    create: (entry: any) => invoke("financial:create", entry),
+  }),
+
+  // ------------------------
+  // Forms (V1)
+  // ------------------------
+  forms: Object.freeze({
+    getTemplates: () => invoke("forms:getTemplates"),
+    getResponses: (patientId: string) => invoke("forms:getResponses", patientId),
+    submitResponse: (response: any) => invoke("forms:submitResponse", response),
+  }),
+
+  // ------------------------
+  // GenAI (V1)
+  // ------------------------
+  genai: Object.freeze({
+    transformNote: (payload: any) => invoke("genai:transformNote", payload),
+    generateRecibo: (payload: any) => invoke("genai:generateRecibo", payload),
+  }),
+
+  // ------------------------
+  // Backup (V1)
+  // ------------------------
+  backup: Object.freeze({
+    create: (password: string) => invoke("backup:create", password),
+    restore: (password: string) => invoke("backup:restore", password),
   }),
 
   // ------------------------

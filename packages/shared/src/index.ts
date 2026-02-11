@@ -1,6 +1,13 @@
 export type Patient = {
   id: string;
   fullName: string;
+  phoneNumber?: string;
+  cpf?: string;
+  cep?: string;
+  address?: string;
+  supportNetwork?: string;
+  sessionPrice?: number; // em centavos
+  isProBono?: number; // 0 ou 1
   birthDate?: string;
   notes?: string;
   createdAt: string;
@@ -71,6 +78,20 @@ export type ModelOption = {
   version: string;
 };
 
+export type FinancialEntry = {
+  id: string;
+  patientId: string;
+  sessionId?: string;
+  amount: number; // em centavos para evitar float issues
+  type: "payment" | "charge";
+  category: "session" | "package" | "other";
+  status: "pending" | "completed";
+  method?: "pix" | "card" | "cash" | "transfer";
+  date: string;
+  notes?: string;
+  createdAt: string;
+};
+
 // IPC Message Types
 export type IPCMessage =
   | { type: "enqueue"; payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" } }
@@ -89,6 +110,6 @@ export interface IEthosAPI {
 
 declare global {
   interface Window {
-    ethos: IEthosAPI;
+    ethos: any;
   }
 }
