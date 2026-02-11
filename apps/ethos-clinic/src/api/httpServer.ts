@@ -72,6 +72,7 @@ import {
   syncLocalEntitlements,
   updateRetentionPolicy,
   updateTemplate,
+  validateClinicalNote,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -82,7 +83,7 @@ import {
   listNotificationTemplates,
   scheduleNotification,
 } from "../application/notifications";
-import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
+import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
@@ -236,7 +237,7 @@ const parsePagination = (url: URL) => {
 const getPaginationOrError = (res: ServerResponse, requestId: string, url: URL) => {
   const pagination = parsePagination(url);
   if ("error" in pagination) {
-    error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+    error(res, requestId, 422, "VALIDATION_ERROR", pagination.error ?? "Invalid pagination");
     return null;
   }
   return pagination;
@@ -670,11 +671,12 @@ export const createEthosBackend = () =>
         if (typeof body.name !== "string" || typeof body.channel !== "string" || typeof body.content !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "name, channel and content required");
         }
-        if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        if (body.channel !== "email" && body.channel !== "whatsapp") return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        const channel: NotificationChannel = body.channel;
 
         const template = createNotificationTemplate(auth.user.id, {
           name: body.name,
-          channel: body.channel,
+          channel,
           content: body.content,
           subject: typeof body.subject === "string" ? body.subject : undefined,
         });
@@ -690,11 +692,12 @@ export const createEthosBackend = () =>
         if (typeof body.patient_id !== "string" || typeof body.channel !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and channel required");
         }
-        if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        if (body.channel !== "email" && body.channel !== "whatsapp") return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        const channel: NotificationChannel = body.channel;
 
         const consent = grantNotificationConsent(auth.user.id, {
           patientId: body.patient_id,
-          channel: body.channel,
+          channel,
           source: typeof body.source === "string" ? body.source : "manual",
         });
         return ok(res, requestId, 201, consent);

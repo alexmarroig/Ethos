@@ -6,6 +6,8 @@ import type {
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  ClinicalDocument,
+  ClinicalDocumentVersion,
   FinancialEntry,
   FormEntry,
   Invite,
@@ -15,6 +17,7 @@ import type {
   NotificationLog,
   NotificationSchedule,
   NotificationTemplate,
+  DocumentTemplate,
   ScaleRecord,
   SessionToken,
   TelemetryEvent,
@@ -73,6 +76,16 @@ export const db = {
   forms: new Map<string, FormEntry>(),
   financial: new Map<string, FinancialEntry>(),
   jobs: new Map<string, Job>(),
+  documents: new Map<string, ClinicalDocument>(),
+  documentVersions: new Map<string, ClinicalDocumentVersion>(),
+  documentTemplates: new Map<string, DocumentTemplate>(),
+  contracts: new Map<string, Record<string, unknown>>(),
+  patientAccess: new Map<string, Record<string, unknown>>(),
+  privateComments: new Map<string, Record<string, unknown>>(),
+  anonymizedCases: new Map<string, Record<string, unknown>>(),
+  retentionPolicies: new Map<string, Record<string, unknown>>(),
+  patientDiaryEntries: new Map<string, Record<string, unknown>>(),
+  patientMessages: new Map<string, Record<string, unknown>>(),
   localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
   notificationTemplates: new Map<string, NotificationTemplate>(),
@@ -84,7 +97,13 @@ export const db = {
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
-  idempotency: new Map<string, { statusCode: number; body: unknown; createdAt: string }>(),
+  idempotency: new Map<string, IdempotencyRecord>(),
+};
+
+const cleanupExpiredIdempotency = (at = Date.now()) => {
+  for (const [key, entry] of db.idempotency.entries()) {
+    if (entry.expiresAt <= at) db.idempotency.delete(key);
+  }
 };
 
 export const getIdempotencyEntry = (key: string, at = Date.now()) => {
