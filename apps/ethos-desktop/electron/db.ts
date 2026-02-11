@@ -5,6 +5,45 @@ import fs from 'node:fs';
 
 let db: Database.Database;
 
+const getTableColumns = (tableName: string): string[] => {
+  return (db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>).map((column) => column.name);
+};
+
+const ensureColumn = (tableName: string, columnName: string, definition: string) => {
+  const columns = getTableColumns(tableName);
+  if (!columns.includes(columnName)) {
+    db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`);
+  }
+};
+
+const runMigrations = () => {
+  const currentVersion = (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version ?? 0;
+
+  if (currentVersion < 1) {
+    db.exec('PRAGMA user_version = 1;');
+  }
+
+  if (currentVersion < 2) {
+    ensureColumn('patients', 'isProBono', 'INTEGER NOT NULL DEFAULT 0');
+    ensureColumn('patients', 'isExempt', 'INTEGER NOT NULL DEFAULT 0');
+
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS session_packages (
+        id TEXT PRIMARY KEY,
+        patientId TEXT NOT NULL,
+        totalCredits INTEGER NOT NULL,
+        usedCredits INTEGER NOT NULL DEFAULT 0,
+        expiresAt TEXT,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY(patientId) REFERENCES patients(id)
+      );
+    `);
+
+    db.exec('PRAGMA user_version = 2;');
+  }
+};
+
 export const initDb = (encryptionKey: string) => {
   const userDataPath = app.getPath('userData');
   const vaultPath = path.join(userDataPath, 'vault');
@@ -30,6 +69,8 @@ export const initDb = (encryptionKey: string) => {
       address TEXT,
       supportNetwork TEXT,
       sessionPrice INTEGER,
+      isProBono INTEGER NOT NULL DEFAULT 0,
+      isExempt INTEGER NOT NULL DEFAULT 0,
       birthDate TEXT,
       notes TEXT,
       createdAt TEXT NOT NULL
@@ -97,6 +138,17 @@ export const initDb = (encryptionKey: string) => {
       FOREIGN KEY(sessionId) REFERENCES sessions(id)
     );
 
+    CREATE TABLE IF NOT EXISTS session_packages (
+      id TEXT PRIMARY KEY,
+      patientId TEXT NOT NULL,
+      totalCredits INTEGER NOT NULL,
+      usedCredits INTEGER NOT NULL DEFAULT 0,
+      expiresAt TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(patientId) REFERENCES patients(id)
+    );
+
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
@@ -124,6 +176,8 @@ export const initDb = (encryptionKey: string) => {
       FOREIGN KEY(patientId) REFERENCES patients(id)
     );
   `);
+
+  runMigrations();
 
   // Seed initial form templates
   const formsCount = db.prepare('SELECT COUNT(*) as count FROM forms').get() as { count: number };

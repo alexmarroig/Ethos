@@ -1,44 +1,48 @@
-import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView, TextInput, Alert } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  Alert,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { deriveKeys, setSessionKeys, clearSessionKeys } from './src/services/security';
 import { initDb } from './src/services/db';
 import { useAppLock } from './src/hooks/useAppLock';
 import { purgeService } from './src/services/purge';
+import { getDeviceCapabilityScore } from './src/services/device';
 
 export default function App() {
   const [password, setPassword] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const { isLocked, unlock, setIsLocked } = useAppLock(isLoggedIn);
+  const [role, setRole] = useState('psychologist');
   const [loading, setLoading] = useState(false);
+  const [dcs, setDcs] = useState(null);
+  const { isLocked, unlock } = useAppLock(isLoggedIn);
 
-  // Aggressive purge on boot
   useEffect(() => {
     purgeService.purgeTempData();
   }, []);
 
-  // Aggressive purge on unlock
   useEffect(() => {
-    if (isLoggedIn && !isLocked) {
-      purgeService.purgeTempData();
-    }
-  }, [isLoggedIn, isLocked]);
+    if (!isLoggedIn) return;
+    getDeviceCapabilityScore().then(setDcs).catch(() => setDcs(null));
+  }, [isLoggedIn]);
 
   const handleLogin = async () => {
     if (!password) return;
     setLoading(true);
     try {
       const keys = await deriveKeys(password);
-      // Try to init DB to verify password (SQLCipher will fail if key is wrong on second open)
       await initDb(keys.dbKey);
-
-      // Clear sensitive password from memory as soon as possible
       setSessionKeys(keys);
       setIsLoggedIn(true);
       setPassword('');
     } catch (error) {
-      // Sanitized error logging
-      console.error('[Auth] Falha na autenticação.');
       Alert.alert('Erro', 'Falha ao acessar o banco de dados. Verifique sua senha.');
     } finally {
       setLoading(false);
@@ -74,11 +78,11 @@ export default function App() {
     return (
       <View style={styles.lockContainer}>
         <Text style={styles.lockTitle}>ETHOS BLOQUEADO</Text>
-        <Text style={styles.lockSubtitle}>Sessão protegida por biometria</Text>
+        <Text style={styles.lockSubtitle}>Sessão protegida por biometria/PIN</Text>
         <TouchableOpacity style={styles.button} onPress={unlock}>
           <Text style={styles.buttonText}>Desbloquear</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.outlineButton} onPress={handleLogout} style={{ marginTop: 20 }}>
+        <TouchableOpacity style={[styles.outlineButton, { marginTop: 20 }]} onPress={handleLogout}>
           <Text style={styles.outlineButtonText}>Sair</Text>
         </TouchableOpacity>
       </View>
@@ -89,104 +93,79 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <View>
-            <Text style={styles.title}>ETHOS MOBILE</Text>
-            <Text style={styles.subtitle}>Portal do Profissional (V1)</Text>
-          </View>
+        <Text style={styles.title}>ETHOS MOBILE</Text>
+        <Text style={styles.subtitle}>Portal {role === 'psychologist' ? 'do Profissional' : 'do Paciente'} (V1)</Text>
+        <View style={styles.roleRow}>
+          <TouchableOpacity
+            style={[styles.roleButton, role === 'psychologist' && styles.roleButtonActive]}
+            onPress={() => setRole('psychologist')}
+          >
+            <Text style={styles.roleText}>Psicólogo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.roleButton, role === 'patient' && styles.roleButtonActive]}
+            onPress={() => setRole('patient')}
+          >
+            <Text style={styles.roleText}>Paciente</Text>
+          </TouchableOpacity>
           <TouchableOpacity onPress={handleLogout}>
             <Text style={{ color: '#F87171' }}>Sair</Text>
           </TouchableOpacity>
         </View>
-import React, { useState } from 'react';
-import { StyleSheet, Text, View, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
-import { StatusBar } from 'expo-status-bar';
-
-export default function App() {
-  const [role, setRole] = useState('patient'); // 'patient' or 'psychologist'
-
-  return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar style="auto" />
-      <View style={styles.header}>
-        <Text style={styles.title}>ETHOS MOBILE</Text>
-        <Text style={styles.subtitle}>Portal do Paciente (V1 Alpha)</Text>
       </View>
 
       <ScrollView style={styles.content}>
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Status de Segurança</Text>
-          <Text style={styles.cardText}>✓ Banco de Dados: SQLCipher Ativo</Text>
-          <Text style={styles.cardText}>✓ Vault: AES-256-GCM Pronto</Text>
-          <Text style={styles.cardText}>✓ Sigilo: Logs PHI desativados</Text>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Próximas Sessões</Text>
-          <Text style={styles.cardText}>João Silva - 14:00 (Confirmado)</Text>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Iniciar Sessão</Text>
-          </TouchableOpacity>
-        </View>
-          <Text style={styles.cardTitle}>Minha Próxima Sessão</Text>
-          <Text style={styles.cardText}>Data: 22/02/2025 às 14:00</Text>
-          <TouchableOpacity style={styles.button}>
-            <Text style={styles.buttonText}>Confirmar Presença</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Meus Diários</Text>
-          <TouchableOpacity style={styles.outlineButton}>
-            <Text style={styles.outlineButtonText}>+ Diário de Emoções</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.outlineButton}>
-            <Text style={styles.outlineButtonText}>+ Diário dos Sonhos</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.card}>
-          <Text style={styles.cardTitle}>Documentos Disponíveis</Text>
-          <Text style={styles.emptyText}>Nenhum documento compartilhado ainda.</Text>
-        </View>
+        {role === 'psychologist' ? (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Segurança Ativa</Text>
+              <Text style={styles.cardText}>✓ Banco SQLCipher com chave derivada.</Text>
+              <Text style={styles.cardText}>✓ Vault AES-256-GCM com chave segregada.</Text>
+              <Text style={styles.cardText}>✓ App Lock automático com tolerância de 30s.</Text>
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>DCS (Device Capability Score)</Text>
+              {dcs ? (
+                <>
+                  <Text style={styles.cardText}>Score: {dcs.score}</Text>
+                  <Text style={styles.cardText}>Modelo recomendado: {dcs.recommendedModel}</Text>
+                  <Text style={styles.cardText}>RAM: {dcs.ramGB} GB | Disco livre: {dcs.diskGB} GB</Text>
+                </>
+              ) : (
+                <Text style={styles.emptyText}>Benchmark indisponível.</Text>
+              )}
+            </View>
+          </>
+        ) : (
+          <>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Minha Próxima Sessão</Text>
+              <Text style={styles.cardText}>Data: 22/02/2025 às 14:00</Text>
+              <TouchableOpacity style={styles.button}>
+                <Text style={styles.buttonText}>Confirmar Presença</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.card}>
+              <Text style={styles.cardTitle}>Meus Diários</Text>
+              <TouchableOpacity style={styles.outlineButton}>
+                <Text style={styles.outlineButtonText}>+ Diário de Emoções</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.outlineButton}>
+                <Text style={styles.outlineButtonText}>+ Diário dos Sonhos</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        )}
       </ScrollView>
-
-      <View style={styles.nav}>
-        <Text style={styles.navItemActive}>Home</Text>
-        <Text style={styles.navItem}>Pacientes</Text>
-        <Text style={styles.navItem}>Finanças</Text>
-        <Text style={styles.navItem}>Ajustes</Text>
-        <Text style={styles.navItem}>Agenda</Text>
-        <Text style={styles.navItem}>Diários</Text>
-        <Text style={styles.navItem}>Perfil</Text>
-      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-  },
-  lockContainer: {
-    flex: 1,
-    backgroundColor: '#0F172A',
-    justifyContent: 'center',
-    padding: 30,
-  },
-  lockTitle: {
-    color: 'white',
-    fontSize: 32,
-    fontWeight: '900',
-    textAlign: 'center',
-    letterSpacing: 2,
-  },
-  lockSubtitle: {
-    color: '#94A3B8',
-    textAlign: 'center',
-    marginBottom: 40,
-  },
+  container: { flex: 1, backgroundColor: '#0F172A' },
+  lockContainer: { flex: 1, backgroundColor: '#0F172A', justifyContent: 'center', padding: 30 },
+  lockTitle: { color: 'white', fontSize: 32, fontWeight: '900', textAlign: 'center', letterSpacing: 2 },
+  lockSubtitle: { color: '#94A3B8', textAlign: 'center', marginBottom: 40 },
   input: {
     backgroundColor: '#1E293B',
     color: 'white',
@@ -196,24 +175,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  header: {
-    padding: 20,
-    paddingTop: 40,
-    backgroundColor: '#1E293B',
-  },
-  title: {
-    color: 'white',
-    fontSize: 24,
-    fontWeight: '800',
-  },
-  subtitle: {
-    color: '#94A3B8',
-    fontSize: 14,
-  },
-  content: {
-    flex: 1,
-    padding: 16,
-  },
+  header: { padding: 20, backgroundColor: '#1E293B' },
+  title: { color: 'white', fontSize: 24, fontWeight: '800' },
+  subtitle: { color: '#94A3B8', fontSize: 14, marginBottom: 10 },
+  roleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  roleButton: { borderWidth: 1, borderColor: '#334155', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  roleButtonActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
+  roleText: { color: 'white', fontSize: 12, fontWeight: '600' },
+  content: { flex: 1, padding: 16 },
   card: {
     backgroundColor: '#1E293B',
     padding: 16,
@@ -222,34 +191,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  cardTitle: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 8,
-  },
-  cardText: {
-    color: '#E2E8F0',
-    fontSize: 14,
-    marginBottom: 4,
-    fontSize: 16,
-    marginBottom: 12,
-  },
-  emptyText: {
-    color: '#64748B',
-    fontStyle: 'italic',
-  },
-  button: {
-    backgroundColor: '#3B82F6',
-    padding: 12,
-    borderRadius: 8,
-    alignItems: 'center',
-    marginTop: 10,
-  },
-  buttonText: {
-    color: 'white',
-    fontWeight: '600',
-  },
+  cardTitle: { color: 'white', fontSize: 18, fontWeight: '700', marginBottom: 8 },
+  cardText: { color: '#E2E8F0', fontSize: 14, marginBottom: 6 },
+  emptyText: { color: '#64748B', fontStyle: 'italic' },
+  button: { backgroundColor: '#3B82F6', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: 'white', fontWeight: '600' },
   outlineButton: {
     borderWidth: 1,
     borderColor: '#3B82F6',
@@ -258,25 +204,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginTop: 8,
   },
-  outlineButtonText: {
-    color: '#3B82F6',
-    fontWeight: '500',
-  },
-  nav: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    padding: 16,
-    backgroundColor: '#0B1120',
-    borderTopWidth: 1,
-    borderTopColor: '#1E293B',
-  },
-  navItem: {
-    color: '#64748B',
-    fontSize: 12,
-  },
-  navItemActive: {
-    color: '#3B82F6',
-    fontSize: 12,
-    fontWeight: '700',
-  }
+  outlineButtonText: { color: '#3B82F6', fontWeight: '500' },
 });

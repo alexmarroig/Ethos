@@ -3,13 +3,17 @@ import * as SecureStore from 'expo-secure-store';
 import CryptoJS from 'crypto-js';
 
 const SALT_KEY = 'ethos_instance_salt';
-const ITERATIONS = 10000;
-const KEY_SIZE = 256 / 32; // CryptoJS expects size in words
+const ITERATIONS = 600000;
+const KEY_SIZE_WORDS = 256 / 32;
 
-/**
- * Gets or creates a unique salt for this device instance.
- * This salt is stored in SecureStore.
- */
+const deriveScopedKey = (masterKeyHex, scope) => {
+  return CryptoJS.PBKDF2(masterKeyHex, scope, {
+    keySize: KEY_SIZE_WORDS,
+    iterations: 1,
+    hasher: CryptoJS.algo.SHA256,
+  }).toString();
+};
+
 export const getInstanceSalt = async () => {
   let salt = await SecureStore.getItemAsync(SALT_KEY);
   if (!salt) {
@@ -20,34 +24,27 @@ export const getInstanceSalt = async () => {
   return salt;
 };
 
-/**
- * Derives the DB and Vault keys from the master password using PBKDF2.
- * @param {string} password - The user's master password.
- */
 export const deriveKeys = async (password) => {
   const salt = await getInstanceSalt();
 
-  // Derive a master key first
-  const masterKey = CryptoJS.PBKDF2(password, CryptoJS.enc.Base64.parse(salt), {
-    keySize: KEY_SIZE * 2, // We want enough bits for two keys
+  const masterKeyHex = CryptoJS.PBKDF2(password, CryptoJS.enc.Base64.parse(salt), {
+    keySize: KEY_SIZE_WORDS,
     iterations: ITERATIONS,
-    hasher: CryptoJS.algo.SHA256
+    hasher: CryptoJS.algo.SHA256,
   }).toString();
 
-  // Split the master key into DB Key and Vault Key
-  const dbKey = masterKey.substring(0, 64); // 256 bits in hex
-  const vaultKey = masterKey.substring(64, 128); // another 256 bits
+  const dbKey = deriveScopedKey(masterKeyHex, 'ETHOS_DB_KEY_V1');
+  const vaultKey = deriveScopedKey(masterKeyHex, 'ETHOS_VAULT_KEY_V1');
 
   return {
     dbKey,
-    vaultKey
+    vaultKey,
+    meta: {
+      iterations: ITERATIONS,
+    },
   };
 };
 
-/**
- * Persists the derived keys in SecureStore (Optional, depends on security policy).
- * For ETHOS, we might prefer keeping them in memory only while unlocked.
- */
 let sessionKeys = null;
 
 export const setSessionKeys = (keys) => {
