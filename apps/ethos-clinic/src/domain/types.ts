@@ -141,6 +141,44 @@ export type ScaleTemplate = {
   description: string;
 };
 
+export type NotificationChannel = "email" | "whatsapp";
+
+export type NotificationTemplate = Owned & {
+  name: string;
+  channel: NotificationChannel;
+  content: string;
+  subject?: string;
+};
+
+export type NotificationConsent = Owned & {
+  patient_id: UUID;
+  channel: NotificationChannel;
+  source: string;
+  granted_at: string;
+  revoked_at?: string;
+};
+
+export type NotificationSchedule = Owned & {
+  session_id: UUID;
+  patient_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  recipient: string;
+  scheduled_for: string;
+  status: "scheduled" | "sent" | "failed";
+  sent_at?: string;
+};
+
+export type NotificationLog = Owned & {
+  schedule_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  recipient: string;
+  status: "sent" | "failed";
+  dispatched_at: string;
+  reason?: string;
+};
+
 export type TelemetryEvent = {
   id: UUID;
   user_id?: UUID;
