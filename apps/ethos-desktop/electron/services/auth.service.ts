@@ -16,12 +16,9 @@ export const authService = {
     return { success: false, message: 'Credenciais inválidas' };
   },
 
-  saveCredentials: (email: string, token: string) => {
+  encryptToken: (token: string) => {
     if (safeStorage.isEncryptionAvailable()) {
       const encryptedToken = safeStorage.encryptString(token);
-      // Here we could store in a local config file or DB
-      // For simplicity in this demo, we'll return it to be stored by the caller in a safe place
-      // but typically we'd use electron-store or similar.
       return encryptedToken.toString('base64');
     }
     return token;
