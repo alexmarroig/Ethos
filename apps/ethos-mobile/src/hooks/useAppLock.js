@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { biometricService } from '../services/biometrics';
+import { purgeService } from '../services/purge';
 
 const LOCK_TOLERANCE_MS = 30000; // 30 seconds
 
@@ -44,6 +45,7 @@ export const useAppLock = (isUserLoggedIn) => {
   const unlock = async () => {
     const success = await biometricService.authenticate();
     if (success) {
+      await purgeService.purgeTempData();
       setIsLocked(false);
       return true;
     }

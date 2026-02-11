@@ -42,8 +42,8 @@
           "useSQLCipher": true
         }
       ],
-      "./plugins/withAndroidBackupConfig"
-      ]
+      "./plugins/withAndroidBackupConfig",
+      "./plugins/withIOSBackupExclusion"
     ]
   }
 }

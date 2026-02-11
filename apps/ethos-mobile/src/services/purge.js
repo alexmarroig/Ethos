@@ -1,6 +1,19 @@
 import * as FileSystem from 'expo-file-system';
 
-const TEMP_TRANSCRIPTION_DIR = `${FileSystem.documentDirectory}ethos-transcription-temp/`;
+const TEMP_TRANSCRIPTION_DIR = `${FileSystem.cacheDirectory}ethos-transcription-temp/`;
+
+const sanitizedLogger = {
+  info: (message) => {
+    if (__DEV__) {
+      console.log(`[Purge] ${message}`);
+    }
+  },
+  warn: (message) => {
+    if (__DEV__) {
+      console.warn(`[Purge] ${message}`);
+    }
+  },
+};
 
 /**
  * Service to handle aggressive cleaning of clinical data cache.
@@ -12,6 +25,11 @@ export const purgeService = {
   purgeTempData: async () => {
     try {
       // 1. Clean System Cache
+      const cacheDirInfo = await FileSystem.getInfoAsync(FileSystem.cacheDirectory);
+      if (!cacheDirInfo.exists) {
+        return;
+      }
+
       const cacheDir = await FileSystem.readDirectoryAsync(FileSystem.cacheDirectory);
       for (const file of cacheDir) {
         // We delete everything in cache that might be clinical
@@ -26,10 +44,9 @@ export const purgeService = {
       }
       await FileSystem.makeDirectoryAsync(TEMP_TRANSCRIPTION_DIR, { recursive: true });
 
-      console.log('[Purge] Limpeza agressiva concluída.');
+      sanitizedLogger.info('Limpeza agressiva concluída.');
     } catch (error) {
-      // Use silent logging for errors in purge to avoid leaking info
-      console.error('[Purge] Erro durante limpeza.');
+      sanitizedLogger.warn('Falha ao executar rotina de limpeza temporária.');
     }
   }
 };

@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import { vaultService } from './vault';
 import { purgeService } from './purge';
 
-const TEMP_TRANSCRIPTION_DIR = `${FileSystem.documentDirectory}ethos-transcription-temp/`;
+const TEMP_TRANSCRIPTION_DIR = `${FileSystem.cacheDirectory}ethos-transcription-temp/`;
 
 const ensureTempDir = async () => {
   const dirInfo = await FileSystem.getInfoAsync(TEMP_TRANSCRIPTION_DIR);
