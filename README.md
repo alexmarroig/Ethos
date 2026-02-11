@@ -46,6 +46,24 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
    npm run dev:electron
    ```
 
+### Variáveis de ambiente do frontend (Loveable/produção)
+No `apps/ethos-desktop`, use:
+```bash
+CONTROL_API_BASE_URL=https://control-api.seudominio.com
+CLINICAL_API_BASE_URL=https://clinical-api.seudominio.com
+```
+Existe um template em `apps/ethos-desktop/.env.example`.
+
+### Contratos OpenAPI no frontend
+Para evitar divergência entre frontend e APIs:
+```bash
+npm --workspace apps/ethos-desktop run contracts:generate
+npm --workspace apps/ethos-desktop run contracts:check
+```
+Os contratos gerados ficam em `apps/ethos-desktop/src/services/api/contracts/` e são extraídos de:
+- `apps/ethos-control-plane/openapi.yaml`
+- `apps/ethos-backend/openapi.yaml`
+
 ## ⚠️ Limitações Atuais (Mocks na UI)
 Algumas seções da interface ainda utilizam dados de exemplo (mocks) enquanto a integração completa com os serviços de banco de dados está sendo finalizada:
 - **Portal do Paciente:** Ainda não disponível.

@@ -6,7 +6,9 @@
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
     "electron:dev": "electron .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "contracts:generate": "node scripts/generate-api-contracts.mjs",
+    "contracts:check": "npm run contracts:generate && git diff --exit-code src/services/api/contracts"
   },
   "dependencies": {
     "@ethos/shared": "*",
