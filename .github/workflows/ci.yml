@@ -27,6 +27,11 @@ jobs:
           mkdir -p reports
           npm run build 2>&1 | tee reports/build.log
 
+      - name: Verificar fronteira Clinical Plane x Control Plane
+        run: |
+          mkdir -p reports
+          npm run ci:check-boundaries 2>&1 | tee reports/boundaries.log
+
       - name: Testes (unitários + regressão)
         run: |
           set -o pipefail
@@ -98,7 +103,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p reports
-          npm --workspace apps/ethos-backend exec -- node --test -r ts-node/register/transpile-only test/load-smoke.test.ts 2>&1 | tee reports/load-smoke.log
+          npm --workspace apps/ethos-clinic exec -- node --test -r ts-node/register/transpile-only test/load-smoke.test.ts 2>&1 | tee reports/load-smoke.log
 
       - name: Publicar artefatos de carga
         if: always()
