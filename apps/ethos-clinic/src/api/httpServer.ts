@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import {
@@ -49,7 +49,6 @@ import {
   listDocumentTemplates,
   listDocumentsByCase,
   listDocumentVersions,
-  listNotificationTemplates, // (fica no outro módulo, mas importei lá embaixo)
   listObservabilityAlerts,
   listPatientSessions,
   listPatients,
@@ -80,12 +79,14 @@ import {
   grantNotificationConsent,
   listNotificationLogs,
   listNotificationSchedules,
+  listNotificationTemplates,
   scheduleNotification,
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
-const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
+const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
+const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
 
 // ✅ Correção importante: “user” (psicólogo) precisa ser clínico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
