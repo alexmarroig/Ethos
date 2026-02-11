@@ -31,7 +31,7 @@ export default function App() {
   const { isLocked, unlock } = useAppLock(isLoggedIn);
 
   useEffect(() => {
-    purgeService.purgeTempData();
+    purgeService.purgeTempData().catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -81,7 +81,8 @@ export default function App() {
     }
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    await purgeService.purgeTempData();
     clearSessionKeys();
     setIsLoggedIn(false);
   };

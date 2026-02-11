@@ -3,6 +3,7 @@ import { vaultService } from './vault';
 import { purgeService } from './purge';
 import { getPersistedTranscriptionPolicyDecision } from './device';
 
+const TEMP_TRANSCRIPTION_DIR = `${FileSystem.cacheDirectory}ethos-transcription-temp/`;
 const TEMP_TRANSCRIPTION_DIR = `${FileSystem.documentDirectory}ethos-transcription-temp/`;
 const TECHNICAL_EVENT_PATH = `${FileSystem.documentDirectory}ethos-transcription-events.json`;
 
