@@ -8,6 +8,7 @@ import {
   fetchAdminUsers,
   loginControlPlane,
 } from "../services/controlPlaneAdmin";
+import { CONTROL_API_BASE_URL } from "../services/api/clients";
 import { useAudioRecorder } from "../hooks/useAudioRecorder";
 import { EthicsValidationModal, RecordingConsentModal, PatientModal } from "./Modals";
 import { AdminPanel } from "./Admin";
@@ -425,7 +426,7 @@ export const App = () => {
   // =========================
   // Admin plane (improved with safe persistence + derived status label)
   // =========================
-  const defaultControlPlaneUrl = "http://localhost:8787";
+  const defaultControlPlaneUrl = CONTROL_API_BASE_URL;
 
   // NEW: persist URL + email (from additional) using safe localStorage
   const [adminBaseUrl, setAdminBaseUrl] = useState(() => safeLocalStorageGet("ethos-control-plane-url", defaultControlPlaneUrl));
@@ -468,6 +469,27 @@ export const App = () => {
   useEffect(() => {
     safeLocalStorageSet("ethos-admin-email", adminEmail);
   }, [adminEmail]);
+
+
+  useEffect(() => {
+    const onSessionInvalid = (event: Event) => {
+      const detail = (event as CustomEvent<{ reason?: string }>).detail;
+      setAdminToken(null);
+      setAdminRole("unknown");
+      setAdminMetrics(null);
+      setAdminUsers([]);
+      safeLocalStorageSet("ethos-admin-token", "");
+      safeLocalStorageSet("ethos-admin-role", "");
+      setAdminError(
+        detail?.reason === "forbidden"
+          ? "Sessão sem permissão para acessar este recurso."
+          : "Sessão expirada. Faça login novamente.",
+      );
+    };
+
+    window.addEventListener("ethos:session-invalid", onSessionInvalid as EventListener);
+    return () => window.removeEventListener("ethos:session-invalid", onSessionInvalid as EventListener);
+  }, []);
 
   // refresh admin data (NEW: Promise.all from additional)
   const refreshAdminData = useCallback(async () => {
