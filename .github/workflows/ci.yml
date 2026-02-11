@@ -32,6 +32,12 @@ jobs:
           mkdir -p reports
           npm run ci:check-boundaries 2>&1 | tee reports/boundaries.log
 
+      - name: Validar contrato OpenAPI do Control Plane
+        run: |
+          set -o pipefail
+          mkdir -p reports
+          npm --workspace apps/ethos-control-plane run openapi:lint 2>&1 | tee reports/openapi-lint.log
+
       - name: Testes (unitários + regressão)
         run: |
           set -o pipefail
