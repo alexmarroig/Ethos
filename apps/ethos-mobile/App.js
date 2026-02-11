@@ -14,7 +14,11 @@ import { deriveKeys, setSessionKeys, clearSessionKeys } from './src/services/sec
 import { initDb } from './src/services/db';
 import { useAppLock } from './src/hooks/useAppLock';
 import { purgeService } from './src/services/purge';
-import { getDeviceCapabilityScore } from './src/services/device';
+import {
+  getDeviceCapabilityScore,
+  getPersistedTranscriptionPolicyDecision,
+} from './src/services/device';
+import { getLastTranscriptionTechnicalEvent } from './src/services/transcription';
 
 export default function App() {
   const [password, setPassword] = useState('');
@@ -22,6 +26,8 @@ export default function App() {
   const [role, setRole] = useState('psychologist');
   const [loading, setLoading] = useState(false);
   const [dcs, setDcs] = useState(null);
+  const [selectionMode, setSelectionMode] = useState('Auto');
+  const [fallbackNotice, setFallbackNotice] = useState(null);
   const { isLocked, unlock } = useAppLock(isLoggedIn);
 
   useEffect(() => {
@@ -30,8 +36,34 @@ export default function App() {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-    getDeviceCapabilityScore().then(setDcs).catch(() => setDcs(null));
+
+    const load = async () => {
+      try {
+        const decision = await getPersistedTranscriptionPolicyDecision();
+        if (decision?.mode) setSelectionMode(decision.mode);
+
+        const [capability, lastEvent] = await Promise.all([
+          getDeviceCapabilityScore({ selectionMode: decision?.mode || selectionMode }),
+          getLastTranscriptionTechnicalEvent(),
+        ]);
+
+        setDcs(capability);
+        if (lastEvent?.event_type === 'transcription_fallback_success') {
+          setFallbackNotice('Última transcrição usou fallback automático de modelo para preservar a estabilidade.');
+        }
+      } catch {
+        setDcs(null);
+      }
+    };
+
+    load();
   }, [isLoggedIn]);
+
+  const refreshCapability = async (mode) => {
+    setSelectionMode(mode);
+    const capability = await getDeviceCapabilityScore({ selectionMode: mode });
+    setDcs(capability);
+  };
 
   const handleLogin = async () => {
     if (!password) return;
@@ -126,16 +158,35 @@ export default function App() {
             </View>
             <View style={styles.card}>
               <Text style={styles.cardTitle}>DCS (Device Capability Score)</Text>
+              <Text style={styles.cardText}>Política de seleção:</Text>
+              <View style={[styles.roleRow, { marginBottom: 10 }]}>
+                {['Auto', 'Rápido', 'Pro'].map((mode) => (
+                  <TouchableOpacity
+                    key={mode}
+                    style={[styles.roleButton, selectionMode === mode && styles.roleButtonActive]}
+                    onPress={() => refreshCapability(mode)}
+                  >
+                    <Text style={styles.roleText}>{mode}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
               {dcs ? (
                 <>
                   <Text style={styles.cardText}>Score: {dcs.score}</Text>
                   <Text style={styles.cardText}>Modelo recomendado: {dcs.recommendedModel}</Text>
                   <Text style={styles.cardText}>RAM: {dcs.ramGB} GB | Disco livre: {dcs.diskGB} GB</Text>
+                  <Text style={styles.cardText}>RTF benchmark: {dcs.benchmarkRtf ?? 'N/A'} | Latência: {dcs.benchmarkLatencyMs ?? 'N/A'} ms</Text>
                 </>
               ) : (
                 <Text style={styles.emptyText}>Benchmark indisponível.</Text>
               )}
             </View>
+            {fallbackNotice ? (
+              <View style={[styles.card, styles.fallbackCard]}>
+                <Text style={styles.cardTitle}>Aviso de fallback</Text>
+                <Text style={styles.cardText}>{fallbackNotice}</Text>
+              </View>
+            ) : null}
           </>
         ) : (
           <>
@@ -195,6 +246,7 @@ const styles = StyleSheet.create({
   cardTitle: { color: 'white', fontSize: 18, fontWeight: '700', marginBottom: 8 },
   cardText: { color: '#E2E8F0', fontSize: 14, marginBottom: 6 },
   emptyText: { color: '#64748B', fontStyle: 'italic' },
+  fallbackCard: { borderColor: '#F59E0B' },
   button: { backgroundColor: '#3B82F6', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
   buttonText: { color: 'white', fontWeight: '600' },
   outlineButton: {

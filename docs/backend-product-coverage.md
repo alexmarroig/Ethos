@@ -1,22 +1,29 @@
-# ETHOS Backend — Cobertura do Conceito do Produto
+# ETHOS Clinic + Control Plane — Cobertura do Conceito do Produto
 
-Este documento garante, de forma explícita, como o **backend do ETHOS** implementa o conceito de produto enviado:
+Este documento garante, de forma explícita, como os serviços **ETHOS Clinic** e **ETHOS Control Plane** implementam o conceito de produto enviado:
 
 - separação de planos (**Clinical Plane local** x **Control Plane cloud não-clínico**),
 - sigilo clínico por padrão,
 - e cobertura funcional dos módulos.
 
-> Regra principal: o backend em nuvem não deve armazenar/processar conteúdo clínico sensível (PHI).
+> Regra principal: o backend em nuvem (Control Plane) não deve armazenar/processar conteúdo clínico sensível (PHI).
 
-## 1) Fronteira de responsabilidade (o que é backend vs app local)
+## Serviços finais e responsáveis de deploy
 
-### Clinical Plane (local no dispositivo)
+| Serviço | Código | Responsável de deploy |
+|---|---|---|
+| Clinical Plane | `apps/ethos-clinic` | Time App Clínica |
+| Control Plane | `apps/ethos-control-plane` | Time Platform/Cloud |
+
+## 1) Fronteira de responsabilidade (o que é backend cloud vs app local)
+
+### Clinical Plane (`apps/ethos-clinic`)
 Fica no app local (mobile/desktop) e não deve ser persistido na nuvem:
 - pacientes, sessões, áudio, transcrição, prontuário, documentos;
 - diário/formulários, escalas, financeiro clínico;
 - backup/restore/purge do cofre local.
 
-### Control Plane (backend cloud não-clínico)
+### Control Plane (`apps/ethos-control-plane`)
 Responsável por:
 - autenticação/convites e sessão de conta;
 - entitlements/assinatura e sincronização local com grace offline;
@@ -26,15 +33,17 @@ Responsável por:
 ## 2) Objetivos não negociáveis no backend
 
 ### Zero PHI na cloud por padrão
-Aplicação prática no backend:
+Aplicação prática no backend cloud:
 - telemetria e audit com payload sanitizado;
 - métricas admin somente agregadas;
-- rotas administrativas sem acesso ao conteúdo clínico.
+- rotas administrativas sem acesso ao conteúdo clínico;
+- CI bloqueia import cruzado entre control plane e módulos clínicos.
 
 Referências:
 - `docs/security-sigilo.md`
-- `apps/ethos-backend/src/application/aiObservability.ts`
-- `apps/ethos-backend/src/api/httpServer.ts` (`/admin/*`, `/ai/organize`)
+- `apps/ethos-clinic/src/application/aiObservability.ts`
+- `apps/ethos-clinic/src/api/httpServer.ts` (`/admin/*`, `/ai/organize`)
+- `scripts/check-boundaries.sh`
 
 ### Consentimento e revisão humana
 - IA deve operar em conteúdo desidentificado e com revisão do profissional;
@@ -49,14 +58,14 @@ Referências:
 
 Referências:
 - `docs/security-sigilo.md`
-- testes de observabilidade em `apps/ethos-backend/test/ai-observability.test.ts`
+- testes de observabilidade em `apps/ethos-clinic/test/ai-observability.test.ts`
 
 ## 3) Matriz de cobertura por módulo de produto
 
 | Módulo | Cobertura no backend | Endpoints/chaves |
 |---|---|---|
-| 1. Autenticação e Convites | Implementado | `/auth/invite`, `/auth/accept-invite`, `/auth/login`, `/auth/logout`, `/local/entitlements`, `/local/entitlements/sync` |
-| 2. Pacientes | Implementado no plano clínico local exposto por API | `/patients`, `/patients/access`, `/patient/permissions` |
+| 1. Autenticação e Convites | Implementado no control plane + sync local de entitlements | `/auth/invite`, `/auth/accept-invite`, `/auth/login`, `/auth/logout`, `/local/entitlements`, `/local/entitlements/sync` |
+| 2. Pacientes | Implementado no clinical plane local exposto por API | `/patients`, `/patients/access`, `/patient/permissions` |
 | 3. Agenda e Sessões | Implementado | `/sessions`, `/sessions/{id}`, `/sessions/{id}/status`, `/patient/sessions` |
 | 4. Gravação/Vault/Transcrição | Fluxo de orquestração e jobs implementado; captura/cripto em app local | `/sessions/{id}/audio`, `/sessions/{id}/transcribe`, `/jobs/{id}`, `/webhooks/transcriber` |
 | 5. Notas/Prontuário/Relatórios | Implementado | `/sessions/{id}/clinical-note`, `/clinical-notes/{id}/validate`, `/reports` |
@@ -78,11 +87,11 @@ Referências:
 - Apenas visão sanitizada/agregada (`/admin/metrics/overview`, `/admin/audit`, observability);
 - sem acesso a conteúdo clínico individual.
 
-## 5) Diagnóstico/QA do backend
+## 5) Diagnóstico/QA
 
-A cobertura de QA operacional do backend está consolidada em:
+A cobertura de QA operacional está consolidada em:
 - `docs/backend-validation-checklist.md`
-- suíte em `apps/ethos-backend/test/`
+- suíte em `apps/ethos-clinic/test/`
 
 Inclui:
 - isolamento multiusuário,
