@@ -42,6 +42,18 @@ export default function App() {
     }
   }, [isLoggedIn, isLocked]);
 
+  // Handle Notifications Permission
+  useEffect(() => {
+    if (isLoggedIn && user?.role === 'psychologist' && reminderActive) {
+      (async () => {
+        const { status } = await Notifications.getPermissionsAsync();
+        if (status !== 'granted') {
+          await Notifications.requestPermissionsAsync();
+        }
+      })();
+    }
+  }, [isLoggedIn, user, reminderActive]);
+
   const handleLogin = async () => {
     if (!password || !email) return;
     setLoading(true);
