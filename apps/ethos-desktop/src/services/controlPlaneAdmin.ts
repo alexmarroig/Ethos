@@ -20,16 +20,16 @@ type ControlPlaneResponse<T> = {
   error?: ControlPlaneError;
 };
 
-type RequestExtras = {
+export type RequestExtras = {
   signal?: AbortSignal;
   timeoutMs?: number; // default interno
+  cacheTtlMs?: number; // NEW: cache curto (default por endpoint)
 };
 
 // -----------------------------
 // Helpers
 // -----------------------------
 function normalizeBaseUrl(baseUrl: string) {
-  // remove trailing slashes
   return baseUrl.replace(/\/+$/, "");
 }
 
@@ -47,17 +47,23 @@ function safeText(err: unknown) {
   return err instanceof Error ? err.message : String(err);
 }
 
+function isAbortError(err: unknown) {
+  return err instanceof DOMException && err.name === "AbortError";
+}
+
 async function readJsonSafely<T>(response: Response): Promise<ControlPlaneResponse<T> | null> {
-  // Alguns proxies retornam HTML/Texto em erro. Então: tenta JSON, senão null.
   const contentType = response.headers.get("content-type") ?? "";
-  if (!contentType.toLowerCase().includes("application/json")) {
-    // tenta mesmo assim, mas com fallback
+  const looksJson = contentType.toLowerCase().includes("application/json");
+
+  // Alguns proxies retornam HTML/Texto em erro; tentamos JSON mesmo assim
+  if (!looksJson) {
     try {
       return (await response.json()) as ControlPlaneResponse<T>;
     } catch {
       return null;
     }
   }
+
   try {
     return (await response.json()) as ControlPlaneResponse<T>;
   } catch {
@@ -84,6 +90,52 @@ function createTimeoutSignal(timeoutMs: number, outerSignal?: AbortSignal) {
 }
 
 // -----------------------------
+// Error type (optional enrichment)
+// -----------------------------
+class ControlPlaneRequestError extends Error {
+  status?: number;
+  code?: string;
+  requestId?: string;
+
+  constructor(message: string, opts?: { status?: number; code?: string; requestId?: string }) {
+    super(message);
+    this.name = "ControlPlaneRequestError";
+    this.status = opts?.status;
+    this.code = opts?.code;
+    this.requestId = opts?.requestId;
+  }
+}
+
+// -----------------------------
+// Very small in-memory cache + in-flight dedupe
+// (performance + avoids double calls)
+// -----------------------------
+type CacheEntry = { expiresAt: number; value: unknown };
+const cache = new Map<string, CacheEntry>();
+const inflight = new Map<string, Promise<unknown>>();
+
+function makeKey(method: string, url: string, body?: any, auth?: string) {
+  // body pode ser grande; aqui só usamos string body quando for JSON.
+  const b = typeof body === "string" ? body : "";
+  const a = auth ?? "";
+  return `${method.toUpperCase()} ${url} :: ${a} :: ${b}`;
+}
+
+function getCached<T>(key: string): T | null {
+  const entry = cache.get(key);
+  if (!entry) return null;
+  if (Date.now() > entry.expiresAt) {
+    cache.delete(key);
+    return null;
+  }
+  return entry.value as T;
+}
+
+function setCached<T>(key: string, value: T, ttlMs: number) {
+  cache.set(key, { value, expiresAt: Date.now() + ttlMs });
+}
+
+// -----------------------------
 // Core request
 // -----------------------------
 const request = async <T>(
@@ -94,62 +146,101 @@ const request = async <T>(
 ): Promise<T> => {
   const url = joinUrl(baseUrl, path);
 
-  // Timeout (default 12s) + abort chaining
   const timeoutMs = extras.timeoutMs ?? 12_000;
   const { signal, cleanup } = createTimeoutSignal(timeoutMs, extras.signal);
 
-  try {
-    // Headers: só seta content-type JSON se o body for JSON (string) e não FormData
-    const headers: Record<string, string> = {
-      ...(options.headers as Record<string, string> | undefined),
-    };
-
-    const body = (options as any).body;
-
-    // Evita forçar content-type quando for FormData (senão quebra boundary)
-    if (!isFormDataBody(body)) {
-      // Se já tiver content-type, respeita; senão, padrão JSON.
-      if (!Object.keys(headers).some((k) => k.toLowerCase() === "content-type")) {
-        headers["content-type"] = "application/json";
-      }
-    }
-
-    const response = await fetch(url, {
-      ...options,
-      headers,
-      signal,
-    });
-
-    const payload = await readJsonSafely<T>(response);
-
-    if (!response.ok) {
-      const requestId = payload?.request_id;
-      const apiMessage = payload?.error?.message;
-      const fallback = `Erro ao consultar control plane (HTTP ${response.status})`;
-      const message = apiMessage ? apiMessage : fallback;
-      const suffix = requestId ? ` [request_id=${requestId}]` : "";
-      throw new Error(`${message}${suffix}`);
-    }
-
-    if (!payload) {
-      // ok mas sem JSON decente
-      throw new Error("Resposta inválida do control plane (JSON ausente ou inválido).");
-    }
-
-    return payload.data;
-  } catch (err) {
-    // AbortError: normal (timeout/cancel)
-    if (err instanceof DOMException && err.name === "AbortError") {
-      throw new Error("Requisição cancelada/expirada (timeout).");
-    }
-    throw new Error(safeText(err));
-  } finally {
-    cleanup();
+  // Headers
+  const headers: Record<string, string> = {};
+  for (const [k, v] of Object.entries((options.headers as Record<string, string> | undefined) ?? {})) {
+    if (typeof v === "string") headers[k] = v;
   }
+
+  const body = (options as any).body;
+
+  // Evita forçar content-type quando for FormData
+  if (!isFormDataBody(body)) {
+    const hasContentType = Object.keys(headers).some((k) => k.toLowerCase() === "content-type");
+    if (!hasContentType) headers["content-type"] = "application/json";
+  }
+
+  const method = (options.method ?? "GET").toUpperCase();
+
+  // Cache + inflight only for GET requests (safe)
+  const auth = headers["authorization"] ?? headers["Authorization"];
+  const cacheTtlMs = extras.cacheTtlMs ?? 0;
+  const cacheKey = makeKey(method, url, body, auth);
+
+  if (method === "GET" && cacheTtlMs > 0) {
+    const cached = getCached<T>(cacheKey);
+    if (cached) return cached;
+
+    const pending = inflight.get(cacheKey) as Promise<T> | undefined;
+    if (pending) return pending;
+  }
+
+  const doFetch = (async () => {
+    try {
+      const response = await fetch(url, {
+        ...options,
+        method,
+        headers,
+        signal,
+      });
+
+      const payload = await readJsonSafely<T>(response);
+
+      if (!response.ok) {
+        const requestId = payload?.request_id;
+        const apiMessage = payload?.error?.message;
+        const apiCode = payload?.error?.code;
+
+        const fallback = `Erro ao consultar control plane (HTTP ${response.status})`;
+        const message = apiMessage ? apiMessage : fallback;
+        const suffix = requestId ? ` [request_id=${requestId}]` : "";
+
+        throw new ControlPlaneRequestError(`${message}${suffix}`, {
+          status: response.status,
+          code: apiCode,
+          requestId,
+        });
+      }
+
+      if (!payload) {
+        throw new ControlPlaneRequestError("Resposta inválida do control plane (JSON ausente ou inválido).", {
+          status: response.status,
+        });
+      }
+
+      return payload.data;
+    } catch (err) {
+      if (isAbortError(err)) {
+        throw new ControlPlaneRequestError("Requisição cancelada/expirada (timeout).");
+      }
+      // Preserva mensagens já enriquecidas
+      if (err instanceof ControlPlaneRequestError) throw err;
+      throw new ControlPlaneRequestError(safeText(err));
+    } finally {
+      cleanup();
+    }
+  })();
+
+  // Store inflight + cache
+  if (method === "GET" && cacheTtlMs > 0) {
+    inflight.set(cacheKey, doFetch as Promise<unknown>);
+    try {
+      const result = await doFetch;
+      setCached(cacheKey, result, cacheTtlMs);
+      return result;
+    } finally {
+      inflight.delete(cacheKey);
+    }
+  }
+
+  return doFetch;
 };
 
 // -----------------------------
-// Public API (compatível)
+// Public API
 // -----------------------------
 export const loginControlPlane = async (
   baseUrl: string,
@@ -168,6 +259,7 @@ export const loginControlPlane = async (
   );
 };
 
+// NEW default caching: small TTL to avoid spamming when user toggles UI quickly
 export const fetchAdminOverview = async (baseUrl: string, token: string, extras?: RequestExtras) => {
   return request<AdminOverviewMetrics>(
     baseUrl,
@@ -175,7 +267,7 @@ export const fetchAdminOverview = async (baseUrl: string, token: string, extras?
     {
       headers: { authorization: `Bearer ${token}` },
     },
-    extras
+    { cacheTtlMs: 2500, ...(extras ?? {}) }
   );
 };
 
@@ -186,6 +278,6 @@ export const fetchAdminUsers = async (baseUrl: string, token: string, extras?: R
     {
       headers: { authorization: `Bearer ${token}` },
     },
-    extras
+    { cacheTtlMs: 2500, ...(extras ?? {}) }
   );
 };
