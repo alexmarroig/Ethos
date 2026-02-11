@@ -1,5 +1,5 @@
 // apps/ethos-desktop/src/components/App.tsx
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { exportClinicalNote } from "../services/exportService";
 import {
   type AdminOverviewMetrics,
@@ -36,18 +36,6 @@ type ClinicalSection =
   | "diarios"
   | "relatorios"
   | "config";
-
-type EthosBridge = {
-  audio: {
-    openDialog: () => Promise<string | null>;
-    save: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string } | null>;
-  };
-  transcription: {
-    enqueue: (payload: any) => Promise<string>;
-    onMessage: (handler: (m: WorkerMessage) => void) => () => void;
-    onError: (handler: (m: string) => void) => () => void;
-  };
-};
 
 declare global {
   interface Window {
@@ -219,7 +207,7 @@ const clinicalShellStyles = `
   border: 1px solid #334155;
   background: transparent;
   color:#E2E8F0;
-  cursor:pointer;
+  cursor: pointer;
   font-size: 12px;
 }
 .bottom-nav button.active{
@@ -297,7 +285,7 @@ export const App = () => {
           try {
             const parsed = JSON.parse(decrypted);
             setUser(parsed);
-          } catch (e) {}
+          } catch {}
         }
       }
 
@@ -394,6 +382,7 @@ export const App = () => {
 
   useEffect(() => {
     if (!window.ethos?.transcription?.onMessage) return;
+
     const unsubscribe = window.ethos.transcription.onMessage((m: WorkerMessage) => {
       const msg = m as any;
       if (!msg || !msg.type) return;
@@ -434,10 +423,13 @@ export const App = () => {
   const [showConsentModal, setShowConsentModal] = useState(false);
 
   // =========================
-  // Admin plane
+  // Admin plane (improved with safe persistence + derived status label)
   // =========================
-  const [adminBaseUrl, setAdminBaseUrl] = useState("http://localhost:8787");
-  const [adminEmail, setAdminEmail] = useState("");
+  const defaultControlPlaneUrl = "http://localhost:8787";
+
+  // NEW: persist URL + email (from additional) using safe localStorage
+  const [adminBaseUrl, setAdminBaseUrl] = useState(() => safeLocalStorageGet("ethos-control-plane-url", defaultControlPlaneUrl));
+  const [adminEmail, setAdminEmail] = useState(() => safeLocalStorageGet("ethos-admin-email", ""));
   const [adminPassword, setAdminPassword] = useState("");
   const [rememberSession, setRememberSession] = useState(true);
 
@@ -447,11 +439,20 @@ export const App = () => {
   const [adminUsers, setAdminUsers] = useState<AdminUser[]>([]);
   const [adminLoading, setAdminLoading] = useState(false);
   const [adminError, setAdminError] = useState<string | null>(null);
-  const [adminStatusLabel, setAdminStatusLabel] = useState<string>("Desconectado");
 
   const hasAdminToken = Boolean(adminToken);
   const isAdmin = adminRole === "admin";
 
+  // NEW: derived status label (from additional) – avoids state drift
+  const adminStatusLabel = useMemo(() => {
+    if (!hasAdminToken) return "Sem sessão ativa.";
+    if (adminLoading) return "Sincronizando dados administrativos…";
+    if (isAdmin) return "Acesso administrativo confirmado.";
+    if (adminRole === "user") return "Sessão válida sem permissão admin.";
+    return "Sessão precisa de validação.";
+  }, [adminLoading, adminRole, hasAdminToken, isAdmin]);
+
+  // Load stored token/role (original behavior)
   useEffect(() => {
     const stored = safeLocalStorageGet("ethos-admin-token", "");
     const storedRole = safeLocalStorageGet("ethos-admin-role", "");
@@ -459,44 +460,69 @@ export const App = () => {
     if (storedRole === "admin" || storedRole === "user") setAdminRole(storedRole as Role);
   }, []);
 
+  // NEW: persist URL/email immediately (safe)
+  useEffect(() => {
+    safeLocalStorageSet("ethos-control-plane-url", adminBaseUrl);
+  }, [adminBaseUrl]);
+
+  useEffect(() => {
+    safeLocalStorageSet("ethos-admin-email", adminEmail);
+  }, [adminEmail]);
+
+  // refresh admin data (NEW: Promise.all from additional)
   const refreshAdminData = useCallback(async () => {
     if (!adminToken) return;
     setAdminLoading(true);
     setAdminError(null);
     try {
-      const overview = await fetchAdminOverview(adminBaseUrl, adminToken);
-      const users = await fetchAdminUsers(adminBaseUrl, adminToken);
+      const [overview, users] = await Promise.all([
+        fetchAdminOverview(adminBaseUrl, adminToken),
+        fetchAdminUsers(adminBaseUrl, adminToken),
+      ]);
       setAdminMetrics(overview);
       setAdminUsers(users);
-      setAdminStatusLabel("Dados atualizados");
+      // NOTE: we do NOT set role=admin here. Role should come from login or server claims.
     } catch (e: any) {
-      setAdminError(e?.message || "Erro ao atualizar admin");
-      setAdminStatusLabel("Erro ao atualizar");
+      const message = e?.message || "Erro ao atualizar admin";
+      setAdminError(message);
+      // If backend returns forbidden and you want the UI to reflect it:
+      if (String(message).toLowerCase().includes("forbidden")) {
+        setAdminRole("user");
+      }
+      setAdminMetrics(null);
+      setAdminUsers([]);
     } finally {
       setAdminLoading(false);
     }
   }, [adminBaseUrl, adminToken]);
+
+  // NEW: auto-refresh when token/baseUrl change (from additional idea)
+  useEffect(() => {
+    if (!adminToken) return;
+    void refreshAdminData();
+  }, [adminToken, adminBaseUrl, refreshAdminData]);
 
   const handleAdminLogin = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       setAdminLoading(true);
       setAdminError(null);
-      setAdminStatusLabel("Conectando...");
       try {
+        // keep ORIGINAL signature
         const result = await loginControlPlane(adminBaseUrl, { email: adminEmail, password: adminPassword });
         setAdminToken(result.token);
         setAdminRole(result.role);
-        setAdminStatusLabel("Conectado");
+        setAdminPassword("");
 
         if (rememberSession) {
           safeLocalStorageSet("ethos-admin-token", result.token);
           safeLocalStorageSet("ethos-admin-role", result.role);
         }
+
         await refreshAdminData();
       } catch (err: any) {
         setAdminError(err?.message || "Erro de login");
-        setAdminStatusLabel("Falha no login");
+        setAdminRole("unknown");
       } finally {
         setAdminLoading(false);
       }
@@ -511,7 +537,6 @@ export const App = () => {
     setAdminUsers([]);
     safeLocalStorageSet("ethos-admin-token", "");
     safeLocalStorageSet("ethos-admin-role", "");
-    setAdminStatusLabel("Desconectado");
   }, []);
 
   // =========================
@@ -730,9 +755,7 @@ export const App = () => {
       {/* Consent Modal */}
       {showConsentModal ? <RecordingConsentModal onCancel={handleConsentCancel} onConfirm={handleConsentConfirm} /> : null}
 
-      {showEthicsModal ? (
-        <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} />
-      ) : null}
+      {showEthicsModal ? <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} /> : null}
 
       {showPatientModal ? (
         <PatientModal
@@ -845,9 +868,7 @@ export const App = () => {
                   <div className="grid">
                     {patients.map((p) => {
                       const entries = financialEntries.filter((e) => e.patientId === p.id);
-                      const balance = entries.reduce((acc: number, e: any) => {
-                        return e.type === "payment" ? acc - e.amount : acc + e.amount;
-                      }, 0);
+                      const balance = entries.reduce((acc: number, e: any) => (e.type === "payment" ? acc - e.amount : acc + e.amount), 0);
 
                       return (
                         <div
@@ -862,12 +883,8 @@ export const App = () => {
                           <div style={{ display: "flex", justifyContent: "space-between", gap: 12 }}>
                             <div>
                               <strong style={{ display: "block", marginBottom: 4 }}>{p.fullName}</strong>
-                              {p.phoneNumber ? (
-                                <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p>
-                              ) : null}
-                              {p.address ? (
-                                <p style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{p.address}</p>
-                              ) : null}
+                              {p.phoneNumber ? <p style={{ color: "#CBD5F5", fontSize: 12, marginBottom: 4 }}>{p.phoneNumber}</p> : null}
+                              {p.address ? <p style={{ color: "#94A3B8", fontSize: 11, marginBottom: 4 }}>{p.address}</p> : null}
                             </div>
 
                             <div style={{ textAlign: "right" }}>
@@ -877,13 +894,9 @@ export const App = () => {
                           </div>
 
                           {balance > 0 ? (
-                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-                              Débito: R$ {(balance / 100).toFixed(2)}
-                            </p>
+                            <p style={{ color: "#FCA5A5", fontSize: 12, fontWeight: 600, marginTop: 6 }}>Débito: R$ {(balance / 100).toFixed(2)}</p>
                           ) : balance < 0 ? (
-                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600, marginTop: 6 }}>
-                              Crédito: R$ {(-balance / 100).toFixed(2)}
-                            </p>
+                            <p style={{ color: "#10B981", fontSize: 12, fontWeight: 600, marginTop: 6 }}>Crédito: R$ {(-balance / 100).toFixed(2)}</p>
                           ) : null}
 
                           <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -915,11 +928,7 @@ export const App = () => {
                               style={{ ...outlineButtonStyle, fontSize: 11, padding: "4px 8px" }}
                               onClick={async () => {
                                 if (window.ethos?.sessions) {
-                                  await window.ethos.sessions.create({
-                                    patientId: p.id,
-                                    scheduledAt: new Date().toISOString(),
-                                    status: "scheduled",
-                                  });
+                                  await window.ethos.sessions.create({ patientId: p.id, scheduledAt: new Date().toISOString(), status: "scheduled" });
                                   refreshData();
                                   setClinicalSection("agenda");
                                 }
@@ -964,9 +973,7 @@ export const App = () => {
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                               <div>
                                 <strong>{p?.fullName || "Paciente não encontrado"}</strong>
-                                <p style={{ ...subtleText, fontSize: 12, margin: "6px 0 0 0" }}>
-                                  {new Date(s.scheduledAt).toLocaleString("pt-BR")}
-                                </p>
+                                <p style={{ ...subtleText, fontSize: 12, margin: "6px 0 0 0" }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
                               </div>
                               <span style={{ fontSize: 11, color: "#A7F3D0" }}>{s.status || "scheduled"}</span>
                             </div>
@@ -1146,10 +1153,7 @@ export const App = () => {
                       <p style={subtleText}>Sem lançamentos.</p>
                     ) : (
                       financialEntries.map((e) => (
-                        <div
-                          key={e.id}
-                          style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}
-                        >
+                        <div key={e.id} style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}>
                           <div style={{ display: "flex", justifyContent: "space-between" }}>
                             <strong>{e.type}</strong>
                             <span style={{ fontSize: 12, color: "#A7F3D0" }}>R$ {(e.amount / 100).toFixed(2)}</span>
@@ -1196,9 +1200,7 @@ export const App = () => {
                   <div style={{ display: "grid", gap: 14 }}>
                     <div>
                       <strong>Template WhatsApp</strong>
-                      <p style={{ ...subtleText, fontSize: 12 }}>
-                        Texto padrão para confirmação de sessão e lembretes automáticos.
-                      </p>
+                      <p style={{ ...subtleText, fontSize: 12 }}>Texto padrão para confirmação de sessão e lembretes automáticos.</p>
                       <textarea
                         style={{ ...inputStyle, width: "100%", minHeight: 80, fontSize: 14 }}
                         value={""}
@@ -1265,12 +1267,7 @@ export const App = () => {
 
           <nav className="bottom-nav" aria-label="Navegação clínica móvel">
             {clinicalNavItems.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                className={clinicalSection === item.id ? "active" : ""}
-                onClick={() => setClinicalSection(item.id)}
-              >
+              <button key={item.id} type="button" className={clinicalSection === item.id ? "active" : ""} onClick={() => setClinicalSection(item.id)}>
                 {item.label}
               </button>
             ))}
@@ -1296,7 +1293,12 @@ export const App = () => {
 
             <div style={{ display: "grid", gap: 8 }}>
               <label style={{ color: "#E2E8F0" }}>Email</label>
-              <input value={adminEmail} onChange={(event) => setAdminEmail(event.target.value)} style={inputStyle} autoComplete="username" />
+              <input
+                value={adminEmail}
+                onChange={(event) => setAdminEmail(event.target.value)}
+                style={inputStyle}
+                autoComplete="username"
+              />
             </div>
 
             <div style={{ display: "grid", gap: 8 }}>
@@ -1319,9 +1321,11 @@ export const App = () => {
               <button style={{ ...buttonStyle, background: "#22C55E" }} disabled={adminLoading}>
                 Entrar
               </button>
+
               <button type="button" style={{ ...buttonStyle, background: "#475569" }} onClick={handleAdminLogout}>
                 Encerrar sessão
               </button>
+
               <button
                 type="button"
                 style={{
