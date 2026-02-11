@@ -26,3 +26,4 @@ npm test
 - `docs/backend-hardening.md`
 - `docs/backend-endpoints-funcionalidades.md`
 - `docs/backend-validation-checklist.md`
+- `docs/backend-product-coverage.md`

@@ -75,3 +75,9 @@
 
 ### IA utilitária
 - `POST /ai/organize`
+
+## Alinhamento com o conceito de produto ETHOS
+
+O mapeamento completo entre requisitos do produto (módulos, segurança/ética, papéis e fronteiras Clinical Plane x Control Plane) e o backend está em:
+
+- `docs/backend-product-coverage.md`
