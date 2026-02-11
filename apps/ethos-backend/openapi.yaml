@@ -1,0 +1,340 @@
+openapi: 3.0.3
+info:
+  title: ETHOS Clinical Plane API
+  version: 1.3.0
+servers:
+  - url: http://localhost:8787
+paths:
+  /openapi.yaml: { get: { summary: OpenAPI spec } }
+  /contracts: { get: { summary: Runtime API contracts } }
+
+  /auth/invite: { post: { summary: Invite local user (admin) } }
+  /auth/accept-invite: { post: { summary: Accept local invite } }
+  /auth/login: { post: { summary: Local login } }
+  /auth/logout: { post: { summary: Local logout } }
+
+  /local/entitlements: { get: { summary: Read local entitlement snapshot } }
+  /local/entitlements/sync: { post: { summary: Sync entitlement snapshot from control plane } }
+  /local/telemetry/flush: { post: { summary: Flush queued telemetry (offline-first) } }
+
+  /admin/metrics/overview: { get: { summary: Admin metrics sanitized } }
+  /admin/audit: { get: { summary: Admin audit sanitized } }
+
+  /patients: { get: { summary: List patients } }
+  /patients/{id}: { get: { summary: Patient detail } }
+
+  /sessions:
+    post: { summary: Create session (gated by entitlements) }
+    get: { summary: List sessions (filters from,to,status,patient_id) }
+  /sessions/{id}: { get: { summary: Session detail } }
+  /sessions/{id}/status: { patch: { summary: Update session status } }
+  /sessions/{id}/audio: { post: { summary: Attach encrypted audio with consent } }
+  /sessions/{id}/transcribe: { post: { summary: Create transcription job } }
+  /sessions/{id}/clinical-note: { post: { summary: Create draft clinical note } }
+  /sessions/{id}/clinical-notes: { get: { summary: List session clinical note versions } }
+
+  /clinical-notes/{id}: { get: { summary: Clinical note detail } }
+  /clinical-notes/{id}/validate: { post: { summary: Validate clinical note (human) } }
+
+  /reports:
+    post: { summary: Create report from validated notes }
+    get: { summary: List reports }
+  /reports/{id}: { get: { summary: Report detail } }
+
+  /anamnesis:
+    post: { summary: Create anamnesis }
+    get: { summary: List anamnesis }
+
+  /scales: { get: { summary: List scales catalog } }
+  /scales/record: { post: { summary: Create scale record } }
+  /scales/records: { get: { summary: List scale records (patient_id optional) } }
+
+  /forms/entry: { post: { summary: Create form entry } }
+  /forms: { get: { summary: List forms } }
+
+  /financial/entry: { post: { summary: Create financial entry } }
+  /financial/entries: { get: { summary: List financial entries (from,to,status filters) } }
+
+  /jobs/{id}: { get: { summary: Job status/progress/error } }
+  /api/webhook: { post: { summary: Transcriber webhook -> update jobs + telemetry } }
+  /webhooks/transcriber: { post: { summary: Transcriber webhook alias } }
+
+  /export/pdf: { post: { summary: Export PDF job } }
+  /export/docx: { post: { summary: Export DOCX job } }
+  /backup: { post: { summary: Backup user data } }
+  /restore: { post: { summary: Restore backup } }
+  /purge: { post: { summary: Purge user data } }
+
+  /ai/organize: { post: { summary: Local-only AI text organization } }
+  version: 1.2.0
+servers:
+  - url: http://localhost:8787
+paths:
+  /openapi.yaml: { get: { summary: OpenAPI spec } }
+  /contracts: { get: { summary: Runtime API contracts } }
+
+  /auth/invite: { post: { summary: Invite user (local admin) } }
+  /auth/accept-invite: { post: { summary: Accept invite } }
+  /auth/login: { post: { summary: Login } }
+  /auth/logout: { post: { summary: Logout } }
+
+  /local/entitlements: { get: { summary: Read local cached entitlements } }
+  /local/entitlements/sync: { post: { summary: Sync entitlements from control plane } }
+
+  /admin/metrics/overview: { get: { summary: Admin metrics (sanitized) } }
+  /admin/audit: { get: { summary: Admin audit (sanitized) } }
+
+  /sessions:
+    post: { summary: Create session (gated by entitlement) }
+    get: { summary: List sessions }
+  /sessions/{id}: { get: { summary: Session detail } }
+  /sessions/{id}/status: { patch: { summary: Update session status } }
+  /sessions/{id}/audio: { post: { summary: Attach audio } }
+  /sessions/{id}/transcribe: { post: { summary: Create transcription job } }
+  /sessions/{id}/clinical-note: { post: { summary: Create draft clinical note } }
+  /sessions/{id}/clinical-notes: { get: { summary: List session notes } }
+
+  /clinical-notes/{id}: { get: { summary: Clinical note detail } }
+  /clinical-notes/{id}/validate: { post: { summary: Validate note (human) } }
+
+  /reports:
+    post: { summary: Create report (validated note required) }
+    get: { summary: List reports }
+
+  /anamnesis:
+    post: { summary: Create anamnesis }
+    get: { summary: List anamnesis }
+
+  /scales: { get: { summary: List available scales } }
+  /scales/record: { post: { summary: Create scale record } }
+  /scales/records: { get: { summary: List scale records } }
+
+  /forms/entry: { post: { summary: Create form entry } }
+  /forms: { get: { summary: List forms } }
+
+  /financial/entry: { post: { summary: Create financial entry } }
+  /financial/entries: { get: { summary: List financial entries } }
+
+  /jobs/{id}: { get: { summary: Job status } }
+  /api/webhook: { post: { summary: Transcriber webhook } }
+  /webhooks/transcriber: { post: { summary: Transcriber webhook alias } }
+
+  /export/pdf: { post: { summary: Create export job pdf } }
+  /export/docx: { post: { summary: Create export job docx } }
+  /backup: { post: { summary: Create backup job } }
+  /restore: { post: { summary: Restore backup } }
+  /purge: { post: { summary: Purge user data } }
+
+  /ai/organize: { post: { summary: Local AI text organization only } }
+  title: ETHOS Backend API
+  version: 1.1.0
+servers:
+  - url: http://localhost:8787
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        request_id: { type: string }
+        data: { type: object }
+    Error:
+      type: object
+      properties:
+        request_id: { type: string }
+        error:
+          type: object
+          properties:
+            code: { type: string }
+            message: { type: string }
+paths:
+  /openapi.yaml:
+    get: { summary: OpenAPI spec }
+  /contracts:
+    get: { summary: Contracts summary }
+
+  /auth/invite:
+    post:
+      summary: Invite user
+      security: [{ bearerAuth: [] }]
+  /auth/accept-invite:
+    post: { summary: Accept invite }
+  /auth/login:
+    post: { summary: Login }
+  /auth/logout:
+    post:
+      summary: Logout
+      security: [{ bearerAuth: [] }]
+
+  /admin/metrics/overview:
+    get:
+      summary: Admin sanitized overview
+      security: [{ bearerAuth: [] }]
+  /admin/audit:
+    get:
+      summary: Admin audit trail
+      security: [{ bearerAuth: [] }]
+
+  /sessions:
+    post:
+      summary: Create session
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List sessions
+      security: [{ bearerAuth: [] }]
+  /auth/login:
+    post:
+      summary: Login
+  /auth/invite:
+    post:
+      summary: Invite user (admin)
+      security: [{ bearerAuth: [] }]
+  /auth/accept-invite:
+    post:
+      summary: Accept invite
+  /sessions:
+    get:
+      summary: List sessions
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: page_size
+          schema: { type: integer, minimum: 1, maximum: 100 }
+        - in: query
+          name: patient_id
+          schema: { type: string }
+    post:
+      summary: Create session
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}:
+    get:
+      summary: Session detail
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/status:
+    patch:
+      summary: Update session status
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/audio:
+    post:
+      summary: Attach encrypted audio
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/transcribe:
+    post:
+      summary: Start transcription job
+      security: [{ bearerAuth: [] }]
+  /sessions/{id}/clinical-note:
+    post:
+      summary: Create clinical note draft
+      security: [{ bearerAuth: [] }]
+
+  /clinical-notes/{id}/validate:
+    post:
+      summary: Validate clinical note
+      security: [{ bearerAuth: [] }]
+
+  /reports:
+    post:
+      summary: Create report
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List reports
+      security: [{ bearerAuth: [] }]
+
+  /anamnesis:
+    post:
+      summary: Create anamnesis response
+      security: [{ bearerAuth: [] }]
+    get:
+      summary: List anamnesis responses
+      security: [{ bearerAuth: [] }]
+
+  /scales/record:
+    post:
+      summary: Create scale record
+      security: [{ bearerAuth: [] }]
+  /scales/records:
+    get:
+      summary: List scale records
+      security: [{ bearerAuth: [] }]
+
+  /forms/entry:
+    post:
+      summary: Create form entry
+      security: [{ bearerAuth: [] }]
+  /forms:
+    get:
+      summary: List form entries
+      security: [{ bearerAuth: [] }]
+
+  /financial/entry:
+    post:
+      summary: Create financial entry
+      security: [{ bearerAuth: [] }]
+  /financial/entries:
+    get:
+      summary: List financial entries
+      security: [{ bearerAuth: [] }]
+
+  /jobs/{id}:
+    get:
+      summary: Job status
+      security: [{ bearerAuth: [] }]
+
+  /export/pdf:
+    post:
+      summary: Enqueue PDF export
+      security: [{ bearerAuth: [] }]
+  /export/docx:
+    post:
+      summary: Enqueue DOCX export
+      security: [{ bearerAuth: [] }]
+
+  /backup:
+    post:
+      summary: Enqueue backup
+      security: [{ bearerAuth: [] }]
+  /restore:
+    post:
+      summary: Restore backup
+      security: [{ bearerAuth: [] }]
+  /purge:
+    post:
+      summary: Purge user data
+      security: [{ bearerAuth: [] }]
+
+  /api/webhook:
+    post: { summary: Transcriber webhook }
+  /webhooks/transcriber:
+    post: { summary: Transcriber webhook alias }
+
+  /ai/organize:
+    post:
+      summary: Sanitize and structure free text
+  /sessions/{id}/transcribe:
+    post:
+      summary: Create transcription job
+      security: [{ bearerAuth: [] }]
+  /jobs/{job_id}:
+    get:
+      summary: Job status
+      security: [{ bearerAuth: [] }]
+  /reports:
+    get:
+      summary: List reports
+      security: [{ bearerAuth: [] }]
+    post:
+      summary: Create report
+      security: [{ bearerAuth: [] }]
+  /contracts:
+    get:
+      summary: API contracts and examples
+  /admin/metrics/overview:
+    get:
+      summary: Sanitized admin metrics
+      security: [{ bearerAuth: [] }]
