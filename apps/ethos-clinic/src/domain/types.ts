@@ -1,6 +1,6 @@
 export type UUID = string;
 
-export type Role = "user" | "admin";
+export type Role = "admin" | "user" | "assistente" | "supervisor" | "patient";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
@@ -101,7 +101,32 @@ export type FinancialEntry = Owned & {
   description: string;
 };
 
-export type JobType = "transcription" | "export" | "backup";
+export type JobType = "transcription" | "export" | "export_full" | "backup";
+
+export type DocumentTemplate = {
+  id: UUID;
+  owner_user_id: UUID;
+  created_at: string;
+  title: string;
+  description?: string;
+  version: number;
+  html: string;
+  fields: Array<{ key: string; label: string; required?: boolean }>;
+};
+
+export type ClinicalDocument = Owned & {
+  patient_id: UUID;
+  case_id: string;
+  template_id: UUID;
+  title: string;
+};
+
+export type ClinicalDocumentVersion = Owned & {
+  document_id: UUID;
+  version: number;
+  content: string;
+  global_values: Record<string, string>;
+};
 export type JobStatus = "queued" | "running" | "completed" | "failed";
 
 export type Job = {
