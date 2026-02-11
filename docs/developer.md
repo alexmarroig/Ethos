@@ -18,3 +18,8 @@ O worker utiliza `faster-whisper` rodando em CPU. Certifique-se de ter o `ffmpeg
 - Banco de dados SQLite criptografado com SQLCipher via `better-sqlite3-multiple-ciphers`.
 - Áudios criptografados em repouso (AES-256-GCM).
 - Chave do vault protegida pelo `safeStorage` do Electron.
+
+## Governança de integração e releases
+- Política de integração (branch `main`, fluxo via PR e bloqueios): `docs/releases/integration-policy.md`.
+- Checklist operacional de release: `docs/releases/release-checklist.md`.
+- Registro de tags e changelog por deploy: `docs/releases/deploy-changelog.md`.
