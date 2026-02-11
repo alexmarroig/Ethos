@@ -7,6 +7,8 @@ export type Patient = {
   address?: string;
   supportNetwork?: string;
   sessionPrice?: number; // em centavos
+  isProBono?: boolean;
+  isExempt?: boolean;
   birthDate?: string;
   notes?: string;
   createdAt: string;
@@ -87,6 +89,16 @@ export type FinancialEntry = {
   status: "pending" | "completed";
   method?: "pix" | "card" | "cash" | "transfer";
   date: string;
+  notes?: string;
+  createdAt: string;
+};
+
+export type SessionPackage = {
+  id: string;
+  patientId: string;
+  totalCredits: number;
+  usedCredits: number;
+  expiresAt?: string;
   notes?: string;
   createdAt: string;
 };

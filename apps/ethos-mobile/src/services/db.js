@@ -2,25 +2,45 @@ import * as SQLite from 'expo-sqlite';
 
 let db;
 
-/**
- * Initializes the SQLite database with SQLCipher encryption.
- * @param {string} encryptionKey - The master key derived from the user's password.
- */
+const getUserVersion = async () => {
+  const row = await db.getFirstAsync('PRAGMA user_version;');
+  return row?.user_version ?? 0;
+};
+
+const runMigrations = async () => {
+  const version = await getUserVersion();
+
+  if (version < 1) {
+    await db.execAsync('PRAGMA user_version = 1;');
+  }
+
+  if (version < 2) {
+    await db.execAsync(`
+      ALTER TABLE patients ADD COLUMN isProBono INTEGER NOT NULL DEFAULT 0;
+      ALTER TABLE patients ADD COLUMN isExempt INTEGER NOT NULL DEFAULT 0;
+    `).catch(() => {});
+
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS session_packages (
+        id TEXT PRIMARY KEY,
+        patientId TEXT NOT NULL,
+        totalCredits INTEGER NOT NULL,
+        usedCredits INTEGER NOT NULL DEFAULT 0,
+        expiresAt TEXT,
+        notes TEXT,
+        createdAt TEXT NOT NULL,
+        FOREIGN KEY(patientId) REFERENCES patients(id)
+      );
+      PRAGMA user_version = 2;
+    `);
+  }
+};
+
 export const initDb = async (encryptionKey) => {
-  // openDatabaseAsync will use SQLCipher because of the app.json plugin configuration
   db = await SQLite.openDatabaseAsync('ethos.db');
-
-  // Set the encryption key immediately after opening
-  // Note: In a production environment, the key should be handled securely (e.g., via SecureStore)
   await db.execAsync(`PRAGMA key = '${encryptionKey}';`);
+  await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
-  // Optimize and enforce constraints
-  await db.execAsync(`
-    PRAGMA journal_mode = WAL;
-    PRAGMA foreign_keys = ON;
-  `);
-
-  // Schema creation (Mirrors Desktop for parity)
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS patients (
       id TEXT PRIMARY KEY,
@@ -31,6 +51,8 @@ export const initDb = async (encryptionKey) => {
       address TEXT,
       supportNetwork TEXT,
       sessionPrice INTEGER,
+      isProBono INTEGER NOT NULL DEFAULT 0,
+      isExempt INTEGER NOT NULL DEFAULT 0,
       birthDate TEXT,
       notes TEXT,
       createdAt TEXT NOT NULL
@@ -52,7 +74,7 @@ export const initDb = async (encryptionKey) => {
       sessionId TEXT NOT NULL,
       language TEXT NOT NULL,
       fullText TEXT NOT NULL,
-      segments TEXT NOT NULL, -- Store as JSON string
+      segments TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       FOREIGN KEY(sessionId) REFERENCES sessions(id)
     );
@@ -74,7 +96,7 @@ export const initDb = async (encryptionKey) => {
       id TEXT PRIMARY KEY,
       email TEXT UNIQUE NOT NULL,
       passwordHash TEXT NOT NULL,
-      role TEXT NOT NULL, -- 'psychologist', 'patient', 'admin'
+      role TEXT NOT NULL,
       fullName TEXT NOT NULL,
       createdAt TEXT NOT NULL
     );
@@ -83,7 +105,7 @@ export const initDb = async (encryptionKey) => {
       id TEXT PRIMARY KEY,
       title TEXT NOT NULL,
       description TEXT,
-      schema TEXT NOT NULL, -- JSON definition of questions
+      schema TEXT NOT NULL,
       createdAt TEXT NOT NULL
     );
 
@@ -91,19 +113,29 @@ export const initDb = async (encryptionKey) => {
       id TEXT PRIMARY KEY,
       formId TEXT NOT NULL,
       patientId TEXT NOT NULL,
-      answers TEXT NOT NULL, -- JSON answers
+      answers TEXT NOT NULL,
       createdAt TEXT NOT NULL,
       FOREIGN KEY(formId) REFERENCES forms(id),
       FOREIGN KEY(patientId) REFERENCES patients(id)
     );
+
+    CREATE TABLE IF NOT EXISTS session_packages (
+      id TEXT PRIMARY KEY,
+      patientId TEXT NOT NULL,
+      totalCredits INTEGER NOT NULL,
+      usedCredits INTEGER NOT NULL DEFAULT 0,
+      expiresAt TEXT,
+      notes TEXT,
+      createdAt TEXT NOT NULL,
+      FOREIGN KEY(patientId) REFERENCES patients(id)
+    );
   `);
+
+  await runMigrations();
 
   return db;
 };
 
-/**
- * Returns the initialized database instance.
- */
 export const getDb = () => {
   if (!db) {
     throw new Error('Database not initialized. Call initDb(key) first.');
