@@ -88,6 +88,26 @@ import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database"
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
+const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
+const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
+
+const parseAllowedOrigins = () =>
+  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: string[]) => {
+  const origin = req.headers.origin;
+  if (!origin || !allowedOrigins.includes(origin)) return false;
+
+  res.setHeader("access-control-allow-origin", origin);
+  res.setHeader("access-control-allow-methods", allowedMethods);
+  res.setHeader("access-control-allow-headers", allowedHeaders);
+  res.setHeader("access-control-allow-credentials", "true");
+  res.setHeader("vary", "Origin");
+  return true;
+};
 
 // ✅ Correção importante: “user” (psicólogo) precisa ser clínico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
@@ -254,16 +274,19 @@ export const createEthosBackend = () =>
     const requestId = crypto.randomUUID();
     const method = req.method ?? "GET";
     const url = new URL(req.url ?? "/", "http://localhost");
+    const allowedOrigins = parseAllowedOrigins();
 
     try {
-      // Se precisar CORS, descomente e configure origem:
-      // if (method === "OPTIONS") {
-      //   res.statusCode = 204;
-      //   res.setHeader("access-control-allow-origin", "*");
-      //   res.setHeader("access-control-allow-methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-      //   res.setHeader("access-control-allow-headers", "content-type,authorization,idempotency-key");
-      //   return res.end();
-      // }
+      applyCors(req, res, allowedOrigins);
+
+      if (method === "OPTIONS") {
+        res.statusCode = 204;
+        return res.end();
+      }
+
+      if (method === "GET" && url.pathname === "/health") {
+        return ok(res, requestId, 200, { status: "ok", service: "ethos-clinic" });
+      }
 
       // Public docs
       if (method === "GET" && url.pathname === "/openapi.yaml") {

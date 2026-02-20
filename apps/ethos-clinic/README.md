@@ -19,3 +19,16 @@ O `apps/ethos-clinic` concentra a API clínica executada no ambiente local (desk
 ## Integração com o Control Plane
 - O Clinic consome somente dados sanitizados de conta/entitlements.
 - O Clinic nunca exporta por padrão payload bruto de prontuário/transcrição para o Control Plane.
+
+## Deploy no Render (CORS + Health Check)
+- Configure **Health Check Path** como `/health`.
+- Defina a variável de ambiente `CORS_ALLOWED_ORIGINS` com uma lista separada por vírgulas dos frontends permitidos.
+- Inclua os domínios do Lovable que chamam a API (exemplo):
+  - `https://seu-projeto.lovable.app`
+  - `https://seu-projeto.lovable.dev`
+- Exemplo:
+
+```bash
+CORS_ALLOWED_ORIGINS=https://seu-projeto.lovable.app,https://seu-projeto.lovable.dev
+```
+

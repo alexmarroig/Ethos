@@ -7,6 +7,13 @@ servers:
 security:
   - bearerAuth: []
 paths:
+  /health:
+    get:
+      summary: Health check público
+      security: []
+      responses:
+        "200":
+          description: Serviço saudável
   /v1/auth/login:
     post:
       summary: Autenticar usuário com e-mail e senha
