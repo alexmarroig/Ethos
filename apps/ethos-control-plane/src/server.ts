@@ -108,13 +108,45 @@ const upsertEntitlements = (userId: string, status: EntitlementSnapshot["source_
 };
 
 const forbiddenTelemetryKeys = ["text", "transcript", "patient", "audio", "file_path", "content", "clinical_text"];
+const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
+const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
+
+const parseAllowedOrigins = () =>
+  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean);
+
+const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: string[]) => {
+  const origin = req.headers.origin;
+  if (!origin || !allowedOrigins.includes(origin)) return false;
+
+  res.setHeader("access-control-allow-origin", origin);
+  res.setHeader("access-control-allow-methods", allowedMethods);
+  res.setHeader("access-control-allow-headers", allowedHeaders);
+  res.setHeader("access-control-allow-credentials", "true");
+  res.setHeader("vary", "Origin");
+  return true;
+};
 
 export const createControlPlane = () => createServer(async (req, res) => {
   const requestId = uid();
   const method = req.method ?? "GET";
   const url = new URL(req.url ?? "/", "http://localhost");
+  const allowedOrigins = parseAllowedOrigins();
 
   try {
+    applyCors(req, res, allowedOrigins);
+
+    if (method === "OPTIONS") {
+      res.statusCode = 204;
+      return res.end();
+    }
+
+    if (method === "GET" && url.pathname === "/health") {
+      return send(res, requestId, 200, { status: "ok", service: "ethos-control-plane" });
+    }
+
     if (method === "POST" && url.pathname === "/v1/auth/login") {
       const body = await readJson(req);
       const user = Array.from(db.users.values()).find((item) => item.email.toLowerCase() === String(body.email ?? "").toLowerCase());
