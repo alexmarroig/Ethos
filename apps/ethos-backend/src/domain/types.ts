@@ -1,6 +1,6 @@
 export type UUID = string;
 
-export type Role = "user" | "admin";
+export type Role = "admin" | "user" | "assistente" | "supervisor" | "patient";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
@@ -101,8 +101,33 @@ export type FinancialEntry = Owned & {
   description: string;
 };
 
-export type JobType = "transcription" | "export" | "backup";
-export type JobStatus = "queued" | "running" | "completed" | "failed";
+export type JobType = "transcription" | "export" | "export_full" | "backup";
+
+export type DocumentTemplate = {
+  id: UUID;
+  owner_user_id: UUID;
+  created_at: string;
+  title: string;
+  description?: string;
+  version: number;
+  html: string;
+  fields: Array<{ key: string; label: string; required?: boolean }>;
+};
+
+export type ClinicalDocument = Owned & {
+  patient_id: UUID;
+  case_id: string;
+  template_id: UUID;
+  title: string;
+};
+
+export type ClinicalDocumentVersion = Owned & {
+  document_id: UUID;
+  version: number;
+  content: string;
+  global_values: Record<string, string>;
+};
+export type JobStatus = "queued" | "running" | "succeeded" | "failed" | "canceled" | "completed";
 
 export type Job = {
   id: UUID;
@@ -139,6 +164,44 @@ export type ScaleTemplate = {
   id: string;
   name: string;
   description: string;
+};
+
+export type NotificationChannel = "email" | "whatsapp";
+
+export type NotificationTemplate = Owned & {
+  name: string;
+  channel: NotificationChannel;
+  content: string;
+  subject?: string;
+};
+
+export type NotificationConsent = Owned & {
+  patient_id: UUID;
+  channel: NotificationChannel;
+  source: string;
+  granted_at: string;
+  revoked_at?: string;
+};
+
+export type NotificationSchedule = Owned & {
+  session_id: UUID;
+  patient_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  recipient: string;
+  scheduled_for: string;
+  status: "scheduled" | "sent" | "failed";
+  sent_at?: string;
+};
+
+export type NotificationLog = Owned & {
+  schedule_id: UUID;
+  template_id: UUID;
+  channel: NotificationChannel;
+  recipient: string;
+  status: "sent" | "failed";
+  dispatched_at: string;
+  reason?: string;
 };
 
 export type TelemetryEvent = {

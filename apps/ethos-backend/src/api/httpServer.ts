@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 import {
@@ -37,6 +37,7 @@ import {
   getContract,
   getContractByPortalToken,
   getJob,
+  getPatient,
   getPatientAccessForUser,
   getRetentionPolicy,
   getTemplate,
@@ -49,7 +50,6 @@ import {
   listDocumentTemplates,
   listDocumentsByCase,
   listDocumentVersions,
-  listNotificationTemplates, // (fica no outro módulo, mas importei lá embaixo)
   listObservabilityAlerts,
   listPatientSessions,
   listPatients,
@@ -73,6 +73,7 @@ import {
   syncLocalEntitlements,
   updateRetentionPolicy,
   updateTemplate,
+  validateClinicalNote,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -80,12 +81,14 @@ import {
   grantNotificationConsent,
   listNotificationLogs,
   listNotificationSchedules,
+  listNotificationTemplates,
   scheduleNotification,
 } from "../application/notifications";
-import type { ApiEnvelope, ApiError, Role, SessionStatus } from "../domain/types";
+import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
-const openApi = readFileSync(path.resolve(__dirname, "../../openapi.yaml"), "utf-8");
+const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
+const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
 
 // ✅ Correção importante: “user” (psicólogo) precisa ser clínico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
@@ -175,6 +178,12 @@ const readJson = async (req: IncomingMessage) => {
   }
 };
 
+const readText = async (req: IncomingMessage) => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  return Buffer.concat(chunks).toString("utf8");
+};
+
 const requireAuth = (req: IncomingMessage, res: ServerResponse, requestId: string) => {
   const token = tokenFrom(req);
   if (!token) return error(res, requestId, 401, "UNAUTHORIZED", "Missing bearer token"), null;
@@ -235,7 +244,7 @@ const parsePagination = (url: URL) => {
 const getPaginationOrError = (res: ServerResponse, requestId: string, url: URL) => {
   const pagination = parsePagination(url);
   if ("error" in pagination) {
-    error(res, requestId, 422, "VALIDATION_ERROR", pagination.error);
+    error(res, requestId, 422, "VALIDATION_ERROR", pagination.error ?? "Invalid pagination");
     return null;
   }
   return pagination;
@@ -294,6 +303,10 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
+      if (method === "GET" && url.pathname === "/contracts") {
+        return ok(res, requestId, 200, []);
+      }
+
       // Auth
       if (method === "POST" && url.pathname === "/auth/login") {
         const body = await readJson(req);
@@ -324,9 +337,8 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
-        const auth = requireAuth(req, res, requestId);
-        if (!auth) return;
-        logout(auth.token);
+        const token = tokenFrom(req);
+        if (token) logout(token);
         return ok(res, requestId, 200, { success: true });
       }
 
@@ -546,7 +558,19 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const patientIdFilter = url.searchParams.get("patient_id");
+        const statusFilter = url.searchParams.get("status");
+        const fromFilter = url.searchParams.get("from");
+        const toFilter = url.searchParams.get("to");
+
+        const items = Array.from(db.sessions.values()).filter((item) => {
+          if (item.owner_user_id !== auth.user.id) return false;
+          if (patientIdFilter && item.patient_id !== patientIdFilter) return false;
+          if (statusFilter && item.status !== statusFilter) return false;
+          if (fromFilter && Date.parse(item.scheduled_at) < Date.parse(fromFilter)) return false;
+          if (toFilter && Date.parse(item.scheduled_at) > Date.parse(toFilter)) return false;
+          return true;
+        });
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
@@ -571,9 +595,22 @@ export const createEthosBackend = () =>
 
       const sessionAudio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
       if (method === "POST" && sessionAudio) {
+        if (!getByOwner(db.sessions, auth.user.id, sessionAudio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+
+        const contentType = req.headers["content-type"]?.toLowerCase() ?? "";
+        if (contentType.includes("multipart/form-data")) {
+          const raw = await readText(req);
+          if (!raw.includes('name="consent_confirmed"') || !raw.includes("true")) {
+            return error(res, requestId, 422, "CONSENT_REQUIRED", "Explicit consent is required");
+          }
+          if (!raw.includes('name="audio_file"')) {
+            return error(res, requestId, 422, "VALIDATION_ERROR", "multipart field 'audio_file' is required");
+          }
+          return ok(res, requestId, 201, addAudio(auth.user.id, sessionAudio[1], "vault://audio.enc"));
+        }
+
         const body = await readJson(req);
         if (body.consent_confirmed !== true) return error(res, requestId, 422, "CONSENT_REQUIRED", "Explicit consent is required");
-        if (!getByOwner(db.sessions, auth.user.id, sessionAudio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
         return ok(res, requestId, 201, addAudio(auth.user.id, sessionAudio[1], String(body.file_path ?? "vault://audio.enc")));
       }
 
@@ -587,7 +624,7 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const job = createJob(auth.user.id, "transcription", sessionTranscribe[1]);
         void runJob(job.id, { rawText: String(body.raw_text ?? "") });
-        return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+        return ok(res, requestId, 202, { jobId: job.id, job_id: job.id, status: job.status });
       }
 
       // Clinical notes
@@ -669,11 +706,12 @@ export const createEthosBackend = () =>
         if (typeof body.name !== "string" || typeof body.channel !== "string" || typeof body.content !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "name, channel and content required");
         }
-        if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        if (body.channel !== "email" && body.channel !== "whatsapp") return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        const channel: NotificationChannel = body.channel;
 
         const template = createNotificationTemplate(auth.user.id, {
           name: body.name,
-          channel: body.channel,
+          channel,
           content: body.content,
           subject: typeof body.subject === "string" ? body.subject : undefined,
         });
@@ -689,11 +727,12 @@ export const createEthosBackend = () =>
         if (typeof body.patient_id !== "string" || typeof body.channel !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id and channel required");
         }
-        if (!["email", "whatsapp"].includes(body.channel)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        if (body.channel !== "email" && body.channel !== "whatsapp") return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid channel");
+        const channel: NotificationChannel = body.channel;
 
         const consent = grantNotificationConsent(auth.user.id, {
           patientId: body.patient_id,
-          channel: body.channel,
+          channel,
           source: typeof body.source === "string" ? body.source : "manual",
         });
         return ok(res, requestId, 201, consent);
@@ -787,12 +826,18 @@ export const createEthosBackend = () =>
 
       if (method === "GET" && url.pathname === "/documents") {
         const caseId = String(url.searchParams.get("case_id") ?? "");
+        const patientId = String(url.searchParams.get("patient_id") ?? "");
+        const templateId = String(url.searchParams.get("template_id") ?? "");
+        const query = String(url.searchParams.get("q") ?? "").toLowerCase();
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = caseId
+        const items = (caseId
           ? listDocumentsByCase(auth.user.id, caseId)
-          : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id);
+          : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id))
+          .filter((item) => !patientId || item.patient_id === patientId)
+          .filter((item) => !templateId || item.template_id === templateId)
+          .filter((item) => !query || item.title.toLowerCase().includes(query));
 
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
@@ -949,7 +994,15 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const patientId = url.searchParams.get("patient_id");
+        const status = url.searchParams.get("status");
+        const type = url.searchParams.get("type");
+
+        const items = Array.from(db.financial.values())
+          .filter((item) => item.owner_user_id === auth.user.id)
+          .filter((item) => !patientId || item.patient_id === patientId)
+          .filter((item) => !status || item.status === status)
+          .filter((item) => !type || item.type === type);
         recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
@@ -959,14 +1012,14 @@ export const createEthosBackend = () =>
         if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
         const job = createJob(auth.user.id, "export");
         void runJob(job.id, {});
-        return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+        return ok(res, requestId, 202, { jobId: job.id, job_id: job.id, status: job.status });
       }
 
       if (method === "POST" && url.pathname === "/export/full") {
         if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
         const job = createJob(auth.user.id, "export_full");
         void runJob(job.id, {});
-        return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+        return ok(res, requestId, 202, { jobId: job.id, job_id: job.id, status: job.status });
       }
 
       if (method === "POST" && url.pathname === "/export/case") {
@@ -988,7 +1041,7 @@ export const createEthosBackend = () =>
       if (method === "POST" && url.pathname === "/backup") {
         const job = createJob(auth.user.id, "backup");
         void runJob(job.id, {});
-        return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+        return ok(res, requestId, 202, { jobId: job.id, job_id: job.id, status: job.status });
       }
 
       if (method === "POST" && url.pathname === "/restore") {
@@ -1064,6 +1117,13 @@ export const createEthosBackend = () =>
       // Patients list
       if (method === "GET" && url.pathname === "/patients") {
         return ok(res, requestId, 200, listPatients(auth.user.id));
+      }
+
+      const patientById = url.pathname.match(/^\/patients\/([^/]+)$/);
+      if (method === "GET" && patientById) {
+        const patient = getPatient(auth.user.id, patientById[1]);
+        if (!patient) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+        return ok(res, requestId, 200, patient);
       }
 
       // AI organize

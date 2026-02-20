@@ -10,9 +10,12 @@ import {
 } from "./aiObservability";
 import type {
   AnamnesisResponse,
+  ClinicalDocument,
+  ClinicalDocumentVersion,
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
+  DocumentTemplate,
   FinancialEntry,
   FormEntry,
   Job,
@@ -219,6 +222,45 @@ export const getByOwner = <T extends { owner_user_id: string; id: string }>(map:
 
 const byOwner = <T extends { owner_user_id: string }>(list: Iterable<T>, owner: string) => Array.from(list).filter((item) => item.owner_user_id === owner);
 
+type PatientAccessPermissions = {
+  scales: boolean;
+  diary: boolean;
+  session_confirmation: boolean;
+  async_messages_per_day: number;
+};
+
+type PatientAccess = {
+  id: string;
+  owner_user_id: string;
+  patient_user_id: string;
+  patient_id: string;
+  permissions: PatientAccessPermissions;
+  created_at: string;
+};
+
+type Contract = {
+  id: string;
+  owner_user_id: string;
+  patient_id: string;
+  psychologist: { name: string; license: string; email: string; phone?: string };
+  patient: { name: string; email: string; document: string };
+  terms: { value: string; periodicity: string; absence_policy: string; payment_method: string };
+  status: "draft" | "sent" | "accepted";
+  portal_token?: string;
+  accepted_by?: string;
+  accepted_at?: string;
+  accepted_ip?: string;
+  created_at: string;
+  updated_at: string;
+};
+
+type RetentionPolicy = {
+  owner_user_id: string;
+  clinical_record_days: number;
+  audit_days: number;
+  export_days: number;
+};
+
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
   const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
   if (existing) return existing;
@@ -236,6 +278,296 @@ export const createSession = (owner: string, patientId: string, scheduledAt: str
   const session: ClinicalSession = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled", created_at: now() };
   db.sessions.set(session.id, session);
   return session;
+};
+
+export const createPatientAccess = (owner: string, input: {
+  patient_id: string;
+  patient_email: string;
+  patient_name: string;
+  patient_password?: string;
+  permissions?: Partial<PatientAccessPermissions>;
+}) => {
+  const sameEmail = Array.from(db.users.values()).find((item) => item.email.toLowerCase() === input.patient_email.toLowerCase());
+  if (sameEmail && sameEmail.role !== "patient") return { error: "EMAIL_IN_USE" as const };
+
+  const temporaryPassword = input.patient_password || "patient123";
+  const patientUser = sameEmail ?? {
+    id: uid(),
+    email: input.patient_email,
+    name: input.patient_name,
+    password_hash: hashPassword(temporaryPassword),
+    role: "patient" as const,
+    status: "active" as const,
+    created_at: now(),
+  };
+  db.users.set(patientUser.id, patientUser);
+
+  createPatientIfMissing(owner, input.patient_id);
+  const access: PatientAccess = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_user_id: patientUser.id,
+    patient_id: input.patient_id,
+    permissions: {
+      scales: input.permissions?.scales ?? true,
+      diary: input.permissions?.diary ?? true,
+      session_confirmation: input.permissions?.session_confirmation ?? true,
+      async_messages_per_day: input.permissions?.async_messages_per_day ?? 3,
+    },
+    created_at: now(),
+  };
+  db.patientAccess.set(access.id, access);
+  return { access, patientUser, temporaryPassword: input.patient_password ? undefined : temporaryPassword };
+};
+
+export const getPatientAccessForUser = (patientUserId: string) =>
+  Array.from(db.patientAccess.values()).find((item) => (item as PatientAccess).patient_user_id === patientUserId) as PatientAccess | undefined;
+
+export const listPatientSessions = (access: PatientAccess) =>
+  byOwner(db.sessions.values(), access.owner_user_id).filter((item) => item.patient_id === access.patient_id);
+
+export const confirmPatientSession = (access: PatientAccess, sessionId: string) => {
+  if (!access.permissions.session_confirmation) return { error: "PERMISSION_DENIED" as const };
+  const session = getByOwner(db.sessions, access.owner_user_id, sessionId);
+  if (!session || session.patient_id !== access.patient_id) return { error: "NOT_FOUND" as const };
+  session.status = "confirmed";
+  return { session };
+};
+
+export const recordPatientScale = (access: PatientAccess, scaleId: string, score: number) => {
+  if (!access.permissions.scales) return { error: "PERMISSION_DENIED" as const };
+  return { record: createScaleRecord(access.owner_user_id, scaleId, access.patient_id, score) };
+};
+
+export const recordPatientDiaryEntry = (access: PatientAccess, content: string) => {
+  if (!access.permissions.diary) return { error: "PERMISSION_DENIED" as const };
+  const entry = { id: uid(), owner_user_id: access.owner_user_id, patient_id: access.patient_id, content, created_at: now() };
+  db.patientDiaryEntries.set(entry.id, entry);
+  return { entry };
+};
+
+export const sendPatientAsyncMessage = (access: PatientAccess, message: string) => {
+  const today = now().slice(0, 10);
+  const todayCount = Array.from(db.patientMessages.values()).filter(
+    (item) => (item as { owner_user_id: string; patient_id: string; created_at: string }).owner_user_id === access.owner_user_id
+      && (item as { owner_user_id: string; patient_id: string; created_at: string }).patient_id === access.patient_id
+      && (item as { created_at: string }).created_at.startsWith(today),
+  ).length;
+  if (todayCount >= access.permissions.async_messages_per_day) return { error: "LIMIT_REACHED" as const };
+  const payload = { id: uid(), owner_user_id: access.owner_user_id, patient_id: access.patient_id, message, created_at: now() };
+  db.patientMessages.set(payload.id, payload);
+  return {
+    payload,
+    remaining: Math.max(0, access.permissions.async_messages_per_day - (todayCount + 1)),
+    disclaimer: "Mensagens assíncronas não substituem atendimento de urgência.",
+  };
+};
+
+export const createContract = (owner: string, input: Omit<Contract, "id" | "owner_user_id" | "status" | "created_at" | "updated_at">) => {
+  const contract: Contract = {
+    id: uid(),
+    owner_user_id: owner,
+    status: "draft",
+    created_at: now(),
+    updated_at: now(),
+    ...input,
+  };
+  db.contracts.set(contract.id, contract);
+  return contract;
+};
+
+export const listContracts = (owner: string) => byOwner(db.contracts.values() as Iterable<Contract>, owner);
+export const getContract = (owner: string, id: string) => getByOwner(db.contracts as Map<string, Contract>, owner, id);
+
+export const sendContract = (owner: string, id: string) => {
+  const contract = getContract(owner, id);
+  if (!contract) return null;
+  contract.status = "sent";
+  contract.portal_token = contract.portal_token ?? crypto.randomBytes(12).toString("hex");
+  contract.updated_at = now();
+  return contract;
+};
+
+export const getContractByPortalToken = (portalToken: string) =>
+  Array.from(db.contracts.values()).find((item) => (item as Contract).portal_token === portalToken) as Contract | undefined;
+
+export const acceptContract = (portalToken: string, acceptedBy: string, acceptedIp: string) => {
+  const contract = getContractByPortalToken(portalToken);
+  if (!contract) return null;
+  contract.status = "accepted";
+  contract.accepted_by = acceptedBy;
+  contract.accepted_ip = acceptedIp;
+  contract.accepted_at = now();
+  contract.updated_at = now();
+  return contract;
+};
+
+export const exportContract = (owner: string, id: string, format: "pdf" | "docx") => {
+  const contract = getContract(owner, id);
+  if (!contract) return null;
+  return { contract_id: id, format, content: JSON.stringify(contract) };
+};
+
+const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string }> = [
+  { id: "session-summary", title: "Resumo de sessão", html: "<h1>{{title}}</h1>{{content}}" },
+  { id: "evolution-note", title: "Nota de evolução", html: "<h1>Evolução</h1>{{content}}" },
+];
+
+for (const template of defaultDocumentTemplates) {
+  if (!db.documentTemplates.has(template.id)) {
+    db.documentTemplates.set(template.id, {
+      id: template.id,
+      owner_user_id: "system",
+      created_at: now(),
+      title: template.title,
+      description: template.description,
+      version: 1,
+      html: template.html,
+      fields: [],
+    });
+  }
+}
+
+export const listDocumentTemplates = () => Array.from(db.documentTemplates.values());
+
+export const createDocument = (owner: string, patientId: string, caseId: string, templateId: string, title: string): ClinicalDocument | null => {
+  const template = db.documentTemplates.get(templateId);
+  if (!template) return null;
+  const item: ClinicalDocument = {
+    id: uid(),
+    owner_user_id: owner,
+    created_at: now(),
+    patient_id: patientId,
+    case_id: caseId,
+    template_id: template.id,
+    title,
+  };
+  db.documents.set(item.id, item);
+  return item;
+};
+
+export const listDocumentsByCase = (owner: string, caseId: string) =>
+  byOwner(db.documents.values(), owner).filter((item) => item.case_id === caseId);
+
+export const addDocumentVersion = (owner: string, documentId: string, input: { content: string; global_values: Record<string, string> }) => {
+  const document = getByOwner(db.documents, owner, documentId);
+  if (!document) return null;
+  const existing = listDocumentVersions(owner, documentId);
+  const item: ClinicalDocumentVersion = {
+    id: uid(),
+    owner_user_id: owner,
+    created_at: now(),
+    document_id: documentId,
+    version: existing.length + 1,
+    content: input.content,
+    global_values: input.global_values,
+  };
+  db.documentVersions.set(item.id, item);
+  return item;
+};
+
+export const listDocumentVersions = (owner: string, documentId: string) =>
+  byOwner(db.documentVersions.values(), owner).filter((item) => item.document_id === documentId);
+
+type TemplateInput = {
+  title: string;
+  description?: string;
+  version: number;
+  html: string;
+  fields: Array<{ key: string; label: string; required?: boolean }>;
+};
+
+export const listTemplates = (owner: string) => byOwner(db.documentTemplates.values(), owner);
+export const getTemplate = (owner: string, id: string) => getByOwner(db.documentTemplates, owner, id);
+
+export const createTemplate = (owner: string, input: TemplateInput): DocumentTemplate => {
+  const item: DocumentTemplate = { id: uid(), owner_user_id: owner, created_at: now(), ...input };
+  db.documentTemplates.set(item.id, item);
+  return item;
+};
+
+export const updateTemplate = (owner: string, id: string, input: Partial<TemplateInput>) => {
+  const template = getTemplate(owner, id);
+  if (!template) return null;
+  Object.assign(template, input);
+  db.documentTemplates.set(id, template);
+  return template;
+};
+
+export const deleteTemplate = (owner: string, id: string) => {
+  const template = getTemplate(owner, id);
+  if (!template) return false;
+  db.documentTemplates.delete(id);
+  return true;
+};
+
+export const renderTemplate = (owner: string, id: string, input: {
+  globals: Record<string, string>;
+  fields: Record<string, string>;
+  format: "html" | "pdf" | "docx";
+}) => {
+  const template = getTemplate(owner, id);
+  if (!template) return null;
+  const html = template.html.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => input.fields[key] ?? input.globals[key] ?? "");
+  return { format: input.format, content: html, template_id: template.id };
+};
+
+export const createPrivateComment = (owner: string, noteId: string, content: string) => {
+  const note = getByOwner(db.clinicalNotes, owner, noteId);
+  if (!note) return null;
+  const item = { id: uid(), owner_user_id: owner, note_id: noteId, content, created_at: now() };
+  db.privateComments.set(item.id, item);
+  return item;
+};
+
+export const listPrivateComments = (owner: string, noteId: string) =>
+  byOwner(db.privateComments.values() as Iterable<{ owner_user_id: string; note_id: string }>, owner).filter((item) => item.note_id === noteId);
+
+export const recordProntuarioAudit = (owner: string, action: string, resource: string, resourceId?: string) =>
+  addAudit(owner, `PRONTUARIO_${action}_${resource.toUpperCase()}`, resourceId);
+
+export const createAnonymizedCase = (owner: string, input: { title: string; summary: string; tags: string[] }) => {
+  const item = { id: uid(), owner_user_id: owner, created_at: now(), ...input };
+  db.anonymizedCases.set(item.id, item);
+  return item;
+};
+
+export const listAnonymizedCases = (owner: string) => byOwner(db.anonymizedCases.values() as Iterable<{ owner_user_id: string }>, owner);
+
+export const exportCase = (
+  owner: string,
+  patientId: string,
+  options: { window_days?: number; max_sessions?: number; max_notes?: number; max_reports?: number },
+) => {
+  const patient = byOwner(db.patients.values(), owner).find((item) => item.external_id === patientId);
+  if (!patient) return null;
+  return { patient, options, sessions: byOwner(db.sessions.values(), owner).filter((item) => item.patient_id === patientId) };
+};
+
+export const closeCase = (
+  owner: string,
+  patientId: string,
+  input: {
+    reason: string;
+    summary: string;
+    next_steps: string[];
+    history_policy: { window_days?: number; max_sessions?: number; max_notes?: number; max_reports?: number };
+  },
+) => {
+  const payload = exportCase(owner, patientId, input.history_policy);
+  if (!payload) return null;
+  return { ...payload, close_reason: input.reason, close_summary: input.summary, next_steps: input.next_steps };
+};
+
+const defaultRetentionPolicy = (owner: string): RetentionPolicy => ({ owner_user_id: owner, clinical_record_days: 3650, audit_days: 3650, export_days: 365 });
+
+export const getRetentionPolicy = (owner: string): RetentionPolicy =>
+  (db.retentionPolicies.get(owner) as RetentionPolicy | undefined) ?? defaultRetentionPolicy(owner);
+
+export const updateRetentionPolicy = (owner: string, input: Partial<Omit<RetentionPolicy, "owner_user_id">>) => {
+  const next = { ...getRetentionPolicy(owner), ...input, owner_user_id: owner };
+  db.retentionPolicies.set(owner, next);
+  return next;
 };
 
 export const patchSessionStatus = (owner: string, sessionId: string, status: SessionStatus) => {
@@ -359,7 +691,7 @@ export const handleTranscriberWebhook = (jobId: string, status: JobStatus, error
   const job = db.jobs.get(jobId);
   if (!job) return null;
   job.status = status;
-  job.progress = status === "completed" ? 1 : job.progress;
+  job.progress = status === "completed" || status === "succeeded" ? 1 : job.progress;
   job.error_code = errorCode;
   job.updated_at = now();
   return job;
