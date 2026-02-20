@@ -27,3 +27,8 @@ npm test
 - `docs/backend-endpoints-funcionalidades.md`
 - `docs/backend-validation-checklist.md`
 - `docs/backend-product-coverage.md`
+
+## Deploy Render
+- **Health Check Path:** `/health`
+- **Env vars:** `CORS_ALLOWED_ORIGINS` (origens separadas por vírgula, ex: `https://id-preview--foo.lovable.app,https://seu-space.lovable.app`)
+- **Porta:** `PORT` (o servidor escuta em `0.0.0.0`)

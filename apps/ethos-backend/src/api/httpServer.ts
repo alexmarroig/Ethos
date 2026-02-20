@@ -86,9 +86,13 @@ import {
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
+import { parseAllowedOrigins } from "./cors";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
+
+const allowedMethods = "GET,POST,PUT,PATCH,DELETE,OPTIONS,HEAD";
+const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
 
 // ✅ Correção importante: “user” (psicólogo) precisa ser clínico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
@@ -256,21 +260,70 @@ const hashRequestBody = (body: Record<string, unknown>) =>
 const idempotencyCacheKey = (userId: string, method: string, pathname: string, idempotencyKey: string, bodyHash: string) =>
   `${userId}:${method}:${pathname}:${idempotencyKey}:${bodyHash}`;
 
+const originFrom = (req: IncomingMessage) => {
+  const origin = req.headers.origin;
+  if (typeof origin === "string") return origin;
+  if (Array.isArray(origin)) return origin[0];
+  return undefined;
+};
+
+const isOriginAllowed = (origin: string | undefined, allowedOrigins: Set<string>) => !origin || allowedOrigins.has(origin);
+
+const setCorsHeaders = (res: ServerResponse, origin: string | undefined) => {
+  res.setHeader("access-control-allow-methods", allowedMethods);
+  res.setHeader("access-control-allow-headers", allowedHeaders);
+  if (origin) {
+    res.setHeader("access-control-allow-origin", origin);
+    res.setHeader("vary", "Origin");
+  }
+};
+
+const writeHealth = (res: ServerResponse, requestId: string, method: string, serviceName: string, serviceVersion: string | undefined) => {
+  const payload = {
+    ok: true,
+    service: serviceName,
+    ts: Date.now(),
+    ...(serviceVersion ? { version: serviceVersion } : {}),
+  };
+
+  res.statusCode = 200;
+  res.setHeader("content-type", "application/json");
+  res.setHeader("x-request-id", requestId);
+  res.setHeader("cache-control", "no-store");
+  if (method === "HEAD") {
+    res.end();
+    return;
+  }
+  res.end(JSON.stringify(payload));
+};
+
 export const createEthosBackend = () =>
   createServer(async (req, res) => {
+    const allowedOrigins = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+    const serviceName = (process.env.SERVICE_NAME ?? "clinical").trim() || "clinical";
+    const serviceVersion = process.env.RENDER_GIT_COMMIT ?? process.env.npm_package_version;
     const requestId = crypto.randomUUID();
     const method = req.method ?? "GET";
     const url = new URL(req.url ?? "/", "http://localhost");
+    const origin = originFrom(req);
+    const originAllowed = isOriginAllowed(origin, allowedOrigins);
 
     try {
-      // Se precisar CORS, descomente e configure origem:
-      // if (method === "OPTIONS") {
-      //   res.statusCode = 204;
-      //   res.setHeader("access-control-allow-origin", "*");
-      //   res.setHeader("access-control-allow-methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
-      //   res.setHeader("access-control-allow-headers", "content-type,authorization,idempotency-key");
-      //   return res.end();
-      // }
+      if (!originAllowed) {
+        res.statusCode = 403;
+        return res.end();
+      }
+
+      setCorsHeaders(res, origin);
+
+      if (method === "OPTIONS") {
+        res.statusCode = 204;
+        return res.end();
+      }
+
+      if ((method === "GET" || method === "HEAD") && url.pathname === "/health") {
+        return writeHealth(res, requestId, method, serviceName, serviceVersion);
+      }
 
       // Public docs
       if (method === "GET" && url.pathname === "/openapi.yaml") {

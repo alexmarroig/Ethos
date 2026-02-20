@@ -7,6 +7,7 @@ servers:
 paths:
   /openapi.yaml: { get: { summary: OpenAPI spec } }
   /contracts: { get: { summary: Runtime API contracts } }
+  /health: { get: { summary: Public health check } }
 
   /auth/invite: { post: { summary: Invite local user (admin) } }
   /auth/accept-invite: { post: { summary: Accept local invite } }
@@ -72,6 +73,7 @@ servers:
 paths:
   /openapi.yaml: { get: { summary: OpenAPI spec } }
   /contracts: { get: { summary: Runtime API contracts } }
+  /health: { get: { summary: Public health check } }
 
   /auth/invite: { post: { summary: Invite user (local admin) } }
   /auth/accept-invite: { post: { summary: Accept invite } }
