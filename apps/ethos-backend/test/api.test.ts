@@ -115,3 +115,41 @@ test("paginação valida parâmetros e normaliza limites", async () => {
 
   server.close();
 });
+
+test("health público + CORS preflight/origin allowlist", async () => {
+  process.env.CORS_ALLOWED_ORIGINS = "https://id-preview--abc.lovable.app,https://space.lovable.app";
+  process.env.SERVICE_NAME = "clinical";
+
+  const server = createEthosBackend();
+  server.listen(0);
+  await once(server, "listening");
+  const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+  const health = await fetch(`${base}/health`, {
+    headers: { origin: "https://id-preview--abc.lovable.app" },
+  });
+  assert.equal(health.status, 200);
+  assert.equal(health.headers.get("access-control-allow-origin"), "https://id-preview--abc.lovable.app");
+  const body = await health.json() as any;
+  assert.equal(body.ok, true);
+  assert.equal(body.service, "clinical");
+
+  const preflight = await fetch(`${base}/health`, {
+    method: "OPTIONS",
+    headers: { origin: "https://space.lovable.app" },
+  });
+  assert.equal(preflight.status, 204);
+  assert.equal(preflight.headers.get("access-control-allow-origin"), "https://space.lovable.app");
+
+  const blocked = await fetch(`${base}/health`, {
+    headers: { origin: "https://malicious.example" },
+  });
+  assert.equal(blocked.status, 403);
+
+  const head = await fetch(`${base}/health`, { method: "HEAD" });
+  assert.equal(head.status, 200);
+
+  server.close();
+  delete process.env.CORS_ALLOWED_ORIGINS;
+  delete process.env.SERVICE_NAME;
+});
