@@ -1,20 +1,13 @@
 # Usuários de teste (login/senha)
 
-## Usuário padrão seed (backend/clinic/control-plane)
-- Login: `camila@ethos.local`
-- Senha: `admin123`
+## Admin
+- Login: `admin@admin`
+- Senha: `bianco256`
 
-## Usuários criados em testes do Control Plane
-- Login: `pro@ethos.local`
-- Senha: `secret123`
+## Psicólogo teste (full acesso)
+- Login: `camila@admin`
+- Senha: `bianco256`
 
-## Usuários criados em testes de checklist (backend/clinic)
-- Login: `user-a@ethos.local`
-- Senha: `secretA123`
-- Login: `user-b@ethos.local`
-- Senha: `secretB123`
-
-## Usuários dinâmicos (gerados em runtime)
-- Login: `gate+<uid>@ethos.local`
-- Senha: `secret123`
-- Observação: o `<uid>` muda a cada execução do teste.
+## Paciente teste (full acesso)
+- Login: `paciente@admin`
+- Senha: `bianco256`
