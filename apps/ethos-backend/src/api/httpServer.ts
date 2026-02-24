@@ -356,10 +356,6 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      if (method === "GET" && url.pathname === "/contracts") {
-        return ok(res, requestId, 200, []);
-      }
-
       // Auth
       if (method === "POST" && url.pathname === "/auth/login") {
         const body = await readJson(req);
