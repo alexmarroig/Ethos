@@ -20,10 +20,10 @@ test("load smoke: cenário básico respeita limites de latência", async () => {
 
   const runRequest = async () => {
     const started = performance.now();
-    const response = await fetch(`${base}/contracts`);
+    const response = await fetch(`${base}/health`);
     const elapsed = performance.now() - started;
     durations.push(elapsed);
-    assert.equal(response.status, 200, "endpoint /contracts deve responder 200");
+    assert.equal(response.status, 200, "endpoint /health deve responder 200");
   };
 
   const workers = Array.from({ length: CONCURRENCY }, async (_, index) => {

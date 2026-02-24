@@ -38,7 +38,7 @@ const setup = async () => {
 test("smoke: cobertura dos principais endpoints clínicos e administrativos", async () => {
   const { server, base, adminToken, userToken } = await setup();
 
-  const contracts = await req(base, "/contracts");
+  const contracts = await req(base, "/contracts", "GET", undefined, userToken);
   assert.equal(contracts.status, 200);
 
   const session = await req(base, "/sessions", "POST", { patient_id: "patient-smoke", scheduled_at: new Date().toISOString() }, userToken, "smoke-session-1");
