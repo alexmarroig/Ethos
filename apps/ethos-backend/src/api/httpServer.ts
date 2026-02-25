@@ -86,7 +86,7 @@ import {
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
-import { parseAllowedOrigins } from "./cors";
+import { isOriginAllowed, parseAllowedOrigins } from "./cors";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
@@ -266,8 +266,6 @@ const originFrom = (req: IncomingMessage) => {
   if (Array.isArray(origin)) return origin[0];
   return undefined;
 };
-
-const isOriginAllowed = (origin: string | undefined, allowedOrigins: Set<string>) => !origin || allowedOrigins.has(origin);
 
 const setCorsHeaders = (res: ServerResponse, origin: string | undefined) => {
   res.setHeader("access-control-allow-methods", allowedMethods);
