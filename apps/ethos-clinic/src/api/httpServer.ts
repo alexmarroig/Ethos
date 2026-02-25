@@ -91,15 +91,49 @@ const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "
 const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
 const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
 
-const parseAllowedOrigins = () =>
-  (process.env.CORS_ALLOWED_ORIGINS ?? "")
+const defaultAllowedOrigins = ["https://ethos-clinical-space.lovable.app", "*.lovableproject.com"];
+
+const parseAllowedOrigins = () => {
+  const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean);
 
+  return [...configuredOrigins, ...defaultAllowedOrigins];
+};
+
+const normalizeOrigin = (value: string) => {
+  try {
+    return new URL(value).origin.toLowerCase();
+  } catch {
+    return value.toLowerCase();
+  }
+};
+
+const extractHostname = (value: string) => {
+  try {
+    return new URL(value).hostname.toLowerCase();
+  } catch {
+    return value.toLowerCase();
+  }
+};
+
+const isOriginAllowed = (origin: string, allowedOrigins: string[]) => {
+  const normalizedOrigin = normalizeOrigin(origin);
+  const hostname = extractHostname(origin);
+
+  return allowedOrigins.some((allowedOrigin) => {
+    if (allowedOrigin.startsWith("*.")) {
+      const suffix = allowedOrigin.slice(1).toLowerCase();
+      return hostname.endsWith(suffix) && hostname.length > suffix.length;
+    }
+    return normalizeOrigin(allowedOrigin) === normalizedOrigin;
+  });
+};
+
 const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: string[]) => {
-  const origin = req.headers.origin;
-  if (!origin || !allowedOrigins.includes(origin)) return false;
+  const origin = typeof req.headers.origin === "string" ? req.headers.origin : req.headers.origin?.[0];
+  if (!origin || !isOriginAllowed(origin, allowedOrigins)) return false;
 
   res.setHeader("access-control-allow-origin", origin);
   res.setHeader("access-control-allow-methods", allowedMethods);
