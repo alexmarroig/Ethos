@@ -1,5 +1,5 @@
 // apps/ethos-desktop/src/components/App.tsx
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { exportClinicalNote } from "../services/exportService";
 import {
   type AdminOverviewMetrics,
@@ -566,6 +566,7 @@ export const App = () => {
   // =========================
   const [exportFormat, setExportFormat] = useState<ExportFormat>("pdf");
   const [exporting, setExporting] = useState(false);
+  const loggingOut = useRef(false);
 
   const doExport = useCallback(async () => {
     setExporting(true);
@@ -612,11 +613,17 @@ export const App = () => {
   );
 
   const handleLogout = useCallback(async () => {
+    if (loggingOut.current) return;
+    loggingOut.current = true;
+
     setUser(null);
     safeLocalStorageSet("ethos-auth-token", "");
     try {
       await window.ethos?.auth?.logout?.();
     } catch {}
+    finally {
+      loggingOut.current = false;
+    }
   }, []);
 
   // =========================

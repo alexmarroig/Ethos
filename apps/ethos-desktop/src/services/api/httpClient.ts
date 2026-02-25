@@ -56,6 +56,7 @@ const DEFAULT_TIMEOUT_MS = 12_000;
 
 const normalizeBaseUrl = (baseUrl: string) => baseUrl.replace(/\/+$/, "");
 const joinUrl = (baseUrl: string, path: string) => `${normalizeBaseUrl(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`;
+const isLogoutPath = (path: string) => /\/auth\/logout\/?$/.test(path);
 
 const defaultRequestId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -188,7 +189,7 @@ export function createHttpClient<TContract extends Record<string, readonly strin
       const apiPayload = isApiErrorPayload(payload) ? payload : undefined;
 
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && onSessionInvalid) {
+        if ((response.status === 401 || response.status === 403) && onSessionInvalid && !isLogoutPath(normalizedPath)) {
           await onSessionInvalid(response.status === 401 ? "unauthorized" : "forbidden");
         }
 
