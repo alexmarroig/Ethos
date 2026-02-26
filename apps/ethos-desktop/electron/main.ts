@@ -22,10 +22,6 @@ import { backupService } from "./services/backup.service";
 import { authService } from "./services/auth.service";
 import { genaiService } from "./services/genai.service";
 import { formsService } from "./services/forms.service";
-import { backupService } from "./services/backup.service";
-import { authService } from "./services/auth.service";
-import { genaiService } from "./services/genai.service";
-import { formsService } from "./services/forms.service";
 
 let mainWindow: BrowserWindow | null = null;
 let isSafeMode = false;
@@ -633,7 +629,7 @@ ipcMain.handle("backup:create", async (_e, password) => {
     filters: [{ name: "Ethos Backup", extensions: ["db"] }],
   });
   if (filePath) {
-    await backupService.createBackup(filePath, password);
+    await backupService.create(password, filePath);
     return true;
   }
   return false;

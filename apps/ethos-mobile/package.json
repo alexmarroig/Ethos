@@ -13,6 +13,7 @@
     "buffer": "^5.7.1",
     "crypto-js": "^4.2.0",
     "expo": "~50.0.0",
+    "expo-av": "^16.0.8",
     "expo-crypto": "^15.0.8",
     "expo-dev-client": "^6.0.20",
     "expo-device": "^8.0.10",

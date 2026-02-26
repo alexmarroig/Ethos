@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@ethos/shared": "*",
-    "better-sqlite3": "^9.4.0",
     "better-sqlite3-multiple-ciphers": "^12.6.2",
     "docx": "^9.5.1",
     "jspdf": "^4.1.0",

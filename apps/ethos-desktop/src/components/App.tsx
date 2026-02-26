@@ -416,7 +416,15 @@ export const App = () => {
   // =========================
   // Audio Recorder (hook)
   // =========================
-  const { isRecording, durationMs, startRecording, stopRecording, lastBlob } = useAudioRecorder();
+  const {
+    status: recorderStatus,
+    elapsedLabel: durationLabel,
+    startRecording,
+    stopRecording,
+    audioUrl: lastAudioUrl,
+  } = useAudioRecorder({ sessionId });
+
+  const isRecording = recorderStatus === "recording";
 
   // =========================
   // Modals
@@ -652,7 +660,7 @@ export const App = () => {
   }, [stopRecording]);
 
   const handleTranscribeLast = useCallback(async () => {
-    if (!lastBlob) {
+    if (!lastAudioUrl) {
       alert("Nenhum áudio gravado ainda.");
       return;
     }
@@ -661,30 +669,10 @@ export const App = () => {
       return;
     }
 
-    setJobStatus("queued");
-    setJobProgress(0);
-    setJobError(null);
-
-    const arrayBuffer = await lastBlob.arrayBuffer();
-    const jobId = await window.ethos.transcription.enqueue({
-      modelId,
-      sessionId: selectedSessionId,
-      audio: arrayBuffer,
-      mimeType: lastBlob.type || "audio/webm",
-    });
-
-    appendLog(`Job enfileirado: ${jobId}`);
-  }, [appendLog, lastBlob, modelId, selectedSessionId]);
-
-  // =========================
-  // Derived UI helpers
-  // =========================
-  const durationLabel = useMemo(() => {
-    const s = Math.floor(durationMs / 1000);
-    const mm = String(Math.floor(s / 60)).padStart(2, "0");
-    const ss = String(s % 60).padStart(2, "0");
-    return `${mm}:${ss}`;
-  }, [durationMs]);
+    alert("A transcrição automática após salvar já está em fila ou use a busca local.");
+    // No desktop real, o audioService.saveEncrypted já foi chamado pelo hook.
+    // O ideal aqui é disparar a transcrição do arquivo já salvo se quiser manual.
+  }, [lastAudioUrl]);
 
   // =========================
   // UI
@@ -1050,7 +1038,7 @@ export const App = () => {
                       <option value="ptbr-accurate">Modelo: ptbr-accurate</option>
                     </select>
 
-                    <button type="button" style={secondaryButtonStyle} onClick={handleTranscribeLast} disabled={!lastBlob}>
+                    <button type="button" style={secondaryButtonStyle} onClick={handleTranscribeLast} disabled={!lastAudioUrl}>
                       Transcrever último áudio
                     </button>
                   </div>
