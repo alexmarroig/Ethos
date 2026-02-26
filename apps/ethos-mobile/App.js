@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Alert,
   SafeAreaView,
@@ -20,6 +20,9 @@ import {
 } from './src/services/device';
 import { getLastTranscriptionTechnicalEvent } from './src/services/transcription';
 
+import PsychologistDashboard from './src/components/PsychologistDashboard';
+import PatientDashboard from './src/components/PatientDashboard';
+
 export default function App() {
   const [password, setPassword] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -34,35 +37,43 @@ export default function App() {
     purgeService.purgeTempData().catch(() => {});
   }, []);
 
+  const loadCapability = useCallback(async (mode) => {
+    try {
+      const capability = await getDeviceCapabilityScore({ selectionMode: mode });
+      setDcs(capability);
+    } catch {
+      setDcs(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) return;
 
-    const load = async () => {
+    const init = async () => {
       try {
         const decision = await getPersistedTranscriptionPolicyDecision();
-        if (decision?.mode) setSelectionMode(decision.mode);
+        const mode = decision?.mode || 'Auto';
+        setSelectionMode(mode);
 
-        const [capability, lastEvent] = await Promise.all([
-          getDeviceCapabilityScore({ selectionMode: decision?.mode || selectionMode }),
+        const [lastEvent] = await Promise.all([
           getLastTranscriptionTechnicalEvent(),
+          loadCapability(mode)
         ]);
 
-        setDcs(capability);
         if (lastEvent?.event_type === 'transcription_fallback_success') {
           setFallbackNotice('Última transcrição usou fallback automático de modelo para preservar a estabilidade.');
         }
-      } catch {
-        setDcs(null);
+      } catch (err) {
+        console.error('Failed to init dashboard:', err);
       }
     };
 
-    load();
-  }, [isLoggedIn]);
+    init();
+  }, [isLoggedIn, loadCapability]);
 
   const refreshCapability = async (mode) => {
     setSelectionMode(mode);
-    const capability = await getDeviceCapabilityScore({ selectionMode: mode });
-    setDcs(capability);
+    await loadCapability(mode);
   };
 
   const handleLogin = async () => {
@@ -85,6 +96,7 @@ export default function App() {
     await purgeService.purgeTempData();
     clearSessionKeys();
     setIsLoggedIn(false);
+    setDcs(null);
   };
 
   if (!isLoggedIn) {
@@ -99,6 +111,7 @@ export default function App() {
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          autoFocus
         />
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? 'Derivando chaves...' : 'Entrar'}</Text>
@@ -126,8 +139,15 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
       <View style={styles.header}>
-        <Text style={styles.title}>ETHOS MOBILE</Text>
-        <Text style={styles.subtitle}>Portal {role === 'psychologist' ? 'do Profissional' : 'do Paciente'} (V1)</Text>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>ETHOS MOBILE</Text>
+            <Text style={styles.subtitle}>Portal {role === 'psychologist' ? 'do Profissional' : 'do Paciente'} (V1)</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={{ color: '#F87171', fontWeight: '600' }}>Sair</Text>
+          </TouchableOpacity>
+        </View>
         <View style={styles.roleRow}>
           <TouchableOpacity
             style={[styles.roleButton, role === 'psychologist' && styles.roleButtonActive]}
@@ -141,72 +161,19 @@ export default function App() {
           >
             <Text style={styles.roleText}>Paciente</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={handleLogout}>
-            <Text style={{ color: '#F87171' }}>Sair</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
-      <ScrollView style={styles.content}>
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
         {role === 'psychologist' ? (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Segurança Ativa</Text>
-              <Text style={styles.cardText}>✓ Banco SQLCipher com chave derivada.</Text>
-              <Text style={styles.cardText}>✓ Vault AES-256-GCM com chave segregada.</Text>
-              <Text style={styles.cardText}>✓ App Lock automático com tolerância de 30s.</Text>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>DCS (Device Capability Score)</Text>
-              <Text style={styles.cardText}>Política de seleção:</Text>
-              <View style={[styles.roleRow, { marginBottom: 10 }]}>
-                {['Auto', 'Rápido', 'Pro'].map((mode) => (
-                  <TouchableOpacity
-                    key={mode}
-                    style={[styles.roleButton, selectionMode === mode && styles.roleButtonActive]}
-                    onPress={() => refreshCapability(mode)}
-                  >
-                    <Text style={styles.roleText}>{mode}</Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {dcs ? (
-                <>
-                  <Text style={styles.cardText}>Score: {dcs.score}</Text>
-                  <Text style={styles.cardText}>Modelo recomendado: {dcs.recommendedModel}</Text>
-                  <Text style={styles.cardText}>RAM: {dcs.ramGB} GB | Disco livre: {dcs.diskGB} GB</Text>
-                  <Text style={styles.cardText}>RTF benchmark: {dcs.benchmarkRtf ?? 'N/A'} | Latência: {dcs.benchmarkLatencyMs ?? 'N/A'} ms</Text>
-                </>
-              ) : (
-                <Text style={styles.emptyText}>Benchmark indisponível.</Text>
-              )}
-            </View>
-            {fallbackNotice ? (
-              <View style={[styles.card, styles.fallbackCard]}>
-                <Text style={styles.cardTitle}>Aviso de fallback</Text>
-                <Text style={styles.cardText}>{fallbackNotice}</Text>
-              </View>
-            ) : null}
-          </>
+          <PsychologistDashboard
+            dcs={dcs}
+            selectionMode={selectionMode}
+            refreshCapability={refreshCapability}
+            fallbackNotice={fallbackNotice}
+          />
         ) : (
-          <>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Minha Próxima Sessão</Text>
-              <Text style={styles.cardText}>Data: 22/02/2025 às 14:00</Text>
-              <TouchableOpacity style={styles.button}>
-                <Text style={styles.buttonText}>Confirmar Presença</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.card}>
-              <Text style={styles.cardTitle}>Meus Diários</Text>
-              <TouchableOpacity style={styles.outlineButton}>
-                <Text style={styles.outlineButtonText}>+ Diário de Emoções</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.outlineButton}>
-                <Text style={styles.outlineButtonText}>+ Diário dos Sonhos</Text>
-              </TouchableOpacity>
-            </View>
-          </>
+          <PatientDashboard />
         )}
       </ScrollView>
     </SafeAreaView>
@@ -227,28 +194,17 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#334155',
   },
-  header: { padding: 20, backgroundColor: '#1E293B' },
+  header: { padding: 20, backgroundColor: '#1E293B', gap: 12 },
+  headerTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
   title: { color: 'white', fontSize: 24, fontWeight: '800' },
-  subtitle: { color: '#94A3B8', fontSize: 14, marginBottom: 10 },
+  subtitle: { color: '#94A3B8', fontSize: 14 },
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  roleButton: { borderWidth: 1, borderColor: '#334155', paddingVertical: 6, paddingHorizontal: 10, borderRadius: 8 },
+  roleButton: { borderWidth: 1, borderColor: '#334155', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 8 },
   roleButtonActive: { backgroundColor: '#2563EB', borderColor: '#2563EB' },
-  roleText: { color: 'white', fontSize: 12, fontWeight: '600' },
+  roleText: { color: 'white', fontSize: 13, fontWeight: '600' },
   content: { flex: 1, padding: 16 },
-  card: {
-    backgroundColor: '#1E293B',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-    borderWidth: 1,
-    borderColor: '#334155',
-  },
-  cardTitle: { color: 'white', fontSize: 18, fontWeight: '700', marginBottom: 8 },
-  cardText: { color: '#E2E8F0', fontSize: 14, marginBottom: 6 },
-  emptyText: { color: '#64748B', fontStyle: 'italic' },
-  fallbackCard: { borderColor: '#F59E0B' },
-  button: { backgroundColor: '#3B82F6', padding: 12, borderRadius: 8, alignItems: 'center', marginTop: 10 },
-  buttonText: { color: 'white', fontWeight: '600' },
+  button: { backgroundColor: '#3B82F6', padding: 16, borderRadius: 12, alignItems: 'center', marginTop: 10 },
+  buttonText: { color: 'white', fontWeight: '700', fontSize: 16 },
   outlineButton: {
     borderWidth: 1,
     borderColor: '#3B82F6',

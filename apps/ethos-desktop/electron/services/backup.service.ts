@@ -1,4 +1,5 @@
 import { getDb } from '../db';
+import { getVaultKey } from '../security';
 import Database from 'better-sqlite3-multiple-ciphers';
 import { app } from 'electron';
 import path from 'node:path';
@@ -17,12 +18,12 @@ function escapeSqliteString(value: string) {
 
 export const backupService = {
   /**
-   * Cria um arquivo de backup criptografado (SQLCipher) em Documents.
+   * Cria um arquivo de backup criptografado (SQLCipher).
    * Retorna o caminho do arquivo criado (melhor do que "true").
    */
-  create: async (password: string): Promise<{ ok: true; backupPath: string }> => {
+  create: async (password: string, customPath?: string): Promise<{ ok: true; backupPath: string }> => {
     const db = getDb(); // DB original (aberto)
-    const backupPath = path.join(
+    const backupPath = customPath || path.join(
       app.getPath('documents'),
       `ethos_backup_${Date.now()}.db`
     );
