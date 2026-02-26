@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 
-const TEMP_TRANSCRIPTION_DIR = `${FileSystem.cacheDirectory}ethos-transcription-temp/`;
+const TEMP_TRANSCRIPTION_DIR = `${FileSystem.documentDirectory}ethos-transcription-temp/`;
 
 const sanitizedLogger = {
   info: (message) => {

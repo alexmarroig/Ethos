@@ -39,6 +39,13 @@ const runMigrations = async () => {
 export const initDb = async (encryptionKey) => {
   db = await SQLite.openDatabaseAsync('ethos.db');
   await db.execAsync(`PRAGMA key = '${encryptionKey}';`);
+
+  // Integrity check for Premium Clinical standard
+  const result = await db.getFirstAsync('PRAGMA integrity_check;');
+  if (result['integrity_check'] !== 'ok') {
+    throw new Error('Database integrity check failed.');
+  }
+
   await db.execAsync('PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;');
 
   await db.execAsync(`

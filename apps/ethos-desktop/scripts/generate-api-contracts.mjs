@@ -79,7 +79,7 @@ writeContract({
 });
 
 writeContract({
-  sourcePath: "apps/ethos-backend/openapi.yaml",
+  sourcePath: "apps/ethos-clinic/openapi.yaml",
   outputPath: "src/services/api/contracts/clinical.contract.ts",
   exportName: "clinicalContract",
 });
