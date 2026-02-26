@@ -1,6 +1,11 @@
 import * as Crypto from 'expo-crypto';
 import * as SecureStore from 'expo-secure-store';
 import CryptoJS from 'crypto-js';
+import { Platform } from 'react-native';
+import { mockCrypto, mockSecureStore } from './webMocks';
+
+const CryptoLib = Platform.OS === 'web' ? mockCrypto : Crypto;
+const SecureStoreLib = Platform.OS === 'web' ? mockSecureStore : SecureStore;
 
 const SALT_KEY = 'ethos_instance_salt';
 const ITERATIONS = 600000;
@@ -15,11 +20,11 @@ const deriveScopedKey = (masterKeyHex, scope) => {
 };
 
 export const getInstanceSalt = async () => {
-  let salt = await SecureStore.getItemAsync(SALT_KEY);
+  let salt = await SecureStoreLib.getItemAsync(SALT_KEY);
   if (!salt) {
-    const randomBytes = await Crypto.getRandomBytesAsync(16);
+    const randomBytes = await CryptoLib.getRandomBytesAsync(16);
     salt = CryptoJS.lib.WordArray.create(randomBytes).toString(CryptoJS.enc.Base64);
-    await SecureStore.setItemAsync(SALT_KEY, salt);
+    await SecureStoreLib.setItemAsync(SALT_KEY, salt);
   }
   return salt;
 };

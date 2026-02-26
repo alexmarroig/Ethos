@@ -1,19 +1,23 @@
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
+import { mockFileSystem } from './webMocks';
 import { vaultService } from './vault';
 import { purgeService } from './purge';
 import { getPersistedTranscriptionPolicyDecision } from './device';
 
-const TEMP_TRANSCRIPTION_DIR = `${FileSystem.documentDirectory}ethos-transcription-temp/`;
-const TECHNICAL_EVENT_PATH = `${FileSystem.documentDirectory}ethos-transcription-events.json`;
+const FileSystemLib = Platform.OS === 'web' ? mockFileSystem : FileSystem;
+
+const TEMP_TRANSCRIPTION_DIR = `${FileSystemLib.documentDirectory}ethos-transcription-temp/`;
+const TECHNICAL_EVENT_PATH = `${FileSystemLib.documentDirectory}ethos-transcription-events.json`;
 
 const MODEL_CHAIN = ['large-v3-turbo', 'small', 'base'];
 const MEMORY_ERROR_PATTERN = /(out\s*of\s*memory|oom|insufficient\s*memory|memory\s*limit)/i;
 const TIMEOUT_ERROR_PATTERN = /(timeout|timed\s*out|deadline\s*exceeded|etimedout)/i;
 
 const ensureTempDir = async () => {
-  const dirInfo = await FileSystem.getInfoAsync(TEMP_TRANSCRIPTION_DIR);
+  const dirInfo = await FileSystemLib.getInfoAsync(TEMP_TRANSCRIPTION_DIR);
   if (!dirInfo.exists) {
-    await FileSystem.makeDirectoryAsync(TEMP_TRANSCRIPTION_DIR, { recursive: true });
+    await FileSystemLib.makeDirectoryAsync(TEMP_TRANSCRIPTION_DIR, { recursive: true });
   }
 };
 
@@ -33,11 +37,11 @@ const sanitizeError = (error) => {
 };
 
 const readTechnicalEvents = async () => {
-  const info = await FileSystem.getInfoAsync(TECHNICAL_EVENT_PATH);
+  const info = await FileSystemLib.getInfoAsync(TECHNICAL_EVENT_PATH);
   if (!info.exists) return [];
 
   try {
-    const raw = await FileSystem.readAsStringAsync(TECHNICAL_EVENT_PATH);
+    const raw = await FileSystemLib.readAsStringAsync(TECHNICAL_EVENT_PATH);
     const parsed = JSON.parse(raw);
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -48,7 +52,7 @@ const readTechnicalEvents = async () => {
 const appendTechnicalEvent = async (event) => {
   const existing = await readTechnicalEvents();
   const updated = [...existing.slice(-29), event];
-  await FileSystem.writeAsStringAsync(TECHNICAL_EVENT_PATH, JSON.stringify(updated));
+  await FileSystemLib.writeAsStringAsync(TECHNICAL_EVENT_PATH, JSON.stringify(updated));
 };
 
 export const getLastTranscriptionTechnicalEvent = async () => {
@@ -151,7 +155,7 @@ export const transcriptionService = {
       throw lastError || new Error('Falha ao transcrever áudio após tentativas de fallback.');
     } finally {
       if (decryptedUri) {
-        await FileSystem.deleteAsync(decryptedUri, { idempotent: true });
+        await FileSystemLib.deleteAsync(decryptedUri, { idempotent: true });
       }
       await purgeService.purgeTempData();
     }

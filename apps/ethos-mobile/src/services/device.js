@@ -2,10 +2,15 @@ import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
 import DeviceInfo from 'react-native-device-info';
 import { Platform } from 'react-native';
+import { mockDevice, mockDeviceInfo, mockFileSystem } from './webMocks';
+
+const DeviceLib = Platform.OS === 'web' ? mockDevice : Device;
+const DeviceInfoLib = Platform.OS === 'web' ? mockDeviceInfo : DeviceInfo;
+const FileSystemLib = Platform.OS === 'web' ? mockFileSystem : FileSystem;
 import { Buffer } from 'buffer';
 
-const TRANSCRIPTION_POLICY_PATH = `${FileSystem.documentDirectory}ethos-transcription-policy.json`;
-const BENCHMARK_AUDIO_PATH = `${FileSystem.cacheDirectory}ethos-benchmark-short.wav`;
+const TRANSCRIPTION_POLICY_PATH = `${FileSystemLib.documentDirectory}ethos-transcription-policy.json`;
+const BENCHMARK_AUDIO_PATH = `${FileSystemLib.cacheDirectory}ethos-benchmark-short.wav`;
 const BENCHMARK_AUDIO_SECONDS = 1;
 
 const MODEL_BASE = 'base';
@@ -108,12 +113,12 @@ const createSilentWavBase64 = (durationSeconds = 1, sampleRate = 16000) => {
 };
 
 const ensureBenchmarkAudioFile = async () => {
-  const info = await FileSystem.getInfoAsync(BENCHMARK_AUDIO_PATH);
+  const info = await FileSystemLib.getInfoAsync(BENCHMARK_AUDIO_PATH);
   if (info.exists) return BENCHMARK_AUDIO_PATH;
 
   const wavBase64 = createSilentWavBase64(BENCHMARK_AUDIO_SECONDS);
-  await FileSystem.writeAsStringAsync(BENCHMARK_AUDIO_PATH, wavBase64, {
-    encoding: FileSystem.EncodingType.Base64,
+  await FileSystemLib.writeAsStringAsync(BENCHMARK_AUDIO_PATH, wavBase64, {
+    encoding: FileSystemLib.EncodingType.Base64,
   });
 
   return BENCHMARK_AUDIO_PATH;
@@ -183,16 +188,16 @@ export const persistTranscriptionPolicyDecision = async ({ mode, modelId, rtf, l
     timestamp: new Date().toISOString(),
   };
 
-  await FileSystem.writeAsStringAsync(TRANSCRIPTION_POLICY_PATH, JSON.stringify(payload));
+  await FileSystemLib.writeAsStringAsync(TRANSCRIPTION_POLICY_PATH, JSON.stringify(payload));
   return payload;
 };
 
 export const getPersistedTranscriptionPolicyDecision = async () => {
-  const info = await FileSystem.getInfoAsync(TRANSCRIPTION_POLICY_PATH);
+  const info = await FileSystemLib.getInfoAsync(TRANSCRIPTION_POLICY_PATH);
   if (!info.exists) return null;
 
   try {
-    const raw = await FileSystem.readAsStringAsync(TRANSCRIPTION_POLICY_PATH);
+    const raw = await FileSystemLib.readAsStringAsync(TRANSCRIPTION_POLICY_PATH);
     return JSON.parse(raw);
   } catch {
     return null;
@@ -203,8 +208,26 @@ export const getDeviceCapabilityScore = async ({
   selectionMode = 'Auto',
   transcribeBenchmark,
 } = {}) => {
-  const ramTotal = await DeviceInfo.getTotalMemory();
-  const freeDisk = await FileSystem.getFreeDiskStorageAsync();
+  if (Platform.OS === 'web') {
+    return {
+      score: 90,
+      ramGB: '8.00',
+      diskGB: '100.00',
+      benchmarkLoops: 500,
+      benchmarkScore: 100,
+      isDiskOk: true,
+      recommendedModel: 'large-v3-turbo',
+      selectionMode,
+      benchmarkLatencyMs: 1200,
+      benchmarkRtf: 0.5,
+      benchmarkStatus: 'ok',
+      persistedDecision: { mode: selectionMode, model_id: 'large-v3-turbo' },
+      deviceModel: 'Web Browser',
+      year: 2024,
+    };
+  }
+  const ramTotal = await DeviceInfoLib.getTotalMemory();
+  const freeDisk = await FileSystemLib.getFreeDiskStorageAsync();
 
   const ramGB = ramTotal / (1024 * 1024 * 1024);
   const diskGB = freeDisk / (1024 * 1024 * 1024);

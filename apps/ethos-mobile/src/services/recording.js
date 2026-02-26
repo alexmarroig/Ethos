@@ -1,5 +1,9 @@
 import { Audio } from 'expo-av';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
+import { mockAudio } from './webMocks';
+
+const AudioLib = Platform.OS === 'web' ? mockAudio : Audio;
 
 let recordingInstance = null;
 let statusUpdateInterval = null;
@@ -8,11 +12,11 @@ export const recordingService = {
   startRecording: async (onStatusUpdate) => {
     try {
       // 1. Request permissions
-      const { status } = await Audio.requestPermissionsAsync();
+      const { status } = await AudioLib.requestPermissionsAsync();
       if (status !== 'granted') throw new Error('Permissão de microfone negada.');
 
       // 2. Configure Audio Session for resilience
-      await Audio.setAudioModeAsync({
+      await AudioLib.setAudioModeAsync({
         allowsRecordingIOS: true,
         playsInSilentModeIOS: true,
         staysActiveInBackground: true,
@@ -21,8 +25,8 @@ export const recordingService = {
       });
 
       // 3. Start Recording
-      const { recording } = await Audio.Recording.createAsync(
-        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      const { recording } = await AudioLib.Recording.createAsync(
+        AudioLib.RecordingOptionsPresets?.HIGH_QUALITY || {}
       );
       recordingInstance = recording;
 
