@@ -1,4 +1,6 @@
 import * as SQLite from 'expo-sqlite';
+import { Platform } from 'react-native';
+import { mockDb } from './webMocks';
 
 let db;
 
@@ -37,6 +39,11 @@ const runMigrations = async () => {
 };
 
 export const initDb = async (encryptionKey) => {
+  if (Platform.OS === 'web') {
+    db = mockDb;
+    // Don't run migrations on mock db if it causes issues
+    return db;
+  }
   db = await SQLite.openDatabaseAsync('ethos.db');
   await db.execAsync(`PRAGMA key = '${encryptionKey}';`);
 

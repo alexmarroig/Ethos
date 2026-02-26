@@ -1,9 +1,14 @@
 import { Buffer } from 'buffer';
 import AesGcmCrypto from 'react-native-aes-gcm-crypto';
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
+import { mockAesGcm, mockFileSystem } from './webMocks';
 import { getSessionKeys } from './security';
 
-const VAULT_DIR = `${FileSystem.documentDirectory}vault/`;
+const AesLib = Platform.OS === 'web' ? mockAesGcm : AesGcmCrypto;
+const FileSystemLib = Platform.OS === 'web' ? mockFileSystem : FileSystem;
+
+const VAULT_DIR = `${FileSystemLib.documentDirectory}vault/`;
 
 export const vaultService = {
   /**
@@ -12,12 +17,12 @@ export const vaultService = {
    */
   encryptFile: async (sourceUri, sessionId) => {
     const keys = getSessionKeys();
-    if (!keys) throw new Error('App Locked: Chaves não disponíveis.');
+    if (!keys && Platform.OS !== 'web') throw new Error('App Locked: Chaves não disponíveis.');
 
     // Ensure vault exists
-    const dirInfo = await FileSystem.getInfoAsync(VAULT_DIR);
+    const dirInfo = await FileSystemLib.getInfoAsync(VAULT_DIR);
     if (!dirInfo.exists) {
-      await FileSystem.makeDirectoryAsync(VAULT_DIR, { recursive: true });
+      await FileSystemLib.makeDirectoryAsync(VAULT_DIR, { recursive: true });
     }
 
     const targetUri = `${VAULT_DIR}${sessionId}.ethos`;
@@ -27,15 +32,15 @@ export const vaultService = {
     // Setup Cipher (AES-256-GCM)
     // react-native-aes-gcm-crypto handles IV and Tag internally or via params
     // Using encryptFile for better performance/memory
-    await AesGcmCrypto.encryptFile(
+    await AesLib.encryptFile(
       sourcePath,
       targetPath,
-      keys.vaultKey,
+      keys?.vaultKey || 'mock-key',
       null // Auto-generate IV
     );
 
     // Aggressive cleaning: Delete unencrypted source
-    await FileSystem.deleteAsync(sourceUri, { idempotent: true });
+    await FileSystemLib.deleteAsync(sourceUri, { idempotent: true });
 
     return targetUri;
   },
@@ -45,16 +50,16 @@ export const vaultService = {
    */
   decryptFile: async (encryptedUri) => {
     const keys = getSessionKeys();
-    if (!keys) throw new Error('App Locked');
+    if (!keys && Platform.OS !== 'web') throw new Error('App Locked');
 
-    const tempUri = `${FileSystem.cacheDirectory}decrypted_session.wav`;
+    const tempUri = `${FileSystemLib.cacheDirectory}decrypted_session.wav`;
     const sourcePath = encryptedUri.replace('file://', '');
     const targetPath = tempUri.replace('file://', '');
 
-    await AesGcmCrypto.decryptFile(
+    await AesLib.decryptFile(
       sourcePath,
       targetPath,
-      keys.vaultKey
+      keys?.vaultKey || 'mock-key'
     );
 
     return tempUri;

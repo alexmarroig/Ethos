@@ -76,11 +76,12 @@ export default function App() {
     await loadCapability(mode);
   };
 
-  const handleLogin = async () => {
-    if (!password) return;
+  const handleLogin = async (bypassPassword = null) => {
+    const passToUse = bypassPassword || password;
+    if (!passToUse) return;
     setLoading(true);
     try {
-      const keys = await deriveKeys(password);
+      const keys = await deriveKeys(passToUse);
       await initDb(keys.dbKey);
       setSessionKeys(keys);
       setIsLoggedIn(true);
@@ -113,8 +114,16 @@ export default function App() {
           onChangeText={setPassword}
           autoFocus
         />
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+        <TouchableOpacity style={styles.button} onPress={() => handleLogin()} disabled={loading}>
           <Text style={styles.buttonText}>{loading ? 'Derivando chaves...' : 'Entrar'}</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.outlineButton, { marginTop: 40, borderColor: '#10B981' }]}
+          onPress={() => handleLogin('demo123')}
+          disabled={loading}
+        >
+          <Text style={[styles.outlineButtonText, { color: '#10B981' }]}>Acesso Demonstração (Pular Senha)</Text>
         </TouchableOpacity>
       </View>
     );
