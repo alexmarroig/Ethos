@@ -47,22 +47,25 @@ declare global {
 // -----------------------------
 // Styles (base)
 // -----------------------------
+/* Mobile-first: padding e toque adequados em telas pequenas */
 const sectionStyle: React.CSSProperties = {
-  borderRadius: 16,
-  padding: 20,
+  borderRadius: 12,
+  padding: 16,
   background: "#111827",
   color: "#F9FAFB",
-  marginBottom: 16,
+  marginBottom: 12,
 };
 
 const buttonStyle: React.CSSProperties = {
-  padding: "10px 16px",
+  padding: "12px 20px",
+  minHeight: 44,
   borderRadius: 12,
   border: "1px solid #334155",
   background: "#2563EB",
   color: "#FFFFFF",
   fontWeight: 700,
   cursor: "pointer",
+  fontSize: 15,
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
@@ -71,22 +74,26 @@ const secondaryButtonStyle: React.CSSProperties = {
 };
 
 const outlineButtonStyle: React.CSSProperties = {
-  padding: "8px 12px",
+  padding: "12px 16px",
+  minHeight: 44,
   borderRadius: 12,
   border: "1px solid #334155",
   background: "transparent",
   color: "#E2E8F0",
   fontWeight: 700,
   cursor: "pointer",
+  fontSize: 14,
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "10px 12px",
+  padding: "12px 14px",
   borderRadius: 12,
   border: "1px solid #334155",
   background: "#0B1220",
   color: "#E2E8F0",
   outline: "none",
+  fontSize: 16,
+  minHeight: 44,
 };
 
 const subtleText: React.CSSProperties = {
@@ -116,104 +123,144 @@ const safeLocalStorageSet = (k: string, v: string) => {
 };
 
 // -----------------------------
-// Clinical Shell CSS (PWA-like)
+// Clinical Shell CSS — Mobile-first (base = mobile; min-width = desktop)
 // -----------------------------
 const clinicalShellStyles = `
-.pwa-app{
-  min-height: calc(100vh - 24px);
-  border-radius: 20px;
-  border: 1px solid #1E293B;
+.pwa-app {
+  min-height: 100vh;
+  min-height: 100dvh;
+  border-radius: 0;
+  border: none;
   background: radial-gradient(1200px 600px at 10% 0%, rgba(59,130,246,0.20), transparent 60%),
               radial-gradient(800px 400px at 90% 10%, rgba(16,185,129,0.14), transparent 60%),
               #0B1220;
-  padding: 18px;
+  padding: 12px;
+  padding-bottom: calc(12px + env(safe-area-inset-bottom));
 }
-.pwa-header{
-  display:flex; justify-content:space-between; align-items:flex-start;
-  gap: 16px;
-  padding: 10px 10px 16px 10px;
+.pwa-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 8px 0 12px;
   border-bottom: 1px solid #1E293B;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
-.pwa-header h2{ margin: 0; font-size: 18px; }
-.pwa-header p{ margin: 6px 0 0 0; color:#94A3B8; font-size: 12px;}
-.status-pill{
-  font-size: 12px;
+.pwa-header h2 { margin: 0; font-size: 1.25rem; }
+.pwa-header p { margin: 4px 0 0 0; color: #94A3B8; font-size: 0.8125rem; }
+.status-pill {
+  font-size: 0.75rem;
   border: 1px solid #334155;
   padding: 8px 12px;
   border-radius: 999px;
-  color:#E2E8F0;
+  color: #E2E8F0;
   background: rgba(30,41,59,0.55);
+  align-self: flex-start;
 }
-.shell{
-  display:grid;
-  grid-template-columns: 240px 1fr;
-  gap: 14px;
-  min-height: 60vh;
+/* Mobile: uma coluna; sidebar escondido */
+.shell {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  min-height: 50vh;
+  padding-bottom: 8px;
 }
-.nav{
+.nav {
+  display: none;
   border: 1px solid #1E293B;
   border-radius: 16px;
   padding: 10px;
   background: rgba(2,6,23,0.55);
 }
-.nav button{
-  width:100%;
-  text-align:left;
-  padding: 10px 10px;
+.nav button {
+  width: 100%;
+  text-align: left;
+  padding: 12px 14px;
+  min-height: 44px;
   border-radius: 12px;
   border: 1px solid transparent;
   background: transparent;
-  color:#E2E8F0;
-  cursor:pointer;
-  display:flex;
-  flex-direction:column;
-  gap: 4px;
-  margin-bottom: 8px;
+  color: #E2E8F0;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 6px;
+  font-size: 15px;
 }
-.nav button span{ font-size: 11px; color:#94A3B8;}
-.nav button.active{
+.nav button span { font-size: 11px; color: #94A3B8; }
+.nav button.active {
   background: rgba(37,99,235,0.14);
   border-color: rgba(37,99,235,0.45);
 }
-.content{
+.content {
   border: 1px solid #1E293B;
-  border-radius: 16px;
+  border-radius: 12px;
   background: rgba(2,6,23,0.55);
-  padding: 10px;
+  padding: 12px;
+  overflow-x: hidden;
 }
-.panel{ display:none; }
-.panel.active{ display:block; }
-
-.grid{ display:grid; gap: 12px; }
-@media (max-width: 980px){
-  .shell{ grid-template-columns: 1fr; }
-  .nav{ display:none; }
-}
-.bottom-nav{
+.panel { display: none; }
+.panel.active { display: block; }
+.grid { display: grid; gap: 12px; }
+/* Bottom nav: sempre visível no mobile, touch-friendly */
+.bottom-nav {
   position: sticky;
   bottom: 0;
-  margin-top: 12px;
-  display:flex;
-  gap: 8px;
-  padding: 10px;
-  border-radius: 16px;
+  left: 0;
+  right: 0;
+  margin: 12px -12px 0;
+  padding: 10px 12px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  border-radius: 16px 16px 0 0;
   border: 1px solid #1E293B;
-  background: rgba(2,6,23,0.75);
+  border-bottom: none;
+  background: rgba(2,6,23,0.92);
+  backdrop-filter: blur(8px);
+  -webkit-overflow-scrolling: touch;
 }
-.bottom-nav button{
-  flex:1;
-  padding: 10px 8px;
+.bottom-nav button {
+  flex: 1 1 calc(33.333% - 6px);
+  min-width: 0;
+  min-height: 44px;
+  padding: 10px 6px;
   border-radius: 12px;
   border: 1px solid #334155;
   background: transparent;
-  color:#E2E8F0;
+  color: #E2E8F0;
   cursor: pointer;
-  font-size: 12px;
+  font-size: 0.75rem;
+  font-weight: 600;
 }
-.bottom-nav button.active{
+.bottom-nav button.active {
   background: rgba(37,99,235,0.18);
   border-color: rgba(37,99,235,0.55);
+}
+/* Desktop: sidebar + conteúdo; header em linha */
+@media (min-width: 768px) {
+  .pwa-app { border-radius: 20px; padding: 18px; margin: 0 auto; max-width: 1400px; }
+  .pwa-header {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: flex-start;
+    padding: 10px 10px 16px;
+  }
+  .status-pill { align-self: center; }
+  .bottom-nav {
+    margin: 12px 0 0;
+    padding: 10px;
+    border-radius: 16px;
+    border: 1px solid #1E293B;
+    flex-wrap: nowrap;
+  }
+  .bottom-nav button { flex: 1; font-size: 12px; }
+}
+@media (min-width: 980px) {
+  .shell { grid-template-columns: 240px 1fr; gap: 14px; min-height: 60vh; }
+  .nav { display: block; }
+  .content { padding: 14px; }
 }
 `;
 
@@ -679,10 +726,21 @@ export const App = () => {
   // =========================
   if (showSplash) {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0B1220", color: "#E2E8F0" }}>
-        <div style={{ textAlign: "center", maxWidth: 520, padding: 20 }}>
-          <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 2 }}>ETHOS</div>
-          <p style={{ ...subtleText, marginTop: 10 }}>Plataforma clínica offline-first · Inicializando módulos…</p>
+      <div
+        style={{
+          minHeight: "100vh",
+          minHeight: "100dvh",
+          display: "grid",
+          placeItems: "center",
+          background: "#0B1220",
+          color: "#E2E8F0",
+          padding: 20,
+          boxSizing: "border-box",
+        }}
+      >
+        <div style={{ textAlign: "center", maxWidth: 520, width: "100%" }}>
+          <div style={{ fontSize: "clamp(1.75rem, 8vw, 2.65rem)", fontWeight: 900, letterSpacing: 2 }}>ETHOS</div>
+          <p style={{ ...subtleText, marginTop: 10, fontSize: 14 }}>Plataforma clínica offline-first · Inicializando…</p>
           <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "center" }}>
             <div style={{ width: 10, height: 10, borderRadius: 99, background: "#2563EB" }} />
             <div style={{ width: 10, height: 10, borderRadius: 99, background: "#334155" }} />
@@ -694,42 +752,57 @@ export const App = () => {
   }
 
   return (
-    <div style={{ padding: 12, background: "#0B1220", minHeight: "100vh", color: "#E2E8F0" }}>
-      {/* Top Bar */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
-        <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
-          <h1 style={{ margin: 0, fontSize: 22, letterSpacing: 1 }}>ETHOS</h1>
-          <span style={{ ...subtleText, fontSize: 12 }}>Desktop · Offline-first</span>
-        </div>
-
-        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-          <button
-            type="button"
-            style={{ ...outlineButtonStyle, borderColor: tab === "clinical" ? "#2563EB" : "#334155" }}
-            onClick={() => setTab("clinical")}
-          >
-            Clínica
-          </button>
-          <button
-            type="button"
-            style={{ ...outlineButtonStyle, borderColor: tab === "admin" ? "#2563EB" : "#334155" }}
-            onClick={() => setTab("admin")}
-          >
-            Admin
-          </button>
-
-          <div style={{ width: 1, height: 24, background: "#1E293B" }} />
-
-          {user ? (
-            <>
-              <span style={{ fontSize: 12, color: "#A7F3D0" }}>Logado</span>
-              <button type="button" style={secondaryButtonStyle} onClick={handleLogout}>
-                Sair
-              </button>
-            </>
-          ) : (
-            <span style={{ fontSize: 12, color: "#FBBF24" }}>Não logado</span>
-          )}
+    <div
+      style={{
+        padding: "12px max(12px, env(safe-area-inset-right)) 12px max(12px, env(safe-area-inset-left))",
+        paddingTop: "max(12px, env(safe-area-inset-top))",
+        background: "#0B1220",
+        minHeight: "100vh",
+        minHeight: "100dvh",
+        color: "#E2E8F0",
+      }}
+    >
+      {/* Top Bar — mobile-first: empilha em telas pequenas */}
+      <div
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 10,
+          marginBottom: 12,
+        }}
+      >
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "baseline", minWidth: 0 }}>
+            <h1 style={{ margin: 0, fontSize: "1.35rem", letterSpacing: 1 }}>ETHOS</h1>
+            <span style={{ ...subtleText, fontSize: "0.7rem" }}>Offline-first</span>
+          </div>
+          <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+            <button
+              type="button"
+              style={{ ...outlineButtonStyle, padding: "10px 14px", minHeight: 40, borderColor: tab === "clinical" ? "#2563EB" : "#334155" }}
+              onClick={() => setTab("clinical")}
+            >
+              Clínica
+            </button>
+            <button
+              type="button"
+              style={{ ...outlineButtonStyle, padding: "10px 14px", minHeight: 40, borderColor: tab === "admin" ? "#2563EB" : "#334155" }}
+              onClick={() => setTab("admin")}
+            >
+              Admin
+            </button>
+            <span style={{ width: 1, height: 20, background: "#1E293B", flexShrink: 0 }} />
+            {user ? (
+              <>
+                <span style={{ fontSize: "0.7rem", color: "#A7F3D0" }}>Logado</span>
+                <button type="button" style={{ ...secondaryButtonStyle, padding: "10px 14px", minHeight: 40 }} onClick={handleLogout}>
+                  Sair
+                </button>
+              </>
+            ) : (
+              <span style={{ fontSize: "0.7rem", color: "#FBBF24" }}>Não logado</span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -739,7 +812,7 @@ export const App = () => {
           <h2 style={{ marginTop: 0 }}>Login</h2>
           <p style={subtleText}>Autenticação local (placeholder). No Electron, isso pode virar PIN + biometria.</p>
 
-          <form onSubmit={handleLogin} style={{ display: "grid", gap: 12, maxWidth: 520 }}>
+          <form onSubmit={handleLogin} style={{ display: "grid", gap: 12, maxWidth: 520, width: "100%" }}>
             <input
               style={inputStyle}
               placeholder="Email"
@@ -770,7 +843,14 @@ export const App = () => {
       ) : null}
 
       {/* Consent Modal */}
-      {showConsentModal ? <RecordingConsentModal onCancel={handleConsentCancel} onConfirm={handleConsentConfirm} /> : null}
+      {showConsentModal ? (
+        <RecordingConsentModal
+          checked={consentForNote}
+          onCheck={setConsentForNote}
+          onCancel={handleConsentCancel}
+          onConfirm={handleConsentConfirm}
+        />
+      ) : null}
 
       {showEthicsModal ? <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} /> : null}
 
@@ -1296,15 +1376,15 @@ export const App = () => {
           ADMIN TAB
       -------------------------- */}
       {tab === "admin" ? (
-        <section style={sectionStyle}>
+        <section style={{ ...sectionStyle, width: "100%", maxWidth: "100%", boxSizing: "border-box" }}>
           <h2>Admin — Control Plane</h2>
           <p style={{ ...subtleText, marginBottom: 12 }}>
-            Painel restrito à role=admin. Exibe apenas métricas agregadas e usuários sanitizados (sem conteúdo clínico).
+            Painel restrito à role=admin. Métricas agregadas e usuários (sem conteúdo clínico).
           </p>
 
-          <form onSubmit={handleAdminLogin} style={{ display: "grid", gap: 12, marginBottom: 16 }}>
+          <form onSubmit={handleAdminLogin} style={{ display: "grid", gap: 12, marginBottom: 16, width: "100%" }}>
             <div style={{ display: "grid", gap: 8 }}>
-              <label style={{ color: "#E2E8F0" }}>URL do control plane</label>
+              <label style={{ color: "#E2E8F0", fontSize: 14 }}>URL do control plane</label>
               <input value={adminBaseUrl} onChange={(event) => setAdminBaseUrl(event.target.value)} style={inputStyle} />
             </div>
 
@@ -1391,9 +1471,9 @@ function PatientDiariesView({ patientId, templates }: { patientId: string; templ
 
   return (
     <div style={{ display: "grid", gap: 16 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "stretch" }}>
         <h3 style={{ margin: 0 }}>Histórico de Respostas</h3>
-        <div style={{ display: "flex", gap: 12 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
           {templates.map((t) => (
             <button
               key={t.id}

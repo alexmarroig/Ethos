@@ -2,8 +2,36 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Mobile-first: base = telas pequenas; breakpoints para desktop */
 @layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    min-height: 100dvh;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+    touch-action: manipulation;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: 16px; /* Evita zoom no iOS ao focar */
+  }
+}
+
+/* Admin: cards em 2 colunas em telas maiores */
+.admin-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+@media (min-width: 480px) {
+  .admin-stats {
+    grid-template-columns: repeat(2, 1fr);
   }
 }
