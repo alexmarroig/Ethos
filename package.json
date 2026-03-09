@@ -1,0 +1,39 @@
+{
+  "name": "ethos",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*",
+    "Frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev:frontend",
+    "dev:frontend": "npm --workspace Frontend run dev",
+    "dev:web": "npm run dev:frontend",
+    "install:all": "npm install",
+    "dev:desktop": "npm --workspace apps/ethos-desktop run dev",
+    "dev:electron": "npm --workspace apps/ethos-desktop run electron:dev",
+    "dev:mobile": "npm --workspace apps/ethos-mobile run start",
+    "dev:backend": "npm run dev:clinic",
+    "dev:control-plane": "npm --workspace apps/ethos-control-plane run dev",
+    "dev:transcriber": "npm --workspace apps/ethos-transcriber run dev",
+    "build": "npm run build:packages && npm run build:apps",
+    "build:packages": "npm --workspace packages/shared run build && npm --workspace packages/ethos-sdk run build",
+    "build:apps": "npm --workspace Frontend run build && npm --workspace apps/ethos-clinic run build && npm --workspace apps/ethos-control-plane run build && npm --workspace apps/ethos-transcriber run build && npm --workspace apps/ethos-desktop run build",
+    "build:frontend": "npm --workspace Frontend run build",
+    "build:desktop": "npm --workspace apps/ethos-desktop run build",
+    "build:transcriber": "npm --workspace apps/ethos-transcriber run build",
+    "build:backend": "npm run build:clinic",
+    "build:control-plane": "npm --workspace apps/ethos-control-plane run build",
+    "test": "npm run test:apps",
+    "test:apps": "npm --workspace apps/ethos-clinic run test && npm --workspace apps/ethos-control-plane run test",
+    "lint": "echo \"lint placeholder\"",
+    "dev:clinic": "npm --workspace apps/ethos-clinic run dev",
+    "build:clinic": "npm --workspace apps/ethos-clinic run build",
+    "ci:check-boundaries": "bash scripts/check-boundaries.sh"
+  },
+  "devDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
+    "typescript": "^5.3.3"
+  }
+}

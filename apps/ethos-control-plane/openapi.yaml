@@ -1,0 +1,206 @@
+openapi: 3.0.3
+info:
+  title: ETHOS Control Plane API
+  version: 1.1.0
+servers:
+  - url: http://localhost:8788
+security:
+  - bearerAuth: []
+paths:
+  /health:
+    get:
+      summary: Health check público
+      security: []
+      responses:
+        "200":
+          description: Serviço saudável
+  /v1/auth/login:
+    post:
+      summary: Autenticar usuário com e-mail e senha
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Sessão autenticada com sucesso
+        "401":
+          description: Credenciais inválidas
+  /v1/auth/accept-invite:
+    post:
+      summary: Aceitar convite e criar conta de usuário
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Conta criada a partir do convite
+        "400":
+          description: Convite inválido ou expirado
+  /v1/webhooks/stripe:
+    post:
+      summary: Receber webhook da Stripe
+      security: []
+      parameters:
+        - in: header
+          name: stripe-signature
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "202":
+          description: Evento recebido
+        "401":
+          description: Assinatura Stripe ausente
+
+  /v1/auth/invite:
+    post:
+      summary: Criar convite de acesso (admin autenticado)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "201":
+          description: Convite criado com sucesso
+        "403":
+          description: Acesso negado para não-admin
+  /v1/me:
+    get:
+      summary: Obter dados básicos do usuário autenticado
+      responses:
+        "200":
+          description: Dados do usuário atual
+    patch:
+      summary: Atualizar nome do usuário autenticado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Usuário atualizado
+
+  /v1/billing/checkout-session:
+    post:
+      summary: Gerar URL de checkout de assinatura
+      responses:
+        "200":
+          description: URL de checkout gerada
+  /v1/billing/subscription:
+    get:
+      summary: Consultar status da assinatura atual
+      responses:
+        "200":
+          description: Status da assinatura
+  /v1/billing/portal-session:
+    post:
+      summary: Gerar URL do portal de cobrança
+      responses:
+        "200":
+          description: URL do portal gerada
+
+  /v1/entitlements:
+    get:
+      summary: Obter snapshot de entitlements do usuário
+      responses:
+        "200":
+          description: Entitlements retornados
+
+  /v1/telemetry:
+    post:
+      summary: Ingerir evento de telemetria sanitizado
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "202":
+          description: Evento aceito
+        "422":
+          description: Payload contém chave proibida
+
+  /v1/admin/users:
+    get:
+      summary: Listar usuários (admin autenticado)
+      responses:
+        "200":
+          description: Lista sanitizada de usuários
+        "403":
+          description: Acesso negado para não-admin
+  /v1/admin/users/{id}:
+    patch:
+      summary: Atualizar status de usuário por ID (admin autenticado)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "200":
+          description: Usuário atualizado
+        "404":
+          description: Usuário não encontrado
+  /v1/admin/metrics/overview:
+    get:
+      summary: Consultar métricas gerais (admin autenticado)
+      responses:
+        "200":
+          description: Totais gerais do sistema
+  /v1/admin/metrics/user-usage:
+    get:
+      summary: Consultar uso por usuário (admin autenticado)
+      parameters:
+        - in: query
+          name: user_id
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quantidade de eventos por usuário
+  /v1/admin/metrics/errors:
+    get:
+      summary: Consultar total de erros (admin autenticado)
+      responses:
+        "200":
+          description: Total de eventos de erro
+  /v1/admin/audit:
+    get:
+      summary: Listar trilha de auditoria (admin autenticado)
+      responses:
+        "200":
+          description: Eventos de auditoria
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: token

@@ -1,0 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Lora:ital,wght@0,400;0,500;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 40 25% 97%;
+    --foreground: 220 15% 18%;
+    --card: 40 20% 99%;
+    --card-foreground: 220 15% 18%;
+    --primary: 195 45% 25%;
+    --primary-foreground: 40 30% 96%;
+    --secondary: 40 12% 92%;
+    --secondary-foreground: 220 15% 25%;
+    --muted: 40 15% 94%;
+    --muted-foreground: 220 10% 45%;
+    --accent: 35 55% 52%;
+    --status-pending: 45 85% 55%;
+    --status-validated: 155 45% 42%;
+    --status-draft: 35 60% 55%;
+    --destructive: 0 55% 48%;
+    --destructive-foreground: 40 30% 96%;
+    --border: 40 15% 88%;
+    --input: 40 15% 88%;
+    --ring: 195 45% 35%;
+    --radius: 0.875rem;
+  }
+  
+  .dark {
+    --background: 220 15% 10%;
+    --foreground: 40 25% 97%;
+    --card: 220 15% 14%;
+    --card-foreground: 40 25% 97%;
+    --primary: 195 45% 25%;
+    --primary-foreground: 40 30% 96%;
+    --secondary: 220 15% 18%;
+    --secondary-foreground: 40 12% 92%;
+    --muted: 220 15% 18%;
+    --muted-foreground: 220 10% 65%;
+    --accent: 35 55% 52%;
+    --status-pending: 45 85% 45%;
+    --status-validated: 155 45% 35%;
+    --status-draft: 35 60% 45%;
+    --destructive: 0 55% 38%;
+    --destructive-foreground: 40 30% 96%;
+    --border: 220 15% 22%;
+    --input: 220 15% 22%;
+    --ring: 195 45% 55%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: 'Lora', serif;
+  }
+}

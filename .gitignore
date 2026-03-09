@@ -1,0 +1,13 @@
+dist
+out
+build
+.DS_Store
+.env
+vault
+models
+bin
+temp
+node_modules/
+coverage/
+dist/
+*.log

@@ -1,0 +1,44 @@
+name: PR Checklist Gate
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    branches: [main]
+
+jobs:
+  validate-checklist:
+    name: Validar checklist obrigatório (control/clinical/mobile)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Validar body da PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.pull_request?.body || "";
+
+            const requiredCheckedItems = [
+              "[x] Contratos de API revisados e compatíveis",
+              "[x] Migrações/versionamento de schema validados",
+              "[x] Observabilidade/monitoramento atualizados para mudança",
+              "[x] Regras clínicas revisadas (sigilo, isolamento de dados, consentimento)",
+              "[x] Fluxos de prontuário/exportação sem regressão",
+              "[x] Logs e telemetria sem conteúdo sensível",
+              "[x] Compatibilidade de payload com app mobile validada",
+              "[x] Flags/entitlements sincronizados com consumo mobile",
+              "[x] Smoke de autenticação mobile concluído"
+            ];
+
+            const missing = requiredCheckedItems.filter((item) => !body.includes(item));
+
+            if (missing.length > 0) {
+              core.setFailed(
+                [
+                  "Checklist obrigatório incompleto para merge em main.",
+                  "Marque todos os itens de control, clinical e mobile.",
+                  "Pendências:",
+                  ...missing.map((item) => `- ${item.replace('[x] ', '')}`)
+                ].join("\n")
+              );
+            } else {
+              core.info("Checklist obrigatório validado com sucesso.");
+            }
