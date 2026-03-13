@@ -26,7 +26,7 @@
     "build:backend": "npm run build:clinic",
     "build:control-plane": "npm --workspace apps/ethos-control-plane run build",
     "test": "npm run test:apps",
-    "test:apps": "npm --workspace apps/ethos-clinic run test && npm --workspace apps/ethos-control-plane run test",
+    "test:apps": "npm --workspace ethos-clinic run test && npm --workspace ethos-control-plane run test",
     "lint": "echo \"lint placeholder\"",
     "dev:clinic": "npm --workspace apps/ethos-clinic run dev",
     "build:clinic": "npm --workspace apps/ethos-clinic run build",
