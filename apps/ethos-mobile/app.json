@@ -32,8 +32,10 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
     },
+    "platforms": ["ios", "android"],
     "plugins": [
       "expo-dev-client",
       [
