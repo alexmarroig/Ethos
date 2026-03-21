@@ -100,14 +100,31 @@ async function readJson(response: Response): Promise<unknown | null> {
   }
 }
 
+function matchContractPath(
+  contract: Record<string, readonly string[]>,
+  path: string,
+): readonly string[] | undefined {
+  // Direct match
+  if (contract[path]) return contract[path];
+
+  // Pattern match: treat {param} segments as wildcards
+  for (const [pattern, methods] of Object.entries(contract)) {
+    const regex = new RegExp(
+      '^' + pattern.replace(/\{[^}]+\}/g, '[^/]+') + '$'
+    );
+    if (regex.test(path)) return methods;
+  }
+  return undefined;
+}
+
 function assertPathAndMethod(
   clientName: string,
   contract: Record<string, readonly string[]>,
   path: string,
   method: HttpMethod,
 ): void {
-  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
-  const methods = contract[normalizedPath];
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  const methods = matchContractPath(contract, normalizedPath);
 
   if (!methods) {
     throw new ApiError(`[${clientName}] Endpoint fora do contrato: ${normalizedPath}`);

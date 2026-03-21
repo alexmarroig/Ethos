@@ -23,7 +23,7 @@ export const setSessionToken = (token: string | null) => {
 const apiClient = createHttpClient({
     name: 'MobileClinicalAPI',
     baseUrl: API_BASE_URL,
-    contract: sessionContract as any, // Bypass strict string literal checking for dynamic {id} paths for now
+    contract: sessionContract,
     getAuthToken: () => currentToken,
     offline: {
         enabled: true,
