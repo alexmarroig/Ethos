@@ -33,7 +33,6 @@
     "ci:check-boundaries": "bash scripts/check-boundaries.sh"
   },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "typescript": "^5.3.3"
   }
 }
