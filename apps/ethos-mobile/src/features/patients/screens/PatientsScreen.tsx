@@ -1,34 +1,20 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, Platform } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
+import { usePatients } from '../../../shared/hooks/usePatients';
 import { Search, UserPlus, FileText, ChevronRight, Filter, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 const primaryTeal = '#234e5c';
 const accentTeal = '#439299';
 
-interface Patient {
-    id: string;
-    name: string;
-    lastSession: string;
-    status: 'active' | 'inactive';
-}
-
-const dummyPatients: Patient[] = [
-    { id: '1', name: 'Alana Gomes', lastSession: 'Há 2 dias', status: 'active' },
-    { id: '2', name: 'Carlos Mendes', lastSession: 'Semana passada', status: 'active' },
-    { id: '3', name: 'João Silva', lastSession: 'Hoje', status: 'active' },
-    { id: '4', name: 'Maria Antônia', lastSession: 'Hoje', status: 'active' },
-    { id: '5', name: 'Paulo Souza', lastSession: 'Há 1 mês', status: 'inactive' },
-    { id: '6', name: 'Roberta Lima', lastSession: 'Ontem', status: 'active' },
-];
-
 export default function PatientsScreen() {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
+    const { patients, isLoading, error } = usePatients();
     const [searchQuery, setSearchQuery] = useState('');
 
-    const filteredPatients = dummyPatients.filter(p =>
+    const filteredPatients = patients.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
     ).sort((a, b) => a.name.localeCompare(b.name));
 
