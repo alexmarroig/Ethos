@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Platform } from 'react-native';
 import { fetchSessions } from '../services/api/sessions';
-import type { Session as ApiSession } from '@ethos/shared';
+import type { Session as ApiSession } from '../types/shared';
 
 const DEMO_SESSIONS: Partial<ApiSession>[] = [
   { id: '1', patientId: 'Patient 1 (Demo)', scheduledAt: '14:00', status: 'pending' },

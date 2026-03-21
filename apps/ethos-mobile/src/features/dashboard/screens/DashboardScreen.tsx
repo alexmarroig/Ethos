@@ -8,7 +8,7 @@ import {
 import { SessionContextModal } from '../../../features/sessions/components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
 import { useDashboard } from '../../../shared/hooks/useDashboard';
-import type { Session as ApiSession } from '@ethos/shared';
+import type { Session as ApiSession } from '../../../shared/types/shared';
 import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
 import { AlertCard } from '../components/AlertCard';
 import { NextSessionCard } from '../components/NextSessionCard';

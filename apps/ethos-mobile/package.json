@@ -9,7 +9,6 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@ethos/shared": "*",
     "@expo-google-fonts/inter": "^0.2.3",
     "@expo-google-fonts/lora": "^0.2.3",
     "@expo/metro-runtime": "~3.1.3",

@@ -1,6 +1,6 @@
 // ethos-mobile/src/services/api/sessions.ts
 import { createHttpClient } from './httpClient';
-import type { Session, Patient } from '@ethos/shared';
+import type { Session, Patient } from '../../types/shared';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
