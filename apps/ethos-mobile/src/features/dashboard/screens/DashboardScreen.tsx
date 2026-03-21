@@ -1,6 +1,6 @@
 // ethos-mobile/src/screens/DashboardScreen.tsx
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Image, StatusBar, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Image, StatusBar } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import {
     MoreVertical, Brain, Search, Bell, AlertTriangle, FileText,
@@ -8,7 +8,7 @@ import {
 } from 'lucide-react-native';
 import { SessionContextModal } from '../../../features/sessions/components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
-import { fetchSessions } from '../../../shared/services/api/sessions';
+import { useDashboard } from '../../../shared/hooks/useDashboard';
 import Animated, { FadeInDown, FadeInRight, FadeIn, FadeInLeft } from 'react-native-reanimated';
 import type { Session as ApiSession } from '@ethos/shared';
 import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
@@ -17,45 +17,10 @@ export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
-    const [sessions, setSessions] = useState<ApiSession[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
+    const { sessions, isLoading, error } = useDashboard();
     const navigation = useNavigation<any>();
     const primaryTeal = '#234e5c';
     const accentTeal = '#00ccdb';
-
-    React.useEffect(() => {
-        loadSessions();
-    }, []);
-
-    const loadSessions = async () => {
-        if (Platform.OS === 'web') {
-            setSessions([
-                { id: '1', patientId: 'Patient 1 (Demo)', scheduledAt: '14:00', status: 'pending' },
-                { id: '2', patientId: 'Patient 2 (Demo)', scheduledAt: '16:00', status: 'completed' },
-            ] as ApiSession[]);
-            setIsLoading(false);
-            return;
-        }
-
-        try {
-            setIsLoading(true);
-            setError(null);
-            const data = await fetchSessions();
-            setSessions(data);
-        } catch (err: any) {
-            console.error("Failed to fetch sessions: ", err);
-            setError(err.message || 'Erro ao carregar sessões offline.');
-
-            // Fallback for visual development
-            setSessions([
-                { id: '1', patientId: 'Patient 1 (Fallback)', scheduledAt: '14:00', status: 'pending' },
-                { id: '2', patientId: 'Patient 2 (Fallback)', scheduledAt: '16:00', status: 'completed' },
-            ] as ApiSession[]);
-        } finally {
-            setIsLoading(false);
-        }
-    };
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
