@@ -15,16 +15,10 @@ const sessionContract = {
     '/patients': ['get'], // Assuming patients are at this endpoint from openapi
 } as const;
 
-let currentToken: string | null = null;
-export const setSessionToken = (token: string | null) => {
-    currentToken = token;
-};
-
 const apiClient = createHttpClient({
     name: 'MobileClinicalAPI',
     baseUrl: API_BASE_URL,
     contract: sessionContract,
-    getAuthToken: () => currentToken,
     offline: {
         enabled: true,
         cacheNamespace: 'ethos_mobile_clinical_cache',
