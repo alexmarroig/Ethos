@@ -2,7 +2,7 @@
 import { createHttpClient } from './httpClient';
 import type { Session, Patient } from '@ethos/shared';
 
-const API_BASE_URL = 'http://localhost:8787';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
 const sessionContract = {
     '/sessions': ['get', 'post'],

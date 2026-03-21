@@ -1,7 +1,7 @@
 // ethos-mobile/src/services/api/auth.ts
 import { createHttpClient } from './httpClient';
 
-const API_BASE_URL = 'http://localhost:8787';
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
 // Define the contract matching openapi.yaml
 const authContract = {
