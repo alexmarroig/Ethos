@@ -3,15 +3,16 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Image, StatusBar } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import {
-    MoreVertical, Brain, Search, Bell, AlertTriangle, FileText,
-    Banknote, Play, Calendar, Users, Mic, Settings, ChevronRight
+    Search, Bell, AlertTriangle, Calendar
 } from 'lucide-react-native';
 import { SessionContextModal } from '../../../features/sessions/components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
 import { useDashboard } from '../../../shared/hooks/useDashboard';
-import Animated, { FadeInDown, FadeInRight, FadeIn, FadeInLeft } from 'react-native-reanimated';
 import type { Session as ApiSession } from '@ethos/shared';
 import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
+import { AlertCard } from '../components/AlertCard';
+import { NextSessionCard } from '../components/NextSessionCard';
+import { FinanceSummaryCard } from '../components/FinanceSummaryCard';
 
 export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';
@@ -19,8 +20,6 @@ export default function DashboardScreen() {
     const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
     const { sessions, isLoading, error } = useDashboard();
     const navigation = useNavigation<any>();
-    const primaryTeal = '#234e5c';
-    const accentTeal = '#00ccdb';
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -54,33 +53,11 @@ export default function DashboardScreen() {
                     <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Alertas</Text>
                 </View>
 
-                <View style={styles.alertGrid}>
-                    <Animated.View entering={FadeInDown.delay(100).duration(800)} style={styles.alertCol}>
-                        <TouchableOpacity style={[styles.alertCardSmall, { backgroundColor: isDark ? '#272b34' : '#fff', borderColor: '#f0f0f0' }]}>
-                            <View style={[styles.alertIconWrapper, { backgroundColor: '#fee2e2' }]}>
-                                <FileText size={20} color="#ef4444" />
-                                <View style={styles.alertBadgeSmall}>
-                                    <Text style={styles.alertBadgeText}>3</Text>
-                                </View>
-                            </View>
-                            <Text style={[styles.alertTitleSmall, { color: primaryTeal }]}>Laudos{'\n'}Atrasados</Text>
-                            <Text style={[styles.alertSubSmall, { color: '#00ccdb' }]}>Revisão ética{'\n'}pendente</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
-
-                    <Animated.View entering={FadeInDown.delay(200).duration(800)} style={styles.alertCol}>
-                        <TouchableOpacity style={[styles.alertCardSmall, { backgroundColor: isDark ? '#272b34' : '#fff', borderColor: '#f0f0f0' }]}>
-                            <View style={[styles.alertIconWrapper, { backgroundColor: '#fff7ed' }]}>
-                                <Banknote size={20} color="#f97316" />
-                                <View style={[styles.alertBadgeLarge, { backgroundColor: '#fff7ed' }]}>
-                                    <Text style={[styles.alertBadgeTextLarge, { color: '#f97316' }]}>R$ 450</Text>
-                                </View>
-                            </View>
-                            <Text style={[styles.alertTitleSmall, { color: primaryTeal }]}>Pagamentos</Text>
-                            <Text style={[styles.alertSubSmall, { color: '#00ccdb' }]}>2 sessões pendentes</Text>
-                        </TouchableOpacity>
-                    </Animated.View>
-                </View>
+                <AlertCard
+                    overdueReportsCount={3}
+                    pendingPaymentsAmount="R$ 450"
+                    pendingPaymentsCount={2}
+                />
 
                 {/* Próxima Sessão Section */}
                 <View style={styles.sectionHeader}>
@@ -91,75 +68,25 @@ export default function DashboardScreen() {
                     </TouchableOpacity>
                 </View>
 
-                <Animated.View entering={FadeInDown.delay(300).duration(800)}>
-                    <TouchableOpacity
-                        style={[styles.highlightCard, { backgroundColor: isDark ? '#1e2d35' : '#fff', borderWidth: isDark ? 0 : 1, borderColor: '#f0f0f0' }]}
-                        onPress={() => navigation.navigate('SessionHub', { patientName: 'Beatriz Mendonça', time: 'Agora às 14:00', status: 'pending' })}
-                    >
-                        <View style={styles.highlightHeader}>
-                            <View style={{ flex: 1 }}>
-                                <Text style={[styles.timeLabel, { color: '#00ccdb' }]}>AGORA ÀS 14:00</Text>
-                                <Text style={[styles.highlightPatientName, { color: primaryTeal }]}>Beatriz Mendonça</Text>
-                                <View style={styles.sessionInfoRow}>
-                                    <FileText size={16} color={theme.mutedForeground} />
-                                    <Text style={[styles.highlightSessionType, { color: theme.mutedForeground }]}>Sessão #12</Text>
-                                </View>
-                            </View>
-                            <TouchableOpacity style={styles.videoButton}>
-                                <Play size={24} color="#fff" fill="#fff" />
-                            </TouchableOpacity>
-                        </View>
-
-                        <View style={styles.highlightDivider} />
-
-                        <View style={styles.highlightFooter}>
-                            <Text style={[styles.focoText, { color: theme.mutedForeground }]}>
-                                Foco: <Text style={styles.italicText}>Gestão de Ansiedade e Ética</Text>
-                            </Text>
-                            <TouchableOpacity style={styles.verProntuario} onPress={() => navigation.navigate('Documents')}>
-                                <Text style={[styles.verProntuarioText, { color: '#00ccdb' }]}>VER PRONTUÁRIO</Text>
-                                <ChevronRight size={16} color="#00ccdb" />
-                            </TouchableOpacity>
-                        </View>
-                    </TouchableOpacity>
-                </Animated.View>
+                <NextSessionCard
+                    timeLabel="AGORA ÀS 14:00"
+                    patientName="Beatriz Mendonça"
+                    sessionLabel="Sessão #12"
+                    focusText="Gestão de Ansiedade e Ética"
+                    onPressSession={() => navigation.navigate('SessionHub', { patientName: 'Beatriz Mendonça', time: 'Agora às 14:00', status: 'pending' })}
+                    onPressRecords={() => navigation.navigate('Documents')}
+                />
 
                 {/* Resumo Financeiro Section */}
-                <Animated.View entering={FadeInDown.delay(400).duration(800)}>
-                    <View style={[styles.financeCardLarge, { backgroundColor: isDark ? '#272b34' : '#fff', borderColor: theme.border }]}>
-                        <View style={styles.financeHeaderLarge}>
-                            <View>
-                                <Text style={[styles.financeLabelLarge, { color: theme.mutedForeground }]}>Total Estimado</Text>
-                                <Text style={[styles.financeValueLarge, { color: primaryTeal }]}>R$ 8.420,00</Text>
-                            </View>
-                            <View style={styles.percentBadge}>
-                                <Text style={styles.percentText}>+12% vs jan</Text>
-                            </View>
-                        </View>
-
-                        {/* Recebido Progress */}
-                        <View style={styles.progressContainer}>
-                            <View style={styles.progressLabelRow}>
-                                <Text style={[styles.progressLabel, { color: theme.mutedForeground }]}>Recebido (R$ 6.200)</Text>
-                                <Text style={[styles.progressPercent, { color: theme.foreground }]}>74%</Text>
-                            </View>
-                            <View style={styles.progressBarBg}>
-                                <View style={[styles.progressBarFill, { width: '74%', backgroundColor: '#00ccdb' }]} />
-                            </View>
-                        </View>
-
-                        {/* Pendente Progress */}
-                        <View style={styles.progressContainer}>
-                            <View style={styles.progressLabelRow}>
-                                <Text style={[styles.progressLabel, { color: theme.mutedForeground }]}>Pendente (R$ 2.220)</Text>
-                                <Text style={[styles.progressPercent, { color: theme.foreground }]}>26%</Text>
-                            </View>
-                            <View style={styles.progressBarBg}>
-                                <View style={[styles.progressBarFill, { width: '26%', backgroundColor: '#ffae5d' }]} />
-                            </View>
-                        </View>
-                    </View>
-                </Animated.View>
+                <FinanceSummaryCard
+                    totalLabel="Total Estimado"
+                    totalValue="R$ 8.420,00"
+                    trendBadge="+12% vs jan"
+                    progressItems={[
+                        { label: 'Recebido (R$ 6.200)', percent: 74, color: '#00ccdb' },
+                        { label: 'Pendente (R$ 2.220)', percent: 26, color: '#ffae5d' },
+                    ]}
+                />
 
             </ScrollView>
 
@@ -247,252 +174,4 @@ const styles = StyleSheet.create({
         fontSize: 14,
         fontFamily: 'Inter',
     },
-    alertGrid: {
-        flexDirection: 'row',
-        gap: 16,
-        marginBottom: 24,
-    },
-    alertCol: {
-        flex: 1,
-    },
-    alertCardSmall: {
-        padding: 20,
-        borderRadius: 32,
-        borderWidth: 1,
-        height: 180,
-    },
-    alertIconWrapper: {
-        width: 48,
-        height: 48,
-        borderRadius: 16,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    alertBadgeSmall: {
-        position: 'absolute',
-        top: -4,
-        right: -4,
-        backgroundColor: '#fee2e2',
-        width: 20,
-        height: 20,
-        borderRadius: 10,
-        justifyContent: 'center',
-        alignItems: 'center',
-        borderWidth: 2,
-        borderColor: '#fff',
-    },
-    alertBadgeText: {
-        fontSize: 10,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        color: '#ef4444',
-    },
-    alertBadgeLarge: {
-        position: 'absolute',
-        top: -4,
-        right: -30,
-        paddingHorizontal: 8,
-        paddingVertical: 4,
-        borderRadius: 12,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    alertBadgeTextLarge: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    alertTitleSmall: {
-        fontSize: 16,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-        marginBottom: 4,
-    },
-    alertSubSmall: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        lineHeight: 18,
-    },
-    highlightCard: {
-        borderRadius: 32,
-        padding: 24,
-        marginBottom: 24,
-    },
-    highlightHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 16,
-    },
-    timeLabel: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        marginBottom: 4,
-    },
-    highlightPatientName: {
-        fontSize: 22,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-    },
-    sessionInfoRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        marginTop: 4,
-    },
-    highlightSessionType: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-    },
-    videoButton: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: '#00ccdb',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#00ccdb',
-        shadowOpacity: 0.3,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 10,
-        elevation: 5,
-    },
-    highlightDivider: {
-        height: 1,
-        backgroundColor: '#f0f0f0',
-        marginVertical: 20,
-    },
-    highlightFooter: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-    },
-    focoText: {
-        flex: 1,
-        fontSize: 13,
-        fontFamily: 'Inter',
-        lineHeight: 18,
-    },
-    italicText: {
-        fontStyle: 'italic',
-    },
-    verProntuario: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 4,
-    },
-    verProntuarioText: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    financeCardLarge: {
-        padding: 24,
-        borderRadius: 32,
-        borderWidth: 1,
-        marginBottom: 40,
-    },
-    financeHeaderLarge: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'flex-start',
-        marginBottom: 24,
-    },
-    financeLabelLarge: {
-        fontSize: 13,
-        fontFamily: 'Inter',
-        marginBottom: 8,
-    },
-    financeValueLarge: {
-        fontSize: 32,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-    },
-    percentBadge: {
-        backgroundColor: '#f0fdf4',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 12,
-    },
-    percentText: {
-        color: '#16a34a',
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    progressContainer: {
-        marginBottom: 16,
-    },
-    progressLabelRow: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 8,
-    },
-    progressLabel: {
-        fontSize: 13,
-        fontFamily: 'Inter',
-    },
-    progressPercent: {
-        fontSize: 13,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    progressBarBg: {
-        height: 8,
-        backgroundColor: '#f5f5f5',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    progressBarFill: {
-        height: '100%',
-        borderRadius: 4,
-    },
-    bottomTab: {
-        position: 'absolute',
-        bottom: 30,
-        left: 20,
-        right: 20,
-        height: 80,
-        flexDirection: 'row',
-        justifyContent: 'space-around',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderRadius: 40,
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 10 },
-        shadowRadius: 20,
-        elevation: 10,
-        borderTopWidth: 0,
-    },
-    tabItem: {
-        alignItems: 'center',
-        gap: 4,
-    },
-    tabLabel: {
-        fontSize: 10,
-        fontFamily: 'Inter',
-        fontWeight: '600',
-    },
-    centerTabContainer: {
-        alignItems: 'center',
-        top: -20,
-    },
-    centerTab: {
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#234e5c',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#234e5c',
-        shadowOpacity: 0.4,
-        shadowOffset: { width: 0, height: 8 },
-        shadowRadius: 12,
-        elevation: 8,
-    }
 });
-
-
-
