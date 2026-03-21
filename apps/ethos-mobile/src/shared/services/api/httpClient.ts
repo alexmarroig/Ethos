@@ -54,6 +54,18 @@ type CreateHttpClientOptions<TContract extends Record<string, readonly string[]>
 
 const DEFAULT_TIMEOUT_MS = 12_000;
 
+// Dependency injection — avoids importing hooks outside React
+let _tokenProvider: (() => string | null) | null = null;
+let _unauthorizedHandler: (() => void) | null = null;
+
+export function setTokenProvider(fn: () => string | null): void {
+  _tokenProvider = fn;
+}
+
+export function setUnauthorizedHandler(fn: () => void): void {
+  _unauthorizedHandler = fn;
+}
+
 const normalizeBaseUrl = (baseUrl: string) => baseUrl.replace(/\/+$/, "");
 const joinUrl = (baseUrl: string, path: string) => `${normalizeBaseUrl(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`;
 const isLogoutPath = (path: string) => /\/auth\/logout\/?$/.test(path);
@@ -66,26 +78,6 @@ const isAbortError = (error: unknown) => error instanceof DOMException && error.
 const isApiErrorPayload = (payload: unknown): payload is ApiErrorPayload =>
   typeof payload === "object" && payload !== null && ("request_id" in payload || "error" in payload);
 
-const makeCacheKey = (namespace: string, method: HttpMethod, path: string) => `${namespace}:${method}:${path}`;
-
-const readCachedResponse = <T>(namespace: string, method: HttpMethod, path: string): T | null => {
-  if (typeof localStorage === "undefined") return null;
-  try {
-    const raw = localStorage.getItem(makeCacheKey(namespace, method, path));
-    return raw ? (JSON.parse(raw) as T) : null;
-  } catch {
-    return null;
-  }
-};
-
-const writeCachedResponse = <T>(namespace: string, method: HttpMethod, path: string, value: T): void => {
-  if (typeof localStorage === "undefined") return;
-  try {
-    localStorage.setItem(makeCacheKey(namespace, method, path), JSON.stringify(value));
-  } catch {
-    // best effort cache
-  }
-};
 
 async function readJson(response: Response): Promise<unknown | null> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -173,15 +165,14 @@ export function createHttpClient<TContract extends Record<string, readonly strin
 
     const offlineEnabled = Boolean(offline?.enabled);
     if (offlineEnabled && method === "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
-      const cached = readCachedResponse<TResponse>(offline!.cacheNamespace, method, normalizedPath);
-      if (cached) return cached;
       throw new ApiError("Sem conexão com a API clínica e sem cache local.", { isOffline: true });
     }
 
     const headers = new Headers(requestOptions.headers ?? {});
     headers.set("x-request-id", getRequestId());
 
-    const authToken = getAuthToken?.();
+    // Prefer global token from AuthContext, fall back to per-client getter
+    const authToken = _tokenProvider?.() ?? getAuthToken?.();
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
 
     const body = requestOptions.body;
@@ -206,8 +197,9 @@ export function createHttpClient<TContract extends Record<string, readonly strin
       const apiPayload = isApiErrorPayload(payload) ? payload : undefined;
 
       if (!response.ok) {
-        if ((response.status === 401 || response.status === 403) && onSessionInvalid && !isLogoutPath(normalizedPath)) {
-          await onSessionInvalid(response.status === 401 ? "unauthorized" : "forbidden");
+        if ((response.status === 401 || response.status === 403) && !isLogoutPath(normalizedPath)) {
+          if (_unauthorizedHandler) _unauthorizedHandler();
+          if (onSessionInvalid) await onSessionInvalid(response.status === 401 ? "unauthorized" : "forbidden");
         }
 
         const message = apiPayload?.error?.message ?? `[${name}] HTTP ${response.status} em ${normalizedPath}`;
@@ -220,18 +212,9 @@ export function createHttpClient<TContract extends Record<string, readonly strin
 
       const data = (payload as { data?: TResponse } | null)?.data ?? (payload as TResponse);
 
-      if (offlineEnabled && method === "GET") {
-        writeCachedResponse(offline!.cacheNamespace, method, normalizedPath, data);
-      }
-
       return data;
     } catch (error) {
       if (error instanceof ApiError) throw error;
-
-      if (offlineEnabled && method === "GET") {
-        const cached = readCachedResponse<TResponse>(offline!.cacheNamespace, method, normalizedPath);
-        if (cached) return cached;
-      }
 
       if (isAbortError(error)) {
         throw new ApiError(`[${name}] Timeout/cancelamento da requisição.`);
