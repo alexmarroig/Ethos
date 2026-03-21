@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, TouchableWithoutFeedback, useColorScheme } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { CheckCircle, Edit, Trash2 } from 'lucide-react-native';
 
 interface Props {

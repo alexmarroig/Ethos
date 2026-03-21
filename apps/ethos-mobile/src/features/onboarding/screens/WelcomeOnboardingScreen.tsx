@@ -4,7 +4,7 @@ import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
     StatusBar, SafeAreaView, ScrollView
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { Shield, ChevronRight, Calendar, UserPlus, BarChart3, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 

@@ -10,18 +10,18 @@ import { colors } from '../theme/colors';
 import { Home, Calendar, Users, Settings, FileText } from 'lucide-react-native';
 
 // Screens
-import DashboardScreen from '../screens/DashboardScreen';
-import ScheduleScreen from '../screens/ScheduleScreen';
-import PatientsScreen from '../screens/PatientsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import SessionHubScreen from '../screens/SessionHubScreen';
-import DocumentsScreen from '../screens/DocumentsScreen';
-import LoginScreen from '../screens/LoginScreen';
-import RecoverPasswordScreen from '../screens/RecoverPasswordScreen';
-import EmailSentScreen from '../screens/EmailSentScreen';
-import RegisterStep1Screen from '../screens/RegisterStep1Screen';
-import RegisterStep2Screen from '../screens/RegisterStep2Screen';
-import WelcomeOnboardingScreen from '../screens/WelcomeOnboardingScreen';
+import DashboardScreen from '../../features/dashboard/screens/DashboardScreen';
+import ScheduleScreen from '../../features/sessions/screens/ScheduleScreen';
+import PatientsScreen from '../../features/patients/screens/PatientsScreen';
+import SettingsScreen from '../../features/settings/screens/SettingsScreen';
+import SessionHubScreen from '../../features/sessions/screens/SessionHubScreen';
+import DocumentsScreen from '../../features/documents/screens/DocumentsScreen';
+import LoginScreen from '../../features/auth/screens/LoginScreen';
+import RecoverPasswordScreen from '../../features/auth/screens/RecoverPasswordScreen';
+import EmailSentScreen from '../../features/auth/screens/EmailSentScreen';
+import RegisterStep1Screen from '../../features/auth/screens/RegisterStep1Screen';
+import RegisterStep2Screen from '../../features/auth/screens/RegisterStep2Screen';
+import WelcomeOnboardingScreen from '../../features/onboarding/screens/WelcomeOnboardingScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();

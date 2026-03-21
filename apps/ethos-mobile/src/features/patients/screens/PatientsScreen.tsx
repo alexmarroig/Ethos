@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { Search, UserPlus, FileText, ChevronRight, Filter, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 

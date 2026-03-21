@@ -1,14 +1,14 @@
 // ethos-mobile/src/screens/SessionHubScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, useColorScheme, StatusBar, Alert, ActivityIndicator } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { ChevronLeft, MoreVertical, Shield, Trash2, Play, Pause, Save, Mic, MicOff } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import Animated, {
     useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSpring, interpolate,
     FadeIn, FadeInDown, SlideInDown
 } from 'react-native-reanimated';
-import { startTranscriptionJob } from '../services/api/sessions';
+import { startTranscriptionJob } from '../../../shared/services/api/sessions';
 
 export default function SessionHubScreen({ navigation, route }: any) {
     const isDark = useColorScheme() === 'dark';

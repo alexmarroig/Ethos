@@ -26,8 +26,8 @@ import { getLastTranscriptionTechnicalEvent } from './src/services/transcription
 
 import PsychologistDashboard from './src/components/PsychologistDashboard';
 import PatientDashboard from './src/components/PatientDashboard';
-import AppNavigator from './src/navigation/AppNavigator';
-import SplashLoading from './src/components/SplashLoading';
+import AppNavigator from './src/shared/navigation/AppNavigator';
+import SplashLoading from './src/shared/components/SplashLoading';
 
 export default function App() {
   const [fontsLoaded] = useFonts({

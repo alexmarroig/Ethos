@@ -4,7 +4,7 @@ import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
     StatusBar, SafeAreaView
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { ChevronLeft, MailCheck } from 'lucide-react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 

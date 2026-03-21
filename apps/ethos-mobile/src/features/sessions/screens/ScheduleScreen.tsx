@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Platform } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { MoreVertical, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Video, FileText, CheckCircle2, Clock } from 'lucide-react-native';
 import { SessionContextModal } from '../components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
-import { fetchSessions } from '../services/api/sessions';
+import { fetchSessions } from '../../../shared/services/api/sessions';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const primaryTeal = '#234e5c';

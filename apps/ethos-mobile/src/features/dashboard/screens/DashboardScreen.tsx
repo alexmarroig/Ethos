@@ -1,17 +1,17 @@
 // ethos-mobile/src/screens/DashboardScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Image, StatusBar, Platform } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import {
     MoreVertical, Brain, Search, Bell, AlertTriangle, FileText,
     Banknote, Play, Calendar, Users, Mic, Settings, ChevronRight
 } from 'lucide-react-native';
-import { SessionContextModal } from '../components/SessionContextModal';
+import { SessionContextModal } from '../../../features/sessions/components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
-import { fetchSessions } from '../services/api/sessions';
+import { fetchSessions } from '../../../shared/services/api/sessions';
 import Animated, { FadeInDown, FadeInRight, FadeIn, FadeInLeft } from 'react-native-reanimated';
 import type { Session as ApiSession } from '@ethos/shared';
-import { avatarPlaceholder } from '../assets/avatar_placeholder';
+import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
 
 export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';

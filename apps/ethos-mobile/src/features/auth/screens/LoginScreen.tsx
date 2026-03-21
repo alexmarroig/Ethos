@@ -5,7 +5,7 @@ import {
     useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
     ScrollView, Image
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { Mail, Lock, Eye, EyeOff, Shield, Fingerprint } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 

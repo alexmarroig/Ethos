@@ -1,7 +1,7 @@
 // ethos-mobile/src/screens/SettingsScreen.tsx
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Switch } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { Moon, Shield, Database, Smartphone, User, ChevronRight } from 'lucide-react-native';
 
 export default function SettingsScreen() {

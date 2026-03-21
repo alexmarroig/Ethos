@@ -5,7 +5,7 @@ import {
     useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
     ScrollView
 } from 'react-native';
-import { colors } from '../theme/colors';
+import { colors } from '../../../shared/theme/colors';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
