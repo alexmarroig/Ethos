@@ -4,13 +4,13 @@ import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
     StatusBar, SafeAreaView, ScrollView
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Shield, ChevronRight, Calendar, UserPlus, BarChart3, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 export default function WelcomeOnboardingScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     const primaryTeal = '#234e5c';
     const cardBg = isDark ? '#1e2126' : '#fff';

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, StatusBar, FlatList } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Search, FileText, Filter, CheckCircle, Clock, ChevronRight, Plus, MoreHorizontal, FileDown } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
@@ -16,7 +16,7 @@ const mockDocs = [
 
 export default function DocumentsScreen() {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [filter, setFilter] = useState('Todos');
 
     const categories = ['Todos', 'Assinados', 'Rascunhos', 'Modelos'];

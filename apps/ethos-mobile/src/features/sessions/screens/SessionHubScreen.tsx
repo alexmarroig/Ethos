@@ -1,7 +1,7 @@
 // ethos-mobile/src/screens/SessionHubScreen.tsx
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, useColorScheme, StatusBar, Alert, ActivityIndicator } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { ChevronLeft, MoreVertical, Shield, Trash2, Play, Pause, Save, Mic, MicOff } from 'lucide-react-native';
 import { Audio } from 'expo-av';
 import Animated, {
@@ -11,8 +11,7 @@ import Animated, {
 import { startTranscriptionJob } from '../../../shared/services/api/sessions';
 
 export default function SessionHubScreen({ navigation, route }: any) {
-    const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const patientName = route?.params?.patientName || "Mariana Albuquerque";
     const sessionTime = route?.params?.time || "14:00 - 14:50";
 

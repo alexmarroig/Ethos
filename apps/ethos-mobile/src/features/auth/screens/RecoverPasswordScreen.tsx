@@ -2,16 +2,15 @@
 import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, TextInput,
-    useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
+    StatusBar, KeyboardAvoidingView, Platform,
     ScrollView
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { ChevronLeft, Mail, Send, ShieldCheck, HelpCircle } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 export default function RecoverPasswordScreen({ navigation }: any) {
-    const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [email, setEmail] = useState('');
 
     const bgPrimary = '#15171a'; // Dark design per mockup

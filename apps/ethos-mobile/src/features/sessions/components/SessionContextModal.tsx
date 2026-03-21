@@ -1,6 +1,6 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet, TouchableWithoutFeedback, useColorScheme } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, TouchableWithoutFeedback } from 'react-native';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { CheckCircle, Edit, Trash2 } from 'lucide-react-native';
 
 interface Props {
@@ -12,8 +12,7 @@ interface Props {
 }
 
 export function SessionContextModal({ visible, onClose, onValidate, onEdit, onDelete }: Props) {
-    const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     return (
         <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>

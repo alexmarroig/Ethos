@@ -5,13 +5,13 @@ import {
     useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
     ScrollView, Image
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Mail, Lock, Eye, EyeOff, Shield, Fingerprint } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 export default function LoginScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);

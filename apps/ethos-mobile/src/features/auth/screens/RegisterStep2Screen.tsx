@@ -4,13 +4,13 @@ import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
     StatusBar, SafeAreaView, ScrollView
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { ChevronLeft, ChevronDown, Check, ShieldCheck } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 export default function RegisterStep2Screen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     const [specialty, setSpecialty] = useState('');
     const [approach, setApproach] = useState('');

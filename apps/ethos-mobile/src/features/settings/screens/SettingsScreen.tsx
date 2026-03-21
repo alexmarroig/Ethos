@@ -1,12 +1,11 @@
 // ethos-mobile/src/screens/SettingsScreen.tsx
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Switch } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Moon, Shield, Database, Smartphone, User, ChevronRight } from 'lucide-react-native';
 
 export default function SettingsScreen() {
-    const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     const [biometricsEnabled, setBiometricsEnabled] = React.useState(true);
     const [offlineMode, setOfflineMode] = React.useState(true);

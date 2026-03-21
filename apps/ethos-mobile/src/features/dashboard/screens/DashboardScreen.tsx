@@ -1,7 +1,7 @@
 // ethos-mobile/src/screens/DashboardScreen.tsx
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Image, StatusBar, Platform } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import {
     MoreVertical, Brain, Search, Bell, AlertTriangle, FileText,
     Banknote, Play, Calendar, Users, Mic, Settings, ChevronRight
@@ -15,7 +15,7 @@ import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
 
 export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
     const [sessions, setSessions] = useState<ApiSession[]>([]);
     const [isLoading, setIsLoading] = useState(true);

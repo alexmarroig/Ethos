@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Platform } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { MoreVertical, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Video, FileText, CheckCircle2, Clock } from 'lucide-react-native';
 import { SessionContextModal } from '../components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
@@ -12,7 +12,7 @@ const accentTeal = '#439299';
 
 export default function ScheduleScreen() {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [selectedSession, setSelectedSession] = useState<any | null>(null);
     const [sessions, setSessions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);

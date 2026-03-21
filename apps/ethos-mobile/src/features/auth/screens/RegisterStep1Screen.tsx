@@ -5,13 +5,13 @@ import {
     useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
     ScrollView
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
 export default function RegisterStep1Screen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');

@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, Platform } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Search, UserPlus, FileText, ChevronRight, Filter, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
@@ -25,7 +25,7 @@ const dummyPatients: Patient[] = [
 
 export default function PatientsScreen() {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredPatients = dummyPatients.filter(p =>

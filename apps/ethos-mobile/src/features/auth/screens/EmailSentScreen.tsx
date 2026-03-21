@@ -4,13 +4,13 @@ import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
     StatusBar, SafeAreaView
 } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { ChevronLeft, MailCheck } from 'lucide-react-native';
 import Animated, { FadeIn, ZoomIn } from 'react-native-reanimated';
 
 export default function EmailSentScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     // Design matches the light mockup provided
     const bgPrimary = isDark ? '#15171a' : '#fcfcfb';

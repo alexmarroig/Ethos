@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Dimensions, Platform } from 'react-native';
-import { colors } from '../../../shared/theme/colors';
+import { useTheme } from '../../../shared/hooks/useTheme';
 import { Banknote, TrendingUp, TrendingDown, ChevronRight, Plus, Download, Filter, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
@@ -10,7 +10,7 @@ const { width } = Dimensions.get('window');
 
 export default function FinanceScreen() {
     const isDark = useColorScheme() === 'dark';
-    const theme = isDark ? colors.dark : colors.light;
+    const theme = useTheme();
 
     const transactions = [
         { id: '1', title: 'Sessão João Silva', value: 'R$ 180,00', date: 'Hoje, 14:00', type: 'income', status: 'received' },
