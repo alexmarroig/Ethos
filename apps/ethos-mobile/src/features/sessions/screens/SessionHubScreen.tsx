@@ -22,7 +22,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
     const timerRef = useRef<NodeJS.Timeout | null>(null);
 
     // Animation values
-    const waveformValues = Array.from({ length: 20 }).map(() => useSharedValue(5));
+    const waveformValues = useSharedValue<number[]>(Array(20).fill(5));
 
     useEffect(() => {
         if (isRecording && !isPaused) {
@@ -31,16 +31,12 @@ export default function SessionHubScreen({ navigation, route }: any) {
             }, 1000);
 
             // Animate waveform
-            waveformValues.forEach((val, i) => {
-                val.value = withRepeat(
-                    withTiming(15 + Math.random() * 35, { duration: 300 + Math.random() * 300 }),
-                    -1,
-                    true
-                );
-            });
+            waveformValues.value = Array.from({ length: 20 }, (_, i) =>
+                withRepeat(withTiming(15 + Math.random() * 35, { duration: 300 + i * 20 }), -1, true)
+            );
         } else {
             if (timerRef.current) clearInterval(timerRef.current);
-            waveformValues.forEach(val => val.value = withTiming(5));
+            waveformValues.value = Array(20).fill(5);
         }
         return () => { if (timerRef.current) clearInterval(timerRef.current); };
     }, [isRecording, isPaused]);
@@ -117,8 +113,8 @@ export default function SessionHubScreen({ navigation, route }: any) {
 
                 {/* Waveform Visualization */}
                 <View style={styles.waveformContainer}>
-                    {waveformValues.map((val, i) => (
-                        <WaveBar key={i} animatedValue={val} />
+                    {Array.from({ length: 20 }, (_, i) => (
+                        <WaveBar key={i} animatedValues={waveformValues} index={i} />
                     ))}
                 </View>
             </View>
@@ -156,9 +152,9 @@ export default function SessionHubScreen({ navigation, route }: any) {
     );
 }
 
-const WaveBar = ({ animatedValue }: any) => {
+const WaveBar = ({ animatedValues, index }: any) => {
     const style = useAnimatedStyle(() => ({
-        height: animatedValue.value,
+        height: animatedValues.value[index],
     }));
     return <Animated.View style={[styles.waveBar, style]} />;
 };
