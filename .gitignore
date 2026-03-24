@@ -11,3 +11,11 @@ node_modules/
 coverage/
 dist/
 *.log
+
+# Expo / React Native build artifacts
+apps/ethos-mobile/android/
+apps/ethos-mobile/ios/
+apps/ethos-mobile/.expo/web/cache/
+
+# Accidental root-level expo stub
+app.json

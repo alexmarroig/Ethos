@@ -1,6 +1,5 @@
 import * as Device from 'expo-device';
 import * as FileSystem from 'expo-file-system';
-import DeviceInfo from 'react-native-device-info';
 import { Platform } from 'react-native';
 import { Buffer } from 'buffer';
 
@@ -203,7 +202,7 @@ export const getDeviceCapabilityScore = async ({
   selectionMode = 'Auto',
   transcribeBenchmark,
 } = {}) => {
-  const ramTotal = await DeviceInfo.getTotalMemory();
+  const ramTotal = Device.totalMemory ?? 0;
   const freeDisk = await FileSystem.getFreeDiskStorageAsync();
 
   const ramGB = ramTotal / (1024 * 1024 * 1024);

@@ -26,8 +26,9 @@ import { getLastTranscriptionTechnicalEvent } from './src/services/transcription
 
 import PsychologistDashboard from './src/components/PsychologistDashboard';
 import PatientDashboard from './src/components/PatientDashboard';
-import AppNavigator from './src/navigation/AppNavigator';
-import SplashLoading from './src/components/SplashLoading';
+import AppNavigator from './src/shared/navigation/AppNavigator';
+import { AuthProvider } from './src/shared/hooks/useAuth';
+import SplashLoading from './src/shared/components/SplashLoading';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -161,7 +162,9 @@ export default function App() {
     <SafeAreaView style={styles.container}>
       <StatusBar style="dark" />
       {role === 'psychologist' ? (
-        <AppNavigator />
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
       ) : (
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           <PatientDashboard />

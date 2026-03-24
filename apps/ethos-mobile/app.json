@@ -44,6 +44,12 @@
       ],
       "./plugins/withAndroidBackupConfig",
       "./plugins/withIOSBackupExclusion"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "acf7b22f-889c-4233-8f82-f1ddc71984a7"
+      }
+    },
+    "owner": "alexmarroig"
   }
 }
