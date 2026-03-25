@@ -3,14 +3,23 @@
     "version": ">= 7.1.0"
   },
   "build": {
+    "base": {
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
+    },
     "development": {
+      "extends": "base",
       "developmentClient": true,
       "distribution": "internal"
     },
     "preview": {
+      "extends": "base",
       "distribution": "internal"
     },
-    "production": {}
+    "production": {
+      "extends": "base"
+    }
   },
   "submit": {
     "production": {}

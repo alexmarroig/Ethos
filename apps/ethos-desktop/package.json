@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -p tsconfig.json && vite build && tsc -p tsconfig.electron.json",
-    "electron:dev": "electron .",
+    "build:renderer": "tsc -p tsconfig.json && vite build",
+    "build:main": "tsc -p tsconfig.electron.json",
+    "electron:dev": "npm run build && electron .",
     "preview": "vite preview",
     "contracts:generate": "node scripts/generate-api-contracts.mjs",
     "contracts:check": "npm run contracts:generate && git diff --exit-code src/services/api/contracts"

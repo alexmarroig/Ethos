@@ -1,7 +1,7 @@
 {
   "name": "ethos-mobile",
   "version": "1.0.0",
-  "main": "node_modules/expo/AppEntry.js",
+  "main": "index.js",
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -9,7 +9,12 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@ethos/shared": "*",
+    "@expo-google-fonts/inter": "^0.2.3",
+    "@expo-google-fonts/lora": "^0.2.3",
+    "@expo/metro-runtime": "~5.0.5",
+    "@react-navigation/bottom-tabs": "^6.5.11",
+    "@react-navigation/native": "^6.1.9",
+    "@react-navigation/native-stack": "^6.9.17",
     "buffer": "^5.7.1",
     "crypto-js": "^4.2.0",
     "expo": "~50.0.0",
@@ -28,9 +33,31 @@
     "react-native-aes-gcm-crypto": "^0.2.2",
     "react-native-device-info": "^15.0.1",
     "react-native-quick-crypto": "^0.6.1"
+    "expo": "~53.0.0",
+    "expo-av": "~15.1.7",
+    "expo-blur": "~14.1.5",
+    "expo-crypto": "~14.1.5",
+    "expo-dev-client": "~5.2.4",
+    "expo-device": "~7.1.4",
+    "expo-file-system": "~18.1.11",
+    "expo-font": "~13.3.2",
+    "expo-local-authentication": "~16.0.5",
+    "expo-secure-store": "~14.2.4",
+    "expo-sqlite": "~15.2.14",
+    "expo-status-bar": "~2.2.0",
+    "lucide-react-native": "^0.530.0",
+    "react-native-svg": "^15.0.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-reanimated": "~3.17.0",
+    "react-native-safe-area-context": "5.4.0",
+    "react-native-screens": "~4.11.1",
+    "react-native-web": "^0.20.0"
   },
   "devDependencies": {
-    "@babel/core": "^7.20.0"
+    "@babel/core": "^7.20.0",
+    "typescript": "~5.8.3"
   },
   "private": true
 }

@@ -24,3 +24,10 @@
 - Sintoma: bloqueio de criação/transcrição.
 - Ação: regularizar billing e sincronizar entitlement (`/local/entitlements/sync`).
 
+## Desktop fecha ao abrir
+- Sintoma: a janela do Electron abre e fecha sozinha, ou o comando termina imediatamente.
+- Causa comum 1: o script antigo tentava abrir `electron .` sem compilar `dist-electron/main.js` antes.
+- Causa comum 2: no Windows, `npm.ps1` pode estar bloqueado pela Execution Policy.
+- Causa comum 3: o binario do Electron nao foi instalado em `node_modules`.
+- Acao: na raiz do projeto, rode `npm.cmd install` e depois `npm.cmd run dev:electron`.
+- Acao: se ainda falhar, confirme se `apps/ethos-desktop/dist-electron/main.js` foi gerado apos o build.

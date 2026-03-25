@@ -10,6 +10,10 @@ import {
   View,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
+import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
+import { Lora_400Regular, Lora_500Medium, Lora_600SemiBold, Lora_700Bold } from '@expo-google-fonts/lora';
+
 import { deriveKeys, setSessionKeys, clearSessionKeys } from './src/services/security';
 import { initDb } from './src/services/db';
 import { useAppLock } from './src/hooks/useAppLock';
@@ -22,8 +26,22 @@ import { getLastTranscriptionTechnicalEvent } from './src/services/transcription
 
 import PsychologistDashboard from './src/components/PsychologistDashboard';
 import PatientDashboard from './src/components/PatientDashboard';
+import AppNavigator from './src/shared/navigation/AppNavigator';
+import { AuthProvider } from './src/shared/hooks/useAuth';
+import SplashLoading from './src/shared/components/SplashLoading';
 
 export default function App() {
+  const [fontsLoaded] = useFonts({
+    'Inter': Inter_400Regular,
+    'Inter-Medium': Inter_500Medium,
+    'Inter-SemiBold': Inter_600SemiBold,
+    'Inter-Bold': Inter_700Bold,
+    'Lora': Lora_400Regular,
+    'Lora-Medium': Lora_500Medium,
+    'Lora-SemiBold': Lora_600SemiBold,
+    'Lora-Bold': Lora_700Bold,
+  });
+
   const [password, setPassword] = useState('');
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [role, setRole] = useState('psychologist');
@@ -34,7 +52,16 @@ export default function App() {
   const { isLocked, unlock } = useAppLock(isLoggedIn);
 
   useEffect(() => {
-    purgeService.purgeTempData().catch(() => {});
+    purgeService.purgeTempData().catch(() => { });
+  }, []);
+
+  const loadCapability = useCallback(async (mode) => {
+    try {
+      const capability = await getDeviceCapabilityScore({ selectionMode: mode });
+      setDcs(capability);
+    } catch {
+      setDcs(null);
+    }
   }, []);
 
   const loadCapability = useCallback(async (mode) => {
@@ -99,13 +126,17 @@ export default function App() {
     setDcs(null);
   };
 
+  if (!fontsLoaded) {
+    return <SplashLoading />;
+  }
+
   if (!isLoggedIn) {
     return (
       <View style={styles.lockContainer}>
-        <Text style={styles.lockTitle}>ETHOS</Text>
-        <Text style={styles.lockSubtitle}>Ambiente Clínico Seguro</Text>
+        <Text style={[styles.lockTitle, { fontFamily: 'Lora', fontWeight: '700' }]}>ETHOS</Text>
+        <Text style={[styles.lockSubtitle, { fontFamily: 'Inter' }]}>Ambiente Clínico Seguro</Text>
         <TextInput
-          style={styles.input}
+          style={[styles.input, { fontFamily: 'Inter' }]}
           placeholder="Senha Mestra"
           placeholderTextColor="#64748B"
           secureTextEntry
@@ -114,7 +145,7 @@ export default function App() {
           autoFocus
         />
         <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          <Text style={styles.buttonText}>{loading ? 'Derivando chaves...' : 'Entrar'}</Text>
+          <Text style={[styles.buttonText, { fontFamily: 'Inter' }]}>{loading ? 'Derivando chaves...' : 'Entrar'}</Text>
         </TouchableOpacity>
       </View>
     );
@@ -123,18 +154,19 @@ export default function App() {
   if (isLocked) {
     return (
       <View style={styles.lockContainer}>
-        <Text style={styles.lockTitle}>ETHOS BLOQUEADO</Text>
-        <Text style={styles.lockSubtitle}>Sessão protegida por biometria/PIN</Text>
+        <Text style={[styles.lockTitle, { fontFamily: 'Lora', fontWeight: '700' }]}>ETHOS BLOQUEADO</Text>
+        <Text style={[styles.lockSubtitle, { fontFamily: 'Inter' }]}>Sessão protegida por biometria/PIN</Text>
         <TouchableOpacity style={styles.button} onPress={unlock}>
-          <Text style={styles.buttonText}>Desbloquear</Text>
+          <Text style={[styles.buttonText, { fontFamily: 'Inter' }]}>Desbloquear</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.outlineButton, { marginTop: 20 }]} onPress={handleLogout}>
-          <Text style={styles.outlineButtonText}>Sair</Text>
+          <Text style={[styles.outlineButtonText, { fontFamily: 'Inter' }]}>Sair</Text>
         </TouchableOpacity>
       </View>
     );
   }
 
+  // The main app layout when logged in
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar style="light" />
@@ -176,6 +208,16 @@ export default function App() {
           <PatientDashboard />
         )}
       </ScrollView>
+      <StatusBar style="dark" />
+      {role === 'psychologist' ? (
+        <AuthProvider>
+          <AppNavigator />
+        </AuthProvider>
+      ) : (
+        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          <PatientDashboard />
+        </ScrollView>
+      )}
     </SafeAreaView>
   );
 }

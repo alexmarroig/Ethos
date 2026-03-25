@@ -48,54 +48,59 @@ declare global {
 // Styles (base)
 // -----------------------------
 const sectionStyle: React.CSSProperties = {
-  borderRadius: 16,
+  borderRadius: `var(--radius)`,
   padding: 20,
-  background: "#111827",
-  color: "#F9FAFB",
+  background: "hsl(var(--card))",
+  color: "hsl(var(--card-foreground))",
   marginBottom: 16,
+  border: "1px solid hsl(var(--border))",
+  boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
 };
 
 const buttonStyle: React.CSSProperties = {
   padding: "10px 16px",
   borderRadius: 12,
-  border: "1px solid #334155",
-  background: "#2563EB",
-  color: "#FFFFFF",
-  fontWeight: 700,
+  background: "hsl(var(--primary))",
+  color: "hsl(var(--primary-foreground))",
+  fontWeight: 600,
   cursor: "pointer",
+  border: "none",
+  boxShadow: "0 2px 4px rgba(0,0,0,0.1)",
+  transition: "all 0.2s",
 };
 
 const secondaryButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  background: "#334155",
+  background: "hsl(var(--secondary))",
+  color: "hsl(var(--secondary-foreground))",
 };
 
 const outlineButtonStyle: React.CSSProperties = {
   padding: "8px 12px",
   borderRadius: 12,
-  border: "1px solid #334155",
+  border: "1px solid hsl(var(--border))",
   background: "transparent",
-  color: "#E2E8F0",
-  fontWeight: 700,
+  color: "hsl(var(--foreground))",
+  fontWeight: 600,
   cursor: "pointer",
 };
 
 const inputStyle: React.CSSProperties = {
-  padding: "10px 12px",
-  borderRadius: 12,
-  border: "1px solid #334155",
-  background: "#0B1220",
-  color: "#E2E8F0",
+  padding: "12px",
+  borderRadius: `calc(var(--radius) - 2px)`,
+  border: "1px solid hsl(var(--input))",
+  background: "hsl(var(--background))",
+  color: "hsl(var(--foreground))",
   outline: "none",
 };
 
 const subtleText: React.CSSProperties = {
-  color: "#94A3B8",
+  color: "hsl(var(--muted-foreground))",
 };
 
 const dividerStyle: React.CSSProperties = {
   height: 1,
-  background: "#1E293B",
+  background: "hsl(var(--border))",
   margin: "14px 0",
 };
 
@@ -112,7 +117,7 @@ const safeLocalStorageGet = (k: string, fallback = "") => {
 const safeLocalStorageSet = (k: string, v: string) => {
   try {
     localStorage.setItem(k, v);
-  } catch {}
+  } catch { }
 };
 
 // -----------------------------
@@ -121,66 +126,69 @@ const safeLocalStorageSet = (k: string, v: string) => {
 const clinicalShellStyles = `
 .pwa-app{
   min-height: calc(100vh - 24px);
-  border-radius: 20px;
-  border: 1px solid #1E293B;
-  background: radial-gradient(1200px 600px at 10% 0%, rgba(59,130,246,0.20), transparent 60%),
-              radial-gradient(800px 400px at 90% 10%, rgba(16,185,129,0.14), transparent 60%),
-              #0B1220;
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--background));
   padding: 18px;
 }
 .pwa-header{
   display:flex; justify-content:space-between; align-items:flex-start;
   gap: 16px;
   padding: 10px 10px 16px 10px;
-  border-bottom: 1px solid #1E293B;
+  border-bottom: 1px solid hsl(var(--border));
   margin-bottom: 14px;
 }
-.pwa-header h2{ margin: 0; font-size: 18px; }
-.pwa-header p{ margin: 6px 0 0 0; color:#94A3B8; font-size: 12px;}
+.pwa-header h2{ margin: 0; font-size: 20px; font-weight: 600; font-family: 'Lora', serif; }
+.pwa-header p{ margin: 6px 0 0 0; color:hsl(var(--muted-foreground)); font-size: 13px; }
 .status-pill{
   font-size: 12px;
-  border: 1px solid #334155;
-  padding: 8px 12px;
+  border: 1px solid hsl(var(--border));
+  padding: 6px 12px;
   border-radius: 999px;
-  color:#E2E8F0;
-  background: rgba(30,41,59,0.55);
+  color: hsl(var(--foreground));
+  background: hsl(var(--muted));
+  font-weight: 500;
 }
 .shell{
   display:grid;
   grid-template-columns: 240px 1fr;
-  gap: 14px;
+  gap: 16px;
   min-height: 60vh;
 }
 .nav{
-  border: 1px solid #1E293B;
-  border-radius: 16px;
-  padding: 10px;
-  background: rgba(2,6,23,0.55);
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  padding: 12px;
+  background: hsl(var(--card));
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
 }
 .nav button{
   width:100%;
   text-align:left;
-  padding: 10px 10px;
-  border-radius: 12px;
+  padding: 12px;
+  border-radius: calc(var(--radius) - 2px);
   border: 1px solid transparent;
   background: transparent;
-  color:#E2E8F0;
+  color: hsl(var(--foreground));
   cursor:pointer;
   display:flex;
   flex-direction:column;
   gap: 4px;
   margin-bottom: 8px;
+  font-weight: 500;
 }
-.nav button span{ font-size: 11px; color:#94A3B8;}
+.nav button span{ font-size: 12px; color:hsl(var(--muted-foreground)); font-weight: 400;}
 .nav button.active{
-  background: rgba(37,99,235,0.14);
-  border-color: rgba(37,99,235,0.45);
+  background: hsl(var(--primary) / 0.1);
+  color: hsl(var(--primary));
+  border-color: hsl(var(--primary) / 0.2);
 }
 .content{
-  border: 1px solid #1E293B;
-  border-radius: 16px;
-  background: rgba(2,6,23,0.55);
-  padding: 10px;
+  border: 1px solid hsl(var(--border));
+  border-radius: var(--radius);
+  background: hsl(var(--card));
+  padding: 16px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.02);
 }
 .panel{ display:none; }
 .panel.active{ display:block; }
@@ -197,23 +205,26 @@ const clinicalShellStyles = `
   display:flex;
   gap: 8px;
   padding: 10px;
-  border-radius: 16px;
-  border: 1px solid #1E293B;
-  background: rgba(2,6,23,0.75);
+  border-radius: var(--radius);
+  border: 1px solid hsl(var(--border));
+  background: hsl(var(--card));
+  box-shadow: 0 -4px 14px rgba(0,0,0,0.05);
 }
 .bottom-nav button{
   flex:1;
-  padding: 10px 8px;
-  border-radius: 12px;
-  border: 1px solid #334155;
+  padding: 12px 8px;
+  border-radius: calc(var(--radius) - 2px);
+  border: 1px solid hsl(var(--border));
   background: transparent;
-  color:#E2E8F0;
+  color:hsl(var(--foreground));
   cursor: pointer;
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
 }
 .bottom-nav button.active{
-  background: rgba(37,99,235,0.18);
-  border-color: rgba(37,99,235,0.55);
+  background: hsl(var(--primary) / 0.1);
+  border-color: hsl(var(--primary) / 0.2);
+  color: hsl(var(--primary));
 }
 `;
 
@@ -286,7 +297,7 @@ export const App = () => {
           try {
             const parsed = JSON.parse(decrypted);
             setUser(parsed);
-          } catch {}
+          } catch { }
         }
       }
 
@@ -409,7 +420,7 @@ export const App = () => {
       try {
         unsubscribe?.();
         unsubscribeErr?.();
-      } catch {}
+      } catch { }
     };
   }, [appendLog]);
 
@@ -628,7 +639,7 @@ export const App = () => {
     safeLocalStorageSet("ethos-auth-token", "");
     try {
       await window.ethos?.auth?.logout?.();
-    } catch {}
+    } catch { }
     finally {
       loggingOut.current = false;
     }
@@ -679,14 +690,14 @@ export const App = () => {
   // =========================
   if (showSplash) {
     return (
-      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "#0B1220", color: "#E2E8F0" }}>
+      <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "hsl(var(--background))", color: "hsl(var(--foreground))" }}>
         <div style={{ textAlign: "center", maxWidth: 520, padding: 20 }}>
           <div style={{ fontSize: 42, fontWeight: 900, letterSpacing: 2 }}>ETHOS</div>
           <p style={{ ...subtleText, marginTop: 10 }}>Plataforma clínica offline-first · Inicializando módulos…</p>
           <div style={{ marginTop: 16, display: "flex", gap: 10, justifyContent: "center" }}>
-            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#2563EB" }} />
-            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#334155" }} />
-            <div style={{ width: 10, height: 10, borderRadius: 99, background: "#334155" }} />
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "hsl(var(--primary))" }} />
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "hsl(var(--muted))" }} />
+            <div style={{ width: 10, height: 10, borderRadius: 99, background: "hsl(var(--muted))" }} />
           </div>
         </div>
       </div>
@@ -694,7 +705,7 @@ export const App = () => {
   }
 
   return (
-    <div style={{ padding: 12, background: "#0B1220", minHeight: "100vh", color: "#E2E8F0" }}>
+    <div style={{ padding: 12, background: "hsl(var(--background))", minHeight: "100vh", color: "hsl(var(--foreground))" }}>
       {/* Top Bar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 12 }}>
         <div style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
@@ -705,20 +716,20 @@ export const App = () => {
         <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
           <button
             type="button"
-            style={{ ...outlineButtonStyle, borderColor: tab === "clinical" ? "#2563EB" : "#334155" }}
+            style={{ ...outlineButtonStyle, borderColor: tab === "clinical" ? "hsl(var(--primary))" : "hsl(var(--border))" }}
             onClick={() => setTab("clinical")}
           >
             Clínica
           </button>
           <button
             type="button"
-            style={{ ...outlineButtonStyle, borderColor: tab === "admin" ? "#2563EB" : "#334155" }}
+            style={{ ...outlineButtonStyle, borderColor: tab === "admin" ? "hsl(var(--primary))" : "hsl(var(--border))" }}
             onClick={() => setTab("admin")}
           >
             Admin
           </button>
 
-          <div style={{ width: 1, height: 24, background: "#1E293B" }} />
+          <div style={{ width: 1, height: 24, background: "hsl(var(--border))" }} />
 
           {user ? (
             <>
@@ -755,7 +766,7 @@ export const App = () => {
               onChange={(e) => setLoginPassword(e.target.value)}
               autoComplete="current-password"
             />
-            <label style={{ display: "flex", gap: 10, alignItems: "center", color: "#E2E8F0", fontSize: 13 }}>
+            <label style={{ display: "flex", gap: 10, alignItems: "center", color: "hsl(var(--foreground))", fontSize: 13 }}>
               <input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
               Lembrar-me (salva token criptografado localmente)
             </label>
@@ -975,10 +986,12 @@ export const App = () => {
                           <div
                             key={s.id}
                             style={{
-                              background: selectedSessionId === s.id ? "#1E293B" : "#0B1120",
-                              padding: 12,
-                              borderRadius: 12,
-                              border: "1px solid #1E293B",
+                              background: selectedSessionId === s.id ? "hsl(var(--accent))" : "hsl(var(--card))",
+                              padding: 16,
+                              borderRadius: `var(--radius)`,
+                              border: "1px solid hsl(var(--border))",
+                              borderLeft: `6px solid ${s.status === 'validated' ? 'hsl(var(--status-validated))' : 'hsl(var(--status-pending))'}`,
+                              boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
                               cursor: "pointer",
                             }}
                             onClick={() => {
@@ -989,10 +1002,10 @@ export const App = () => {
                           >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                               <div>
-                                <strong>{p?.fullName || "Paciente não encontrado"}</strong>
-                                <p style={{ ...subtleText, fontSize: 12, margin: "6px 0 0 0" }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
+                                <strong style={{ color: "hsl(var(--foreground))" }}>{p?.fullName || "Paciente não encontrado"}</strong>
+                                <p style={{ ...subtleText, fontSize: 13, margin: "6px 0 0 0" }}>{new Date(s.scheduledAt).toLocaleString("pt-BR")}</p>
                               </div>
-                              <span style={{ fontSize: 11, color: "#A7F3D0" }}>{s.status || "scheduled"}</span>
+                              <span style={{ fontSize: 12, fontWeight: 600, color: s.status === 'validated' ? "hsl(var(--status-validated))" : "hsl(var(--status-pending))" }}>{s.status || "scheduled"}</span>
                             </div>
                           </div>
                         );
@@ -1059,15 +1072,15 @@ export const App = () => {
                       <div
                         style={{
                           marginTop: 8,
-                          background: "#0B1120",
-                          border: "1px solid #1E293B",
-                          borderRadius: 12,
-                          padding: 10,
+                          background: "hsl(var(--background))",
+                          border: "1px solid hsl(var(--border))",
+                          borderRadius: `calc(var(--radius) - 2px)`,
+                          padding: 12,
                           maxHeight: 200,
                           overflow: "auto",
                           fontFamily: "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace",
-                          fontSize: 11,
-                          color: "#C7D2FE",
+                          fontSize: 12,
+                          color: "hsl(var(--muted-foreground))",
                           whiteSpace: "pre-wrap",
                         }}
                       >
@@ -1170,12 +1183,12 @@ export const App = () => {
                       <p style={subtleText}>Sem lançamentos.</p>
                     ) : (
                       financialEntries.map((e) => (
-                        <div key={e.id} style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}>
+                        <div key={e.id} style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", padding: 16, borderRadius: `var(--radius)` }}>
                           <div style={{ display: "flex", justifyContent: "space-between" }}>
-                            <strong>{e.type}</strong>
-                            <span style={{ fontSize: 12, color: "#A7F3D0" }}>R$ {(e.amount / 100).toFixed(2)}</span>
+                            <strong style={{ color: "hsl(var(--foreground))" }}>{e.type}</strong>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "hsl(var(--status-validated))" }}>R$ {(e.amount / 100).toFixed(2)}</span>
                           </div>
-                          <p style={{ ...subtleText, fontSize: 12, marginTop: 6 }}>
+                          <p style={{ ...subtleText, fontSize: 13, marginTop: 6 }}>
                             Patient: {String(e.patientId).slice(0, 8)}… · {new Date(e.createdAt).toLocaleString("pt-BR")}
                           </p>
                         </div>
@@ -1221,7 +1234,7 @@ export const App = () => {
                       <textarea
                         style={{ ...inputStyle, width: "100%", minHeight: 80, fontSize: 14 }}
                         value={""}
-                        onChange={() => {}}
+                        onChange={() => { }}
                         placeholder="(placeholder)"
                       />
                     </div>
@@ -1424,9 +1437,9 @@ function PatientDiariesView({ patientId, templates }: { patientId: string; templ
         <p style={subtleText}>Nenhuma resposta registrada ainda.</p>
       ) : (
         responses.map((r) => (
-          <div key={r.id} style={{ background: "#0B1120", border: "1px solid #1E293B", padding: 12, borderRadius: 12 }}>
+          <div key={r.id} style={{ background: "hsl(var(--card))", border: "1px solid hsl(var(--border))", padding: 16, borderRadius: `var(--radius)` }}>
             <div style={{ display: "flex", justifyContent: "space-between" }}>
-              <strong>{r.formTitle || "Formulário"}</strong>
+              <strong style={{ color: "hsl(var(--foreground))" }}>{r.formTitle || "Formulário"}</strong>
               <span style={{ fontSize: 12, color: "#94A3B8" }}>{new Date(r.createdAt).toLocaleString("pt-BR")}</span>
             </div>
             <pre

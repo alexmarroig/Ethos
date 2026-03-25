@@ -10,6 +10,8 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
 
 - **Transcrição Offline:** Processamento local de áudio via Whisper (Faster-Whisper) rodando em CPU. Suporta importação de arquivos e gravação direta.
 - **Registro Clínico Ético:** Geração de rascunhos de prontuário baseados na transcrição. O sistema exige validação humana explícita antes de considerar a nota como final.
+- **Foco Clínico Mobile:** App mobile (iOS/Android) com dashboard de insights terapêuticos e interface premium (Glassmorphism).
+- **Registro de Sessão Mobile:** Gravação real de áudio com feedback visual pulsante e integração com o motor de transcrição.
 - **Segurança de Dados:** Banco de dados SQLite criptografado via SQLCipher. Áudios e rascunhos são armazenados localmente e criptografados em repouso (AES-256-GCM).
 - **Exportação:** Geração de documentos em formatos PDF e DOCX para prontuários validados.
 - **Autenticação Segura:** Sistema de login com persistência via biometria/token criptografado.
@@ -25,6 +27,7 @@ As funcionalidades abaixo estão implementadas e conectadas ao núcleo do sistem
 ## 🛠 Estrutura do Projeto (Monorepo)
 
 - `apps/ethos-desktop`: Interface Electron + React (Vite). Gerencia a UI, o banco de dados local e a orquestração de serviços.
+- `apps/ethos-mobile`: App móvel (Expo/React Native). Focado em mobilidade clínica, gravação de sessões e insights rápidos com interface Premium.
 - `apps/ethos-transcriber`: Worker em Node.js/Python que executa o motor de transcrição Whisper de forma isolada.
 - `packages/shared`: Tipos, DTOs e esquemas Zod compartilhados entre a UI e os serviços de back-end.
 
