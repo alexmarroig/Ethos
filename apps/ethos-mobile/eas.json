@@ -19,6 +19,10 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
+      },
+      "env": {
+        "EXPO_NO_DEV_CLIENT": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
     "production": {}
@@ -27,3 +31,4 @@
     "production": {}
   }
 }
+
