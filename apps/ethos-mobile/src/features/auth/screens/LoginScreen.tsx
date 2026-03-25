@@ -3,18 +3,37 @@ import React, { useState } from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, TextInput,
     useColorScheme, StatusBar, KeyboardAvoidingView, Platform,
-    ScrollView, Image
+    ScrollView, Alert, ActivityIndicator
 } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
+import { useAuth } from '../../../shared/hooks/useAuth';
 import { Mail, Lock, Eye, EyeOff, Shield, Fingerprint } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
 
 export default function LoginScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
+    const { login } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleLogin = async () => {
+        if (!email.trim() || !password.trim()) {
+            Alert.alert('Campos obrigatórios', 'Preencha e-mail e senha.');
+            return;
+        }
+        setIsLoading(true);
+        try {
+            await login(email.trim(), password);
+            // Navigation happens automatically via AppNavigator when token is set
+        } catch (err: any) {
+            Alert.alert('Erro ao entrar', err?.message ?? 'Verifique suas credenciais e tente novamente.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
     // Derived values for specific design consistency
     const bgPrimary = isDark ? '#15171a' : '#fcfcfb';
@@ -100,12 +119,17 @@ export default function LoginScreen({ navigation }: any) {
 
                     {/* Sign In Button */}
                     <TouchableOpacity
-                        style={[styles.primaryButton, { backgroundColor: isDark ? accentTeal : primaryTeal }]}
-                        onPress={() => navigation.replace('MainTabs')}
+                        style={[styles.primaryButton, { backgroundColor: isDark ? accentTeal : primaryTeal, opacity: isLoading ? 0.7 : 1 }]}
+                        onPress={handleLogin}
+                        disabled={isLoading}
                     >
-                        <Text style={[styles.primaryButtonText, { color: isDark ? '#15171a' : '#fff' }]}>
-                            {isDark ? 'Sign In' : 'Entrar'}
-                        </Text>
+                        {isLoading ? (
+                            <ActivityIndicator color={isDark ? '#15171a' : '#fff'} />
+                        ) : (
+                            <Text style={[styles.primaryButtonText, { color: isDark ? '#15171a' : '#fff' }]}>
+                                {isDark ? 'Sign In' : 'Entrar'}
+                            </Text>
+                        )}
                     </TouchableOpacity>
 
                     <View style={styles.dividerContainer}>
