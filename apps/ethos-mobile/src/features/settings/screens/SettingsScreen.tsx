@@ -11,7 +11,7 @@ export default function SettingsScreen() {
     const [offlineMode, setOfflineMode] = React.useState(true);
 
     const renderSettingRow = (icon: React.ReactNode, title: string, description?: string, action?: React.ReactNode) => (
-        <TouchableOpacity style={[styles.settingRow, { borderBottomColor: theme.border }]} disabled={!action || action.type === Switch}>
+        <TouchableOpacity style={[styles.settingRow, { borderBottomColor: theme.border }]} disabled={!action || (action as any).type === Switch}>
             <View style={[styles.iconContainer, { backgroundColor: theme.secondary }]}>
                 {icon}
             </View>

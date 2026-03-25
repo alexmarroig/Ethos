@@ -1,4 +1,5 @@
-import { EthosClinicalPlaneClient, EthosControlPlaneClient } from "@ethos/sdk";
+// SDK clients are accessed via shared/services/api instead of @ethos/sdk
+// (workspace dep not resolvable in EAS Build)
 
 export const mobileV1Capabilities = {
   login: true,
@@ -8,6 +9,3 @@ export const mobileV1Capabilities = {
   p2pSync: "qr+wifi",
   cloudClinicalUploadByDefault: false,
 };
-
-export const controlClient = new EthosControlPlaneClient("http://localhost:8788");
-export const clinicalClient = new EthosClinicalPlaneClient("http://localhost:8787");
