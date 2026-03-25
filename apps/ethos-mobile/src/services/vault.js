@@ -1,4 +1,5 @@
 import { Buffer } from 'buffer';
+import AesGcmCrypto from 'react-native-aes-gcm-crypto';
 import * as Crypto from 'expo-crypto';
 import * as FileSystem from 'expo-file-system';
 import { getSessionKeys } from './security';
@@ -57,6 +58,7 @@ const decryptBuffer = async (data, keyHex) => {
 export const vaultService = {
   /**
    * Encrypts an audio file and saves it to the vault.
+   * Uses streaming-capable native implementation to avoid OOM.
    * Uses AES-256-GCM via Web Crypto API.
    */
   encryptFile: async (sourceUri, sessionId) => {
@@ -70,7 +72,17 @@ export const vaultService = {
     }
 
     const targetUri = `${VAULT_DIR}${sessionId}.ethos`;
+    const sourcePath = sourceUri.replace('file://', '');
+    const targetPath = targetUri.replace('file://', '');
 
+    // Setup Cipher (AES-256-GCM)
+    // react-native-aes-gcm-crypto handles IV and Tag internally or via params
+    // Using encryptFile for better performance/memory
+    await AesGcmCrypto.encryptFile(
+      sourcePath,
+      targetPath,
+      keys.vaultKey,
+      null // Auto-generate IV
     // Read source file as base64, convert to binary
     const sourceBase64 = await FileSystem.readAsStringAsync(sourceUri, {
       encoding: FileSystem.EncodingType.Base64,
@@ -101,6 +113,13 @@ export const vaultService = {
     if (!keys) throw new Error('App Locked');
 
     const tempUri = `${FileSystem.cacheDirectory}decrypted_session.wav`;
+    const sourcePath = encryptedUri.replace('file://', '');
+    const targetPath = tempUri.replace('file://', '');
+
+    await AesGcmCrypto.decryptFile(
+      sourcePath,
+      targetPath,
+      keys.vaultKey
 
     // Read encrypted file
     const encryptedBase64 = await FileSystem.readAsStringAsync(encryptedUri, {

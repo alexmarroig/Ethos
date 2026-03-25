@@ -64,6 +64,15 @@ export default function App() {
     }
   }, []);
 
+  const loadCapability = useCallback(async (mode) => {
+    try {
+      const capability = await getDeviceCapabilityScore({ selectionMode: mode });
+      setDcs(capability);
+    } catch {
+      setDcs(null);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoggedIn) return;
 
@@ -160,6 +169,45 @@ export default function App() {
   // The main app layout when logged in
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar style="light" />
+      <View style={styles.header}>
+        <View style={styles.headerTop}>
+          <View>
+            <Text style={styles.title}>ETHOS MOBILE</Text>
+            <Text style={styles.subtitle}>Portal {role === 'psychologist' ? 'do Profissional' : 'do Paciente'} (V1)</Text>
+          </View>
+          <TouchableOpacity onPress={handleLogout}>
+            <Text style={{ color: '#F87171', fontWeight: '600' }}>Sair</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.roleRow}>
+          <TouchableOpacity
+            style={[styles.roleButton, role === 'psychologist' && styles.roleButtonActive]}
+            onPress={() => setRole('psychologist')}
+          >
+            <Text style={styles.roleText}>Psicólogo</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.roleButton, role === 'patient' && styles.roleButtonActive]}
+            onPress={() => setRole('patient')}
+          >
+            <Text style={styles.roleText}>Paciente</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+
+      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+        {role === 'psychologist' ? (
+          <PsychologistDashboard
+            dcs={dcs}
+            selectionMode={selectionMode}
+            refreshCapability={refreshCapability}
+            fallbackNotice={fallbackNotice}
+          />
+        ) : (
+          <PatientDashboard />
+        )}
+      </ScrollView>
       <StatusBar style="dark" />
       {role === 'psychologist' ? (
         <AuthProvider>
