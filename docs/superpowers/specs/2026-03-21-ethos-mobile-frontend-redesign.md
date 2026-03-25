@@ -83,10 +83,35 @@ export function useDashboard() {
 ```
 
 ### 3.2 Correção de violação de hooks em SessionHubScreen
-`SessionHubScreen.tsx` chama `useSharedValue` dentro de `Array.map()` — violação das rules of hooks. Durante a extração para `features/sessions/screens/`, o array de valores de waveform deve ser refatorado para um único `useSharedValue<number[]>` ou via `useMemo`.
+`SessionHubScreen.tsx` chama `useSharedValue` dentro de `Array.map()` — violação das rules of hooks.
+
+❌ ERRADO:
+```ts
+const waveformValues = Array.from({ length: 20 }).map(() => useSharedValue(5));
+```
+
+✅ CORRETO (escolher uma das opções):
+```ts
+// Opção A — valor único com array
+const waveformValues = useSharedValue<number[]>(Array(20).fill(5));
+
+// Opção B — useMemo com createValue (não é hook, é função pura)
+const waveformValues = useMemo(() => Array.from({ length: 20 }).map(() => ({ value: 5 })), []);
+```
+Usar Opção A para manter integração com Reanimated worklets.
 
 ### 3.3 React.memo em sub-componentes pesados
-`AlertCard`, `NextSessionCard`, `FinanceSummaryCard` — todos envolvidos em `React.memo`. Esses componentes NÃO recebem `user`/`token` como props; consomem `useAuth()` internamente quando necessário.
+`AlertCard`, `NextSessionCard`, `FinanceSummaryCard` — todos envolvidos em `React.memo`.
+
+Quando consumir AuthContext internamente, extrair apenas o campo necessário para evitar re-render global:
+```ts
+// ✅ extrai só o que precisa — re-renderiza só se `user` mudar
+const { user } = useAuth();
+
+// ❌ evitar desestruturar tudo — qualquer mudança no contexto re-renderiza
+const auth = useAuth();
+```
+Se escalar muito no futuro: adotar context selector (ex: `use-context-selector`).
 
 ### 3.4 useTheme centralizado
 ```ts
@@ -151,20 +176,32 @@ export default function AppNavigator() {
 `AuthStackNavigator` contém: Login, RecoverPassword, EmailSent, RegisterStep1/2, WelcomeOnboarding.
 `MainStackNavigator` contém: MainTabs (bottom tabs) + SessionHub.
 
-### 4.3 API interceptor + remoção de module-level tokens
+### 4.3 API interceptor — injeção de dependência (não import de hook)
+
+❌ ERRADO: importar `useAuth` dentro do httpClient (hooks não funcionam fora de React)
+
+✅ CORRETO: dependency injection via handler registrado:
+
 ```ts
 // shared/services/api/httpClient.ts
-// Injeta Authorization header via callback — não armazena token localmente
-// Se receber 401 → chama logout() do AuthContext → navigator redireciona automaticamente
+let _getToken: (() => string | null) | null = null;
+let _onUnauthorized: (() => void) | null = null;
 
-// IMPORTANTE: substitui o uso de localStorage (inexistente em RN) por
-// expo-file-system ou simplesmente remove o cache layer de localStorage
+export function setTokenProvider(fn: () => string | null) { _getToken = fn; }
+export function setUnauthorizedHandler(fn: () => void) { _onUnauthorized = fn; }
+
+// No App.tsx, após AuthProvider:
+// setTokenProvider(() => token);
+// setUnauthorizedHandler(logout);
 ```
+
+Isso evita: circular dependency, hook fora de componente, crash silencioso.
 
 **Após Phase C:**
 - `auth.ts`: remover `let currentToken` e `export function setToken`
 - `sessions.ts`: remover `let currentToken` e `export function setSessionToken`
-- Ambos passam a ler token via callback injetado pelo `httpClient`
+- Remover uso de `localStorage` (não existe em RN) — remover cache layer inteiro
+- Corrigir `login()` para aceitar `{ email, password }`
 
 ---
 
@@ -234,7 +271,16 @@ export default function AppNavigator() {
 
 ---
 
-## 7. Restrições
+## 7. Evoluções Futuras (fora do escopo atual, documentadas para referência)
+
+- **TanStack Query** — cache, refetch inteligente, deduplicação para `useDashboard`/`useSessions`
+- **Error Boundary global** — `<ErrorBoundary>` na raiz para evitar crash total do app
+- **Logging estruturado** — erros de API, falhas de auth, falhas offline (crítico para app clínico)
+- **Offline-first sync engine** — `shared/services/db/database.ts` já é o gancho; evoluir para fila offline + retry automático (diferencial de produto)
+- **Domain layer** — separar regra de negócio de transporte (`domain/sessions/getSessions.ts`)
+- **Context selector** — se re-renders de AuthContext escalarem
+
+## 8. Restrições
 
 - Não alterar API do backend (ethos-clinic)
 - Não quebrar navegação durante a migração (imports atualizados atomicamente)

@@ -383,9 +383,8 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
-        const auth = requireAuth(req, res, requestId);
-        if (!auth) return;
-        logout(auth.token);
+        const token = String(req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
+        if (token) logout(token);
         return ok(res, requestId, 200, { success: true });
       }
 
