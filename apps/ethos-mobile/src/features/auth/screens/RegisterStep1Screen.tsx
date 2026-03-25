@@ -6,6 +6,7 @@ import {
     ScrollView
 } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
+import { colors } from '../../../shared/theme/colors';
 import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
 
