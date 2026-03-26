@@ -23,6 +23,20 @@ const WEB_SHIMS = {
 const originalResolveRequest = config.resolver.resolveRequest;
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Force single React copy: root node_modules has React 18 (for other workspaces),
+  // but ethos-mobile needs React 19. By changing originModulePath to a file inside
+  // apps/ethos-mobile/, Metro finds React 19 in the local node_modules first.
+  if (
+    moduleName === 'react' || moduleName.startsWith('react/') ||
+    moduleName === 'react-dom' || moduleName.startsWith('react-dom/')
+  ) {
+    return context.resolveRequest(
+      { ...context, originModulePath: path.resolve(__dirname, 'package.json') },
+      moduleName,
+      platform
+    );
+  }
+
   if (platform === 'web') {
     const shimKey = Object.keys(WEB_SHIMS).find(
       (key) => moduleName === key || moduleName.startsWith(key + '/')
