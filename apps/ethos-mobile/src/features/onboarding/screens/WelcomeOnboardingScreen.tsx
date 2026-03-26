@@ -2,12 +2,14 @@
 import React from 'react';
 import {
     View, Text, StyleSheet, TouchableOpacity, useColorScheme,
-    StatusBar, SafeAreaView, ScrollView
+    StatusBar, SafeAreaView, ScrollView, Linking, Alert
 } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { colors } from '../../../shared/theme/colors';
 import { Shield, ChevronRight, Calendar, UserPlus, BarChart3, MoreHorizontal } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeIn } from 'react-native-reanimated';
+
+const SUPPORT_EMAIL = 'alex.c.marroig@gmail.com';
 
 export default function WelcomeOnboardingScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
@@ -37,6 +39,25 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
         }
     ];
 
+    const handleStart = () => {
+        // Navigate back to Login after registration so user can log in with new credentials
+        navigation.navigate('Login');
+    };
+
+    const handleSupport = async () => {
+        const url = `mailto:${SUPPORT_EMAIL}?subject=Suporte%20ETHOS&body=Descreva%20seu%20problema%20aqui%3A%0A%0A`;
+        const canOpen = await Linking.canOpenURL(url);
+        if (canOpen) {
+            Linking.openURL(url);
+        } else {
+            Alert.alert(
+                'Contato de suporte',
+                `Envie um e-mail para:\n${SUPPORT_EMAIL}`,
+                [{ text: 'OK' }]
+            );
+        }
+    };
+
     return (
         <SafeAreaView style={[styles.container, { backgroundColor: isDark ? colors.dark.background : '#fcfcfb' }]}>
             <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
@@ -44,7 +65,7 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
             <View style={styles.header}>
                 <View style={styles.headerLeft}>
                     <View style={styles.logoBadge}>
-                        <Shield size={20} color={primaryTeal} fill={primaryTeal + '20'} />
+                        <Shield size={20} color={primaryTeal} />
                     </View>
                     <Text style={[styles.headerBrand, { color: primaryTeal }]}>ETHOS</Text>
                 </View>
@@ -86,12 +107,12 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
                 <Animated.View entering={FadeInDown.delay(800).duration(800)} style={styles.footer}>
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: primaryTeal }]}
-                        onPress={() => navigation.replace('MainTabs')}
+                        onPress={handleStart}
                     >
                         <Text style={styles.primaryButtonText}>Começar Agora</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.supportLink}>
+                    <TouchableOpacity style={styles.supportLink} onPress={handleSupport}>
                         <Text style={[styles.supportText, { color: theme.mutedForeground }]}>
                             Precisa de ajuda? <Text style={styles.supportHighlight}>Fale com o suporte</Text>
                         </Text>
@@ -103,9 +124,7 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -113,11 +132,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         height: 60,
     },
-    headerLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
+    headerLeft: { flexDirection: 'row', alignItems: 'center', gap: 10 },
     logoBadge: {
         width: 36,
         height: 36,
@@ -126,49 +141,13 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    headerBrand: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        letterSpacing: 2,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 40,
-        paddingBottom: 40,
-    },
-    welcomeSection: {
-        alignItems: 'center',
-        marginBottom: 50,
-    },
-    title: {
-        fontSize: 40,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-        textAlign: 'center',
-        marginBottom: 24,
-        lineHeight: 48,
-    },
-    subtitle: {
-        fontSize: 17,
-        fontFamily: 'Inter',
-        textAlign: 'center',
-        lineHeight: 26,
-        opacity: 0.8,
-    },
-    sectionLabel: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        letterSpacing: 1.5,
-        color: '#234e5c80',
-        marginBottom: 20,
-    },
-    stepsContainer: {
-        gap: 16,
-        marginBottom: 40,
-    },
+    headerBrand: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', letterSpacing: 2 },
+    scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 40, paddingBottom: 40 },
+    welcomeSection: { alignItems: 'center', marginBottom: 50 },
+    title: { fontSize: 40, fontFamily: 'Lora', fontWeight: '700', textAlign: 'center', marginBottom: 24, lineHeight: 48 },
+    subtitle: { fontSize: 17, fontFamily: 'Inter', textAlign: 'center', lineHeight: 26, opacity: 0.8 },
+    sectionLabel: { fontSize: 12, fontFamily: 'Inter', fontWeight: '700', letterSpacing: 1.5, color: '#234e5c80', marginBottom: 20 },
+    stepsContainer: { gap: 16, marginBottom: 40 },
     stepCard: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -185,23 +164,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
     },
-    stepTextContainer: {
-        flex: 1,
-    },
-    stepTitle: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        marginBottom: 4,
-    },
-    stepSubtitle: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-    },
-    footer: {
-        marginTop: 'auto',
-        gap: 24,
-    },
+    stepTextContainer: { flex: 1 },
+    stepTitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700', marginBottom: 4 },
+    stepSubtitle: { fontSize: 14, fontFamily: 'Inter' },
+    footer: { gap: 24 },
     primaryButton: {
         height: 72,
         borderRadius: 24,
@@ -213,21 +179,8 @@ const styles = StyleSheet.create({
         shadowRadius: 15,
         elevation: 5,
     },
-    primaryButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    supportLink: {
-        alignItems: 'center',
-    },
-    supportText: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-    },
-    supportHighlight: {
-        fontWeight: '700',
-        textDecorationLine: 'underline',
-    }
+    primaryButtonText: { color: '#fff', fontSize: 18, fontFamily: 'Inter', fontWeight: '700' },
+    supportLink: { alignItems: 'center' },
+    supportText: { fontSize: 14, fontFamily: 'Inter' },
+    supportHighlight: { fontWeight: '700', textDecorationLine: 'underline' },
 });

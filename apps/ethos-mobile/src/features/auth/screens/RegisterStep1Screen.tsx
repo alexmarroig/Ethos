@@ -17,12 +17,35 @@ export default function RegisterStep1Screen({ navigation }: any) {
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [crp, setCrp] = useState('');
+    const [crpError, setCrpError] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
 
-    // Specific design values
     const primaryTeal = '#234e5c';
     const inputBg = isDark ? '#1e2126' : '#fcfcfb';
+
+    // CRP format: XX/XXXXXX (2-digit region code + slash + 4-6 digit number)
+    const handleCrpChange = (text: string) => {
+        const digits = text.replace(/\D/g, '').slice(0, 8);
+        const formatted = digits.length > 2
+            ? digits.slice(0, 2) + '/' + digits.slice(2)
+            : digits;
+        setCrp(formatted);
+        if (crpError) setCrpError('');
+    };
+
+    const validateCrp = () => {
+        if (crp && !/^\d{2}\/\d{4,6}$/.test(crp)) {
+            setCrpError('Formato inválido. Use XX/XXXXXX (ex: 06/201444)');
+            return false;
+        }
+        return true;
+    };
+
+    const handleNext = () => {
+        if (!validateCrp()) return;
+        navigation.navigate('RegisterStep2');
+    };
 
     return (
         <KeyboardAvoidingView
@@ -77,15 +100,28 @@ export default function RegisterStep1Screen({ navigation }: any) {
                     {/* CRP */}
                     <View style={styles.inputGroup}>
                         <Text style={[styles.inputLabel, { color: primaryTeal }]}>CRP (Conselho Regional de Psicologia)</Text>
-                        <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
+                        <View style={[
+                            styles.inputWrapper,
+                            { backgroundColor: inputBg, borderColor: crpError ? '#e53e3e' : theme.border }
+                        ]}>
                             <TextInput
                                 style={[styles.input, { color: theme.foreground }]}
-                                placeholder="00/00000"
+                                placeholder="00/000000"
                                 placeholderTextColor={theme.mutedForeground}
                                 value={crp}
-                                onChangeText={setCrp}
+                                onChangeText={handleCrpChange}
+                                onBlur={validateCrp}
+                                keyboardType="numeric"
+                                maxLength={9}
                             />
                         </View>
+                        {crpError ? (
+                            <Text style={styles.errorText}>{crpError}</Text>
+                        ) : (
+                            <Text style={[styles.hintText, { color: theme.mutedForeground }]}>
+                                Formato: XX/XXXXXX · Opcional
+                            </Text>
+                        )}
                     </View>
 
                     {/* Senha */}
@@ -112,7 +148,7 @@ export default function RegisterStep1Screen({ navigation }: any) {
 
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: primaryTeal }]}
-                        onPress={() => navigation.navigate('RegisterStep2')}
+                        onPress={handleNext}
                     >
                         <Text style={styles.primaryButtonText}>Próximo Passo</Text>
                     </TouchableOpacity>
@@ -132,9 +168,7 @@ export default function RegisterStep1Screen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -143,42 +177,13 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 20,
     },
-    backButton: {
-        padding: 4,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingTop: 20,
-        paddingBottom: 40,
-    },
-    title: {
-        fontSize: 32,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-        lineHeight: 38,
-        marginBottom: 8,
-    },
-    subtitle: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontWeight: '600',
-        marginBottom: 40,
-    },
-    inputGroup: {
-        marginBottom: 20,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-        fontWeight: '600',
-        marginBottom: 8,
-    },
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 18, fontFamily: 'Lora', fontWeight: '700' },
+    scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingTop: 20, paddingBottom: 40 },
+    title: { fontSize: 32, fontFamily: 'Lora', fontWeight: '700', lineHeight: 38, marginBottom: 8 },
+    subtitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '600', marginBottom: 40 },
+    inputGroup: { marginBottom: 20 },
+    inputLabel: { fontSize: 14, fontFamily: 'Inter', fontWeight: '600', marginBottom: 8 },
     inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -187,11 +192,9 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         borderWidth: 1,
     },
-    input: {
-        flex: 1,
-        fontSize: 16,
-        fontFamily: 'Inter',
-    },
+    input: { flex: 1, fontSize: 16, fontFamily: 'Inter' },
+    hintText: { fontSize: 12, fontFamily: 'Inter', marginTop: 4, opacity: 0.7 },
+    errorText: { fontSize: 12, fontFamily: 'Inter', color: '#e53e3e', marginTop: 4 },
     primaryButton: {
         height: 64,
         borderRadius: 18,
@@ -204,21 +207,8 @@ const styles = StyleSheet.create({
         shadowRadius: 15,
         elevation: 5,
     },
-    primaryButtonText: {
-        color: '#fff',
-        fontSize: 18,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    loginLink: {
-        alignItems: 'center',
-        marginTop: 30,
-    },
-    loginText: {
-        fontSize: 15,
-        fontFamily: 'Inter',
-    },
-    loginHighlight: {
-        fontWeight: '700',
-    }
+    primaryButtonText: { color: '#fff', fontSize: 18, fontFamily: 'Inter', fontWeight: '700' },
+    loginLink: { alignItems: 'center', marginTop: 30 },
+    loginText: { fontSize: 15, fontFamily: 'Inter' },
+    loginHighlight: { fontWeight: '700' },
 });
