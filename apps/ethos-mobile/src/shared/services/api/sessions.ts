@@ -13,6 +13,8 @@ const sessionContract = {
     '/sessions/{id}/clinical-note': ['post'],
     '/clinical-notes/{id}/validate': ['post'],
     '/patients': ['get'], // Assuming patients are at this endpoint from openapi
+    '/jobs/{id}': ['get'],
+    '/clinical-notes': ['post'],
 } as const;
 
 const apiClient = createHttpClient({
@@ -59,4 +61,25 @@ export const updateSessionStatus = async (sessionId: string, status: Session['st
         method: 'PATCH',
         body: { status }
     });
+};
+
+export const pollJob = async (jobId: string): Promise<{ status: string; document?: any; transcript?: string }> => {
+    const res = await apiClient.request<{ status: string; document?: any; transcript?: string }>(`/jobs/${encodeURIComponent(jobId)}` as any, {
+        method: 'GET',
+    });
+    return res;
+};
+
+export const postAudioToSession = async (sessionId: string, fileUri: string): Promise<void> => {
+    await apiClient.request(`/sessions/${sessionId}/audio` as any, {
+        method: 'POST',
+        body: { file_path: fileUri },
+    });
+};
+
+export const triggerTranscription = async (sessionId: string): Promise<string> => {
+    const res = await apiClient.request<{ job_id: string }>(`/sessions/${sessionId}/transcribe` as any, {
+        method: 'POST',
+    });
+    return (res as any)?.job_id ?? '';
 };

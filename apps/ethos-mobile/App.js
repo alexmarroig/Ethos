@@ -29,6 +29,7 @@ import PatientDashboard from './src/components/PatientDashboard';
 import AppNavigator from './src/shared/navigation/AppNavigator';
 import { AuthProvider } from './src/shared/hooks/useAuth';
 import SplashLoading from './src/shared/components/SplashLoading';
+import { NotificationsProvider } from './src/contexts/NotificationsContext';
 
 export default function App() {
   const [fontsLoaded] = useFonts({
@@ -163,7 +164,9 @@ export default function App() {
       <StatusBar style="dark" />
       {role === 'psychologist' ? (
         <AuthProvider>
-          <AppNavigator />
+          <NotificationsProvider>
+            <AppNavigator />
+          </NotificationsProvider>
         </AuthProvider>
       ) : (
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
