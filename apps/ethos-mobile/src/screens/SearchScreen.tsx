@@ -1,5 +1,5 @@
 // src/screens/SearchScreen.tsx
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity, FlatList,
   StyleSheet, SafeAreaView, StatusBar, useColorScheme,
@@ -43,6 +43,10 @@ export default function SearchScreen({ navigation }: any) {
     setQuery(text);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => setDebounced(text), 300);
+  }, []);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
   const q = debounced.toLowerCase().trim();
