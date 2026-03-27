@@ -71,6 +71,7 @@ export const pollJob = async (jobId: string): Promise<{ status: string; document
 };
 
 export const postAudioToSession = async (sessionId: string, fileUri: string): Promise<void> => {
+    // Backend expects a local file path (not binary upload) — local-only server design
     await apiClient.request(`/sessions/${sessionId}/audio` as any, {
         method: 'POST',
         body: { file_path: fileUri },
@@ -81,5 +82,5 @@ export const triggerTranscription = async (sessionId: string): Promise<string> =
     const res = await apiClient.request<{ job_id: string }>(`/sessions/${sessionId}/transcribe` as any, {
         method: 'POST',
     });
-    return (res as any)?.job_id ?? '';
+    return res.job_id;
 };
