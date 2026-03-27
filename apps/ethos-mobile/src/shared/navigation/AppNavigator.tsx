@@ -27,7 +27,7 @@ import SessionHubScreen from '../../features/sessions/screens/SessionHubScreen';
 import SearchScreen from '../../screens/SearchScreen';
 import NotificationsScreen from '../../screens/NotificationsScreen';
 import DocumentDetailScreen from '../../screens/DocumentDetailScreen';
-import FinanceScreen from '../../screens/FinanceScreen';
+import FinanceScreen from '../../features/finance/screens/FinanceScreen';
 
 const Tab = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
