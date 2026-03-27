@@ -78,12 +78,14 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     setPendingJobs((prev) => prev.filter((j) => j.jobId !== jobId));
   }, []);
 
-  // Background job polling — lives here so it survives navigation away from SessionHub
-  useEffect(() => {
-    if (pendingJobs.length === 0) return;
+  const pendingJobsRef = React.useRef<PendingJob[]>([]);
+  pendingJobsRef.current = pendingJobs;
 
+  // Background job polling — stable interval, reads latest jobs via ref
+  useEffect(() => {
     const interval = setInterval(async () => {
-      for (const job of pendingJobs) {
+      if (pendingJobsRef.current.length === 0) return;
+      for (const job of [...pendingJobsRef.current]) {
         try {
           const token = authTokenRef;
           const res = await fetch(`${API_URL}/jobs/${job.jobId}`, {
@@ -119,7 +121,11 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     }, 10_000);
 
     return () => clearInterval(interval);
-  }, [pendingJobs, addNotification, removePendingJob]);
+  }, [addNotification, removePendingJob]); // stable — reads pendingJobs via ref
+
+  useEffect(() => {
+    return () => { authTokenRef = null; };
+  }, []);
 
   return (
     <NotificationsContext.Provider value={{ notifications, unreadCount, addNotification, addPendingJob, markAllRead }}>
