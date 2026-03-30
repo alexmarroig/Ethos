@@ -1,289 +1,327 @@
-// ethos-mobile/src/screens/SessionHubScreen.tsx
-import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, StatusBar, Alert, ActivityIndicator } from 'react-native';
-import { useTheme } from '../../../shared/hooks/useTheme';
-import { ChevronLeft, MoreVertical, Shield, Trash2, Play, Pause, Save, Mic, MicOff } from 'lucide-react-native';
+// src/features/sessions/screens/SessionHubScreen.tsx
+import React, { useState, useRef, useEffect, useCallback } from 'react';
+import {
+  View, Text, TouchableOpacity, StyleSheet, SafeAreaView,
+  StatusBar, Alert, TextInput, ScrollView, ActivityIndicator,
+} from 'react-native';
+import Animated, { FadeIn } from 'react-native-reanimated';
+import { Mic, MicOff, Play, Pause, Square, Trash2, Upload, FileText, Send, ChevronLeft, MoreVertical } from 'lucide-react-native';
 import { Audio } from 'expo-av';
-import Animated, {
-    useSharedValue, useAnimatedStyle, withRepeat, withTiming, withSpring, interpolate,
-    FadeIn, FadeInDown, SlideInDown
-} from 'react-native-reanimated';
-import { startTranscriptionJob } from '../../../shared/services/api/sessions';
+import * as DocumentPicker from 'expo-document-picker';
+import { useTheme } from '../../../shared/hooks/useTheme';
+import { useNotifications } from '../../../contexts/NotificationsContext';
+import { postAudioToSession, triggerTranscription, saveClinicalNote } from '../../../shared/services/api/sessions';
 
-export default function SessionHubScreen({ navigation, route }: any) {
-    const theme = useTheme();
-    const patientName = route?.params?.patientName || "Mariana Albuquerque";
-    const sessionTime = route?.params?.time || "14:00 - 14:50";
+type Tab = 'record' | 'upload' | 'write';
 
-    const [isRecording, setIsRecording] = useState(false);
-    const [isPaused, setIsPaused] = useState(false);
-    const [recording, setRecording] = useState<Audio.Recording | null>(null);
-    const [duration, setDuration] = useState(0);
-    const timerRef = useRef<NodeJS.Timeout | null>(null);
+// ─── Waveform dots ────────────────────────────────────────────────────────────
+function Waveform({ active }: { active: boolean }) {
+  const dots = Array.from({ length: 24 }, (_, i) => i);
+  return (
+    <View style={waveStyles.row}>
+      {dots.map((i) => (
+        <Animated.View
+          key={i}
+          style={[waveStyles.dot, {
+            height: active ? 4 + Math.random() * 28 : 4,
+            opacity: active ? 0.6 + Math.random() * 0.4 : 0.3,
+          }]}
+        />
+      ))}
+    </View>
+  );
+}
+const waveStyles = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 3, height: 40 },
+  dot: { width: 3, backgroundColor: '#00f2ff', borderRadius: 2 },
+});
 
-    // Animation values
-    const waveformValues = useSharedValue<number[]>(Array(20).fill(5));
+// ─── Tab: Gravar ──────────────────────────────────────────────────────────────
+function RecordTab({ onReady }: { onReady: (uri: string) => void }) {
+  const [recording, setRecording] = useState<Audio.Recording | null>(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [doneUri, setDoneUri] = useState<string | null>(null);
+  const [micEnabled, setMicEnabled] = useState(true);
+  const intervalRef = useRef<any>(null);
 
-    useEffect(() => {
-        if (isRecording && !isPaused) {
-            timerRef.current = setInterval(() => {
-                setDuration(prev => prev + 1);
-            }, 1000);
+  const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
-            // Animate waveform
-            waveformValues.value = Array.from({ length: 20 }, (_, i) =>
-                withRepeat(withTiming(15 + Math.random() * 35, { duration: 300 + i * 20 }), -1, true)
-            );
-        } else {
-            if (timerRef.current) clearInterval(timerRef.current);
-            waveformValues.value = Array(20).fill(5);
-        }
-        return () => { if (timerRef.current) clearInterval(timerRef.current); };
-    }, [isRecording, isPaused]);
-
-    const formatTime = (seconds: number) => {
-        const mins = Math.floor(seconds / 60);
-        const secs = seconds % 60;
-        return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    };
-
-    async function handleStart() {
-        try {
-            await Audio.requestPermissionsAsync();
-            await Audio.setAudioModeAsync({
-                allowsRecordingIOS: true,
-                playsInSilentModeIOS: true,
-            });
-
-            const { recording } = await Audio.Recording.createAsync(
-                Audio.RecordingOptionsPresets.HIGH_QUALITY
-            );
-            setRecording(recording);
-            setIsRecording(true);
-            setIsPaused(false);
-        } catch (err) {
-            console.error('Failed to start recording', err);
-            Alert.alert('Erro', 'Não foi possível iniciar a gravação.');
-        }
+  const startRecording = async () => {
+    try {
+      const { granted } = await Audio.requestPermissionsAsync();
+      if (!granted) { Alert.alert('Permissão negada', 'Habilite o microfone nas configurações.'); return; }
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: true, playsInSilentModeIOS: true });
+      const rec = new Audio.Recording();
+      await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
+      await rec.startAsync();
+      setRecording(rec);
+      setIsRecording(true);
+      setIsPaused(false);
+      setDoneUri(null);
+      intervalRef.current = setInterval(() => setDuration((d) => d + 1), 1000);
+    } catch (e) {
+      Alert.alert('Erro ao iniciar gravação');
     }
+  };
 
-    async function handleStop() {
-        if (!recording) return;
-        try {
-            await recording.stopAndUnloadAsync();
-            const uri = recording.getURI();
-            setIsRecording(false);
-            setRecording(null);
-            setDuration(0);
-            Alert.alert("Sucesso", "Gravação salva localmente com sucesso.");
-        } catch (error) {
-            console.error('Failed to stop recording', error);
-        }
-    }
+  const pauseResume = async () => {
+    if (!recording) return;
+    if (isPaused) { await recording.startAsync(); setIsPaused(false); intervalRef.current = setInterval(() => setDuration((d) => d + 1), 1000); }
+    else { await recording.pauseAsync(); setIsPaused(true); clearInterval(intervalRef.current); }
+  };
 
-    return (
-        <View style={[styles.container, { backgroundColor: '#15171a' }]}>
-            <StatusBar barStyle="light-content" />
+  const stopRecording = async () => {
+    if (!recording) return;
+    clearInterval(intervalRef.current);
+    await recording.stopAndUnloadAsync();
+    const uri = recording.getURI();
+    setRecording(null);
+    setIsRecording(false);
+    setIsPaused(false);
+    if (uri) { setDoneUri(uri); onReady(uri); }
+  };
 
-            {/* Dark Header */}
-            <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.goBack()}>
-                    <ChevronLeft size={28} color="#fff" />
-                </TouchableOpacity>
-                <View style={styles.headerInfo}>
-                    <Text style={styles.patientName}>{patientName}</Text>
-                    <Text style={styles.sessionTime}>{sessionTime}</Text>
-                </View>
-                <TouchableOpacity>
-                    <MoreVertical size={24} color="#fff" />
-                </TouchableOpacity>
-            </View>
+  const discard = () => {
+    clearInterval(intervalRef.current);
+    setRecording(null); setIsRecording(false); setIsPaused(false); setDuration(0); setDoneUri(null);
+    onReady('');
+  };
 
-            {/* Recorder Body */}
-            <View style={styles.recorderBody}>
-                <Animated.View entering={FadeIn.delay(300)} style={styles.securityBadge}>
-                    <Shield size={16} color="#3a9b73" />
-                    <Text style={styles.securityText}>ENCRYPTION ACTIVE</Text>
-                </Animated.View>
+  useEffect(() => () => clearInterval(intervalRef.current), []);
 
-                <Animated.View entering={FadeInDown.duration(800)} style={styles.timerContainer}>
-                    <Text style={styles.timerText}>{formatTime(duration)}</Text>
-                    <Text style={styles.recordingStatus}>{isRecording ? (isPaused ? 'PAUSADO' : 'GRAVANDO...') : 'PRONTO PARA INICIAR'}</Text>
-                </Animated.View>
+  return (
+    <View style={tabStyles.container}>
+      <View style={[tabStyles.badge, { backgroundColor: 'rgba(0,242,255,0.1)' }]}>
+        <Text style={tabStyles.badgeText}>🔒 ENCRYPTION ACTIVE</Text>
+      </View>
 
-                {/* Waveform Visualization */}
-                <View style={styles.waveformContainer}>
-                    {Array.from({ length: 20 }, (_, i) => (
-                        <WaveBar key={i} animatedValues={waveformValues} index={i} />
-                    ))}
-                </View>
-            </View>
+      <Text style={tabStyles.timer}>{fmt(duration)}</Text>
+      <Text style={tabStyles.timerLabel}>
+        {doneUri ? 'GRAVAÇÃO CONCLUÍDA' : isRecording ? (isPaused ? 'PAUSADO' : 'GRAVANDO...') : 'PRONTO PARA INICIAR'}
+      </Text>
 
-            {/* Bottom Controls */}
-            <Animated.View entering={SlideInDown.duration(600)} style={styles.controlsContainer}>
-                <View style={styles.controlRow}>
-                    <TouchableOpacity style={styles.secondaryControl} onPress={() => { setDuration(0); setIsRecording(false); }}>
-                        <Trash2 size={24} color="#fff" opacity={0.6} />
-                    </TouchableOpacity>
+      <Waveform active={isRecording && !isPaused} />
 
-                    <TouchableOpacity
-                        style={[styles.mainControl, { backgroundColor: isRecording && !isPaused ? '#3a9b73' : '#234e5c' }]}
-                        onPress={() => {
-                            if (!isRecording) handleStart();
-                            else setIsPaused(!isPaused);
-                        }}
-                    >
-                        {isRecording && !isPaused ? <Pause size={32} color="#fff" fill="#fff" /> : <Play size={32} color="#fff" fill="#fff" />}
-                    </TouchableOpacity>
+      <View style={tabStyles.controls}>
+        <TouchableOpacity style={tabStyles.iconBtn} onPress={discard}>
+          <Trash2 size={22} color={duration > 0 ? '#ef4444' : '#666'} />
+        </TouchableOpacity>
 
-                    <TouchableOpacity style={styles.secondaryControl} onPress={handleStop}>
-                        <Save size={24} color="#fff" opacity={0.6} />
-                    </TouchableOpacity>
-                </View>
+        {!isRecording && !doneUri ? (
+          <TouchableOpacity style={tabStyles.mainBtn} onPress={startRecording}>
+            <Play size={28} color="#fff" />
+          </TouchableOpacity>
+        ) : isRecording ? (
+          <>
+            <TouchableOpacity style={tabStyles.mainBtn} onPress={pauseResume}>
+              {isPaused ? <Play size={28} color="#fff" /> : <Pause size={28} color="#fff" />}
+            </TouchableOpacity>
+            <TouchableOpacity style={tabStyles.iconBtn} onPress={stopRecording}>
+              <Square size={22} color="#00f2ff" />
+            </TouchableOpacity>
+          </>
+        ) : (
+          <View style={[tabStyles.mainBtn, { backgroundColor: '#22c55e' }]}>
+            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '700' }}>✓ OK</Text>
+          </View>
+        )}
 
-                <View style={styles.micToggleContainer}>
-                    <TouchableOpacity style={[styles.micToggle, { backgroundColor: '#272b34' }]}>
-                        <Mic size={24} color="#fff" />
-                        <Text style={styles.micToggleText}>Microfone Ligado</Text>
-                    </TouchableOpacity>
-                </View>
-            </Animated.View>
-        </View>
-    );
+        <TouchableOpacity style={tabStyles.iconBtn} onPress={() => setMicEnabled((m) => !m)}>
+          {micEnabled ? <Mic size={22} color="#00f2ff" /> : <MicOff size={22} color="#666" />}
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
 }
 
-const WaveBar = ({ animatedValues, index }: any) => {
-    const style = useAnimatedStyle(() => ({
-        height: animatedValues.value[index],
-    }));
-    return <Animated.View style={[styles.waveBar, style]} />;
-};
+// ─── Tab: Enviar Áudio ────────────────────────────────────────────────────────
+function UploadTab({ onReady }: { onReady: (uri: string) => void }) {
+  const [file, setFile] = useState<{ name: string; uri: string } | null>(null);
+
+  const pick = async () => {
+    const res = await DocumentPicker.getDocumentAsync({ type: ['audio/mpeg', 'audio/mp4', 'audio/wav', 'audio/x-m4a'] });
+    if (res.canceled) return;
+    const asset = res.assets?.[0];
+    if (asset) { setFile({ name: asset.name, uri: asset.uri }); onReady(asset.uri); }
+  };
+
+  return (
+    <View style={tabStyles.container}>
+      <TouchableOpacity style={uploadStyles.area} onPress={pick}>
+        <Upload size={48} color="#00f2ff" style={{ opacity: 0.7 }} />
+        <Text style={uploadStyles.label}>Toque para selecionar arquivo de áudio</Text>
+        <Text style={uploadStyles.formats}>.m4a · .mp3 · .wav</Text>
+      </TouchableOpacity>
+      {file && (
+        <View style={uploadStyles.fileRow}>
+          <FileText size={18} color="#00f2ff" />
+          <Text style={uploadStyles.fileName} numberOfLines={1}>{file.name}</Text>
+          <TouchableOpacity onPress={() => { setFile(null); onReady(''); }}>
+            <Trash2 size={16} color='#ef4444' />
+          </TouchableOpacity>
+        </View>
+      )}
+    </View>
+  );
+}
+
+const uploadStyles = StyleSheet.create({
+  area: { borderWidth: 2, borderColor: '#00f2ff40', borderStyle: 'dashed', borderRadius: 24, paddingVertical: 48, alignItems: 'center', gap: 14, marginTop: 24 },
+  label: { color: '#fff', fontFamily: 'Inter', fontSize: 16, textAlign: 'center', opacity: 0.8 },
+  formats: { color: '#00f2ff', fontFamily: 'Inter', fontSize: 13, opacity: 0.6 },
+  fileRow: { flexDirection: 'row', alignItems: 'center', marginTop: 20, gap: 10, backgroundColor: 'rgba(0,242,255,0.08)', padding: 14, borderRadius: 12 },
+  fileName: { flex: 1, color: '#fff', fontFamily: 'Inter', fontSize: 14 },
+});
+
+// ─── Tab: Escrever ────────────────────────────────────────────────────────────
+function WriteTab({ onReady }: { onReady: (text: string) => void }) {
+  const [text, setText] = useState('');
+  return (
+    <View style={{ flex: 1, paddingTop: 16 }}>
+      <TextInput
+        style={writeStyles.input}
+        multiline
+        placeholder="Descreva a sessão com suas próprias palavras..."
+        placeholderTextColor="#666"
+        value={text}
+        onChangeText={(t) => { setText(t); onReady(t.length >= 20 ? t : ''); }}
+        textAlignVertical="top"
+      />
+      <Text style={writeStyles.counter}>{text.length} caracteres{text.length < 20 && text.length > 0 ? ` (mín. 20)` : ''}</Text>
+    </View>
+  );
+}
+const writeStyles = StyleSheet.create({
+  input: { flex: 1, color: '#fff', fontFamily: 'Inter', fontSize: 16, lineHeight: 26, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 16, padding: 16, minHeight: 200 },
+  counter: { color: '#666', fontFamily: 'Inter', fontSize: 12, textAlign: 'right', marginTop: 8 },
+});
+
+const tabStyles = StyleSheet.create({
+  container: { flex: 1, alignItems: 'center', paddingTop: 32, gap: 16 },
+  badge: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  badgeText: { color: '#00f2ff', fontSize: 12, fontFamily: 'Inter', fontWeight: '700', letterSpacing: 1 },
+  timer: { fontSize: 72, color: '#fff', fontFamily: 'Inter', fontWeight: '200', letterSpacing: -2 },
+  timerLabel: { color: '#666', fontSize: 12, fontFamily: 'Inter', fontWeight: '700', letterSpacing: 2 },
+  controls: { flexDirection: 'row', alignItems: 'center', gap: 32, marginTop: 16 },
+  mainBtn: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#234e5c', justifyContent: 'center', alignItems: 'center' },
+  iconBtn: { width: 52, height: 52, borderRadius: 26, backgroundColor: 'rgba(255,255,255,0.08)', justifyContent: 'center', alignItems: 'center' },
+});
+
+// ─── Main Screen ──────────────────────────────────────────────────────────────
+export default function SessionHubScreen({ navigation, route }: any) {
+  const { patientName = 'Paciente', time = '', sessionId, status } = route.params ?? {};
+  const { addNotification, addPendingJob } = useNotifications();
+  const [activeTab, setActiveTab] = useState<Tab>('record');
+  const [payload, setPayload] = useState('');   // uri for record/upload, text for write
+  const [sending, setSending] = useState(false);
+  const theme = useTheme();
+  const primaryTeal = '#234e5c';
+
+  const canSend = payload.length > 0 && !sending;
+
+  const handleSend = async () => {
+    setSending(true);
+    try {
+      if (activeTab === 'write') {
+        if (sessionId) {
+          try { await saveClinicalNote(sessionId, payload); } catch { Alert.alert('Erro ao salvar. Tente novamente.'); setSending(false); return; }
+        }
+        addNotification({ type: 'prontuario_gerado', title: 'Prontuário salvo', body: patientName,
+          document: { id: `doc-${Date.now()}`, title: `Sessão — ${patientName}`, patient: patientName, status: 'rascunho', date: new Date().toLocaleDateString('pt-BR'), content: payload } });
+        navigation.goBack();
+        return;
+      }
+
+      // Record or Upload — post audio then transcribe
+      let jobId = '';
+      if (sessionId) {
+        try { await postAudioToSession(sessionId, payload); }
+        catch { Alert.alert('Erro ao enviar áudio. Tente novamente.'); setSending(false); return; }
+
+        try { jobId = await triggerTranscription(sessionId); }
+        catch { Alert.alert('Áudio salvo, mas transcrição falhou. Você será notificado quando disponível.'); }
+      }
+
+      addPendingJob({ jobId, patientName, sessionId: sessionId ?? '' });
+      navigation.goBack();
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const TABS: { key: Tab; label: string }[] = [
+    { key: 'record', label: '🎙️ Gravar' },
+    { key: 'upload', label: '📁 Áudio' },
+    { key: 'write', label: '✍️ Texto' },
+  ];
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
+          <ChevronLeft size={26} color="#fff" />
+        </TouchableOpacity>
+        <View style={styles.headerCenter}>
+          <Text style={styles.patientName}>{patientName}</Text>
+          {time ? <Text style={styles.sessionTime}>{time}</Text> : null}
+        </View>
+        <TouchableOpacity style={styles.moreBtn}>
+          <MoreVertical size={22} color="#fff" />
+        </TouchableOpacity>
+      </View>
+
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        {TABS.map((t) => (
+          <TouchableOpacity key={t.key} style={[styles.tab, activeTab === t.key && styles.tabActive]} onPress={() => { setActiveTab(t.key); setPayload(''); }}>
+            <Text style={[styles.tabText, activeTab === t.key && styles.tabTextActive]}>{t.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
+      {/* Tab content */}
+      <View style={styles.content}>
+        {activeTab === 'record' && <RecordTab onReady={setPayload} />}
+        {activeTab === 'upload' && <UploadTab onReady={setPayload} />}
+        {activeTab === 'write' && <WriteTab onReady={setPayload} />}
+      </View>
+
+      {/* Send button */}
+      <View style={styles.footer}>
+        <TouchableOpacity style={[styles.sendBtn, !canSend && styles.sendBtnDisabled]} onPress={handleSend} disabled={!canSend}>
+          {sending ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Send size={18} color="#fff" />
+              <Text style={styles.sendBtnText}>Enviar para prontuário</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+    </SafeAreaView>
+  );
+}
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
-    header: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        paddingHorizontal: 20,
-        paddingTop: 60,
-        paddingBottom: 20,
-    },
-    headerInfo: {
-        alignItems: 'center',
-    },
-    patientName: {
-        color: '#fff',
-        fontSize: 18,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-    },
-    sessionTime: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 13,
-        fontFamily: 'Inter',
-    },
-    recorderBody: {
-        flex: 1,
-        alignItems: 'center',
-        justifyContent: 'center',
-        paddingHorizontal: 40,
-    },
-    securityBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 6,
-        backgroundColor: 'rgba(58, 155, 115, 0.15)',
-        paddingHorizontal: 12,
-        paddingVertical: 6,
-        borderRadius: 20,
-        marginBottom: 40,
-    },
-    securityText: {
-        color: '#318260',
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        letterSpacing: 1,
-    },
-    timerContainer: {
-        alignItems: 'center',
-        marginBottom: 60,
-    },
-    timerText: {
-        color: '#fff',
-        fontSize: 80,
-        fontFamily: 'Inter',
-        fontWeight: '300',
-        fontVariant: ['tabular-nums'],
-    },
-    recordingStatus: {
-        color: 'rgba(255,255,255,0.4)',
-        fontSize: 14,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        letterSpacing: 2,
-        marginTop: -10,
-    },
-    waveformContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 4,
-        height: 60,
-    },
-    waveBar: {
-        width: 3,
-        backgroundColor: '#234e5c',
-        borderRadius: 2,
-    },
-    controlsContainer: {
-        paddingBottom: 60,
-        paddingHorizontal: 40,
-    },
-    controlRow: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        marginBottom: 40,
-    },
-    mainControl: {
-        width: 90,
-        height: 90,
-        borderRadius: 45,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.3,
-        shadowOffset: { width: 0, height: 10 },
-        shadowRadius: 20,
-        elevation: 10,
-    },
-    secondaryControl: {
-        width: 56,
-        height: 56,
-        borderRadius: 28,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    micToggleContainer: {
-        alignItems: 'center',
-    },
-    micToggle: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        paddingHorizontal: 24,
-        paddingVertical: 14,
-        borderRadius: 30,
-    },
-    micToggleText: {
-        color: '#fff',
-        fontSize: 15,
-        fontFamily: 'Inter',
-        fontWeight: '600',
-    }
+  container: { flex: 1, backgroundColor: '#0d0f12' },
+  header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 12, gap: 12 },
+  backBtn: { padding: 4 },
+  headerCenter: { flex: 1 },
+  patientName: { color: '#fff', fontSize: 17, fontFamily: 'Inter', fontWeight: '700', textAlign: 'center' },
+  sessionTime: { color: '#666', fontSize: 13, fontFamily: 'Inter', textAlign: 'center', marginTop: 2 },
+  moreBtn: { padding: 4 },
+  tabBar: { flexDirection: 'row', marginHorizontal: 20, backgroundColor: 'rgba(255,255,255,0.06)', borderRadius: 16, padding: 4 },
+  tab: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 12 },
+  tabActive: { backgroundColor: '#234e5c' },
+  tabText: { color: '#666', fontFamily: 'Inter', fontWeight: '600', fontSize: 14 },
+  tabTextActive: { color: '#fff' },
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 8 },
+  footer: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 12 },
+  sendBtn: { height: 64, borderRadius: 20, backgroundColor: '#234e5c', flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10 },
+  sendBtnDisabled: { opacity: 0.4 },
+  sendBtnText: { color: '#fff', fontSize: 17, fontFamily: 'Inter', fontWeight: '700' },
 });
