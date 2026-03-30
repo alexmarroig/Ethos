@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, StatusBar, FlatList } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
-import { Search, FileText, Filter, CheckCircle, Clock, ChevronRight, Plus, MoreHorizontal, FileDown } from 'lucide-react-native';
+import { Search, FileText, Filter, CheckCircle, Clock, ChevronRight, ChevronLeft, Plus, MoreHorizontal, FileDown } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const primaryTeal = '#234e5c';
@@ -14,12 +14,18 @@ const mockDocs = [
     { id: '4', title: 'Evolução Clínica - Ana Paula', patient: 'Ana Paula', date: '28 Fev, 15:20', status: 'signed', type: 'Prontuário' },
 ];
 
-export default function DocumentsScreen() {
+export default function DocumentsScreen({ navigation, route }: any) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const [filter, setFilter] = useState('Todos');
 
     const categories = ['Todos', 'Assinados', 'Rascunhos', 'Modelos'];
+
+    // Apply filter from navigation params (e.g. from "Laudos Atrasados" alert card)
+    useEffect(() => {
+      const paramFilter = route.params?.filter;
+      if (paramFilter) setFilter(paramFilter);
+    }, [route.params?.filter]);
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
@@ -27,9 +33,16 @@ export default function DocumentsScreen() {
 
             {/* Header */}
             <View style={styles.header}>
-                <View>
-                    <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Prontuários e Laudos</Text>
-                    <Text style={[styles.title, { color: primaryTeal }]}>Documentos</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+                    {route.params?.showBack && (
+                        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4, marginRight: 8 }}>
+                            <ChevronLeft size={24} color={primaryTeal} />
+                        </TouchableOpacity>
+                    )}
+                    <View>
+                        <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Prontuários e Laudos</Text>
+                        <Text style={[styles.title, { color: primaryTeal }]}>Documentos</Text>
+                    </View>
                 </View>
                 <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
                     <Plus size={24} color={primaryTeal} />
@@ -83,7 +96,17 @@ export default function DocumentsScreen() {
                 showsVerticalScrollIndicator={false}
                 renderItem={({ item, index }) => (
                     <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
-                        <TouchableOpacity style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
+                        <TouchableOpacity
+                            style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
+                            onPress={() => navigation.navigate('DocumentDetail', { document: {
+                                id: item.id,
+                                title: item.title,
+                                patient: item.patient,
+                                status: item.status === 'signed' ? 'assinado' : 'rascunho',
+                                date: item.date,
+                                content: (item as any).content,
+                            } })}
+                        >
                             <View style={[styles.docIconWrapper, { backgroundColor: item.status === 'signed' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
                                 <FileText size={24} color={item.status === 'signed' ? '#16a34a' : '#f59e0b'} />
                             </View>

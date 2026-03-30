@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Platform, Modal } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
-import { MoreVertical, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Video, FileText, CheckCircle2, Clock } from 'lucide-react-native';
+import { MoreVertical, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Video, FileText, CheckCircle2, Clock, Search, Bell } from 'lucide-react-native';
 import { SessionContextModal } from '../components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
 import { fetchSessions } from '../../../shared/services/api/sessions';
@@ -14,6 +14,7 @@ export default function ScheduleScreen() {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const [selectedSession, setSelectedSession] = useState<any | null>(null);
+    const [showCalendar, setShowCalendar] = useState(false);
     const [sessions, setSessions] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const navigation = useNavigation<any>();
@@ -60,9 +61,17 @@ export default function ScheduleScreen() {
                     <Text style={[styles.greeting, { color: theme.mutedForeground }]}>Março 2024</Text>
                     <Text style={[styles.title, { color: primaryTeal }]}>Agenda Clínica</Text>
                 </View>
-                <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
-                    <CalendarIcon size={22} color={primaryTeal} />
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={() => navigation.navigate('Search')}>
+                        <Search size={22} color={primaryTeal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={() => navigation.navigate('Notifications')}>
+                        <Bell size={22} color={primaryTeal} />
+                    </TouchableOpacity>
+                    <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={() => setShowCalendar(true)}>
+                        <CalendarIcon size={22} color={primaryTeal} />
+                    </TouchableOpacity>
+                </View>
             </View>
 
             {/* Calendar Strip */}
@@ -110,7 +119,7 @@ export default function ScheduleScreen() {
                                 {session.status === 'in_progress' && (
                                     <View style={styles.liveBadge}>
                                         <View style={styles.liveDot} />
-                                        <Text style={styles.liveText}>AO VIVO</Text>
+                                        <Text style={styles.liveText}>EM ANDAMENTO</Text>
                                     </View>
                                 )}
                                 {session.status === 'completed' && (
@@ -141,7 +150,7 @@ export default function ScheduleScreen() {
                             <View style={styles.cardFooter}>
                                 <View style={styles.footerActions}>
                                     {session.status === 'completed' ? (
-                                        <TouchableOpacity style={styles.footerLink}>
+                                        <TouchableOpacity style={styles.footerLink} onPress={() => navigation.navigate('MainTabs', { screen: 'Documents', params: { showBack: true } })}>
                                             <FileText size={14} color={accentTeal} />
                                             <Text style={[styles.footerLinkText, { color: accentTeal }]}>Ver Prontuário</Text>
                                         </TouchableOpacity>
@@ -166,6 +175,21 @@ export default function ScheduleScreen() {
                 onEdit={() => Alert.alert('Ação', `Editar sessão`)}
                 onDelete={() => Alert.alert('Ação', `Excluir sessão`)}
             />
+
+            <Modal visible={showCalendar} transparent animationType="slide" onRequestClose={() => setShowCalendar(false)}>
+                <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)' }} onPress={() => setShowCalendar(false)} />
+                <View style={{ backgroundColor: isDark ? '#1e2126' : '#fff', borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, marginTop: -24 }}>
+                    <Text style={{ fontSize: 18, fontFamily: 'Inter', fontWeight: '700', color: '#234e5c', marginBottom: 16, textAlign: 'center' }}>
+                        Março 2024
+                    </Text>
+                    <Text style={{ fontSize: 14, fontFamily: 'Inter', color: theme.mutedForeground, textAlign: 'center', lineHeight: 22 }}>
+                        Calendário completo em breve.{'\n'}Por enquanto, use a barra semanal acima.
+                    </Text>
+                    <TouchableOpacity onPress={() => setShowCalendar(false)} style={{ marginTop: 24, backgroundColor: '#234e5c', borderRadius: 16, height: 52, justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ color: '#fff', fontFamily: 'Inter', fontWeight: '700' }}>Fechar</Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
         </View>
     );
 }
