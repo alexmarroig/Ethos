@@ -10,14 +10,14 @@ import { SessionContextModal } from '../components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
 import { fetchSessions } from '../services/api/sessions';
 import Animated, { FadeInDown, FadeInRight, FadeIn, FadeInLeft } from 'react-native-reanimated';
-import type { Session as ApiSession } from '@ethos/shared';
+import type { SessionRecord } from '../services/api/types';
 import { avatarPlaceholder } from '../assets/avatar_placeholder';
 
 export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';
     const theme = isDark ? colors.dark : colors.light;
-    const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
-    const [sessions, setSessions] = useState<ApiSession[]>([]);
+    const [selectedSession, setSelectedSession] = useState<SessionRecord | null>(null);
+    const [sessions, setSessions] = useState<SessionRecord[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const navigation = useNavigation<any>();
@@ -31,9 +31,9 @@ export default function DashboardScreen() {
     const loadSessions = async () => {
         if (Platform.OS === 'web') {
             setSessions([
-                { id: '1', patientId: 'Patient 1 (Demo)', scheduledAt: '14:00', status: 'pending' },
-                { id: '2', patientId: 'Patient 2 (Demo)', scheduledAt: '16:00', status: 'completed' },
-            ] as ApiSession[]);
+                { id: '1', owner_user_id: 'demo', patient_id: 'Patient 1 (Demo)', scheduled_at: new Date().toISOString(), status: 'confirmed', created_at: new Date().toISOString() },
+                { id: '2', owner_user_id: 'demo', patient_id: 'Patient 2 (Demo)', scheduled_at: new Date().toISOString(), status: 'completed', created_at: new Date().toISOString() },
+            ]);
             setIsLoading(false);
             return;
         }
@@ -49,9 +49,9 @@ export default function DashboardScreen() {
 
             // Fallback for visual development
             setSessions([
-                { id: '1', patientId: 'Patient 1 (Fallback)', scheduledAt: '14:00', status: 'pending' },
-                { id: '2', patientId: 'Patient 2 (Fallback)', scheduledAt: '16:00', status: 'completed' },
-            ] as ApiSession[]);
+                { id: '1', owner_user_id: 'fallback', patient_id: 'Patient 1 (Fallback)', scheduled_at: new Date().toISOString(), status: 'confirmed', created_at: new Date().toISOString() },
+                { id: '2', owner_user_id: 'fallback', patient_id: 'Patient 2 (Fallback)', scheduled_at: new Date().toISOString(), status: 'completed', created_at: new Date().toISOString() },
+            ]);
         } finally {
             setIsLoading(false);
         }

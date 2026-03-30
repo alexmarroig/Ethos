@@ -3,6 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
+import { resetDatabaseForTests } from "../src/infra/database";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {
@@ -19,6 +20,7 @@ const req = async (base: string, path: string, method = "GET", body?: unknown, t
 };
 
 const setup = async () => {
+  resetDatabaseForTests();
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");

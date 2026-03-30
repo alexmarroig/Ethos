@@ -1,4 +1,5 @@
 import { EthosClinicalPlaneClient, EthosControlPlaneClient } from "@ethos/sdk";
+import { getApiBaseUrl, getControlPlaneBaseUrl } from "./services/api/config";
 
 export const mobileV1Capabilities = {
   login: true,
@@ -9,5 +10,5 @@ export const mobileV1Capabilities = {
   cloudClinicalUploadByDefault: false,
 };
 
-export const controlClient = new EthosControlPlaneClient("http://localhost:8788");
-export const clinicalClient = new EthosClinicalPlaneClient("http://localhost:8787");
+export const controlClient = new EthosControlPlaneClient(getControlPlaneBaseUrl());
+export const clinicalClient = new EthosClinicalPlaneClient(getApiBaseUrl());

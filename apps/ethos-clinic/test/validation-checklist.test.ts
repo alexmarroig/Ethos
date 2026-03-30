@@ -3,7 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
-import { db, uid } from "../src/infra/database";
+import { db, resetDatabaseForTests, uid } from "../src/infra/database";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {
@@ -20,6 +20,7 @@ const req = async (base: string, path: string, method = "GET", body?: unknown, t
 };
 
 const setup = async () => {
+  resetDatabaseForTests();
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");
@@ -48,6 +49,18 @@ const setup = async () => {
     userAToken: userALogin.json.data.token as string,
     userBToken: userBLogin.json.data.token as string,
   };
+};
+
+const waitForJobDraft = async (base: string, jobId: string, token: string) => {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const job = await req(base, `/jobs/${jobId}`, "GET", undefined, token);
+    if (job.json.data.status === "completed" && job.json.data.draft_note_id) {
+      return job;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return req(base, `/jobs/${jobId}`, "GET", undefined, token);
 };
 
 test("checklist: convite + login", async () => {
@@ -372,4 +385,34 @@ test("checklist: logs não expõem texto clínico (telemetria sanitizada)", asyn
 
   server.closeAllConnections();
   server.close();
+});
+
+test("checklist: transcription generates structured draft note", async () => {
+  const { server, base, userAToken } = await setup();
+  try {
+    const session = await req(base, "/sessions", "POST", { patient_id: "patient-draft", scheduled_at: new Date().toISOString() }, userAToken);
+    assert.equal(session.status, 201);
+
+    const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "Paciente relata sobrecarga no trabalho, dificuldade para descansar e preocupacao com conflitos familiares recentes." }, userAToken);
+    assert.equal(transcribe.status, 202);
+
+    const completedJob = await waitForJobDraft(base, transcribe.json.data.job_id as string, userAToken);
+    assert.equal(completedJob.json.data.status, "completed");
+    assert.ok(completedJob.json.data.draft_note_id);
+
+    const note = await req(base, `/clinical-notes/${completedJob.json.data.draft_note_id}`, "GET", undefined, userAToken);
+    assert.equal(note.status, 200);
+    assert.match(note.json.data.content, /## 1\. IDENTIFICA/i);
+    assert.match(note.json.data.content, /## 8\. EVOLU/i);
+    assert.match(note.json.data.content, /S \(Subjetivo\):/);
+    assert.match(note.json.data.content, /O \(Objetivo\):/);
+    assert.match(note.json.data.content, /A \(An.lise\):/);
+    assert.match(note.json.data.content, /P \(Plano\):/);
+    assert.match(note.json.data.content, /## OBSERVA/i);
+    assert.equal(typeof note.json.data.structuredData?.soap?.subjective, "string");
+    assert.equal(typeof note.json.data.structuredData?.soap?.objective, "string");
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 });

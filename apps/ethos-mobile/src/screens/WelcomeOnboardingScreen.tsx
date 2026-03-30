@@ -85,7 +85,7 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
                 <Animated.View entering={FadeInDown.delay(800).duration(800)} style={styles.footer}>
                     <TouchableOpacity
                         style={[styles.primaryButton, { backgroundColor: primaryTeal }]}
-                        onPress={() => navigation.replace('MainTabs')}
+                        onPress={() => navigation.replace('Login')}
                     >
                         <Text style={styles.primaryButtonText}>Começar Agora</Text>
                     </TouchableOpacity>
