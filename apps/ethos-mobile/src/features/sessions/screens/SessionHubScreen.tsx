@@ -216,6 +216,8 @@ export default function SessionHubScreen({ navigation, route }: any) {
   const [activeTab, setActiveTab] = useState<Tab>('record');
   const [payload, setPayload] = useState('');   // uri for record/upload, text for write
   const [sending, setSending] = useState(false);
+  const mountedRef = useRef(true);
+  useEffect(() => () => { mountedRef.current = false; }, []);
   const theme = useTheme();
   const primaryTeal = '#234e5c';
 
@@ -247,7 +249,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
       addPendingJob({ jobId, patientName, sessionId: sessionId ?? '' });
       navigation.goBack();
     } finally {
-      setSending(false);
+      if (mountedRef.current) setSending(false);
     }
   };
 
