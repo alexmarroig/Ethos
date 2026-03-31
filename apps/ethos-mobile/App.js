@@ -1,14 +1,23 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
 import { Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Lora_400Regular, Lora_500Medium, Lora_600SemiBold, Lora_700Bold } from '@expo-google-fonts/lora';
 
 import AppNavigator from './src/navigation/AppNavigator';
 import SplashLoading from './src/components/SplashLoading';
+import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
 import { NotificationsProvider } from './src/contexts/NotificationsContext';
 import { useAppLock } from './src/hooks/useAppLock';
+
+if (!__DEV__) {
+  Sentry.init({
+    dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'https://examplePublicKey@o0.ingest.sentry.io/0',
+    tracesSampleRate: 1.0,
+  });
+}
 
 function AppShell({ fontsLoaded }) {
   const { isAuthenticated, isHydrating, logout } = useAuth();
@@ -49,11 +58,13 @@ export default function App() {
   });
 
   return (
-    <AuthProvider>
-      <NotificationsProvider>
-        <AppShell fontsLoaded={fontsLoaded} />
-      </NotificationsProvider>
-    </AuthProvider>
+    <ErrorBoundary>
+      <AuthProvider>
+        <NotificationsProvider>
+          <AppShell fontsLoaded={fontsLoaded} />
+        </NotificationsProvider>
+      </AuthProvider>
+    </ErrorBoundary>
   );
 }
 

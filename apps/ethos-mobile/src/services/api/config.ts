@@ -31,16 +31,28 @@ const resolveDefaultHost = () => {
     return developmentHost;
   }
 
+  // If we are on a physical device and the dev host is loopback, try to keep to local emulator default.
   return FALLBACK_LOOPBACK_HOST;
 };
+
+const isDevelopment = typeof __DEV__ !== 'undefined' ? __DEV__ : false;
 
 const buildBaseUrl = (envValue: string | undefined, port: number) => {
   const explicitUrl = envValue?.trim();
   if (explicitUrl) {
-    return stripTrailingSlashes(ensureProtocol(explicitUrl));
+    try {
+      return stripTrailingSlashes(ensureProtocol(explicitUrl));
+    } catch {
+      console.warn(`[api/config] URL de API inválida em EXPO_PUBLIC_ETHOS_API_URL: ${explicitUrl}`);
+    }
   }
 
-  return `http://${resolveDefaultHost()}:${port}`;
+  const host = resolveDefaultHost();
+  const url = `http://${host}:${port}`;
+  if (isDevelopment && host !== FALLBACK_LOOPBACK_HOST) {
+    console.info(`[api/config] Usando host de desenvolvimento: ${url}`);
+  }
+  return url;
 };
 
 export const getApiBaseUrl = () => buildBaseUrl(process.env.EXPO_PUBLIC_ETHOS_API_URL, API_PORT);

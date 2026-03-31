@@ -35,6 +35,12 @@
       "favicon": "./assets/favicon.png",
       "bundler": "metro"
     },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_ERROR_RECOVERY",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/acf7b22f-889c-4233-8f82-f1ddc71984a7"
+    },
     "plugins": [
       [
         "expo-sqlite",
@@ -43,7 +49,10 @@
         }
       ],
       "./plugins/withAndroidBackupConfig",
-      "./plugins/withIOSBackupExclusion"
+      "./plugins/withIOSBackupExclusion",
+      "expo-font",
+      "expo-secure-store",
+      "@sentry/react-native"
     ],
     "extra": {
       "eas": {

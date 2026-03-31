@@ -1,0 +1,52 @@
+name: Android EAS Build
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build:
+    name: Build APK / AAB on EAS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: |
+          cd apps/ethos-mobile
+          npm ci
+
+      - name: Login to Expo
+        run: |
+          npx eas login --token ${{ secrets.EXPO_TOKEN }}
+
+      - name: Configure EAS CLI project settings
+        run: |
+          cd apps/ethos-mobile
+          npx eas whoami
+          echo "EAS_PROJECT_ID=${{ secrets.EAS_PROJECT_ID }}" > .eas/env
+
+      - name: Build Android preview APK
+        run: |
+          cd apps/ethos-mobile
+          npx eas build --platform android --profile preview --non-interactive
+
+      - name: Build Android release AAB
+        run: |
+          cd apps/ethos-mobile
+          npx eas build --platform android --profile release --non-interactive
+
+      - name: Upload build artifacts
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethos-mobile-apk-aab
+          path: apps/ethos-mobile/*.apk
