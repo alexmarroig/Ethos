@@ -3,11 +3,16 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
+<<<<<<< HEAD
 // Windows: node:sea path issue with Node v24+
+=======
+// On Windows, the 'node:sea' external can cause issues with colon in path
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
 if (process.platform === 'win32') {
   config.resolver.unstable_enablePackageExports = false;
 }
 
+<<<<<<< HEAD
 // Web: redirect native-only Expo modules to JS shims so the app
 // can run in the browser without native module crashes.
 const WEB_SHIMS = {
@@ -51,6 +56,21 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     return originalResolveRequest(context, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
+=======
+// expo-sqlite is native-only — redirect to a no-op mock on web
+const originalResolveRequest = config.resolver.resolveRequest;
+config.resolver.resolveRequest = (context, moduleName, platform) => {
+    if (platform === 'web' && moduleName === 'expo-sqlite') {
+        return {
+            filePath: path.resolve(__dirname, 'src/services/sqlite-web-mock.js'),
+            type: 'sourceFile',
+        };
+    }
+    if (originalResolveRequest) {
+        return originalResolveRequest(context, moduleName, platform);
+    }
+    return context.resolveRequest(context, moduleName, platform);
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
 };
 
 module.exports = config;

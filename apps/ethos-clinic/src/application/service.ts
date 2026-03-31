@@ -1229,7 +1229,7 @@ export const handleTranscriberWebhook = (jobId: string, status: JobStatus, error
   const job = db.jobs.get(jobId);
   if (!job) return null;
   job.status = status;
-  job.progress = status === "completed" ? 1 : job.progress;
+  job.progress = status === "completed" || status === "succeeded" ? 1 : job.progress;
   job.error_code = errorCode;
   job.updated_at = now();
   persistMutation();

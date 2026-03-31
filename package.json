@@ -26,14 +26,13 @@
     "build:backend": "npm run build:clinic",
     "build:control-plane": "npm --workspace apps/ethos-control-plane run build",
     "test": "npm run test:apps",
-    "test:apps": "npm --workspace apps/ethos-clinic run test && npm --workspace apps/ethos-control-plane run test",
+    "test:apps": "npm --workspace ethos-clinic run test && npm --workspace ethos-control-plane run test",
     "lint": "echo \"lint placeholder\"",
     "dev:clinic": "npm --workspace apps/ethos-clinic run dev",
     "build:clinic": "npm --workspace apps/ethos-clinic run build",
     "ci:check-boundaries": "bash scripts/check-boundaries.sh"
   },
   "devDependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.59.0",
     "typescript": "^5.3.3"
   }
 }

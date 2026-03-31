@@ -3,7 +3,11 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
+<<<<<<< HEAD
 import { db, resetDatabaseForTests, uid } from "../src/infra/database";
+=======
+import { db, uid } from "../src/infra/database";
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {

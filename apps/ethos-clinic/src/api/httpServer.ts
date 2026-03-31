@@ -439,7 +439,11 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
+<<<<<<< HEAD
         const token = String(req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
+=======
+        const token = tokenFrom(req);
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
         if (token) logout(token);
         return ok(res, requestId, 200, { success: true });
       }
