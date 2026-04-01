@@ -22,7 +22,7 @@
       }
     },
     "preview": {
-<<<<<<< HEAD
+      "extends": "base",
       "distribution": "internal",
       "android": {
         "buildType": "apk"
@@ -33,6 +33,7 @@
       }
     },
     "release": {
+      "extends": "base",
       "distribution": "store",
       "android": {
         "buildType": "app-bundle"
@@ -40,13 +41,6 @@
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
-=======
-      "extends": "base",
-      "distribution": "internal"
-    },
-    "production": {
-      "extends": "base"
->>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
     }
   },
   "submit": {
