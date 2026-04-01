@@ -18,6 +18,7 @@ const WEB_SHIMS = {
   'expo-local-authentication': path.resolve(__dirname, 'src/web-shims/expo-local-authentication.js'),
   'expo-av':                   path.resolve(__dirname, 'src/web-shims/expo-av.js'),
   'expo-device':               path.resolve(__dirname, 'src/web-shims/expo-device.js'),
+  'react-native-svg':          path.resolve(__dirname, 'src/web-shims/react-native-svg.js'),
 };
 
 const originalResolveRequest = config.resolver.resolveRequest;

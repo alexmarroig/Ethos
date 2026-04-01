@@ -91,7 +91,14 @@ const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "
 const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
 const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
 
-const defaultAllowedOrigins = ["https://ethos-clinical-space.lovable.app", "*.lovableproject.com"];
+const defaultAllowedOrigins = [
+  "https://ethos-clinical-space.lovable.app",
+  "*.lovableproject.com",
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://localhost:19006",
+  "http://localhost:3000",
+];
 
 const parseAllowedOrigins = () => {
   const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")
