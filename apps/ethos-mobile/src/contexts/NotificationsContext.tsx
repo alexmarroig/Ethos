@@ -1,6 +1,18 @@
 // src/contexts/NotificationsContext.tsx
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
+
+// ==========================
+// TYPES
+// ==========================
 export type DocumentItem = {
   id: string;
   title: string;
@@ -34,6 +46,9 @@ type NotificationsContextValue = {
   markAllRead: () => void;
 };
 
+// ==========================
+// CONTEXT
+// ==========================
 const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
 export function useNotifications(): NotificationsContextValue {
@@ -42,6 +57,9 @@ export function useNotifications(): NotificationsContextValue {
   return ctx;
 }
 
+// ==========================
+// CONFIG
+// ==========================
 const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.15.182:8787';
 
 let authTokenRef: string | null = null;
@@ -49,50 +67,87 @@ export const setNotificationsAuthToken = (token: string | null) => {
   authTokenRef = token;
 };
 
+// ==========================
+// PROVIDER
+// ==========================
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const pendingJobsRef = useRef<PendingJob[]>([]);
+  pendingJobsRef.current = pendingJobs;
 
-  const addNotification = useCallback((n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => {
-    setNotifications((prev) => [
-      { ...n, id: `${Date.now()}-${Math.random()}`, read: false, timestamp: new Date() },
-      ...prev,
-    ]);
-  }, []);
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
 
-  const addPendingJob = useCallback((job: PendingJob) => {
-    if (!job.jobId) {
-      addNotification({ type: 'sessao_pendente', title: 'Transcrição indisponível', body: job.patientName });
-      return;
-    }
-    setPendingJobs((prev) => [...prev, job]);
-  }, [addNotification]);
+  // ==========================
+  // ADD NOTIFICATION
+  // ==========================
+  const addNotification = useCallback(
+    (n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => {
+      setNotifications((prev) => [
+        {
+          ...n,
+          id: `${Date.now()}-${Math.random()}`,
+          read: false,
+          timestamp: new Date(),
+        },
+        ...prev,
+      ]);
+    },
+    []
+  );
 
-  const markAllRead = useCallback(() => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  }, []);
+  // ==========================
+  // ADD JOB (NO DUPLICATE)
+  // ==========================
+  const addPendingJob = useCallback(
+    (job: PendingJob) => {
+      if (!job.jobId) {
+        addNotification({
+          type: 'sessao_pendente',
+          title: 'Transcrição indisponível',
+          body: job.patientName,
+        });
+        return;
+      }
+
+      setPendingJobs((prev) => {
+        if (prev.some((j) => j.jobId === job.jobId)) return prev;
+        return [...prev, job];
+      });
+    },
+    [addNotification]
+  );
 
   const removePendingJob = useCallback((jobId: string) => {
     setPendingJobs((prev) => prev.filter((j) => j.jobId !== jobId));
   }, []);
 
-  const pendingJobsRef = React.useRef<PendingJob[]>([]);
-  pendingJobsRef.current = pendingJobs;
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
 
-  // Background job polling — stable interval, reads latest jobs via ref
+  // ==========================
+  // POLLING ENGINE
+  // ==========================
   useEffect(() => {
     const interval = setInterval(async () => {
       if (pendingJobsRef.current.length === 0) return;
-      for (const job of [...pendingJobsRef.current]) {
+
+      for (const job of pendingJobsRef.current) {
         try {
-          const token = authTokenRef;
           const res = await fetch(`${API_URL}/jobs/${job.jobId}`, {
-            headers: token ? { Authorization: `Bearer ${token}` } : {},
+            headers: authTokenRef
+              ? { Authorization: `Bearer ${authTokenRef}` }
+              : {},
           });
+
           if (!res.ok) continue;
-          const data: any = await res.json();
+
+          const data = await res.json();
           const status = data?.data?.status ?? data?.status;
 
           if (status === 'completed') {
@@ -100,35 +155,65 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
               type: 'prontuario_gerado',
               title: 'Prontuário gerado',
               body: job.patientName,
-              document: data?.data?.document ?? {
-                id: `doc-${Date.now()}`,
-                title: `Sessão — ${job.patientName}`,
-                patient: job.patientName,
-                status: 'rascunho',
-                date: new Date().toLocaleDateString('pt-BR'),
-                content: data?.data?.transcript ?? 'Transcrição concluída. Revise o prontuário.',
-              },
+              document:
+                data?.data?.document ?? {
+                  id: `doc-${Date.now()}`,
+                  title: `Sessão — ${job.patientName}`,
+                  patient: job.patientName,
+                  status: 'rascunho',
+                  date: new Date().toLocaleDateString('pt-BR'),
+                  content:
+                    data?.data?.transcript ??
+                    'Transcrição concluída. Revise o prontuário.',
+                },
             });
+
             removePendingJob(job.jobId);
-          } else if (status === 'failed') {
-            addNotification({ type: 'sessao_pendente', title: 'Transcrição falhou', body: job.patientName });
+          }
+
+          if (status === 'failed') {
+            addNotification({
+              type: 'sessao_pendente',
+              title: 'Transcrição falhou',
+              body: job.patientName,
+            });
+
             removePendingJob(job.jobId);
           }
         } catch {
-          // network error — try again next tick
+          // retry silently
         }
       }
-    }, 10_000);
+    }, 10000);
 
     return () => clearInterval(interval);
-  }, [addNotification, removePendingJob]); // stable — reads pendingJobs via ref
+  }, [addNotification, removePendingJob]);
 
+  // ==========================
+  // CLEANUP TOKEN
+  // ==========================
   useEffect(() => {
-    return () => { authTokenRef = null; };
+    return () => {
+      authTokenRef = null;
+    };
   }, []);
 
+  // ==========================
+  // CONTEXT VALUE
+  // ==========================
+  const value = useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      addNotification,
+      addPendingJob,
+      markAllRead,
+    }),
+    [notifications, unreadCount, addNotification, addPendingJob, markAllRead]
+  );
+
   return (
-    <NotificationsContext.Provider value={{ notifications, unreadCount, addNotification, addPendingJob, markAllRead }}>
+    <NotificationsContext.Provider value={value}>
       {children}
     </NotificationsContext.Provider>
   );

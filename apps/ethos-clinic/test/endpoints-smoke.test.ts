@@ -3,6 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
+import { resetDatabaseForTests } from "../src/infra/database";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {
@@ -19,6 +20,7 @@ const req = async (base: string, path: string, method = "GET", body?: unknown, t
 };
 
 const setup = async () => {
+  resetDatabaseForTests();
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");
@@ -37,8 +39,9 @@ const setup = async () => {
 
 test("smoke: cobertura dos principais endpoints clínicos e administrativos", async () => {
   const { server, base, adminToken, userToken } = await setup();
+  try {
 
-  const contracts = await req(base, "/contracts");
+  const contracts = await req(base, "/contracts", "GET", undefined, userToken);
   assert.equal(contracts.status, 200);
 
   const session = await req(base, "/sessions", "POST", { patient_id: "patient-smoke", scheduled_at: new Date().toISOString() }, userToken, "smoke-session-1");
@@ -90,5 +93,8 @@ test("smoke: cobertura dos principais endpoints clínicos e administrativos", as
   assert.equal((await req(base, "/purge", "POST", {}, userToken)).status, 202);
   assert.equal((await req(base, "/auth/logout", "POST", {}, userToken)).status, 200);
 
-  server.close();
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 });

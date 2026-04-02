@@ -3,53 +3,75 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-// Windows: node:sea path issue with Node v24+
+// ==========================
+// WINDOWS FIX (Node v24 / node:sea issue)
+// ==========================
 if (process.platform === 'win32') {
   config.resolver.unstable_enablePackageExports = false;
 }
 
-// Web: redirect native-only Expo modules to JS shims so the app
-// can run in the browser without native module crashes.
+// ==========================
+// WEB SHIMS (avoid native crashes on web)
+// ==========================
 const WEB_SHIMS = {
-  'expo-sqlite':               path.resolve(__dirname, 'src/web-shims/expo-sqlite.js'),
-  'expo-secure-store':         path.resolve(__dirname, 'src/web-shims/expo-secure-store.js'),
-  'expo-crypto':               path.resolve(__dirname, 'src/web-shims/expo-crypto.js'),
-  'expo-file-system':          path.resolve(__dirname, 'src/web-shims/expo-file-system.js'),
+  'expo-sqlite': path.resolve(__dirname, 'src/web-shims/expo-sqlite.js'),
+  'expo-secure-store': path.resolve(__dirname, 'src/web-shims/expo-secure-store.js'),
+  'expo-crypto': path.resolve(__dirname, 'src/web-shims/expo-crypto.js'),
+  'expo-file-system': path.resolve(__dirname, 'src/web-shims/expo-file-system.js'),
   'expo-local-authentication': path.resolve(__dirname, 'src/web-shims/expo-local-authentication.js'),
-  'expo-av':                   path.resolve(__dirname, 'src/web-shims/expo-av.js'),
-  'expo-device':               path.resolve(__dirname, 'src/web-shims/expo-device.js'),
-  'react-native-svg':          path.resolve(__dirname, 'src/web-shims/react-native-svg.js'),
+  'expo-av': path.resolve(__dirname, 'src/web-shims/expo-av.js'),
+  'expo-device': path.resolve(__dirname, 'src/web-shims/expo-device.js'),
+  'react-native-svg': path.resolve(__dirname, 'src/web-shims/react-native-svg.js'),
 };
 
+// ==========================
+// CUSTOM RESOLVER
+// ==========================
 const originalResolveRequest = config.resolver.resolveRequest;
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Force single React copy: root node_modules has React 18 (for other workspaces),
-  // but ethos-mobile needs React 19. By changing originModulePath to a file inside
-  // apps/ethos-mobile/, Metro finds React 19 in the local node_modules first.
+  // ==========================
+  // FORCE SINGLE REACT VERSION (CRITICAL)
+  // ==========================
   if (
-    moduleName === 'react' || moduleName.startsWith('react/') ||
-    moduleName === 'react-dom' || moduleName.startsWith('react-dom/')
+    moduleName === 'react' ||
+    moduleName.startsWith('react/') ||
+    moduleName === 'react-dom' ||
+    moduleName.startsWith('react-dom/')
   ) {
     return context.resolveRequest(
-      { ...context, originModulePath: path.resolve(__dirname, 'package.json') },
+      {
+        ...context,
+        originModulePath: path.resolve(__dirname, 'package.json'),
+      },
       moduleName,
       platform
     );
   }
 
+  // ==========================
+  // WEB SHIMS HANDLING
+  // ==========================
   if (platform === 'web') {
     const shimKey = Object.keys(WEB_SHIMS).find(
       (key) => moduleName === key || moduleName.startsWith(key + '/')
     );
+
     if (shimKey) {
-      return { filePath: WEB_SHIMS[shimKey], type: 'sourceFile' };
+      return {
+        filePath: WEB_SHIMS[shimKey],
+        type: 'sourceFile',
+      };
     }
   }
 
+  // ==========================
+  // DEFAULT RESOLUTION
+  // ==========================
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }
+
   return context.resolveRequest(context, moduleName, platform);
 };
 

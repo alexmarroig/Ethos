@@ -10,17 +10,21 @@ import {
   addDocumentVersion,
   addTelemetry,
   adminOverviewMetrics,
+  buildFinanceSummary,
+  buildPatientNotificationFeed,
   canUseFeature,
   closeCase,
   confirmPatientSession,
   createAnamnesis,
   createAnonymizedCase,
+  createClinicalNote,
   createClinicalNoteDraft,
   createContract,
   createDocument,
   createFinancialEntry,
   createFormEntry,
   createInvite,
+  createPatient,
   createJob,
   createPatientAccess,
   createPrivateComment,
@@ -36,8 +40,11 @@ import {
   getClinicalNote,
   getContract,
   getContractByPortalToken,
+  getDocumentDetail,
   getJob,
+  getPatientDetail,
   getPatientAccessForUser,
+  getPatientAccessibleDocumentDetail,
   getRetentionPolicy,
   getTemplate,
   getUserFromToken,
@@ -50,6 +57,9 @@ import {
   listDocumentsByCase,
   listDocumentVersions,
   listObservabilityAlerts,
+  listPatientAccessibleDiaryEntries,
+  listPatientAccessibleDocuments,
+  listClinicalNotes,
   listPatientSessions,
   listPatients,
   listPrivateComments,
@@ -70,6 +80,7 @@ import {
   sendContract,
   sendPatientAsyncMessage,
   syncLocalEntitlements,
+  updateClinicalNote,
   updateRetentionPolicy,
   updateTemplate,
   validateClinicalNote,
@@ -155,16 +166,17 @@ const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
 
 const CLINICAL_PATHS = [
   /^\/(sessions|cases)/,
+  /^\/patients/,
   /^\/clinical-notes/,
   /^\/reports/,
   /^\/anamnesis/,
   /^\/scales/,
   /^\/forms/,
+  /^\/finance/,
   /^\/financial/,
   /^\/documents/,
   /^\/document-templates/,
   /^\/jobs/,
-  /^\/notifications/,
   /^\/export/,
   /^\/backup/,
   /^\/restore/,
@@ -304,6 +316,43 @@ const getPaginationOrError = (res: ServerResponse, requestId: string, url: URL) 
   return pagination;
 };
 
+const normalizeOptionalText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+const parseDiaryPayload = (body: Record<string, unknown>) => {
+  const mood = Number(body.mood);
+  if (!Number.isInteger(mood) || mood < 1 || mood > 5) {
+    return { error: "mood must be an integer between 1 and 5" as const };
+  }
+
+  const intensity = Number(body.intensity);
+  if (!Number.isFinite(intensity) || intensity < 0 || intensity > 10) {
+    return { error: "intensity must be between 0 and 10" as const };
+  }
+
+  const rawDate = body.date;
+  if (rawDate !== undefined && (typeof rawDate !== "string" || Number.isNaN(Date.parse(rawDate)))) {
+    return { error: "date must be a valid ISO date" as const };
+  }
+
+  const tags = Array.isArray(body.tags)
+    ? body.tags.map((item) => String(item).trim()).filter(Boolean)
+    : typeof body.tags === "string"
+      ? body.tags.split(",").map((item) => item.trim()).filter(Boolean)
+      : undefined;
+
+  return {
+    value: {
+      date: typeof rawDate === "string" ? new Date(rawDate).toISOString() : undefined,
+      mood: mood as 1 | 2 | 3 | 4 | 5,
+      intensity,
+      description: normalizeOptionalText(body.description ?? body.content),
+      thoughts: normalizeOptionalText(body.thoughts),
+      tags,
+    },
+  };
+};
+
 const hashRequestBody = (body: Record<string, unknown>) =>
   crypto.createHash("sha256").update(JSON.stringify(body)).digest("hex");
 
@@ -390,9 +439,12 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
-        const auth = requireAuth(req, res, requestId);
-        if (!auth) return;
-        logout(auth.token);
+<<<<<<< HEAD
+        const token = String(req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
+=======
+        const token = tokenFrom(req);
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
+        if (token) logout(token);
         return ok(res, requestId, 200, { success: true });
       }
 
@@ -403,6 +455,32 @@ export const createEthosBackend = () =>
       // Gate para rotas clínicas (corrigido)
       const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
       if (isClinicalPath && !requireClinicalAccess(res, requestId, auth.user.role)) return;
+
+      if (method === "POST" && url.pathname === "/patients") {
+        const body = await readJson(req);
+        if (typeof body.name !== "string" || !body.name.trim()) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "name is required");
+        }
+
+        return ok(
+          res,
+          requestId,
+          201,
+          createPatient(auth.user.id, {
+            name: body.name,
+            email: typeof body.email === "string" ? body.email : undefined,
+            phone: typeof body.phone === "string" ? body.phone : undefined,
+            notes: typeof body.notes === "string" ? body.notes : undefined,
+          }),
+        );
+      }
+
+      const patientById = url.pathname.match(/^\/patients\/([^/]+)$/);
+      if (method === "GET" && patientById) {
+        const detail = getPatientDetail(auth.user.id, patientById[1]);
+        if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+        return ok(res, requestId, 200, detail);
+      }
 
       // Patient access management (apenas psicólogo “user”)
       if (method === "POST" && url.pathname === "/patients/access") {
@@ -465,6 +543,37 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(listPatientSessions(access), pagination.page, pagination.pageSize));
       }
 
+      if (method === "GET" && url.pathname === "/patient/documents") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const pagination = getPaginationOrError(res, requestId, url);
+        if (!pagination) return;
+
+        const items = listPatientAccessibleDocuments(access).map((item) => {
+          const versionsCount = listDocumentVersions(access.owner_user_id, item.id).length;
+          return {
+            ...item,
+            versions_count: versionsCount,
+            status: versionsCount > 0 ? "signed" : "draft",
+          };
+        });
+
+        return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      const patientDocumentById = url.pathname.match(/^\/patient\/documents\/([^/]+)$/);
+      if (method === "GET" && patientDocumentById) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const detail = getPatientAccessibleDocumentDetail(access, patientDocumentById[1]);
+        if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+        return ok(res, requestId, 200, detail);
+      }
+
       const patientSessionConfirm = url.pathname.match(/^\/patient\/sessions\/([^/]+)\/confirm$/);
       if (method === "POST" && patientSessionConfirm) {
         if (!requireRole(res, requestId, "patient", auth.user.role)) return;
@@ -490,18 +599,54 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 201, result.record);
       }
 
-      if (method === "POST" && url.pathname === "/patient/diary/entries") {
+      if (method === "GET" && url.pathname === "/patient/diary") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const pagination = getPaginationOrError(res, requestId, url);
+        if (!pagination) return;
+
+        return ok(
+          res,
+          requestId,
+          200,
+          paginate(listPatientAccessibleDiaryEntries(access), pagination.page, pagination.pageSize),
+        );
+      }
+
+      if (method === "POST" && (url.pathname === "/patient/diary" || url.pathname === "/patient/diary/entries")) {
         if (!requireRole(res, requestId, "patient", auth.user.role)) return;
         const access = requirePatientAccess(res, requestId, auth.user.id);
         if (!access) return;
 
         const body = await readJson(req);
-        if (typeof body.content !== "string" || !body.content.trim()) {
-          return error(res, requestId, 422, "VALIDATION_ERROR", "content required");
+        const parsedDiaryPayload = parseDiaryPayload(body);
+        if ("error" in parsedDiaryPayload) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", parsedDiaryPayload.error ?? "Invalid diary payload");
         }
-        const result = recordPatientDiaryEntry(access, body.content.trim());
+
+        const result = recordPatientDiaryEntry(access, parsedDiaryPayload.value);
         if ("error" in result) return error(res, requestId, 403, "FORBIDDEN", "Diary entries not allowed");
         return ok(res, requestId, 201, result.entry);
+      }
+
+      const psychologistPatientDiary = url.pathname.match(/^\/psychologist\/patient\/([^/]+)\/diary$/);
+      if (method === "GET" && psychologistPatientDiary) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+
+        const detail = getPatientDetail(auth.user.id, psychologistPatientDiary[1]);
+        if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+
+        const pagination = getPaginationOrError(res, requestId, url);
+        if (!pagination) return;
+
+        return ok(
+          res,
+          requestId,
+          200,
+          paginate(detail.emotional_diary, pagination.page, pagination.pageSize),
+        );
       }
 
       if (method === "POST" && url.pathname === "/patient/messages") {
@@ -599,7 +744,12 @@ export const createEthosBackend = () =>
           if (existing) return ok(res, requestId, existing.statusCode, existing.body);
         }
 
-        const session = createSession(auth.user.id, body.patient_id, body.scheduled_at);
+        const session = createSession(
+          auth.user.id,
+          body.patient_id,
+          body.scheduled_at,
+          typeof body.duration_minutes === "number" ? body.duration_minutes : undefined,
+        );
 
         if (idemCacheKey) {
           setIdempotencyEntry(idemCacheKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
@@ -660,8 +810,41 @@ export const createEthosBackend = () =>
       const noteCreate = url.pathname.match(/^\/sessions\/([^/]+)\/clinical-note$/);
       if (method === "POST" && noteCreate) {
         const body = await readJson(req);
-        if (typeof body.content !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "content required");
-        return ok(res, requestId, 201, createClinicalNoteDraft(auth.user.id, noteCreate[1], body.content));
+        if (typeof body.content !== "string" && (typeof body.structuredData !== "object" || body.structuredData === null)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "content or structuredData required");
+        }
+        return ok(
+          res,
+          requestId,
+          201,
+          createClinicalNoteDraft(
+            auth.user.id,
+            noteCreate[1],
+            typeof body.content === "string" ? body.content : "",
+            typeof body.structuredData === "object" && body.structuredData !== null ? body.structuredData as any : undefined,
+          ),
+        );
+      }
+
+      if (method === "POST" && url.pathname === "/clinical-notes") {
+        const body = await readJson(req);
+        if (typeof body.session_id !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "session_id is required");
+        }
+        if (typeof body.content !== "string" && (typeof body.structuredData !== "object" || body.structuredData === null)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "content or structuredData is required");
+        }
+        if (!getByOwner(db.sessions, auth.user.id, body.session_id)) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+        return ok(
+          res,
+          requestId,
+          201,
+          createClinicalNote(auth.user.id, {
+            session_id: body.session_id,
+            content: typeof body.content === "string" ? body.content : undefined,
+            structuredData: typeof body.structuredData === "object" && body.structuredData !== null ? body.structuredData as any : undefined,
+          }),
+        );
       }
 
       const noteValidate = url.pathname.match(/^\/clinical-notes\/([^/]+)\/validate$/);
@@ -671,7 +854,26 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, note);
       }
 
+      if (method === "GET" && url.pathname === "/clinical-notes") {
+        const sessionId = url.searchParams.get("session_id") ?? undefined;
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        return ok(res, requestId, 200, listClinicalNotes(auth.user.id, { sessionId, patientId }));
+      }
+
       const noteById = url.pathname.match(/^\/clinical-notes\/([^/]+)$/);
+      if (method === "PUT" && noteById) {
+        const body = await readJson(req);
+        if (typeof body.content !== "string" && (typeof body.structuredData !== "object" || body.structuredData === null)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "content or structuredData required");
+        }
+        const note = updateClinicalNote(auth.user.id, noteById[1], {
+          content: typeof body.content === "string" ? body.content : undefined,
+          structuredData: typeof body.structuredData === "object" && body.structuredData !== null ? body.structuredData as any : undefined,
+        });
+        if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
+        return ok(res, requestId, 200, note);
+      }
+
       if (method === "GET" && noteById) {
         const note = getClinicalNote(auth.user.id, noteById[1]);
         if (!note) return error(res, requestId, 404, "NOT_FOUND", "Clinical note not found");
@@ -730,6 +932,43 @@ export const createEthosBackend = () =>
       }
 
       // Notifications
+      if (method === "GET" && url.pathname === "/notifications") {
+        if (auth.user.role === "patient") {
+          const access = requirePatientAccess(res, requestId, auth.user.id);
+          if (!access) return;
+          return ok(res, requestId, 200, buildPatientNotificationFeed(access));
+        }
+
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+
+        const previews = [
+          ...listNotificationSchedules(auth.user.id).map((item) => ({
+            id: `schedule-${item.id}`,
+            type: "reminder" as const,
+            title: item.status === "sent" ? "Lembrete enviado" : "Lembrete agendado",
+            message: `Canal ${item.channel} para ${new Date(item.scheduled_for).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+            created_at: item.sent_at ?? item.scheduled_for,
+            related_id: item.session_id,
+            status: item.status,
+          })),
+          ...listNotificationLogs(auth.user.id).map((item) => ({
+            id: `log-${item.id}`,
+            type: "reminder" as const,
+            title: item.status === "failed" ? "Falha no envio" : "Lembrete enviado",
+            message: `Canal ${item.channel} para ${item.recipient}`,
+            created_at: item.dispatched_at,
+            related_id: item.schedule_id,
+            status: item.status,
+          })),
+        ]
+          .sort((left, right) => Date.parse(right.created_at) - Date.parse(left.created_at))
+          .slice(0, 8);
+
+        return ok(res, requestId, 200, previews);
+      }
+
+      if (url.pathname.startsWith("/notifications/") && !requireClinicalAccess(res, requestId, auth.user.role)) return;
+
       if (method === "POST" && url.pathname === "/notifications/templates") {
         const body = await readJson(req);
         if (typeof body.name !== "string" || typeof body.channel !== "string" || typeof body.content !== "string") {
@@ -861,8 +1100,23 @@ export const createEthosBackend = () =>
         const items = caseId
           ? listDocumentsByCase(auth.user.id, caseId)
           : Array.from(db.documents.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const enrichedItems = items.map((item) => {
+          const versionsCount = listDocumentVersions(auth.user.id, item.id).length;
+          return {
+            ...item,
+            versions_count: versionsCount,
+            status: versionsCount > 0 ? "signed" : "draft",
+          };
+        });
 
-        return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+        return ok(res, requestId, 200, paginate(enrichedItems, pagination.page, pagination.pageSize));
+      }
+
+      const documentById = url.pathname.match(/^\/documents\/([^/]+)$/);
+      if (method === "GET" && documentById) {
+        const detail = getDocumentDetail(auth.user.id, documentById[1]);
+        if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+        return ok(res, requestId, 200, detail);
       }
 
       const documentVersions = url.pathname.match(/^\/documents\/([^/]+)\/versions$/);
@@ -1004,10 +1258,11 @@ export const createEthosBackend = () =>
           201,
           createFinancialEntry(auth.user.id, {
             patient_id: String(body.patient_id ?? ""),
+            session_id: typeof body.session_id === "string" ? body.session_id : undefined,
             type: (body.type as "receivable" | "payable") ?? "receivable",
             amount: Number(body.amount ?? 0),
             due_date: String(body.due_date ?? new Date().toISOString()),
-            status: "open",
+            status: (body.status as "open" | "paid") ?? "open",
             description: String(body.description ?? ""),
           }),
         );
@@ -1020,6 +1275,10 @@ export const createEthosBackend = () =>
         const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
         recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "GET" && url.pathname === "/finance") {
+        return ok(res, requestId, 200, buildFinanceSummary(auth.user.id));
       }
 
       // Export

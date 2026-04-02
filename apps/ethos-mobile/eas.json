@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 7.1.0"
+    "version": ">= 7.1.0",
+    "appVersionSource": "local"
   },
   "build": {
     "base": {
@@ -11,17 +12,39 @@
     "development": {
       "extends": "base",
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "NPM_CONFIG_FORCE": "true"
+      }
     },
     "preview": {
       "extends": "base",
-      "distribution": "internal"
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_NO_DEV_CLIENT": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
     },
-    "production": {
-      "extends": "base"
+    "release": {
+      "extends": "base",
+      "distribution": "store",
+      "android": {
+        "buildType": "app-bundle"
+      },
+      "env": {
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
     }
   },
   "submit": {
     "production": {}
   }
 }
+

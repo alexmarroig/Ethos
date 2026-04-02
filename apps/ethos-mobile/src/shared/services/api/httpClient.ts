@@ -69,6 +69,7 @@ export function setUnauthorizedHandler(fn: () => void): void {
 const normalizeBaseUrl = (baseUrl: string) => baseUrl.replace(/\/+$/, "");
 const joinUrl = (baseUrl: string, path: string) => `${normalizeBaseUrl(baseUrl)}${path.startsWith("/") ? path : `/${path}`}`;
 const isLogoutPath = (path: string) => /\/auth\/logout\/?$/.test(path);
+const isDevelopment = typeof __DEV__ !== "undefined" ? __DEV__ : false;
 
 const defaultRequestId = () =>
   typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
@@ -78,6 +79,23 @@ const isAbortError = (error: unknown) => error instanceof DOMException && error.
 const isApiErrorPayload = (payload: unknown): payload is ApiErrorPayload =>
   typeof payload === "object" && payload !== null && ("request_id" in payload || "error" in payload);
 
+
+const normalizePath = (path: string) => (path.startsWith("/") ? path : `/${path}`);
+
+const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const toContractRegex = (template: string) =>
+  new RegExp(`^${escapeRegExp(normalizePath(template)).replace(/\\\{[^/]+\\\}/g, "[^/]+")}$`);
+
+const resolveContractMethods = (
+  contract: Record<string, readonly string[]>,
+  path: string,
+) => {
+  const normalizedPath = normalizePath(path);
+  if (contract[normalizedPath]) return contract[normalizedPath];
+
+  return Object.entries(contract).find(([template]) => toContractRegex(template).test(normalizedPath))?.[1];
+};
 
 async function readJson(response: Response): Promise<unknown | null> {
   const contentType = response.headers.get("content-type") ?? "";
@@ -115,15 +133,19 @@ function assertPathAndMethod(
   path: string,
   method: HttpMethod,
 ): void {
+<<<<<<< HEAD:apps/ethos-mobile/src/services/api/httpClient.ts
+  const methods = resolveContractMethods(contract, path);
+=======
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
   const methods = matchContractPath(contract, normalizedPath);
 
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4:apps/ethos-mobile/src/shared/services/api/httpClient.ts
   if (!methods) {
-    throw new ApiError(`[${clientName}] Endpoint fora do contrato: ${normalizedPath}`);
+    throw new ApiError(`[${clientName}] Endpoint fora do contrato: ${normalizePath(path)}`);
   }
 
   if (!methods.includes(method.toLowerCase())) {
-    throw new ApiError(`[${clientName}] Método ${method} fora do contrato para ${normalizedPath}`);
+    throw new ApiError(`[${clientName}] MÃ©todo ${method} fora do contrato para ${normalizePath(path)}`);
   }
 }
 
@@ -145,6 +167,17 @@ function createTimeoutController(timeoutMs: number, outerSignal?: AbortSignal | 
   return { signal: controller.signal, cleanup };
 }
 
+let sharedAuthToken: string | null = null;
+let sharedSessionInvalidHandler: SessionContext["revalidateSession"] | null = null;
+
+export const setHttpClientAuthToken = (token: string | null) => {
+  sharedAuthToken = token;
+};
+
+export const setHttpClientSessionInvalidHandler = (handler: SessionContext["revalidateSession"] | null) => {
+  sharedSessionInvalidHandler = handler;
+};
+
 export function createHttpClient<TContract extends Record<string, readonly string[]>>(
   options: CreateHttpClientOptions<TContract>,
 ) {
@@ -159,20 +192,30 @@ export function createHttpClient<TContract extends Record<string, readonly strin
   } = options;
 
   const request = async <TResponse>(path: keyof TContract | string, requestOptions: HttpRequestOptions = {}): Promise<TResponse> => {
-    const normalizedPath = String(path).startsWith("/") ? String(path) : `/${String(path)}`;
+    const normalizedPath = normalizePath(String(path));
     const method = (requestOptions.method ?? "GET").toUpperCase() as HttpMethod;
     assertPathAndMethod(name, contract, normalizedPath, method);
 
     const offlineEnabled = Boolean(offline?.enabled);
     if (offlineEnabled && method === "GET" && typeof navigator !== "undefined" && !navigator.onLine) {
+<<<<<<< HEAD:apps/ethos-mobile/src/services/api/httpClient.ts
+      const cached = readCachedResponse<TResponse>(offline!.cacheNamespace, method, normalizedPath);
+      if (cached) return cached;
+      throw new ApiError("Sem conexÃ£o com a API clÃ­nica e sem cache local.", { isOffline: true });
+=======
       throw new ApiError("Sem conexão com a API clínica e sem cache local.", { isOffline: true });
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4:apps/ethos-mobile/src/shared/services/api/httpClient.ts
     }
 
     const headers = new Headers(requestOptions.headers ?? {});
     headers.set("x-request-id", getRequestId());
 
+<<<<<<< HEAD:apps/ethos-mobile/src/services/api/httpClient.ts
+    const authToken = getAuthToken?.() ?? sharedAuthToken;
+=======
     // Prefer global token from AuthContext, fall back to per-client getter
     const authToken = _tokenProvider?.() ?? getAuthToken?.();
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4:apps/ethos-mobile/src/shared/services/api/httpClient.ts
     if (authToken) headers.set("Authorization", `Bearer ${authToken}`);
 
     const body = requestOptions.body;
@@ -190,16 +233,25 @@ export function createHttpClient<TContract extends Record<string, readonly strin
         method,
         headers,
         signal,
-        body: body === undefined || body instanceof FormData || typeof body === "string" ? (body as BodyInit | undefined) : JSON.stringify(body),
+        body:
+          body === undefined || body instanceof FormData || typeof body === "string"
+            ? (body as BodyInit | undefined)
+            : JSON.stringify(body),
       });
 
       const payload = await readJson(response);
       const apiPayload = isApiErrorPayload(payload) ? payload : undefined;
 
       if (!response.ok) {
+<<<<<<< HEAD:apps/ethos-mobile/src/services/api/httpClient.ts
+        const invalidHandler = onSessionInvalid ?? sharedSessionInvalidHandler;
+        if ((response.status === 401 || response.status === 403) && invalidHandler && !isLogoutPath(normalizedPath)) {
+          await invalidHandler(response.status === 401 ? "unauthorized" : "forbidden");
+=======
         if ((response.status === 401 || response.status === 403) && !isLogoutPath(normalizedPath)) {
           if (_unauthorizedHandler) _unauthorizedHandler();
           if (onSessionInvalid) await onSessionInvalid(response.status === 401 ? "unauthorized" : "forbidden");
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4:apps/ethos-mobile/src/shared/services/api/httpClient.ts
         }
 
         const message = apiPayload?.error?.message ?? `[${name}] HTTP ${response.status} em ${normalizedPath}`;
@@ -214,10 +266,14 @@ export function createHttpClient<TContract extends Record<string, readonly strin
 
       return data;
     } catch (error) {
+      if (isDevelopment) {
+        console.warn(`[${name}] ${method} ${normalizedPath} falhou`, error);
+      }
+
       if (error instanceof ApiError) throw error;
 
       if (isAbortError(error)) {
-        throw new ApiError(`[${name}] Timeout/cancelamento da requisição.`);
+        throw new ApiError(`[${name}] Timeout/cancelamento da requisiÃ§Ã£o.`);
       }
 
       throw new ApiError(error instanceof Error ? error.message : String(error));

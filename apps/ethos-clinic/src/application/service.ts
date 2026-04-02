@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db, encrypt, hashInviteToken, hashPassword, seeds, uid, verifyPassword } from "../infra/database";
+import { db, encrypt, hashInviteToken, hashPassword, schedulePersistDatabase, seeds, uid, verifyPassword } from "../infra/database";
 import {
   detectAnomalousBehavior,
   detectBottlenecks,
@@ -8,22 +8,34 @@ import {
   type ErrorLog,
   type PerformanceSample,
 } from "./aiObservability";
+import {
+  formatClinicalNoteContent,
+  normalizeClinicalNoteStructuredData,
+  parseLegacyClinicalNoteContent,
+} from "./clinicalNoteDocument";
+import {
+  generateClinicalNote,
+} from "./ai/clinicalNoteGenerator";
 import type {
   AnamnesisResponse,
   ClinicalDocument,
+  ClinicalNoteStructuredData,
   ClinicalDocumentVersion,
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
   DocumentTemplate,
+  EmotionalDiaryEntry,
   FinancialEntry,
   FormEntry,
   Job,
   JobStatus,
   JobType,
   LocalEntitlementSnapshot,
+  NotificationPreview,
   ObservabilityAlert,
   Patient,
+  PatientTimelineItem,
   ScaleRecord,
   SessionStatus,
   TelemetryEvent,
@@ -33,10 +45,12 @@ import type {
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+const persistMutation = () => schedulePersistDatabase();
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
   const id = uid();
   db.audit.set(id, { id, actor_user_id: actorUserId, event, target_user_id: targetUserId, ts: now() });
+  persistMutation();
 };
 
 export const addTelemetry = (event: Omit<TelemetryEvent, "id" | "ts">) => {
@@ -46,6 +60,7 @@ export const addTelemetry = (event: Omit<TelemetryEvent, "id" | "ts">) => {
   const queue = db.telemetryQueue.get(owner) ?? [];
   queue.push(item);
   db.telemetryQueue.set(owner, queue);
+  persistMutation();
   return item;
 };
 
@@ -170,6 +185,7 @@ export const createInvite = (email: string) => {
     created_at: now(),
   };
   db.invites.set(invite.id, invite);
+  persistMutation();
   return { invite, token };
 };
 
@@ -189,6 +205,7 @@ export const acceptInvite = (token: string, name: string, password: string) => {
     created_at: now(),
   };
   db.users.set(user.id, user);
+  persistMutation();
   return user;
 };
 
@@ -204,6 +221,7 @@ export const login = (email: string, password: string) => {
     expires_at: new Date(Date.now() + DAY_MS).toISOString(),
   });
   user.last_seen_at = now();
+  persistMutation();
   return { user, token };
 };
 
@@ -213,7 +231,11 @@ export const getUserFromToken = (token: string) => {
   return db.users.get(session.user_id) ?? null;
 };
 
-export const logout = (token: string) => db.sessionsTokens.delete(token);
+export const logout = (token: string) => {
+  const removed = db.sessionsTokens.delete(token);
+  if (removed) persistMutation();
+  return removed;
+};
 
 export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
   const item = map.get(id);
@@ -236,6 +258,15 @@ type PatientAccess = {
   patient_id: string;
   permissions: PatientAccessPermissions;
   created_at: string;
+};
+
+type EmotionalDiaryEntryInput = {
+  date?: string;
+  mood: EmotionalDiaryEntry["mood"];
+  intensity: number;
+  description?: string;
+  thoughts?: string;
+  tags?: string[];
 };
 
 type Contract = {
@@ -261,22 +292,188 @@ type RetentionPolicy = {
   export_days: number;
 };
 
+const matchesPatientReference = (patient: Patient, patientReference: string) =>
+  patient.id === patientReference || patient.external_id === patientReference;
+
+const compareByNewestDate = <T extends { created_at?: string; scheduled_at?: string; date?: string; due_date?: string; recorded_at?: string; validated_at?: string }>(left: T, right: T) => {
+  const leftValue = Date.parse(left.validated_at ?? left.recorded_at ?? left.scheduled_at ?? left.due_date ?? left.created_at ?? left.date ?? now());
+  const rightValue = Date.parse(right.validated_at ?? right.recorded_at ?? right.scheduled_at ?? right.due_date ?? right.created_at ?? right.date ?? now());
+  return rightValue - leftValue;
+};
+
+const compareByOldestDate = <T extends { created_at?: string; scheduled_at?: string; date?: string; due_date?: string; recorded_at?: string; validated_at?: string }>(left: T, right: T) => {
+  const leftValue = Date.parse(left.validated_at ?? left.recorded_at ?? left.scheduled_at ?? left.due_date ?? left.created_at ?? left.date ?? now());
+  const rightValue = Date.parse(right.validated_at ?? right.recorded_at ?? right.scheduled_at ?? right.due_date ?? right.created_at ?? right.date ?? now());
+  return leftValue - rightValue;
+};
+
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
-  const existing = Array.from(db.patients.values()).find((item) => item.owner_user_id === owner && item.external_id === patientId);
+  const existing = byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId));
   if (existing) return existing;
 
-  const patient: Patient = { id: uid(), owner_user_id: owner, external_id: patientId, label: `Paciente ${patientId}`, created_at: now() };
+  const patient: Patient = {
+    id: uid(),
+    owner_user_id: owner,
+    external_id: patientId,
+    label: `Paciente ${patientId}`,
+    created_at: now(),
+  };
   db.patients.set(patient.id, patient);
+  persistMutation();
   return patient;
 };
 
-export const listPatients = (owner: string) => byOwner(db.patients.values(), owner);
-export const getPatient = (owner: string, patientId: string) => getByOwner(db.patients, owner, patientId);
+export const createPatient = (
+  owner: string,
+  input: { name: string; email?: string; phone?: string; notes?: string },
+): Patient => {
+  const id = uid();
+  const patient: Patient = {
+    id,
+    owner_user_id: owner,
+    external_id: id,
+    label: input.name.trim(),
+    email: input.email?.trim() || undefined,
+    phone: input.phone?.trim() || undefined,
+    notes: input.notes?.trim() || undefined,
+    created_at: now(),
+  };
+  db.patients.set(patient.id, patient);
+  persistMutation();
+  return patient;
+};
 
-export const createSession = (owner: string, patientId: string, scheduledAt: string): ClinicalSession => {
+export const listPatients = (owner: string) => byOwner(db.patients.values(), owner).sort((left, right) => left.label.localeCompare(right.label));
+export const getPatient = (owner: string, patientId: string) =>
+  byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId)) ?? null;
+
+export const listPatientDocuments = (owner: string, patientId: string) =>
+  byOwner(db.documents.values(), owner)
+    .filter((item) => {
+      const patient = getPatient(owner, patientId);
+      if (!patient) return item.patient_id === patientId;
+      return item.patient_id === patient.id || item.patient_id === patient.external_id;
+    })
+    .sort(compareByNewestDate);
+
+export const listPatientClinicalNotes = (owner: string, patientId: string) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return [];
+
+  return byOwner(db.clinicalNotes.values(), owner)
+    .filter((note) => {
+      const session = db.sessions.get(note.session_id);
+      if (!session || session.owner_user_id !== owner) return false;
+      return session.patient_id === patient.id || session.patient_id === patient.external_id;
+    })
+    .sort(compareByNewestDate);
+};
+
+export const listPatientSessionsByReference = (owner: string, patientId: string) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return [];
+
+  return byOwner(db.sessions.values(), owner)
+    .filter((item) => item.patient_id === patient.id || item.patient_id === patient.external_id)
+    .sort(compareByNewestDate);
+};
+
+export const listPatientDiaryEntriesByReference = (owner: string, patientId: string) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return [];
+
+  return byOwner(db.patientDiaryEntries.values(), owner)
+    .filter((item) => item.patient_id === patient.id || item.patient_id === patient.external_id)
+    .sort(compareByNewestDate);
+};
+
+export const createEmotionalDiaryEntry = (
+  owner: string,
+  patientId: string,
+  input: EmotionalDiaryEntryInput,
+): EmotionalDiaryEntry => {
   createPatientIfMissing(owner, patientId);
-  const session: ClinicalSession = { id: uid(), owner_user_id: owner, patient_id: patientId, scheduled_at: scheduledAt, status: "scheduled", created_at: now() };
+  const entry: EmotionalDiaryEntry = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patientId,
+    date: input.date ?? now(),
+    mood: input.mood,
+    intensity: input.intensity,
+    description: input.description?.trim() || undefined,
+    thoughts: input.thoughts?.trim() || undefined,
+    tags: input.tags?.map((item) => item.trim()).filter(Boolean),
+    created_at: now(),
+  };
+  db.patientDiaryEntries.set(entry.id, entry);
+  persistMutation();
+  return entry;
+};
+
+export const buildPatientTimeline = (owner: string, patientId: string): PatientTimelineItem[] => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return [];
+
+  const sessions = listPatientSessionsByReference(owner, patient.id).map((session) => ({
+    id: `session-${session.id}`,
+    patient_id: patient.id,
+    kind: "session" as const,
+    date: session.scheduled_at,
+    title: "SessÃ£o agendada",
+    subtitle: session.status,
+    related_id: session.id,
+  }));
+
+  const notes = listPatientClinicalNotes(owner, patient.id).map((note) => ({
+    id: `note-${note.id}`,
+    patient_id: patient.id,
+    kind: "clinical_note" as const,
+    date: note.validated_at ?? note.created_at,
+    title: "Nota clÃ­nica",
+    subtitle: note.status,
+    related_id: note.id,
+  }));
+
+  const documents = listPatientDocuments(owner, patient.id).map((document) => ({
+    id: `document-${document.id}`,
+    patient_id: patient.id,
+    kind: "document" as const,
+    date: document.created_at,
+    title: document.title,
+    subtitle: document.template_id,
+    related_id: document.id,
+  }));
+
+  return [...sessions, ...notes, ...documents].sort(compareByNewestDate);
+};
+
+export const getPatientDetail = (owner: string, patientId: string) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return null;
+
+  return {
+    patient,
+    sessions: listPatientSessionsByReference(owner, patient.id),
+    documents: listPatientDocuments(owner, patient.id),
+    clinical_notes: listPatientClinicalNotes(owner, patient.id),
+    emotional_diary: listPatientDiaryEntriesByReference(owner, patient.id),
+    timeline: buildPatientTimeline(owner, patient.id),
+  };
+};
+
+export const createSession = (owner: string, patientId: string, scheduledAt: string, durationMinutes?: number): ClinicalSession => {
+  createPatientIfMissing(owner, patientId);
+  const session: ClinicalSession = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patientId,
+    scheduled_at: scheduledAt,
+    status: "scheduled",
+    duration_minutes: typeof durationMinutes === "number" ? durationMinutes : undefined,
+    created_at: now(),
+  };
   db.sessions.set(session.id, session);
+  persistMutation();
   return session;
 };
 
@@ -317,20 +514,104 @@ export const createPatientAccess = (owner: string, input: {
     created_at: now(),
   };
   db.patientAccess.set(access.id, access);
+  persistMutation();
   return { access, patientUser, temporaryPassword: input.patient_password ? undefined : temporaryPassword };
 };
 
 export const getPatientAccessForUser = (patientUserId: string) =>
   Array.from(db.patientAccess.values()).find((item) => (item as PatientAccess).patient_user_id === patientUserId) as PatientAccess | undefined;
 
-export const listPatientSessions = (access: PatientAccess) =>
-  byOwner(db.sessions.values(), access.owner_user_id).filter((item) => item.patient_id === access.patient_id);
+export const listPatientSessions = (access: PatientAccess) => {
+  const patient = getPatient(access.owner_user_id, access.patient_id);
+  return byOwner(db.sessions.values(), access.owner_user_id).filter((item) => {
+    if (!patient) return item.patient_id === access.patient_id;
+    return item.patient_id === patient.id || item.patient_id === patient.external_id;
+  });
+};
+
+const matchesPatientAccessReference = (access: PatientAccess, patientReference: string) => {
+  const patient = getPatient(access.owner_user_id, access.patient_id);
+  if (!patient) return patientReference === access.patient_id;
+  return patientReference === patient.id || patientReference === patient.external_id;
+};
+
+export const listPatientAccessibleDocuments = (access: PatientAccess) =>
+  byOwner(db.documents.values(), access.owner_user_id)
+    .filter((item) => matchesPatientAccessReference(access, item.patient_id))
+    .sort(compareByNewestDate);
+
+export const getPatientAccessibleDocumentDetail = (access: PatientAccess, documentId: string) => {
+  const document = getByOwner(db.documents, access.owner_user_id, documentId);
+  if (!document || !matchesPatientAccessReference(access, document.patient_id)) return null;
+
+  return {
+    document,
+    versions: listDocumentVersions(access.owner_user_id, documentId),
+    patient: getPatient(access.owner_user_id, access.patient_id),
+  };
+};
+
+export const listPatientAccessibleDiaryEntries = (access: PatientAccess) =>
+  byOwner(db.patientDiaryEntries.values(), access.owner_user_id)
+    .filter((item) => matchesPatientAccessReference(access, item.patient_id))
+    .sort(compareByNewestDate);
+
+export const buildPatientNotificationFeed = (access: PatientAccess): NotificationPreview[] => {
+  const upcomingSessions = listPatientSessions(access)
+    .filter((session) => Date.parse(session.scheduled_at) >= Date.now())
+    .sort(compareByOldestDate)
+    .slice(0, 3)
+    .map((session) => ({
+      id: `session-${session.id}`,
+      type: "session" as const,
+      title: "Sessao agendada",
+      message: `Proxima atualizacao para ${new Date(session.scheduled_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      created_at: session.created_at,
+      related_id: session.id,
+      status: session.status,
+    }));
+
+  const recentDocuments = listPatientAccessibleDocuments(access)
+    .slice(0, 3)
+    .map((document) => ({
+      id: `document-${document.id}`,
+      type: "document" as const,
+      title: "Novo documento disponivel",
+      message: document.title,
+      created_at: document.created_at,
+      related_id: document.id,
+      status: "available",
+    }));
+
+  const reminders = Array.from(db.notificationSchedules.values())
+    .filter((item) => item.owner_user_id === access.owner_user_id && matchesPatientAccessReference(access, item.patient_id))
+    .sort(compareByNewestDate)
+    .slice(0, 3)
+    .map((item) => ({
+      id: `reminder-${item.id}`,
+      type: "reminder" as const,
+      title: item.status === "sent" ? "Lembrete enviado" : "Lembrete programado",
+      message: `Canal ${item.channel} para ${new Date(item.scheduled_for).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      created_at: item.sent_at ?? item.scheduled_for,
+      related_id: item.session_id,
+      status: item.status,
+    }));
+
+  return [...upcomingSessions, ...recentDocuments, ...reminders]
+    .sort(compareByNewestDate)
+    .slice(0, 6);
+};
 
 export const confirmPatientSession = (access: PatientAccess, sessionId: string) => {
   if (!access.permissions.session_confirmation) return { error: "PERMISSION_DENIED" as const };
   const session = getByOwner(db.sessions, access.owner_user_id, sessionId);
-  if (!session || session.patient_id !== access.patient_id) return { error: "NOT_FOUND" as const };
+  const patient = getPatient(access.owner_user_id, access.patient_id);
+  const matchesPatient = patient
+    ? session && (session.patient_id === patient.id || session.patient_id === patient.external_id)
+    : session?.patient_id === access.patient_id;
+  if (!session || !matchesPatient) return { error: "NOT_FOUND" as const };
   session.status = "confirmed";
+  persistMutation();
   return { session };
 };
 
@@ -339,23 +620,23 @@ export const recordPatientScale = (access: PatientAccess, scaleId: string, score
   return { record: createScaleRecord(access.owner_user_id, scaleId, access.patient_id, score) };
 };
 
-export const recordPatientDiaryEntry = (access: PatientAccess, content: string) => {
+export const recordPatientDiaryEntry = (access: PatientAccess, input: EmotionalDiaryEntryInput) => {
   if (!access.permissions.diary) return { error: "PERMISSION_DENIED" as const };
-  const entry = { id: uid(), owner_user_id: access.owner_user_id, patient_id: access.patient_id, content, created_at: now() };
-  db.patientDiaryEntries.set(entry.id, entry);
+  const entry = createEmotionalDiaryEntry(access.owner_user_id, access.patient_id, input);
   return { entry };
 };
 
 export const sendPatientAsyncMessage = (access: PatientAccess, message: string) => {
   const today = now().slice(0, 10);
   const todayCount = Array.from(db.patientMessages.values()).filter(
-    (item) => (item as { owner_user_id: string; patient_id: string; created_at: string }).owner_user_id === access.owner_user_id
-      && (item as { owner_user_id: string; patient_id: string; created_at: string }).patient_id === access.patient_id
-      && (item as { created_at: string }).created_at.startsWith(today),
+    (item) => item.owner_user_id === access.owner_user_id
+      && item.patient_id === access.patient_id
+      && item.created_at.startsWith(today),
   ).length;
   if (todayCount >= access.permissions.async_messages_per_day) return { error: "LIMIT_REACHED" as const };
   const payload = { id: uid(), owner_user_id: access.owner_user_id, patient_id: access.patient_id, message, created_at: now() };
   db.patientMessages.set(payload.id, payload);
+  persistMutation();
   return {
     payload,
     remaining: Math.max(0, access.permissions.async_messages_per_day - (todayCount + 1)),
@@ -373,6 +654,7 @@ export const createContract = (owner: string, input: Omit<Contract, "id" | "owne
     ...input,
   };
   db.contracts.set(contract.id, contract);
+  persistMutation();
   return contract;
 };
 
@@ -385,6 +667,7 @@ export const sendContract = (owner: string, id: string) => {
   contract.status = "sent";
   contract.portal_token = contract.portal_token ?? crypto.randomBytes(12).toString("hex");
   contract.updated_at = now();
+  persistMutation();
   return contract;
 };
 
@@ -399,6 +682,7 @@ export const acceptContract = (portalToken: string, acceptedBy: string, accepted
   contract.accepted_ip = acceptedIp;
   contract.accepted_at = now();
   contract.updated_at = now();
+  persistMutation();
   return contract;
 };
 
@@ -413,24 +697,32 @@ const defaultDocumentTemplates: Array<{ id: string; title: string; description?:
   { id: "evolution-note", title: "Nota de evolução", html: "<h1>Evolução</h1>{{content}}" },
 ];
 
-for (const template of defaultDocumentTemplates) {
-  if (!db.documentTemplates.has(template.id)) {
-    db.documentTemplates.set(template.id, {
-      id: template.id,
-      owner_user_id: "system",
-      created_at: now(),
-      title: template.title,
-      description: template.description,
-      version: 1,
-      html: template.html,
-      fields: [],
-    });
+const ensureDefaultDocumentTemplates = () => {
+  for (const template of defaultDocumentTemplates) {
+    if (!db.documentTemplates.has(template.id)) {
+      db.documentTemplates.set(template.id, {
+        id: template.id,
+        owner_user_id: "system",
+        created_at: now(),
+        title: template.title,
+        description: template.description,
+        version: 1,
+        html: template.html,
+        fields: [],
+      });
+    }
   }
-}
+};
 
-export const listDocumentTemplates = () => Array.from(db.documentTemplates.values());
+ensureDefaultDocumentTemplates();
+
+export const listDocumentTemplates = () => {
+  ensureDefaultDocumentTemplates();
+  return Array.from(db.documentTemplates.values());
+};
 
 export const createDocument = (owner: string, patientId: string, caseId: string, templateId: string, title: string): ClinicalDocument | null => {
+  ensureDefaultDocumentTemplates();
   const template = db.documentTemplates.get(templateId);
   if (!template) return null;
   const item: ClinicalDocument = {
@@ -443,11 +735,24 @@ export const createDocument = (owner: string, patientId: string, caseId: string,
     title,
   };
   db.documents.set(item.id, item);
+  persistMutation();
   return item;
 };
 
 export const listDocumentsByCase = (owner: string, caseId: string) =>
   byOwner(db.documents.values(), owner).filter((item) => item.case_id === caseId);
+
+export const getDocument = (owner: string, documentId: string) => getByOwner(db.documents, owner, documentId);
+
+export const getDocumentDetail = (owner: string, documentId: string) => {
+  const document = getDocument(owner, documentId);
+  if (!document) return null;
+  return {
+    document,
+    versions: listDocumentVersions(owner, documentId),
+    patient: getPatient(owner, document.patient_id),
+  };
+};
 
 export const addDocumentVersion = (owner: string, documentId: string, input: { content: string; global_values: Record<string, string> }) => {
   const document = getByOwner(db.documents, owner, documentId);
@@ -463,6 +768,7 @@ export const addDocumentVersion = (owner: string, documentId: string, input: { c
     global_values: input.global_values,
   };
   db.documentVersions.set(item.id, item);
+  persistMutation();
   return item;
 };
 
@@ -483,6 +789,7 @@ export const getTemplate = (owner: string, id: string) => getByOwner(db.document
 export const createTemplate = (owner: string, input: TemplateInput): DocumentTemplate => {
   const item: DocumentTemplate = { id: uid(), owner_user_id: owner, created_at: now(), ...input };
   db.documentTemplates.set(item.id, item);
+  persistMutation();
   return item;
 };
 
@@ -491,6 +798,7 @@ export const updateTemplate = (owner: string, id: string, input: Partial<Templat
   if (!template) return null;
   Object.assign(template, input);
   db.documentTemplates.set(id, template);
+  persistMutation();
   return template;
 };
 
@@ -498,6 +806,7 @@ export const deleteTemplate = (owner: string, id: string) => {
   const template = getTemplate(owner, id);
   if (!template) return false;
   db.documentTemplates.delete(id);
+  persistMutation();
   return true;
 };
 
@@ -517,6 +826,7 @@ export const createPrivateComment = (owner: string, noteId: string, content: str
   if (!note) return null;
   const item = { id: uid(), owner_user_id: owner, note_id: noteId, content, created_at: now() };
   db.privateComments.set(item.id, item);
+  persistMutation();
   return item;
 };
 
@@ -529,6 +839,7 @@ export const recordProntuarioAudit = (owner: string, action: string, resource: s
 export const createAnonymizedCase = (owner: string, input: { title: string; summary: string; tags: string[] }) => {
   const item = { id: uid(), owner_user_id: owner, created_at: now(), ...input };
   db.anonymizedCases.set(item.id, item);
+  persistMutation();
   return item;
 };
 
@@ -539,9 +850,15 @@ export const exportCase = (
   patientId: string,
   options: { window_days?: number; max_sessions?: number; max_notes?: number; max_reports?: number },
 ) => {
-  const patient = byOwner(db.patients.values(), owner).find((item) => item.external_id === patientId);
+  const patient = getPatient(owner, patientId);
   if (!patient) return null;
-  return { patient, options, sessions: byOwner(db.sessions.values(), owner).filter((item) => item.patient_id === patientId) };
+  return {
+    patient,
+    options,
+    sessions: listPatientSessionsByReference(owner, patient.id),
+    notes: listPatientClinicalNotes(owner, patient.id),
+    documents: listPatientDocuments(owner, patient.id),
+  };
 };
 
 export const closeCase = (
@@ -567,6 +884,7 @@ export const getRetentionPolicy = (owner: string): RetentionPolicy =>
 export const updateRetentionPolicy = (owner: string, input: Partial<Omit<RetentionPolicy, "owner_user_id">>) => {
   const next = { ...getRetentionPolicy(owner), ...input, owner_user_id: owner };
   db.retentionPolicies.set(owner, next);
+  persistMutation();
   return next;
 };
 
@@ -574,6 +892,7 @@ export const patchSessionStatus = (owner: string, sessionId: string, status: Ses
   const session = getByOwner(db.sessions, owner, sessionId);
   if (!session) return null;
   session.status = status;
+  persistMutation();
   return session;
 };
 
@@ -588,19 +907,129 @@ export const addAudio = (owner: string, sessionId: string, filePath: string) => 
     created_at: now(),
   };
   db.audioRecords.set(item.id, item);
+  persistMutation();
   return item;
 };
 
 export const addTranscript = (owner: string, sessionId: string, rawText: string): Transcript => {
   const item = { id: uid(), owner_user_id: owner, session_id: sessionId, raw_text: rawText, segments: [{ start: 0, end: 1, text: rawText.slice(0, 120) }], created_at: now() };
   db.transcripts.set(item.id, item);
+  persistMutation();
   return item;
 };
 
-export const createClinicalNoteDraft = (owner: string, sessionId: string, content: string): ClinicalNote => {
-  const note = { id: uid(), owner_user_id: owner, session_id: sessionId, content, status: "draft" as const, version: 1, created_at: now() };
+const resolveClinicalNoteContext = (owner: string, sessionId: string) => {
+  const session = getByOwner(db.sessions, owner, sessionId);
+  const patient = session ? getPatient(owner, session.patient_id) : null;
+  const psychologist = db.users.get(owner) ?? null;
+  return { session, patient, psychologist };
+};
+
+const buildClinicalNoteDocument = (
+  owner: string,
+  sessionId: string,
+  input: { content?: string; structuredData?: ClinicalNoteStructuredData; additionalNotes?: string },
+) => {
+  const { session, patient, psychologist } = resolveClinicalNoteContext(owner, sessionId);
+  const normalizedStructuredData = normalizeClinicalNoteStructuredData(input.structuredData)
+    ?? (input.content ? parseLegacyClinicalNoteContent(input.content).structuredData : undefined);
+
+  const content = typeof input.content === "string" && input.content.trim()
+    ? input.content.trim()
+    : formatClinicalNoteContent(normalizedStructuredData, {
+        patient,
+        psychologist,
+        session,
+        additionalNotes: input.additionalNotes,
+      });
+
+  return {
+    content,
+    structuredData: normalizedStructuredData,
+  };
+};
+
+const hydrateClinicalNote = (owner: string, note: ClinicalNote): ClinicalNote => ({
+  ...note,
+  structuredData: note.structuredData ?? parseLegacyClinicalNoteContent(note.content).structuredData,
+});
+
+export const createClinicalNoteDraft = (
+  owner: string,
+  sessionId: string,
+  content: string,
+  structuredData?: ClinicalNoteStructuredData,
+): ClinicalNote => {
+  const document = buildClinicalNoteDocument(owner, sessionId, { content, structuredData });
+  const note = {
+    id: uid(),
+    owner_user_id: owner,
+    session_id: sessionId,
+    content: document.content,
+    structuredData: document.structuredData,
+    status: "draft" as const,
+    version: 1,
+    created_at: now(),
+  };
   db.clinicalNotes.set(note.id, note);
-  return note;
+  persistMutation();
+  return hydrateClinicalNote(owner, note);
+};
+
+export const upsertClinicalNoteDraft = (
+  owner: string,
+  sessionId: string,
+  content: string,
+  structuredData?: ClinicalNoteStructuredData,
+): ClinicalNote => {
+  const existingDraft = byOwner(db.clinicalNotes.values(), owner)
+    .filter((note) => note.session_id === sessionId && note.status === "draft")
+    .sort(compareByNewestDate)[0];
+
+  if (!existingDraft) {
+    return createClinicalNoteDraft(owner, sessionId, content, structuredData);
+  }
+
+  const document = buildClinicalNoteDocument(owner, sessionId, { content, structuredData });
+  existingDraft.content = document.content;
+  existingDraft.structuredData = document.structuredData;
+  existingDraft.version += 1;
+  persistMutation();
+  return hydrateClinicalNote(owner, existingDraft);
+};
+
+export const createClinicalNote = (owner: string, input: { session_id: string; content?: string; structuredData?: ClinicalNoteStructuredData }) => {
+  return createClinicalNoteDraft(owner, input.session_id, input.content ?? "", input.structuredData);
+};
+
+export const listClinicalNotes = (owner: string, filters: { sessionId?: string; patientId?: string } = {}) => {
+  const notes = byOwner(db.clinicalNotes.values(), owner).filter((note) => {
+    if (filters.sessionId && note.session_id !== filters.sessionId) return false;
+    if (!filters.patientId) return true;
+
+    const session = db.sessions.get(note.session_id);
+    if (!session || session.owner_user_id !== owner) return false;
+    const patient = getPatient(owner, filters.patientId);
+    if (!patient) return session.patient_id === filters.patientId;
+    return session.patient_id === patient.id || session.patient_id === patient.external_id;
+  });
+
+  return notes.sort(compareByNewestDate).map((note) => hydrateClinicalNote(owner, note));
+};
+
+export const updateClinicalNote = (
+  owner: string,
+  noteId: string,
+  input: { content?: string; structuredData?: ClinicalNoteStructuredData },
+) => {
+  const note = getByOwner(db.clinicalNotes, owner, noteId);
+  if (!note) return null;
+  const document = buildClinicalNoteDocument(owner, note.session_id, input);
+  note.content = document.content;
+  note.structuredData = document.structuredData;
+  note.version += 1;
+  persistMutation();
+  return hydrateClinicalNote(owner, note);
 };
 
 export const validateClinicalNote = (owner: string, noteId: string) => {
@@ -609,7 +1038,8 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
   note.status = "validated";
   note.validated_at = now();
   addTelemetry({ user_id: owner, event_type: "NOTE_VALIDATED" });
-  return note;
+  persistMutation();
+  return hydrateClinicalNote(owner, note);
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
@@ -624,40 +1054,141 @@ export const createReport = (owner: string, patientId: string, purpose: Clinical
 
   const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
   db.reports.set(report.id, report);
+  persistMutation();
   return report;
 };
 
 export const createAnamnesis = (owner: string, patientId: string, templateId: string, content: Record<string, unknown>): AnamnesisResponse => {
   const anamnesis = { id: uid(), owner_user_id: owner, patient_id: patientId, template_id: templateId, content, version: 1, created_at: now() };
   db.anamnesis.set(anamnesis.id, anamnesis);
+  persistMutation();
   return anamnesis;
 };
 
 export const createScaleRecord = (owner: string, scaleId: string, patientId: string, score: number): ScaleRecord => {
   const record = { id: uid(), owner_user_id: owner, scale_id: scaleId, patient_id: patientId, score, recorded_at: now(), created_at: now() };
   db.scales.set(record.id, record);
+  persistMutation();
   return record;
 };
 
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
   db.forms.set(item.id, item);
+  persistMutation();
   return item;
 };
 
 export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry, "id" | "owner_user_id" | "created_at">): FinancialEntry => {
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
   db.financial.set(item.id, item);
+  persistMutation();
   return item;
+};
+
+export const buildFinanceSummary = (owner: string, referenceDate = new Date()) => {
+  const monthKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
+  const entries = byOwner(db.financial.values(), owner)
+    .filter((entry) => entry.due_date.startsWith(monthKey))
+    .sort(compareByNewestDate);
+
+  const receivables = entries.filter((entry) => entry.type === "receivable");
+  const paidSessions = receivables.filter((entry) => entry.status === "paid").length;
+  const pendingSessions = receivables.filter((entry) => entry.status !== "paid").length;
+  const totalPerMonth = receivables
+    .filter((entry) => entry.status === "paid")
+    .reduce((sum, entry) => sum + entry.amount, 0);
+
+  return {
+    month: monthKey,
+    paid_sessions: paidSessions,
+    pending_sessions: pendingSessions,
+    total_per_month: totalPerMonth,
+    entries,
+  };
 };
 
 export const createJob = (owner: string, type: JobType, resourceId?: string): Job => {
   const item = { id: uid(), owner_user_id: owner, type, status: "queued" as JobStatus, progress: 0, resource_id: resourceId, created_at: now(), updated_at: now() };
   db.jobs.set(item.id, item);
+  persistMutation();
   return item;
 };
 
 export const getJob = (owner: string, jobId: string) => getByOwner(db.jobs, owner, jobId);
+
+const getSessionSequenceNumber = (owner: string, session: ClinicalSession) => {
+  const patient = getPatient(owner, session.patient_id);
+  const patientSessions = byOwner(db.sessions.values(), owner)
+    .filter((item) => {
+      if (!patient) return item.patient_id === session.patient_id;
+      return item.patient_id === patient.id || item.patient_id === patient.external_id;
+    })
+    .sort(compareByOldestDate);
+
+  const index = patientSessions.findIndex((item) => item.id === session.id);
+  return index >= 0 ? index + 1 : patientSessions.length + 1;
+};
+
+const createStructuredDraftForTranscript = async (job: Job, session: ClinicalSession, rawText: string) => {
+  const sessionNumber = getSessionSequenceNumber(job.owner_user_id, session);
+  const patient = getPatient(job.owner_user_id, session.patient_id);
+  const psychologist = db.users.get(job.owner_user_id) ?? null;
+
+  try {
+    const structuredDraft = await generateClinicalNote(rawText, session);
+    const structuredData: ClinicalNoteStructuredData = {
+      complaint: structuredDraft.mainComplaint,
+      context: structuredDraft.context,
+      soap: {
+        subjective: structuredDraft.soap.subjective,
+        objective: structuredDraft.soap.objective,
+        assessment: structuredDraft.soap.assessment,
+        plan: structuredDraft.soap.plan,
+      },
+      events: structuredDraft.highlights.join("\n"),
+    };
+    const note = upsertClinicalNoteDraft(
+      job.owner_user_id,
+      session.id,
+      formatClinicalNoteContent(structuredData, {
+        patient,
+        psychologist,
+        session,
+      }),
+      structuredData,
+    );
+    addTelemetry({ user_id: job.owner_user_id, event_type: "CLINICAL_NOTE_DRAFT_GENERATED" });
+    return note;
+  } catch (error) {
+    const note = upsertClinicalNoteDraft(
+      job.owner_user_id,
+      session.id,
+      formatClinicalNoteContent(
+        {
+          soap: {
+            subjective: "Rascunho estruturado indisponível no momento. Revisar a transcrição original.",
+            objective: "Sem extração automática confiável de dados observáveis.",
+            assessment: "Interpretação clínica não automatizada. Completar manualmente.",
+            plan: "Definir próximos passos após revisão manual.",
+          },
+        },
+        {
+          patient,
+          psychologist,
+          session,
+          additionalNotes: rawText,
+        },
+      ),
+    );
+    addTelemetry({
+      user_id: job.owner_user_id,
+      event_type: "CLINICAL_NOTE_DRAFT_FALLBACK",
+      error_code: error instanceof Error ? error.name : "CLINICAL_NOTE_GENERATION_FAILED",
+    });
+    return note;
+  }
+};
 
 export const runJob = async (jobId: string, options: { rawText?: string }) => {
   const job = db.jobs.get(jobId);
@@ -666,10 +1197,16 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
   job.status = "running";
   job.progress = 0.5;
   job.updated_at = now();
+  persistMutation();
   await new Promise((resolve) => setTimeout(resolve, 20));
 
   if (job.type === "transcription" && job.resource_id) {
     const transcript = addTranscript(job.owner_user_id, job.resource_id, options.rawText ?? "");
+    const session = getByOwner(db.sessions, job.owner_user_id, job.resource_id);
+    if (session) {
+      const draftNote = await createStructuredDraftForTranscript(job, session, transcript.raw_text);
+      job.draft_note_id = draftNote.id;
+    }
     job.result_uri = `transcript:${transcript.id}`;
     addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60_000, (options.rawText ?? "").length * 1_000) });
   }
@@ -685,15 +1222,17 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
   job.status = "completed";
   job.progress = 1;
   job.updated_at = now();
+  persistMutation();
 };
 
 export const handleTranscriberWebhook = (jobId: string, status: JobStatus, errorCode?: string) => {
   const job = db.jobs.get(jobId);
   if (!job) return null;
   job.status = status;
-  job.progress = status === "completed" ? 1 : job.progress;
+  job.progress = status === "completed" || status === "succeeded" ? 1 : job.progress;
   job.error_code = errorCode;
   job.updated_at = now();
+  persistMutation();
   return job;
 };
 
@@ -717,6 +1256,8 @@ export const purgeUserData = (owner: string) => {
     db.forms,
     db.financial,
     db.jobs,
+    db.patientDiaryEntries,
+    db.patientMessages,
   ];
   for (const map of ownedMaps) {
     for (const [id, item] of map.entries()) {
@@ -745,6 +1286,7 @@ export const purgeUserData = (owner: string) => {
     }
     db.telemetryQueue.set(queueOwner, queue.filter((event) => event.user_id !== owner));
   }
+  persistMutation();
 };
 
 export const adminOverviewMetrics = () => ({
@@ -789,6 +1331,7 @@ export const syncLocalEntitlements = (owner: string, snapshot: {
     grace_until: snapshot.grace_until ?? previous?.grace_until,
   };
   db.localEntitlements.set(owner, value);
+  persistMutation();
   return value;
 };
 
@@ -839,7 +1382,14 @@ export const canUseFeature = (owner: string, feature: "transcription" | "new_ses
   return false;
 };
 
-export const listSessionClinicalNotes = (owner: string, sessionId: string) => byOwner(db.clinicalNotes.values(), owner).filter((item) => item.session_id === sessionId);
-export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
+export const listSessionClinicalNotes = (owner: string, sessionId: string) =>
+  byOwner(db.clinicalNotes.values(), owner)
+    .filter((item) => item.session_id === sessionId)
+    .sort(compareByNewestDate)
+    .map((note) => hydrateClinicalNote(owner, note));
+export const getClinicalNote = (owner: string, noteId: string) => {
+  const note = getByOwner(db.clinicalNotes, owner, noteId);
+  return note ? hydrateClinicalNote(owner, note) : null;
+};
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);

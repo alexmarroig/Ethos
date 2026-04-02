@@ -1,13 +1,13 @@
-# Usuários de teste (login/senha)
+# UsuÃ¡rios de teste (backend local)
 
 ## Admin
-- Login: `admin@admin`
-- Senha: `bianco256`
+- Login: `camila@ethos.local`
+- Senha: `admin123`
 
-## Psicólogo teste (full acesso)
-- Login: `camila@admin`
-- Senha: `bianco256`
+## PsicÃ³loga clÃ­nica
+- Login: `helena@ethos.local`
+- Senha: `ethos123`
 
-## Paciente teste (full acesso)
-- Login: `paciente@admin`
-- Senha: `bianco256`
+## ObservaÃƒÂ§ÃƒÂ£o
+- O app mobile clÃƒÂ­nico deve usar `helena@ethos.local`.
+- A conta admin (`camila@ethos.local`) continua disponÃƒÂ­vel para rotas administrativas do backend.

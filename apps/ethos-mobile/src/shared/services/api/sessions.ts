@@ -1,86 +1,143 @@
-// ethos-mobile/src/services/api/sessions.ts
+// apps/ethos-mobile/src/services/api/sessions.ts
+
 import { createHttpClient } from './httpClient';
-import type { Session, Patient } from '../../types/shared';
+import type {
+  SessionRecord,
+  ClinicalNoteRecord,
+  JobRecord,
+  PaginatedResponse,
+} from './types';
+import { unwrapPaginatedResponse } from './types';
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL!;
 
-const sessionContract = {
-    '/sessions': ['get', 'post'],
-    '/sessions/{id}': ['get'],
-    '/sessions/{id}/status': ['patch'],
-    '/sessions/{id}/audio': ['post'],
-    '/sessions/{id}/transcribe': ['post'],
-    '/sessions/{id}/clinical-note': ['post'],
-    '/clinical-notes/{id}/validate': ['post'],
-    '/patients': ['get'], // Assuming patients are at this endpoint from openapi
-    '/jobs/{id}': ['get'],
-    '/clinical-notes': ['post'],
+// ==============================
+// CONTRACT (TYPE-SAFE ROUTES)
+// ==============================
+const contract = {
+  '/sessions': ['get', 'post'],
+  '/sessions/{id}': ['get'],
+  '/sessions/{id}/status': ['patch'],
+  '/sessions/{id}/audio': ['post'],
+  '/sessions/{id}/transcribe': ['post'],
+  '/sessions/{id}/clinical-note': ['post'],
+  '/jobs/{id}': ['get'],
 } as const;
 
+// ==============================
+// CLIENT
+// ==============================
 const apiClient = createHttpClient({
-    name: 'MobileClinicalAPI',
-    baseUrl: API_BASE_URL,
-    contract: sessionContract,
-    offline: {
-        enabled: true,
-        cacheNamespace: 'ethos_mobile_clinical_cache',
-    },
+  name: 'MobileClinicalAPI',
+  baseUrl: API_BASE_URL,
+  contract,
+  offline: {
+    enabled: true,
+    cacheNamespace: 'ethos_mobile_clinical_cache',
+  },
 });
 
-export const fetchSessions = async (): Promise<Session[]> => {
-    return apiClient.request<Session[]>('/sessions', { method: 'GET' });
+// ==============================
+// SESSIONS
+// ==============================
+export const fetchSessions = async () => {
+  const res = await apiClient.request<PaginatedResponse<SessionRecord>>(
+    '/sessions',
+    { method: 'GET' }
+  );
+  return unwrapPaginatedResponse(res);
 };
 
-export const fetchPatients = async (): Promise<Patient[]> => {
-    return apiClient.request<Patient[]>('/patients', { method: 'GET' });
+export const fetchSession = (sessionId: string) =>
+  apiClient.request<SessionRecord>(`/sessions/${sessionId}`, {
+    method: 'GET',
+  });
+
+export const createSession = (payload: {
+  patientId: string;
+  scheduledAt: string;
+  durationMinutes?: number;
+}) =>
+  apiClient.request<SessionRecord>('/sessions', {
+    method: 'POST',
+    body: {
+      patient_id: payload.patientId,
+      scheduled_at: payload.scheduledAt,
+      duration_minutes: payload.durationMinutes,
+    },
+  });
+
+export const updateSessionStatus = (
+  sessionId: string,
+  status: SessionRecord['status']
+) =>
+  apiClient.request<SessionRecord>(`/sessions/${sessionId}/status`, {
+    method: 'PATCH',
+    body: { status },
+  });
+
+// ==============================
+// AUDIO + TRANSCRIPTION
+// ==============================
+export const postAudioToSession = async (
+  sessionId: string,
+  fileUri: string
+): Promise<void> => {
+  await apiClient.request(`/sessions/${sessionId}/audio`, {
+    method: 'POST',
+    body: { file_path: fileUri },
+  });
 };
 
-export const createSession = async (patientId: string, scheduledAt: string): Promise<Session> => {
-    return apiClient.request<Session>('/sessions', {
-        method: 'POST',
-        body: { patient_id: patientId, scheduled_at: scheduledAt }
-    });
+export const startTranscriptionJob = async (
+  sessionId: string,
+  rawText?: string
+): Promise<{ job_id: string; status: JobRecord['status'] }> => {
+  return apiClient.request(`/sessions/${sessionId}/transcribe`, {
+    method: 'POST',
+    body: rawText ? { raw_text: rawText } : undefined,
+  });
 };
 
-export const startTranscriptionJob = async (sessionId: string, rawText?: string): Promise<{ job_id: string }> => {
-    return apiClient.request<{ job_id: string }>(`/sessions/${sessionId}/transcribe`, {
-        method: 'POST',
-        body: { raw_text: rawText }
-    });
+// ==============================
+// JOBS
+// ==============================
+export const fetchJob = (jobId: string) =>
+  apiClient.request<JobRecord>(`/jobs/${jobId}`, {
+    method: 'GET',
+  });
+
+// helper opcional (melhor DX)
+export const pollJob = async (
+  jobId: string,
+  maxAttempts = 15,
+  delay = 500
+): Promise<JobRecord> => {
+  for (let i = 0; i < maxAttempts; i++) {
+    const job = await fetchJob(jobId);
+
+    if (job.status === 'completed') return job;
+    if (job.status === 'failed') {
+      throw new Error('Transcription failed');
+    }
+
+    await new Promise((r) => setTimeout(r, delay));
+  }
+
+  throw new Error('Transcription timeout');
 };
 
-export const saveClinicalNote = async (sessionId: string, text: string): Promise<any> => {
-    return apiClient.request<any>(`/sessions/${sessionId}/clinical-note`, {
-        method: 'POST',
-        body: { text }
-    });
-};
-
-export const updateSessionStatus = async (sessionId: string, status: Session['status']) => {
-    return apiClient.request<any>(`/sessions/${sessionId}/status`, {
-        method: 'PATCH',
-        body: { status }
-    });
-};
-
-export const pollJob = async (jobId: string): Promise<{ status: string; document?: any; transcript?: string }> => {
-    const res = await apiClient.request<{ status: string; document?: any; transcript?: string }>(`/jobs/${encodeURIComponent(jobId)}` as any, {
-        method: 'GET',
-    });
-    return res;
-};
-
-export const postAudioToSession = async (sessionId: string, fileUri: string): Promise<void> => {
-    // Backend expects a local file path (not binary upload) — local-only server design
-    await apiClient.request(`/sessions/${sessionId}/audio` as any, {
-        method: 'POST',
-        body: { file_path: fileUri },
-    });
-};
-
-export const triggerTranscription = async (sessionId: string): Promise<string> => {
-    const res = await apiClient.request<{ job_id: string }>(`/sessions/${sessionId}/transcribe` as any, {
-        method: 'POST',
-    });
-    return res.job_id;
-};
+// ==============================
+// CLINICAL NOTE
+// ==============================
+export const saveClinicalNote = (
+  sessionId: string,
+  content: string
+) =>
+  apiClient.request<ClinicalNoteRecord>(
+    `/sessions/${sessionId}/clinical-note`,
+    {
+      method: 'POST',
+      body: { content },
+    }
+  );

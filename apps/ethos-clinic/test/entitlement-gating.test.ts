@@ -3,7 +3,7 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
-import { db, uid } from "../src/infra/database";
+import { db, resetDatabaseForTests, uid } from "../src/infra/database";
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string) => {
   const res = await fetch(`${base}${path}`, {
@@ -15,6 +15,7 @@ const req = async (base: string, path: string, method = "GET", body?: unknown, t
 };
 
 const bootstrap = async () => {
+  resetDatabaseForTests();
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");
@@ -30,6 +31,18 @@ const bootstrap = async () => {
     token: login.json.data.token as string,
     userId: login.json.data.user.id as string,
   };
+};
+
+const waitForJobStatus = async (base: string, jobId: string, token: string) => {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const job = await req(base, `/jobs/${jobId}`, "GET", undefined, token);
+    if (job.json.data.status === "completed") {
+      return job;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return req(base, `/jobs/${jobId}`, "GET", undefined, token);
 };
 
 test("entitlement gating and offline grace", async () => {
@@ -57,7 +70,8 @@ test("entitlement gating and offline grace", async () => {
 
   const allowedFirst = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
   assert.equal(allowedFirst.status, 202);
-  await new Promise((r) => setTimeout(r, 50));
+  const firstJob = await waitForJobStatus(base, allowedFirst.json.data.job_id as string, token);
+  assert.equal(firstJob.json.data.status, "completed");
   const blockedSecond = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
   assert.equal(blockedSecond.status, 402);
 
@@ -100,6 +114,7 @@ test("entitlement gating and offline grace", async () => {
   assert.equal((await req(base, "/export/pdf", "POST", {}, token)).status, 202);
   assert.equal((await req(base, "/backup", "POST", {}, token)).status, 202);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -149,6 +164,7 @@ test("entitlement gating ignores events and sessions from same month in previous
   const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "x" }, token);
   assert.equal(transcribe.status, 202);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -179,5 +195,6 @@ test("missing GET endpoints are available", async () => {
   assert.equal((await req(base, "/scales", "GET", undefined, token)).status, 200);
   assert.equal((await req(base, "/patients", "GET", undefined, token)).status, 200);
 
+  server.closeAllConnections();
   server.close();
 });

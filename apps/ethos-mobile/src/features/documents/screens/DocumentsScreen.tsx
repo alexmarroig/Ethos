@@ -1,333 +1,230 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, TextInput, StatusBar, FlatList } from 'react-native';
-import { useTheme } from '../../../shared/hooks/useTheme';
-import { Search, FileText, Filter, CheckCircle, Clock, ChevronRight, ChevronLeft, Plus, MoreHorizontal, FileDown } from 'lucide-react-native';
-import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+// src/contexts/NotificationsContext.tsx
 
-const primaryTeal = '#234e5c';
-const accentTeal = '#439299';
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from 'react';
 
-const mockDocs = [
-    { id: '1', title: 'Prontuário - Mariana Albuquerque', patient: 'Mariana Albuquerque', date: 'Hoje, 14:50', status: 'signed', type: 'Prontuário' },
-    { id: '2', title: 'Relatório Psicológico - João Silva', patient: 'João Silva', date: 'Ontem, 16:30', status: 'draft', type: 'Relatório' },
-    { id: '3', title: 'Anamnese - Roberto Santos', patient: 'Roberto Santos', date: '02 Mar, 10:00', status: 'signed', type: 'Prontuário' },
-    { id: '4', title: 'Evolução Clínica - Ana Paula', patient: 'Ana Paula', date: '28 Fev, 15:20', status: 'signed', type: 'Prontuário' },
-];
+// ==========================
+// TYPES
+// ==========================
+export type DocumentItem = {
+  id: string;
+  title: string;
+  patient: string;
+  status: 'assinado' | 'rascunho';
+  date: string;
+  content?: string;
+};
 
-export default function DocumentsScreen({ navigation, route }: any) {
-    const isDark = useColorScheme() === 'dark';
-    const theme = useTheme();
-    const [filter, setFilter] = useState('Todos');
+export type AppNotification = {
+  id: string;
+  type: 'prontuario_gerado' | 'sessao_pendente' | 'pagamento';
+  title: string;
+  body: string;
+  timestamp: Date;
+  read: boolean;
+  document?: DocumentItem;
+};
 
-    const categories = ['Todos', 'Assinados', 'Rascunhos', 'Modelos'];
+type PendingJob = {
+  jobId: string;
+  patientName: string;
+  sessionId: string;
+};
 
-    // Apply filter from navigation params (e.g. from "Laudos Atrasados" alert card)
-    useEffect(() => {
-      const paramFilter = route.params?.filter;
-      if (paramFilter) setFilter(paramFilter);
-    }, [route.params?.filter]);
+type NotificationsContextValue = {
+  notifications: AppNotification[];
+  unreadCount: number;
+  addNotification: (n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => void;
+  addPendingJob: (job: PendingJob) => void;
+  markAllRead: () => void;
+};
 
-    return (
-        <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
-            <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} />
+// ==========================
+// CONTEXT
+// ==========================
+const NotificationsContext = createContext<NotificationsContextValue | null>(null);
 
-            {/* Header */}
-            <View style={styles.header}>
-                <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-                    {route.params?.showBack && (
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4, marginRight: 8 }}>
-                            <ChevronLeft size={24} color={primaryTeal} />
-                        </TouchableOpacity>
-                    )}
-                    <View>
-                        <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Prontuários e Laudos</Text>
-                        <Text style={[styles.title, { color: primaryTeal }]}>Documentos</Text>
-                    </View>
-                </View>
-                <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
-                    <Plus size={24} color={primaryTeal} />
-                </TouchableOpacity>
-            </View>
-
-            {/* Search & Statistics */}
-            <View style={styles.searchWrapper}>
-                <View style={[styles.searchBar, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
-                    <Search size={20} color={theme.mutedForeground} />
-                    <TextInput
-                        placeholder="Buscar por nome ou data..."
-                        placeholderTextColor={theme.mutedForeground}
-                        style={[styles.searchInput, { color: primaryTeal }]}
-                    />
-                </View>
-                <TouchableOpacity style={[styles.filterButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
-                    <Filter size={20} color={primaryTeal} />
-                </TouchableOpacity>
-            </View>
-
-            {/* Chips */}
-            <View style={styles.chipsContainer}>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipsScroll}>
-                    {categories.map((cat) => (
-                        <TouchableOpacity
-                            key={cat}
-                            onPress={() => setFilter(cat)}
-                            style={[
-                                styles.chip,
-                                filter === cat && styles.activeChip,
-                                { backgroundColor: filter === cat ? primaryTeal : (isDark ? '#2a2d31' : '#fff') }
-                            ]}
-                        >
-                            <Text style={[
-                                styles.chipText,
-                                { color: filter === cat ? '#fff' : theme.mutedForeground }
-                            ]}>
-                                {cat}
-                            </Text>
-                        </TouchableOpacity>
-                    ))}
-                </ScrollView>
-            </View>
-
-            {/* Documents List */}
-            <FlatList
-                data={mockDocs}
-                keyExtractor={(item) => item.id}
-                contentContainerStyle={styles.listContent}
-                showsVerticalScrollIndicator={false}
-                renderItem={({ item, index }) => (
-                    <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
-                        <TouchableOpacity
-                            style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
-                            onPress={() => navigation.navigate('DocumentDetail', { document: {
-                                id: item.id,
-                                title: item.title,
-                                patient: item.patient,
-                                status: item.status === 'signed' ? 'assinado' : 'rascunho',
-                                date: item.date,
-                                content: (item as any).content,
-                            } })}
-                        >
-                            <View style={[styles.docIconWrapper, { backgroundColor: item.status === 'signed' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
-                                <FileText size={24} color={item.status === 'signed' ? '#16a34a' : '#f59e0b'} />
-                            </View>
-
-                            <View style={styles.docInfo}>
-                                <Text style={[styles.docTitle, { color: primaryTeal }]} numberOfLines={1}>
-                                    {item.title}
-                                </Text>
-                                <View style={styles.docMeta}>
-                                    {item.status === 'signed' ? (
-                                        <View style={styles.statusBadge}>
-                                            <CheckCircle size={12} color="#16a34a" />
-                                            <Text style={[styles.statusText, { color: '#16a34a' }]}>Assinado</Text>
-                                        </View>
-                                    ) : (
-                                        <View style={[styles.statusBadge, { backgroundColor: '#fef3c7' }]}>
-                                            <Clock size={12} color="#d97706" />
-                                            <Text style={[styles.statusText, { color: '#d97706' }]}>Rascunho</Text>
-                                        </View>
-                                    )}
-                                    <Text style={[styles.docDate, { color: theme.mutedForeground }]}>
-                                        {item.date}
-                                    </Text>
-                                </View>
-                            </View>
-
-                            <View style={styles.cardActions}>
-                                <TouchableOpacity style={styles.actionIcon}>
-                                    <FileDown size={20} color={theme.mutedForeground} />
-                                </TouchableOpacity>
-                                <ChevronRight size={18} color={theme.mutedForeground} />
-                            </View>
-                        </TouchableOpacity>
-                    </Animated.View>
-                )}
-            />
-
-            <TouchableOpacity style={styles.fab}>
-                <Plus size={32} color="#fff" />
-            </TouchableOpacity>
-        </View>
-    );
+export function useNotifications(): NotificationsContextValue {
+  const ctx = useContext(NotificationsContext);
+  if (!ctx) throw new Error('useNotifications must be used within NotificationsProvider');
+  return ctx;
 }
 
-const styles = StyleSheet.create({
-    container: {
-        flex: 1,
+// ==========================
+// CONFIG
+// ==========================
+const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.15.182:8787';
+
+let authTokenRef: string | null = null;
+export const setNotificationsAuthToken = (token: string | null) => {
+  authTokenRef = token;
+};
+
+// ==========================
+// PROVIDER
+// ==========================
+export function NotificationsProvider({ children }: { children: React.ReactNode }) {
+  const [notifications, setNotifications] = useState<AppNotification[]>([]);
+  const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
+
+  const pendingJobsRef = useRef<PendingJob[]>([]);
+  pendingJobsRef.current = pendingJobs;
+
+  const unreadCount = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications]
+  );
+
+  // ==========================
+  // ADD NOTIFICATION
+  // ==========================
+  const addNotification = useCallback(
+    (n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => {
+      setNotifications((prev) => {
+        const newItem: AppNotification = {
+          ...n,
+          id: `${Date.now()}-${Math.random()}`,
+          read: false,
+          timestamp: new Date(),
+        };
+
+        return [newItem, ...prev].slice(0, 50); // limite de memória
+      });
     },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 24,
-        paddingTop: 60,
-        paddingBottom: 24,
+    []
+  );
+
+  // ==========================
+  // ADD JOB (NO DUPLICATE)
+  // ==========================
+  const addPendingJob = useCallback(
+    (job: PendingJob) => {
+      if (!job.jobId) {
+        addNotification({
+          type: 'sessao_pendente',
+          title: 'Transcrição indisponível',
+          body: job.patientName,
+        });
+        return;
+      }
+
+      setPendingJobs((prev) => {
+        if (prev.some((j) => j.jobId === job.jobId)) return prev;
+        return [...prev, job];
+      });
     },
-    subtitle: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-        marginBottom: 4,
-    },
-    title: {
-        fontSize: 28,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-    },
-    headerIcon: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 10,
-        elevation: 2,
-    },
-    searchWrapper: {
-        flexDirection: 'row',
-        paddingHorizontal: 24,
-        gap: 12,
-        marginBottom: 20,
-    },
-    searchBar: {
-        flex: 1,
-        flexDirection: 'row',
-        alignItems: 'center',
-        height: 52,
-        borderRadius: 26,
-        paddingHorizontal: 20,
-        gap: 12,
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    searchInput: {
-        flex: 1,
-        fontSize: 15,
-        fontFamily: 'Inter',
-    },
-    filterButton: {
-        width: 52,
-        height: 52,
-        borderRadius: 26,
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#000',
-        shadowOpacity: 0.05,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 2,
-    },
-    chipsContainer: {
-        marginBottom: 24,
-    },
-    chipsScroll: {
-        paddingHorizontal: 24,
-        gap: 10,
-    },
-    chip: {
-        paddingHorizontal: 20,
-        paddingVertical: 10,
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(0,0,0,0.05)',
-    },
-    activeChip: {
-        shadowColor: primaryTeal,
-        shadowOpacity: 0.2,
-        shadowOffset: { width: 0, height: 4 },
-        shadowRadius: 8,
-        elevation: 3,
-    },
-    chipText: {
-        fontSize: 13,
-        fontFamily: 'Inter',
-        fontWeight: '600',
-    },
-    listContent: {
-        paddingHorizontal: 24,
-        paddingBottom: 120,
-    },
-    docCard: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 16,
-        borderRadius: 24,
-        marginBottom: 16,
-        shadowColor: '#000',
-        shadowOpacity: 0.04,
-        shadowOffset: { width: 0, height: 6 },
-        shadowRadius: 12,
-        elevation: 2,
-    },
-    docIconWrapper: {
-        width: 56,
-        height: 56,
-        borderRadius: 18,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    docInfo: {
-        flex: 1,
-        marginLeft: 16,
-    },
-    docTitle: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        marginBottom: 6,
-    },
-    docMeta: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    statusBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f0fdf4',
-        paddingHorizontal: 8,
-        paddingVertical: 3,
-        borderRadius: 8,
-        gap: 4,
-    },
-    statusText: {
-        fontSize: 10,
-        fontFamily: 'Inter',
-        fontWeight: '800',
-        textTransform: 'uppercase',
-    },
-    docDate: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-    },
-    cardActions: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 12,
-        marginLeft: 8,
-    },
-    actionIcon: {
-        padding: 8,
-    },
-    fab: {
-        position: 'absolute',
-        bottom: 30,
-        right: 24,
-        width: 64,
-        height: 64,
-        borderRadius: 32,
-        backgroundColor: '#234e5c',
-        justifyContent: 'center',
-        alignItems: 'center',
-        shadowColor: '#234e5c',
-        shadowOpacity: 0.4,
-        shadowOffset: { width: 0, height: 8 },
-        shadowRadius: 15,
-        elevation: 10,
-    }
-});
+    [addNotification]
+  );
+
+  const removePendingJob = useCallback((jobId: string) => {
+    setPendingJobs((prev) => prev.filter((j) => j.jobId !== jobId));
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+  }, []);
+
+  // ==========================
+  // POLLING ENGINE (SAFE)
+  // ==========================
+  useEffect(() => {
+    let isRunning = false;
+
+    const interval = setInterval(async () => {
+      if (isRunning) return;
+      if (pendingJobsRef.current.length === 0) return;
+
+      isRunning = true;
+
+      try {
+        for (const job of pendingJobsRef.current) {
+          try {
+            const res = await fetch(`${API_URL}/jobs/${job.jobId}`, {
+              headers: authTokenRef
+                ? { Authorization: `Bearer ${authTokenRef}` }
+                : {},
+            });
+
+            if (!res.ok) continue;
+
+            const data = await res.json();
+            const status = data?.data?.status ?? data?.status;
+
+            if (status === 'completed') {
+              addNotification({
+                type: 'prontuario_gerado',
+                title: 'Prontuário gerado',
+                body: job.patientName,
+                document:
+                  data?.data?.document ?? {
+                    id: `doc-${Date.now()}`,
+                    title: `Sessão — ${job.patientName}`,
+                    patient: job.patientName,
+                    status: 'rascunho',
+                    date: new Date().toLocaleDateString('pt-BR'),
+                    content:
+                      data?.data?.transcript ??
+                      'Transcrição concluída. Revise o prontuário.',
+                  },
+              });
+
+              removePendingJob(job.jobId);
+            }
+
+            if (status === 'failed') {
+              addNotification({
+                type: 'sessao_pendente',
+                title: 'Transcrição falhou',
+                body: job.patientName,
+              });
+
+              removePendingJob(job.jobId);
+            }
+          } catch {
+            // erro individual do job — ignora
+          }
+        }
+      } finally {
+        isRunning = false;
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [addNotification, removePendingJob]);
+
+  // ==========================
+  // CLEANUP TOKEN
+  // ==========================
+  useEffect(() => {
+    return () => {
+      authTokenRef = null;
+    };
+  }, []);
+
+  // ==========================
+  // CONTEXT VALUE
+  // ==========================
+  const value = useMemo(
+    () => ({
+      notifications,
+      unreadCount,
+      addNotification,
+      addPendingJob,
+      markAllRead,
+    }),
+    [notifications, unreadCount, addNotification, addPendingJob, markAllRead]
+  );
+
+  return (
+    <NotificationsContext.Provider value={value}>
+      {children}
+    </NotificationsContext.Provider>
+  );
+}

@@ -1,0 +1,70 @@
+<h2>Frontend Ethos — O que existe hoje</h2>
+<p class="subtitle">Analisei o código. Aqui está o estado atual e o que pode ser melhorado.</p>
+
+<div class="section">
+  <h3>O que está bem ✓</h3>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px">
+    <div style="padding:14px;background:hsl(155 45% 42% / 0.08);border:1px solid hsl(155 45% 42% / 0.2);border-radius:10px">
+      <div style="font-weight:500;font-size:13px;color:hsl(155 45% 30%)">Design System</div>
+      <div style="font-size:12px;margin-top:4px;color:#555">Cores, tipografia (Lora + Inter), sombras e tokens bem definidos em CSS variables</div>
+    </div>
+    <div style="padding:14px;background:hsl(155 45% 42% / 0.08);border:1px solid hsl(155 45% 42% / 0.2);border-radius:10px">
+      <div style="font-weight:500;font-size:13px;color:hsl(155 45% 30%)">Páginas funcionais</div>
+      <div style="font-size:12px;margin-top:4px;color:#555">Pacientes, Sessões, Agenda, Financeiro e Prontuário com chamadas reais à API</div>
+    </div>
+    <div style="padding:14px;background:hsl(155 45% 42% / 0.08);border:1px solid hsl(155 45% 42% / 0.2);border-radius:10px">
+      <div style="font-weight:500;font-size:13px;color:hsl(155 45% 30%)">Animações</div>
+      <div style="font-size:12px;margin-top:4px;color:#555">Framer Motion em todas as transições — suave, clínico, sem exageros</div>
+    </div>
+    <div style="padding:14px;background:hsl(155 45% 42% / 0.08);border:1px solid hsl(155 45% 42% / 0.2);border-radius:10px">
+      <div style="font-weight:500;font-size:13px;color:hsl(155 45% 30%)">Roles</div>
+      <div style="font-size:12px;margin-top:4px;color:#555">Profissional / Paciente / Admin com RoleGate e menus adaptados</div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Problemas encontrados 🔴</h3>
+  <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">
+    <div style="padding:12px 14px;background:hsl(0 55% 48% / 0.07);border-left:3px solid hsl(0 55% 48%);border-radius:0 8px 8px 0;font-size:13px">
+      <strong>Bug: useEffect não importado</strong> — <code>FallbackRedirect</code> em <code>Index.tsx</code> usa <code>useEffect</code> sem importar
+    </div>
+    <div style="padding:12px 14px;background:hsl(0 55% 48% / 0.07);border-left:3px solid hsl(0 55% 48%);border-radius:0 8px 8px 0;font-size:13px">
+      <strong>FAB desconectado</strong> — Botão de ação flutuante só faz <code>console.log</code>, não abre nada
+    </div>
+    <div style="padding:12px 14px;background:hsl(0 55% 48% / 0.07);border-left:3px solid hsl(0 55% 48%);border-radius:0 8px 8px 0;font-size:13px">
+      <strong>Páginas em stub</strong> — Relatórios, Documentos, Escalas, Formulários, IA, Ética, Backup, Contratos: conteúdo vazio ou "Em breve"
+    </div>
+    <div style="padding:12px 14px;background:hsl(45 85% 55% / 0.12);border-left:3px solid hsl(45 85% 55%);border-radius:0 8px 8px 0;font-size:13px">
+      <strong>Portal do paciente incompleto</strong> — PatientHomePage, Diário, Mensagens: sem conteúdo real conectado à API
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>Por onde começar? Escolha o foco:</h3>
+</div>
+
+<div class="options">
+  <div class="option" data-choice="bugs" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Corrigir bugs + conectar FAB</h3>
+      <p>Resolve o useEffect, conecta o botão de ação, garante que o app não trava. Base sólida primeiro.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="pages" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Completar páginas em stub</h3>
+      <p>Preencher Relatórios, Escalas, Formulários, IA, Contratos com conteúdo real e funcional.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="tudo" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Tudo — bugs + páginas + visual</h3>
+      <p>Abordagem completa: corrige, completa e aprimora o visual. Mais ambicioso, mais resultado.</p>
+    </div>
+  </div>
+</div>

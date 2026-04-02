@@ -3,7 +3,11 @@ import { once } from "node:events";
 import type { AddressInfo } from "node:net";
 import test from "node:test";
 import { createEthosBackend } from "../src/server";
-import { db } from "../src/infra/database";
+<<<<<<< HEAD
+import { db, resetDatabaseForTests, uid } from "../src/infra/database";
+=======
+import { db, uid } from "../src/infra/database";
+>>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
 
 const req = async (base: string, path: string, method = "GET", body?: unknown, token?: string, idem?: string) => {
   const response = await fetch(`${base}${path}`, {
@@ -20,6 +24,7 @@ const req = async (base: string, path: string, method = "GET", body?: unknown, t
 };
 
 const setup = async () => {
+  resetDatabaseForTests();
   const server = createEthosBackend();
   server.listen(0);
   await once(server, "listening");
@@ -50,9 +55,22 @@ const setup = async () => {
   };
 };
 
+const waitForJobDraft = async (base: string, jobId: string, token: string) => {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const job = await req(base, `/jobs/${jobId}`, "GET", undefined, token);
+    if (job.json.data.status === "completed" && job.json.data.draft_note_id) {
+      return job;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 25));
+  }
+
+  return req(base, `/jobs/${jobId}`, "GET", undefined, token);
+};
+
 test("checklist: convite + login", async () => {
   const { server, userAToken } = await setup();
   assert.ok(userAToken.length > 10);
+  server.closeAllConnections();
   server.close();
 });
 
@@ -69,6 +87,7 @@ test("checklist: isolamento total entre usuários (inclusive por ID)", async () 
   const noteValidateByOther = await req(base, `/clinical-notes/${nid}/validate`, "POST", {}, userBToken);
   assert.equal(noteValidateByOther.status, 404);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -92,6 +111,7 @@ test("checklist: idempotência em /sessions é isolada por usuário", async () =
   assert.equal(aDifferentBody.status, 201);
   assert.notEqual(aDifferentBody.json.data.id, a1.json.data.id);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -111,6 +131,7 @@ test("checklist: idempotência em /sessions expira após TTL", async () => {
   assert.equal(second.status, 201);
   assert.notEqual(first.json.data.id, second.json.data.id);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -126,6 +147,7 @@ test("checklist: admin só vê contagens e nunca conteúdo clínico", async () =
   assert.ok(typeof metrics.json.data.users_total === "number");
   assert.ok(!("sessions" in metrics.json.data));
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -154,6 +176,7 @@ test("checklist: fluxo completo sessão→áudio→transcrição→rascunho→va
   assert.equal(exportJob.status, 202);
   assert.equal((await req(base, `/jobs/${exportJob.json.data.job_id}`, "GET", undefined, userAToken)).status, 200);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -169,6 +192,7 @@ test("checklist: relatório exige nota validada do mesmo paciente (não aceita o
   assert.equal(blocked.status, 422);
   assert.equal(blocked.json.error.message, "A validated note for the patient is required before creating reports");
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -181,6 +205,7 @@ test("checklist: relatório aceita nota validada vinculada diretamente ao patien
   const report = await req(base, "/reports", "POST", { patient_id: "patient-direct", purpose: "profissional", content: "relatório direto" }, userAToken);
   assert.equal(report.status, 201);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -199,6 +224,7 @@ test("checklist: kill de worker não corrompe estado (simulação de falha de jo
   assert.equal(job.json.data.status, "failed");
   assert.equal(job.json.data.error_code, "WORKER_KILLED");
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -208,6 +234,7 @@ test("checklist: backup + restore funcionam", async () => {
   assert.equal(backup.status, 202);
   const restore = await req(base, "/restore", "POST", {}, userAToken);
   assert.equal(restore.status, 202);
+  server.closeAllConnections();
   server.close();
 });
 
@@ -228,6 +255,7 @@ test("checklist: purge apaga tudo do usuário", async () => {
   const after = await req(base, "/sessions", "GET", undefined, relogin.json.data.token as string);
   assert.equal(after.json.data.total, 0);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -288,6 +316,7 @@ test("checklist: purge remove todos os vínculos do usuário (incluindo estrutur
   assert.equal(telemetryQueue.some((entry) => entry.user_id === ownerId), false);
   assert.equal(telemetryQueue.some((entry) => entry.user_id === otherOwnerId), true);
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -333,6 +362,7 @@ test("checklist: OpenAPI cobre rotas reais principais", async () => {
     assert.match(text, new RegExp(route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   }
 
+  server.closeAllConnections();
   server.close();
 });
 
@@ -357,5 +387,36 @@ test("checklist: logs não expõem texto clínico (telemetria sanitizada)", asyn
   const combined = writes.join("\n");
   assert.equal(combined.includes(sensitive), false);
 
+  server.closeAllConnections();
   server.close();
+});
+
+test("checklist: transcription generates structured draft note", async () => {
+  const { server, base, userAToken } = await setup();
+  try {
+    const session = await req(base, "/sessions", "POST", { patient_id: "patient-draft", scheduled_at: new Date().toISOString() }, userAToken);
+    assert.equal(session.status, 201);
+
+    const transcribe = await req(base, `/sessions/${session.json.data.id}/transcribe`, "POST", { raw_text: "Paciente relata sobrecarga no trabalho, dificuldade para descansar e preocupacao com conflitos familiares recentes." }, userAToken);
+    assert.equal(transcribe.status, 202);
+
+    const completedJob = await waitForJobDraft(base, transcribe.json.data.job_id as string, userAToken);
+    assert.equal(completedJob.json.data.status, "completed");
+    assert.ok(completedJob.json.data.draft_note_id);
+
+    const note = await req(base, `/clinical-notes/${completedJob.json.data.draft_note_id}`, "GET", undefined, userAToken);
+    assert.equal(note.status, 200);
+    assert.match(note.json.data.content, /## 1\. IDENTIFICA/i);
+    assert.match(note.json.data.content, /## 8\. EVOLU/i);
+    assert.match(note.json.data.content, /S \(Subjetivo\):/);
+    assert.match(note.json.data.content, /O \(Objetivo\):/);
+    assert.match(note.json.data.content, /A \(An.lise\):/);
+    assert.match(note.json.data.content, /P \(Plano\):/);
+    assert.match(note.json.data.content, /## OBSERVA/i);
+    assert.equal(typeof note.json.data.structuredData?.soap?.subjective, "string");
+    assert.equal(typeof note.json.data.structuredData?.soap?.objective, "string");
+  } finally {
+    server.closeAllConnections();
+    server.close();
+  }
 });

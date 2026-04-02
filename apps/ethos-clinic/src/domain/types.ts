@@ -5,6 +5,38 @@ export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
 
+export type ClinicalNoteStructuredData = {
+  complaint?: string;
+  context?: string;
+  objectives?: string[];
+  anamnesis?: {
+    personal?: string;
+    family?: string;
+    psychiatric?: string;
+    medication?: string;
+    events?: string;
+  };
+  plan?: {
+    approach?: string;
+    strategies?: string;
+    interventions?: string;
+  };
+  soap?: {
+    subjective?: string;
+    objective?: string;
+    assessment?: string;
+    plan?: string;
+  };
+  events?: string;
+  closure?: {
+    date?: string;
+    reason?: string;
+    summary?: string;
+    results?: string;
+    recommendations?: string;
+  };
+};
+
 export type User = {
   id: UUID;
   email: string;
@@ -37,12 +69,16 @@ export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 export type Patient = Owned & {
   external_id: string;
   label: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
 };
 
 export type ClinicalSession = Owned & {
   patient_id: string;
   scheduled_at: string;
   status: SessionStatus;
+  duration_minutes?: number;
 };
 
 export type AudioRecord = Owned & {
@@ -61,6 +97,7 @@ export type Transcript = Owned & {
 export type ClinicalNote = Owned & {
   session_id: UUID;
   content: string;
+  structuredData?: ClinicalNoteStructuredData;
   status: ClinicalNoteStatus;
   version: number;
   validated_at?: string;
@@ -94,11 +131,46 @@ export type FormEntry = Owned & {
 
 export type FinancialEntry = Owned & {
   patient_id: string;
+  session_id?: string;
   type: "receivable" | "payable";
   amount: number;
   due_date: string;
   status: "open" | "paid";
   description: string;
+};
+
+export type PatientTimelineItem = {
+  id: UUID;
+  patient_id: string;
+  kind: "session" | "clinical_note" | "document";
+  date: string;
+  title: string;
+  subtitle?: string;
+  related_id: string;
+};
+
+export type EmotionalDiaryEntry = Owned & {
+  patient_id: string;
+  date: string;
+  mood: 1 | 2 | 3 | 4 | 5;
+  intensity: number;
+  description?: string;
+  thoughts?: string;
+  tags?: string[];
+};
+
+export type PatientAsyncMessage = Owned & {
+  patient_id: string;
+  message: string;
+};
+
+export type SupportedScaleType = "PHQ-9" | "GAD-7";
+
+export type ScaleModel = {
+  patient_id: string;
+  type: SupportedScaleType;
+  score: number;
+  date: string;
 };
 
 export type JobType = "transcription" | "export" | "export_full" | "backup";
@@ -137,6 +209,7 @@ export type Job = {
   progress: number;
   resource_id?: UUID;
   result_uri?: string;
+  draft_note_id?: UUID;
   error_code?: string;
   created_at: string;
   updated_at: string;
@@ -202,6 +275,16 @@ export type NotificationLog = Owned & {
   status: "sent" | "failed";
   dispatched_at: string;
   reason?: string;
+};
+
+export type NotificationPreview = {
+  id: UUID;
+  type: "session" | "document" | "reminder";
+  title: string;
+  message: string;
+  created_at: string;
+  related_id?: UUID;
+  status?: string;
 };
 
 export type TelemetryEvent = {
