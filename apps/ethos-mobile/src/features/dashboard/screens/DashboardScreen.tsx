@@ -13,6 +13,7 @@ import { avatarPlaceholder } from '../../../shared/assets/avatar_placeholder';
 import { AlertCard } from '../components/AlertCard';
 import { NextSessionCard } from '../components/NextSessionCard';
 import { FinanceSummaryCard } from '../components/FinanceSummaryCard';
+import { useNotifications } from '../../../contexts/NotificationsContext';
 
 export default function DashboardScreen() {
     const isDark = useColorScheme() === 'dark';
@@ -20,6 +21,7 @@ export default function DashboardScreen() {
     const [selectedSession, setSelectedSession] = useState<ApiSession | null>(null);
     const { sessions, isLoading, error } = useDashboard();
     const navigation = useNavigation<any>();
+    const { unreadCount } = useNotifications();
 
     return (
         <View style={[styles.container, { backgroundColor: theme.background }]}>
@@ -35,12 +37,17 @@ export default function DashboardScreen() {
                     </View>
                 </View>
                 <View style={styles.headerRight}>
-                    <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]}>
+                    <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]} onPress={() => navigation.navigate('Search')}>
                         <Search size={22} color={theme.foreground} />
                     </TouchableOpacity>
-                    <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]}>
+                    <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]} onPress={() => navigation.navigate('Notifications')}>
                         <Bell size={22} color={theme.foreground} />
                         <View style={styles.notificationDot} />
+                        {unreadCount > 0 && (
+                            <View style={{ position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 8, minWidth: 16, height: 16, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 3 }}>
+                                <Text style={{ color: '#fff', fontSize: 10, fontWeight: '700' }}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                            </View>
+                        )}
                     </TouchableOpacity>
                 </View>
             </View>
@@ -57,13 +64,15 @@ export default function DashboardScreen() {
                     overdueReportsCount={3}
                     pendingPaymentsAmount="R$ 450"
                     pendingPaymentsCount={2}
+                    onPressOverdueReports={() => navigation.navigate('MainTabs', { screen: 'Documents', params: { filter: 'rascunhos' } })}
+                    onPressPendingPayments={() => navigation.navigate('Finance')}
                 />
 
                 {/* Próxima Sessão Section */}
                 <View style={styles.sectionHeader}>
                     <Calendar size={20} color={theme.primary} />
                     <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Próxima Sessão</Text>
-                    <TouchableOpacity style={{ marginLeft: 'auto' }}>
+                    <TouchableOpacity style={{ marginLeft: 'auto' }} onPress={() => navigation.navigate('Schedule')}>
                         <Text style={[styles.inlineLink, { color: theme.mutedForeground }]}>Ver agenda</Text>
                     </TouchableOpacity>
                 </View>
@@ -74,7 +83,7 @@ export default function DashboardScreen() {
                     sessionLabel="Sessão #12"
                     focusText="Gestão de Ansiedade e Ética"
                     onPressSession={() => navigation.navigate('SessionHub', { patientName: 'Beatriz Mendonça', time: 'Agora às 14:00', status: 'pending' })}
-                    onPressRecords={() => navigation.navigate('Documents')}
+                    onPressRecords={() => navigation.navigate('Documents', { showBack: true, patientId: 'p1' })}
                 />
 
                 {/* Resumo Financeiro Section */}

@@ -8,12 +8,16 @@ type AlertCardProps = {
   overdueReportsCount: number;
   pendingPaymentsAmount: string;
   pendingPaymentsCount: number;
+  onPressOverdueReports?: () => void;
+  onPressPendingPayments?: () => void;
 };
 
 export const AlertCard = React.memo(function AlertCard({
   overdueReportsCount,
   pendingPaymentsAmount,
   pendingPaymentsCount,
+  onPressOverdueReports,
+  onPressPendingPayments,
 }: AlertCardProps) {
   const isDark = useColorScheme() === 'dark';
   const primaryTeal = '#234e5c';
@@ -26,6 +30,7 @@ export const AlertCard = React.memo(function AlertCard({
             styles.alertCardSmall,
             { backgroundColor: isDark ? '#272b34' : '#fff', borderColor: '#f0f0f0' },
           ]}
+          onPress={onPressOverdueReports}
         >
           <View style={[styles.alertIconWrapper, { backgroundColor: '#fee2e2' }]}>
             <FileText size={20} color="#ef4444" />
@@ -48,6 +53,7 @@ export const AlertCard = React.memo(function AlertCard({
             styles.alertCardSmall,
             { backgroundColor: isDark ? '#272b34' : '#fff', borderColor: '#f0f0f0' },
           ]}
+          onPress={onPressPendingPayments}
         >
           <View style={[styles.alertIconWrapper, { backgroundColor: '#fff7ed' }]}>
             <Banknote size={20} color="#f97316" />

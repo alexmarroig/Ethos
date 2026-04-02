@@ -24,6 +24,10 @@ import PatientsScreen from '../../features/patients/screens/PatientsScreen';
 import DocumentsScreen from '../../features/documents/screens/DocumentsScreen';
 import SettingsScreen from '../../features/settings/screens/SettingsScreen';
 import SessionHubScreen from '../../features/sessions/screens/SessionHubScreen';
+import SearchScreen from '../../screens/SearchScreen';
+import NotificationsScreen from '../../screens/NotificationsScreen';
+import DocumentDetailScreen from '../../screens/DocumentDetailScreen';
+import FinanceScreen from '../../features/finance/screens/FinanceScreen';
 
 const Tab = createBottomTabNavigator();
 const AuthStack = createNativeStackNavigator();
@@ -67,6 +71,10 @@ function MainStackNavigator() {
     <MainStack.Navigator screenOptions={{ headerShown: false }}>
       <MainStack.Screen name="MainTabs" component={BottomTabs} />
       <MainStack.Screen name="SessionHub" component={SessionHubScreen} />
+      <MainStack.Screen name="Search" component={SearchScreen} options={{ headerShown: false }} />
+      <MainStack.Screen name="Notifications" component={NotificationsScreen} options={{ headerShown: false }} />
+      <MainStack.Screen name="DocumentDetail" component={DocumentDetailScreen} options={{ headerShown: false }} />
+      <MainStack.Screen name="Finance" component={FinanceScreen} options={{ headerShown: false }} />
     </MainStack.Navigator>
   );
 }

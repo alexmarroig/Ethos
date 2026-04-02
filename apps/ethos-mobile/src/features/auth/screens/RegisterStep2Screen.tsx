@@ -1,12 +1,12 @@
 // ethos-mobile/src/screens/RegisterStep2Screen.tsx
 import React, { useState } from 'react';
 import {
-    View, Text, StyleSheet, TouchableOpacity, useColorScheme,
-    StatusBar, SafeAreaView, ScrollView
+    View, Text, StyleSheet, TouchableOpacity, TextInput,
+    useColorScheme, StatusBar, SafeAreaView, ScrollView
 } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { colors } from '../../../shared/theme/colors';
-import { ChevronLeft, ChevronDown, Check, ShieldCheck } from 'lucide-react-native';
+import { ChevronLeft, Check } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 export default function RegisterStep2Screen({ navigation }: any) {
@@ -47,29 +47,40 @@ export default function RegisterStep2Screen({ navigation }: any) {
                 <Animated.View entering={FadeInDown.delay(200).duration(600)}>
                     <Text style={[styles.title, { color: primaryTeal }]}>Dados Profissionais</Text>
                     <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
-                        Informe sua área de atuação e aceite os termos éticos da plataforma para garantir a conformidade clínica.
+                        Informe sua área de atuação e aceite os termos éticos da plataforma. Campos opcionais.
                     </Text>
 
                     {/* Especialidade Principal */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.inputLabel, { color: primaryTeal }]}>Especialidade Principal</Text>
-                        <TouchableOpacity style={[styles.dropdownWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
-                            <Text style={[styles.dropdownText, { color: specialty ? theme.foreground : theme.mutedForeground }]}>
-                                {specialty || 'Selecione sua especialidade'}
-                            </Text>
-                            <ChevronDown size={20} color={accentTeal} />
-                        </TouchableOpacity>
+                        <Text style={[styles.inputLabel, { color: primaryTeal }]}>
+                            Especialidade Principal <Text style={styles.optional}>(opcional)</Text>
+                        </Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
+                            <TextInput
+                                style={[styles.input, { color: theme.foreground }]}
+                                placeholder="Ex: Psicologia Clínica, Neuropsicologia..."
+                                placeholderTextColor={theme.mutedForeground}
+                                value={specialty}
+                                onChangeText={setSpecialty}
+                                returnKeyType="next"
+                            />
+                        </View>
                     </View>
 
                     {/* Abordagem Clínica */}
                     <View style={styles.inputGroup}>
-                        <Text style={[styles.inputLabel, { color: primaryTeal }]}>Abordagem Clínica</Text>
-                        <TouchableOpacity style={[styles.dropdownWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
-                            <Text style={[styles.dropdownText, { color: approach ? theme.foreground : theme.mutedForeground }]}>
-                                {approach || 'Escolha sua abordagem'}
-                            </Text>
-                            <ChevronDown size={20} color={accentTeal} />
-                        </TouchableOpacity>
+                        <Text style={[styles.inputLabel, { color: primaryTeal }]}>
+                            Abordagem Clínica <Text style={styles.optional}>(opcional)</Text>
+                        </Text>
+                        <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
+                            <TextInput
+                                style={[styles.input, { color: theme.foreground }]}
+                                placeholder="Ex: TCC, Psicanálise, Humanista..."
+                                placeholderTextColor={theme.mutedForeground}
+                                value={approach}
+                                onChangeText={setApproach}
+                            />
+                        </View>
                     </View>
 
                     {/* Terms Checkbox */}
@@ -86,7 +97,7 @@ export default function RegisterStep2Screen({ navigation }: any) {
                     </TouchableOpacity>
 
                     <TouchableOpacity
-                        style={[styles.primaryButton, { backgroundColor: accentTeal, opacity: acceptedEthics ? 1 : 0.6 }]}
+                        style={[styles.primaryButton, { backgroundColor: accentTeal, opacity: acceptedEthics ? 1 : 0.5 }]}
                         onPress={() => navigation.navigate('WelcomeOnboarding')}
                         disabled={!acceptedEthics}
                     >
@@ -105,9 +116,7 @@ export default function RegisterStep2Screen({ navigation }: any) {
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-    },
+    container: { flex: 1 },
     header: {
         flexDirection: 'row',
         alignItems: 'center',
@@ -115,91 +124,31 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingBottom: 20,
     },
-    backButton: {
-        padding: 4,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    progressSection: {
-        paddingHorizontal: 24,
-        marginBottom: 30,
-    },
-    progressHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    progressTitle: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    progressStep: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    progressBarBg: {
-        height: 8,
-        backgroundColor: '#e8eeed',
-        borderRadius: 4,
-        overflow: 'hidden',
-    },
-    progressBarFill: {
-        height: '100%',
-        width: '100%',
-        borderRadius: 4,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingHorizontal: 24,
-        paddingBottom: 40,
-    },
-    title: {
-        fontSize: 32,
-        fontFamily: 'Lora',
-        fontWeight: '700',
-        marginBottom: 20,
-    },
-    subtitle: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-        lineHeight: 24,
-        marginBottom: 40,
-    },
-    inputGroup: {
-        marginBottom: 30,
-    },
-    inputLabel: {
-        fontSize: 14,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        marginBottom: 12,
-    },
-    dropdownWrapper: {
+    backButton: { padding: 4 },
+    headerTitle: { fontSize: 18, fontFamily: 'Inter', fontWeight: '700' },
+    progressSection: { paddingHorizontal: 24, marginBottom: 30 },
+    progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    progressTitle: { fontSize: 16, fontFamily: 'Inter', fontWeight: '700' },
+    progressStep: { fontSize: 14, fontFamily: 'Inter', fontWeight: '700' },
+    progressBarBg: { height: 8, backgroundColor: '#e8eeed', borderRadius: 4, overflow: 'hidden' },
+    progressBarFill: { height: '100%', width: '100%', borderRadius: 4 },
+    scrollContent: { flexGrow: 1, paddingHorizontal: 24, paddingBottom: 40 },
+    title: { fontSize: 32, fontFamily: 'Lora', fontWeight: '700', marginBottom: 20 },
+    subtitle: { fontSize: 16, fontFamily: 'Inter', lineHeight: 24, marginBottom: 40 },
+    inputGroup: { marginBottom: 24 },
+    inputLabel: { fontSize: 14, fontFamily: 'Inter', fontWeight: '700', marginBottom: 12 },
+    optional: { fontWeight: '400', opacity: 0.6 },
+    inputWrapper: {
         flexDirection: 'row',
         alignItems: 'center',
-        justifyContent: 'space-between',
-        height: 64,
-        borderRadius: 20,
-        paddingHorizontal: 20,
+        minHeight: 56,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 10,
         borderWidth: 1,
     },
-    dropdownText: {
-        fontSize: 16,
-        fontFamily: 'Inter',
-    },
-    termsContainer: {
-        flexDirection: 'row',
-        padding: 24,
-        borderRadius: 24,
-        marginBottom: 40,
-        gap: 16,
-    },
+    input: { flex: 1, fontSize: 16, fontFamily: 'Inter' },
+    termsContainer: { flexDirection: 'row', padding: 24, borderRadius: 24, marginBottom: 40, gap: 16 },
     checkbox: {
         width: 24,
         height: 24,
@@ -208,16 +157,10 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         marginTop: 2,
+        flexShrink: 0,
     },
-    termsText: {
-        flex: 1,
-        fontSize: 14,
-        fontFamily: 'Inter',
-        lineHeight: 22,
-    },
-    boldText: {
-        fontWeight: '700',
-    },
+    termsText: { flex: 1, fontSize: 14, fontFamily: 'Inter', lineHeight: 22 },
+    boldText: { fontWeight: '700' },
     primaryButton: {
         height: 72,
         borderRadius: 24,
@@ -229,20 +172,7 @@ const styles = StyleSheet.create({
         shadowRadius: 15,
         elevation: 5,
     },
-    primaryButtonText: {
-        fontSize: 18,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-    },
-    securityBadge: {
-        alignItems: 'center',
-        marginTop: 30,
-    },
-    securityBadgeText: {
-        fontSize: 12,
-        fontFamily: 'Inter',
-        fontWeight: '700',
-        letterSpacing: 2,
-        opacity: 0.5,
-    }
+    primaryButtonText: { fontSize: 18, fontFamily: 'Inter', fontWeight: '700' },
+    securityBadge: { alignItems: 'center', marginTop: 30 },
+    securityBadgeText: { fontSize: 12, fontFamily: 'Inter', fontWeight: '700', letterSpacing: 2, opacity: 0.5 },
 });
