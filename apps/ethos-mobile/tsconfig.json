@@ -4,6 +4,11 @@
     "skipLibCheck": true
   },
   "exclude": [
-    "src/index.ts"
+    "src/index.ts",
+    "src/features/**/*",
+    "src/shared/**/*",
+    "src/components/PsychologistDashboard.js",
+    "src/services/transcription.js",
+    "src/services/vault.js"
   ]
 }

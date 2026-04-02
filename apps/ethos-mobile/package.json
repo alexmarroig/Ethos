@@ -7,7 +7,14 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "typecheck": "node --stack_size=8192 ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json"
+    "typecheck": "node --stack_size=8192 ../../node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
+    "build:android:apk": "npx eas-cli build -p android --profile preview",
+    "build:android:aab": "npx eas-cli build -p android --profile release",
+    "build:ios:testflight": "npx eas-cli build -p ios --profile ios-production",
+    "submit:ios:testflight": "npx eas-cli submit -p ios --profile ios-production",
+    "build:ios:simulator": "npx eas-cli build -p ios --profile ios-simulator",
+    "build:web": "expo export --platform web && node ./scripts/postexport-pwa.mjs",
+    "deploy:web": "npx eas-cli deploy"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.2.3",
@@ -43,7 +50,8 @@
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
-    "typescript": "~5.8.3"
+    "typescript": "~5.8.3",
+    "workbox-build": "^7.3.0"
   },
   "private": true
 }

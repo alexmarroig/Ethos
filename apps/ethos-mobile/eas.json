@@ -41,10 +41,29 @@
       "env": {
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
+    },
+    "ios-production": {
+      "extends": "base",
+      "distribution": "store",
+      "env": {
+        "EXPO_NO_DEV_CLIENT": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
+    },
+    "ios-simulator": {
+      "extends": "base",
+      "distribution": "internal",
+      "ios": {
+        "simulator": true
+      },
+      "env": {
+        "EXPO_NO_DEV_CLIENT": "1",
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+      }
     }
   },
   "submit": {
-    "production": {}
+    "release": {},
+    "ios-production": {}
   }
 }
-

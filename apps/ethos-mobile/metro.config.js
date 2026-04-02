@@ -3,38 +3,37 @@ const path = require('path');
 
 const config = getDefaultConfig(__dirname);
 
-<<<<<<< HEAD
-// Windows: node:sea path issue with Node v24+
-=======
-// On Windows, the 'node:sea' external can cause issues with colon in path
->>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
+// Windows: node:sea path issue with Node v24+.
 if (process.platform === 'win32') {
   config.resolver.unstable_enablePackageExports = false;
 }
 
-<<<<<<< HEAD
-// Web: redirect native-only Expo modules to JS shims so the app
-// can run in the browser without native module crashes.
+// Web: redirect native-only Expo modules to JS shims so the app can
+// run in the browser without native module crashes.
 const WEB_SHIMS = {
-  'expo-sqlite':               path.resolve(__dirname, 'src/web-shims/expo-sqlite.js'),
-  'expo-secure-store':         path.resolve(__dirname, 'src/web-shims/expo-secure-store.js'),
-  'expo-crypto':               path.resolve(__dirname, 'src/web-shims/expo-crypto.js'),
-  'expo-file-system':          path.resolve(__dirname, 'src/web-shims/expo-file-system.js'),
-  'expo-local-authentication': path.resolve(__dirname, 'src/web-shims/expo-local-authentication.js'),
-  'expo-av':                   path.resolve(__dirname, 'src/web-shims/expo-av.js'),
-  'expo-device':               path.resolve(__dirname, 'src/web-shims/expo-device.js'),
-  'react-native-svg':          path.resolve(__dirname, 'src/web-shims/react-native-svg.js'),
+  'expo-sqlite': path.resolve(__dirname, 'src/web-shims/expo-sqlite.js'),
+  'expo-secure-store': path.resolve(__dirname, 'src/web-shims/expo-secure-store.js'),
+  'expo-crypto': path.resolve(__dirname, 'src/web-shims/expo-crypto.js'),
+  'expo-file-system': path.resolve(__dirname, 'src/web-shims/expo-file-system.js'),
+  'expo-local-authentication': path.resolve(
+    __dirname,
+    'src/web-shims/expo-local-authentication.js'
+  ),
+  'expo-av': path.resolve(__dirname, 'src/web-shims/expo-av.js'),
+  'expo-device': path.resolve(__dirname, 'src/web-shims/expo-device.js'),
+  'react-native-svg': path.resolve(__dirname, 'src/web-shims/react-native-svg.js'),
 };
 
 const originalResolveRequest = config.resolver.resolveRequest;
 
 config.resolver.resolveRequest = (context, moduleName, platform) => {
-  // Force single React copy: root node_modules has React 18 (for other workspaces),
-  // but ethos-mobile needs React 19. By changing originModulePath to a file inside
-  // apps/ethos-mobile/, Metro finds React 19 in the local node_modules first.
+  // Force a single React copy. The root workspace can resolve React 18 for
+  // unrelated packages, while ethos-mobile needs React 19 from its own node_modules.
   if (
-    moduleName === 'react' || moduleName.startsWith('react/') ||
-    moduleName === 'react-dom' || moduleName.startsWith('react-dom/')
+    moduleName === 'react' ||
+    moduleName.startsWith('react/') ||
+    moduleName === 'react-dom' ||
+    moduleName.startsWith('react-dom/')
   ) {
     return context.resolveRequest(
       { ...context, originModulePath: path.resolve(__dirname, 'package.json') },
@@ -45,8 +44,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
 
   if (platform === 'web') {
     const shimKey = Object.keys(WEB_SHIMS).find(
-      (key) => moduleName === key || moduleName.startsWith(key + '/')
+      (key) => moduleName === key || moduleName.startsWith(`${key}/`)
     );
+
     if (shimKey) {
       return { filePath: WEB_SHIMS[shimKey], type: 'sourceFile' };
     }
@@ -55,22 +55,8 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (originalResolveRequest) {
     return originalResolveRequest(context, moduleName, platform);
   }
+
   return context.resolveRequest(context, moduleName, platform);
-=======
-// expo-sqlite is native-only — redirect to a no-op mock on web
-const originalResolveRequest = config.resolver.resolveRequest;
-config.resolver.resolveRequest = (context, moduleName, platform) => {
-    if (platform === 'web' && moduleName === 'expo-sqlite') {
-        return {
-            filePath: path.resolve(__dirname, 'src/services/sqlite-web-mock.js'),
-            type: 'sourceFile',
-        };
-    }
-    if (originalResolveRequest) {
-        return originalResolveRequest(context, moduleName, platform);
-    }
-    return context.resolveRequest(context, moduleName, platform);
->>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
 };
 
 module.exports = config;
