@@ -67,7 +67,7 @@ export default function FinanceScreen() {
       setPatients(patientResponse);
       setMessageSettings(storedSettings);
     } catch (loadError: any) {
-      setError(loadError?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel carregar o financeiro.');
+      setError(loadError?.message ?? 'Não foi possível carregar o financeiro.');
     } finally {
       setIsLoading(false);
     }
@@ -144,9 +144,9 @@ export default function FinanceScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.duration(600)} style={[styles.mainCard, { backgroundColor: primaryTeal }]}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardLabel}>Total Recebido ({summary?.month ?? 'mÃƒÂªs atual'})</Text>
+            <Text style={styles.cardLabel}>Total Recebido ({summary?.month ?? 'mês atual'})</Text>
             <View style={styles.monthBadge}>
-              <Text style={styles.monthText}>Este MÃƒÂªs</Text>
+              <Text style={styles.monthText}>Este Mês</Text>
             </View>
           </View>
           <Text style={styles.mainValue}>{formatCurrency(summary?.total_per_month ?? 0)}</Text>
@@ -157,7 +157,7 @@ export default function FinanceScreen() {
                 <TrendingUp size={16} color="#4ade80" />
               </View>
               <View>
-                <Text style={styles.summaryLabel}>SessÃƒÂµes pagas</Text>
+                <Text style={styles.summaryLabel}>Sessões pagas</Text>
                 <Text style={styles.summaryValue}>{summary?.paid_sessions ?? 0}</Text>
               </View>
             </View>
@@ -167,7 +167,7 @@ export default function FinanceScreen() {
                 <TrendingDown size={16} color="#f87171" />
               </View>
               <View>
-                <Text style={styles.summaryLabel}>SessÃƒÂµes pendentes</Text>
+                <Text style={styles.summaryLabel}>Sessões pendentes</Text>
                 <Text style={styles.summaryValue}>{summary?.pending_sessions ?? 0}</Text>
               </View>
             </View>
@@ -175,7 +175,7 @@ export default function FinanceScreen() {
 
           <View style={styles.progressContainer}>
             <Text style={styles.progressText}>
-              Pago: {formatCurrency(totals.paidValue)} â€¢ Pendente: {formatCurrency(totals.pendingValue)}
+              Pago: {formatCurrency(totals.paidValue)} • Pendente: {formatCurrency(totals.pendingValue)}
             </Text>
           </View>
         </Animated.View>
@@ -192,7 +192,7 @@ export default function FinanceScreen() {
         </View>
 
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: primaryTeal }]}>LanÃƒÂ§amentos</Text>
+          <Text style={[styles.sectionTitle, { color: primaryTeal }]}>Lançamentos</Text>
         </View>
 
         {isLoading ? (
@@ -207,8 +207,8 @@ export default function FinanceScreen() {
           </View>
         ) : (summary?.entries.length ?? 0) === 0 ? (
           <View style={styles.stateCard}>
-            <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhum lanÃƒÂ§amento encontrado.</Text>
-            <Text style={[styles.stateText, { color: theme.mutedForeground }]}>Os valores aparecerÃƒÂ£o aqui conforme as sessÃƒÂµes forem registradas no backend.</Text>
+            <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhum lançamento encontrado.</Text>
+            <Text style={[styles.stateText, { color: theme.mutedForeground }]}>Os valores aparecerão aqui conforme as sessões forem registradas no backend.</Text>
           </View>
         ) : (
           summary?.entries.map((item, index) => {
@@ -224,7 +224,7 @@ export default function FinanceScreen() {
                     : <ArrowDownLeft size={20} color="#dc2626" />}
                 </View>
                 <View style={styles.transInfo}>
-                  <Text style={[styles.transTitle, { color: primaryTeal }]}>{item.description || 'LanÃƒÂ§amento financeiro'}</Text>
+                  <Text style={[styles.transTitle, { color: primaryTeal }]}>{item.description || 'Lançamento financeiro'}</Text>
                   <Text style={[styles.transDate, { color: theme.mutedForeground }]}>
                     {new Date(item.due_date).toLocaleDateString('pt-BR')}
                     {patientName ? ` - ${patientName}` : ''}

@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
-import { IS_DEV } from "@/config/runtime";
+import { ENABLE_DEMO_LOGIN } from "@/config/runtime";
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -249,7 +249,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
         </AnimatePresence>
 
         {/* Demo credentials */}
-        {IS_DEV && (
+        {ENABLE_DEMO_LOGIN && (
           <motion.div
             className="mt-10 p-4 bg-muted/50 rounded-xl space-y-3"
             initial={{ opacity: 0 }}

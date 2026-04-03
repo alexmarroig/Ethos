@@ -35,6 +35,7 @@ import type {
   NotificationPreview,
   ObservabilityAlert,
   Patient,
+  PatientBilling,
   PatientTimelineItem,
   ScaleRecord,
   SessionStatus,
@@ -46,6 +47,38 @@ import type {
 const now = seeds.now;
 const DAY_MS = 86_400_000;
 const persistMutation = () => schedulePersistDatabase();
+
+const grantClinicalEntitlements = (userId: string) => {
+  db.localEntitlements.set(userId, {
+    user_id: userId,
+    entitlements: {
+      exports_enabled: true,
+      backup_enabled: true,
+      forms_enabled: true,
+      scales_enabled: true,
+      finance_enabled: true,
+      transcription_minutes_per_month: 3000,
+      max_patients: 2000,
+      max_sessions_per_month: 2000,
+    },
+    source_subscription_status: "active",
+    last_entitlements_sync_at: now(),
+    last_successful_subscription_validation_at: now(),
+  });
+};
+
+const createSessionForUser = (user: User) => {
+  const token = crypto.randomBytes(24).toString("hex");
+  db.sessionsTokens.set(token, {
+    token,
+    user_id: user.id,
+    created_at: now(),
+    expires_at: new Date(Date.now() + DAY_MS).toISOString(),
+  });
+  user.last_seen_at = now();
+  persistMutation();
+  return { user, token };
+};
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
   const id = uid();
@@ -205,24 +238,51 @@ export const acceptInvite = (token: string, name: string, password: string) => {
     created_at: now(),
   };
   db.users.set(user.id, user);
+  grantClinicalEntitlements(user.id);
   persistMutation();
   return user;
+};
+
+export const registerClinician = (input: {
+  email: string;
+  name: string;
+  password: string;
+  crp?: string;
+  specialty?: string;
+  clinical_approach?: string;
+  accepted_ethics?: boolean;
+}) => {
+  const email = input.email.trim().toLowerCase();
+  const name = input.name.trim();
+  const password = input.password;
+
+  if (!input.accepted_ethics || !email || !name || !password) return null;
+  const existing = Array.from(db.users.values()).find((entry) => entry.email.toLowerCase() === email);
+  if (existing) return null;
+
+  const user: User = {
+    id: uid(),
+    email,
+    name,
+    password_hash: hashPassword(password),
+    crp: input.crp?.trim() || undefined,
+    specialty: input.specialty?.trim() || undefined,
+    clinical_approach: input.clinical_approach?.trim() || undefined,
+    accepted_ethics_at: now(),
+    role: "user",
+    status: "active",
+    created_at: now(),
+  };
+
+  db.users.set(user.id, user);
+  grantClinicalEntitlements(user.id);
+  return createSessionForUser(user);
 };
 
 export const login = (email: string, password: string) => {
   const user = Array.from(db.users.values()).find((entry) => entry.email.toLowerCase() === email.toLowerCase());
   if (!user || user.status !== "active" || !user.password_hash || !verifyPassword(password, user.password_hash)) return null;
-
-  const token = crypto.randomBytes(24).toString("hex");
-  db.sessionsTokens.set(token, {
-    token,
-    user_id: user.id,
-    created_at: now(),
-    expires_at: new Date(Date.now() + DAY_MS).toISOString(),
-  });
-  user.last_seen_at = now();
-  persistMutation();
-  return { user, token };
+  return createSessionForUser(user);
 };
 
 export const getUserFromToken = (token: string) => {
@@ -292,6 +352,31 @@ type RetentionPolicy = {
   export_days: number;
 };
 
+type PatientSummary = {
+  total_sessions: number;
+  next_session: ClinicalSession | null;
+  last_session: ClinicalSession | null;
+};
+
+type PatientUpsertInput = {
+  name: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  birth_date?: string;
+  address?: string;
+  cpf?: string;
+  main_complaint?: string;
+  psychiatric_medications?: string;
+  has_psychiatric_followup?: boolean;
+  psychiatrist_name?: string;
+  psychiatrist_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  billing?: PatientBilling;
+  notes?: string;
+};
+
 const matchesPatientReference = (patient: Patient, patientReference: string) =>
   patient.id === patientReference || patient.external_id === patientReference;
 
@@ -307,9 +392,74 @@ const compareByOldestDate = <T extends { created_at?: string; scheduled_at?: str
   return leftValue - rightValue;
 };
 
+const normalizeOptionalText = (value: unknown) =>
+  typeof value === "string" && value.trim() ? value.trim() : undefined;
+
+const normalizeOptionalDate = (value: unknown) => {
+  if (typeof value !== "string" || !value.trim()) return undefined;
+  const parsed = new Date(value);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
+};
+
+const normalizeOptionalBoolean = (value: unknown) =>
+  typeof value === "boolean" ? value : undefined;
+
+const normalizeOptionalNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const normalized = Number(value);
+    return Number.isFinite(normalized) ? normalized : undefined;
+  }
+  return undefined;
+};
+
+const normalizePatientBilling = (value: PatientUpsertInput["billing"]) => {
+  if (!value || (value.mode !== "per_session" && value.mode !== "package")) return undefined;
+
+  const sessionPrice = normalizeOptionalNumber(value.session_price);
+  const packageTotalPrice = normalizeOptionalNumber(value.package_total_price);
+  const packageSessionCount = normalizeOptionalNumber(value.package_session_count);
+
+  return {
+    mode: value.mode,
+    session_price: value.mode === "per_session" ? sessionPrice : undefined,
+    package_total_price: value.mode === "package" ? packageTotalPrice : undefined,
+    package_session_count: value.mode === "package" ? packageSessionCount : undefined,
+  } satisfies PatientBilling;
+};
+
+const normalizePatientInput = (input: Partial<PatientUpsertInput>) => {
+  const phone = normalizeOptionalText(input.phone);
+  const whatsapp = normalizeOptionalText(input.whatsapp) ?? phone;
+
+  return {
+    label: normalizeOptionalText(input.name),
+    email: normalizeOptionalText(input.email),
+    phone,
+    whatsapp,
+    birth_date: normalizeOptionalDate(input.birth_date),
+    address: normalizeOptionalText(input.address),
+    cpf: normalizeOptionalText(input.cpf),
+    main_complaint: normalizeOptionalText(input.main_complaint),
+    psychiatric_medications: normalizeOptionalText(input.psychiatric_medications),
+    has_psychiatric_followup: normalizeOptionalBoolean(input.has_psychiatric_followup),
+    psychiatrist_name: normalizeOptionalText(input.psychiatrist_name),
+    psychiatrist_contact: normalizeOptionalText(input.psychiatrist_contact),
+    emergency_contact_name: normalizeOptionalText(input.emergency_contact_name),
+    emergency_contact_phone: normalizeOptionalText(input.emergency_contact_phone),
+    billing: normalizePatientBilling(input.billing),
+    notes: normalizeOptionalText(input.notes),
+  };
+};
+
+const hydratePatient = (patient: Patient): Patient => ({
+  ...patient,
+  whatsapp: patient.whatsapp ?? patient.phone,
+});
+
 export const createPatientIfMissing = (owner: string, patientId: string): Patient => {
   const existing = byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId));
-  if (existing) return existing;
+  if (existing) return hydratePatient(existing);
 
   const patient: Patient = {
     id: uid(),
@@ -320,32 +470,118 @@ export const createPatientIfMissing = (owner: string, patientId: string): Patien
   };
   db.patients.set(patient.id, patient);
   persistMutation();
-  return patient;
+  return hydratePatient(patient);
 };
 
 export const createPatient = (
   owner: string,
-  input: { name: string; email?: string; phone?: string; notes?: string },
+  input: PatientUpsertInput,
 ): Patient => {
   const id = uid();
+  const normalized = normalizePatientInput(input);
+  if (!normalized.label) {
+    throw new Error("Patient name is required");
+  }
+
   const patient: Patient = {
     id,
     owner_user_id: owner,
     external_id: id,
-    label: input.name.trim(),
-    email: input.email?.trim() || undefined,
-    phone: input.phone?.trim() || undefined,
-    notes: input.notes?.trim() || undefined,
+    label: normalized.label,
+    email: normalized.email,
+    phone: normalized.phone,
+    whatsapp: normalized.whatsapp,
+    birth_date: normalized.birth_date,
+    address: normalized.address,
+    cpf: normalized.cpf,
+    main_complaint: normalized.main_complaint,
+    psychiatric_medications: normalized.psychiatric_medications,
+    has_psychiatric_followup: normalized.has_psychiatric_followup,
+    psychiatrist_name: normalized.psychiatrist_name,
+    psychiatrist_contact: normalized.psychiatrist_contact,
+    emergency_contact_name: normalized.emergency_contact_name,
+    emergency_contact_phone: normalized.emergency_contact_phone,
+    billing: normalized.billing,
+    notes: normalized.notes,
     created_at: now(),
   };
   db.patients.set(patient.id, patient);
   persistMutation();
-  return patient;
+  return hydratePatient(patient);
 };
 
-export const listPatients = (owner: string) => byOwner(db.patients.values(), owner).sort((left, right) => left.label.localeCompare(right.label));
-export const getPatient = (owner: string, patientId: string) =>
-  byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId)) ?? null;
+export const getPatient = (owner: string, patientId: string) => {
+  const patient = byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId)) ?? null;
+  return patient ? hydratePatient(patient) : null;
+};
+
+export const listPatientSessionsByReference = (owner: string, patientId: string) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) return [];
+
+  return byOwner(db.sessions.values(), owner)
+    .filter((item) => item.patient_id === patient.id || item.patient_id === patient.external_id)
+    .sort(compareByNewestDate);
+};
+
+const buildPatientSummary = (owner: string, patientId: string): PatientSummary => {
+  const sessions = listPatientSessionsByReference(owner, patientId);
+  const referenceNow = Date.now();
+  const nextSession = [...sessions]
+    .filter((session) => Date.parse(session.scheduled_at) >= referenceNow)
+    .sort(compareByOldestDate)[0] ?? null;
+  const lastSession = [...sessions]
+    .filter((session) => Date.parse(session.scheduled_at) < referenceNow)
+    .sort(compareByNewestDate)[0] ?? null;
+
+  return {
+    total_sessions: sessions.length,
+    next_session: nextSession,
+    last_session: lastSession,
+  };
+};
+
+const decoratePatientListItem = (owner: string, patient: Patient) => {
+  const hydratedPatient = hydratePatient(patient);
+  const summary = buildPatientSummary(owner, patient.id);
+  return {
+    ...hydratedPatient,
+    total_sessions: summary.total_sessions,
+    next_session: summary.next_session?.scheduled_at,
+    last_session: summary.last_session?.scheduled_at,
+  };
+};
+
+export const listPatients = (owner: string) =>
+  byOwner(db.patients.values(), owner)
+    .sort((left, right) => left.label.localeCompare(right.label))
+    .map((patient) => decoratePatientListItem(owner, patient));
+
+export const updatePatient = (owner: string, patientId: string, input: Partial<PatientUpsertInput>) => {
+  const patient = byOwner(db.patients.values(), owner).find((item) => matchesPatientReference(item, patientId));
+  if (!patient) return null;
+
+  const normalized = normalizePatientInput(input);
+  if (normalized.label !== undefined) patient.label = normalized.label;
+  if ("email" in input) patient.email = normalized.email;
+  if ("phone" in input) patient.phone = normalized.phone;
+  if ("whatsapp" in input || ("phone" in input && !("whatsapp" in input))) patient.whatsapp = normalized.whatsapp;
+  if ("birth_date" in input) patient.birth_date = normalized.birth_date;
+  if ("address" in input) patient.address = normalized.address;
+  if ("cpf" in input) patient.cpf = normalized.cpf;
+  if ("main_complaint" in input) patient.main_complaint = normalized.main_complaint;
+  if ("psychiatric_medications" in input) patient.psychiatric_medications = normalized.psychiatric_medications;
+  if ("has_psychiatric_followup" in input) patient.has_psychiatric_followup = normalized.has_psychiatric_followup;
+  if ("psychiatrist_name" in input) patient.psychiatrist_name = normalized.psychiatrist_name;
+  if ("psychiatrist_contact" in input) patient.psychiatrist_contact = normalized.psychiatrist_contact;
+  if ("emergency_contact_name" in input) patient.emergency_contact_name = normalized.emergency_contact_name;
+  if ("emergency_contact_phone" in input) patient.emergency_contact_phone = normalized.emergency_contact_phone;
+  if ("billing" in input) patient.billing = normalized.billing;
+  if ("notes" in input) patient.notes = normalized.notes;
+
+  persistMutation();
+  return decoratePatientListItem(owner, patient);
+};
 
 export const listPatientDocuments = (owner: string, patientId: string) =>
   byOwner(db.documents.values(), owner)
@@ -366,15 +602,6 @@ export const listPatientClinicalNotes = (owner: string, patientId: string) => {
       if (!session || session.owner_user_id !== owner) return false;
       return session.patient_id === patient.id || session.patient_id === patient.external_id;
     })
-    .sort(compareByNewestDate);
-};
-
-export const listPatientSessionsByReference = (owner: string, patientId: string) => {
-  const patient = getPatient(owner, patientId);
-  if (!patient) return [];
-
-  return byOwner(db.sessions.values(), owner)
-    .filter((item) => item.patient_id === patient.id || item.patient_id === patient.external_id)
     .sort(compareByNewestDate);
 };
 
@@ -453,6 +680,7 @@ export const getPatientDetail = (owner: string, patientId: string) => {
 
   return {
     patient,
+    summary: buildPatientSummary(owner, patient.id),
     sessions: listPatientSessionsByReference(owner, patient.id),
     documents: listPatientDocuments(owner, patient.id),
     clinical_notes: listPatientClinicalNotes(owner, patient.id),
@@ -695,6 +923,11 @@ export const exportContract = (owner: string, id: string, format: "pdf" | "docx"
 const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string }> = [
   { id: "session-summary", title: "Resumo de sessão", html: "<h1>{{title}}</h1>{{content}}" },
   { id: "evolution-note", title: "Nota de evolução", html: "<h1>Evolução</h1>{{content}}" },
+  { id: "payment-receipt", title: "Recibo", description: "Modelo básico de recibo de atendimento.", html: "<h1>Recibo</h1><p>{{content}}</p>" },
+  { id: "attendance-declaration", title: "Declaração", description: "Declaração simples de comparecimento.", html: "<h1>Declaração</h1><p>{{content}}</p>" },
+  { id: "psychological-certificate", title: "Atestado psicológico", description: "Atestado psicológico para afastamento ou comparecimento.", html: "<h1>Atestado psicológico</h1><p>{{content}}</p>" },
+  { id: "therapy-contract", title: "Contrato terapêutico", description: "Rascunho base para contrato de prestação de serviços.", html: "<h1>Contrato terapêutico</h1><p>{{content}}</p>" },
+  { id: "psychological-report", title: "Relatório psicológico", description: "Estrutura inicial para relatórios destinados a terceiros.", html: "<h1>Relatório psicológico</h1><p>{{content}}</p>" },
 ];
 
 const ensureDefaultDocumentTemplates = () => {
@@ -1043,15 +1276,6 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const hasValidatedNote = byOwner(db.clinicalNotes.values(), owner).some((note) => {
-    if (note.status !== "validated") return false;
-    if (note.session_id === patientId) return true;
-
-    const session = db.sessions.get(note.session_id);
-    return session?.owner_user_id === owner && session.patient_id === patientId;
-  });
-  if (!hasValidatedNote) return null;
-
   const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
   db.reports.set(report.id, report);
   persistMutation();
@@ -1072,12 +1296,38 @@ export const createScaleRecord = (owner: string, scaleId: string, patientId: str
   return record;
 };
 
+const defaultFormsCatalog = [
+  {
+    id: "emotion-diary",
+    name: "Diário emocional",
+    description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
+  },
+  {
+    id: "initial-anamnesis",
+    name: "Anamnese inicial",
+    description: "Coleta inicial de histórico pessoal, familiar e clínico.",
+  },
+  {
+    id: "weekly-checkin",
+    name: "Check-in semanal",
+    description: "Formulário simples para acompanhar a semana entre sessões.",
+  },
+] as const;
+
+export const listFormsCatalog = () => [...defaultFormsCatalog];
+
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
   db.forms.set(item.id, item);
   persistMutation();
   return item;
 };
+
+export const listFormEntries = (owner: string, filters?: { patient_id?: string; form_id?: string }) =>
+  byOwner(db.forms.values(), owner)
+    .filter((item) => (!filters?.patient_id || item.patient_id === filters.patient_id)
+      && (!filters?.form_id || item.form_id === filters.form_id))
+    .sort(compareByNewestDate);
 
 export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry, "id" | "owner_user_id" | "created_at">): FinancialEntry => {
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
@@ -1229,7 +1479,7 @@ export const handleTranscriberWebhook = (jobId: string, status: JobStatus, error
   const job = db.jobs.get(jobId);
   if (!job) return null;
   job.status = status;
-  job.progress = status === "completed" || status === "succeeded" ? 1 : job.progress;
+  job.progress = status === "completed" ? 1 : job.progress;
   job.error_code = errorCode;
   job.updated_at = now();
   persistMutation();

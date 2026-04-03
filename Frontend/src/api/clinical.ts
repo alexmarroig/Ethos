@@ -21,6 +21,22 @@ import type {
   ObservabilityAlert,
 } from "./types";
 
+type PaginatedResponse<T> = {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
+const unwrapList = <T>(value: PaginatedResponse<T> | T[]) =>
+  Array.isArray(value) ? value : value.items;
+
+const mapTemplate = (template: DocumentTemplate): DocumentTemplate => ({
+  ...template,
+  name: template.name ?? template.title ?? "Template",
+  template_body: template.template_body ?? template.html,
+});
+
 /* ------------------------------------------------------------------ */
 /*  Contracts                                                          */
 /* ------------------------------------------------------------------ */
@@ -32,8 +48,8 @@ export const contractsApi = {
   create: (data: Partial<Contract>): Promise<ApiResult<Contract>> =>
     api.post<Contract>("/contracts", data),
 
-  send: (id: string): Promise<ApiResult<{ portal_url: string }>> =>
-    api.post<{ portal_url: string }>(`/contracts/${id}/send`),
+  send: (id: string): Promise<ApiResult<{ contract: Contract; portal_url: string | null }>> =>
+    api.post<{ contract: Contract; portal_url: string | null }>(`/contracts/${id}/send`),
 
   exportContract: (id: string, format: "pdf" | "docx" = "pdf"): Promise<ApiResult<{ url: string }>> =>
     api.get<{ url: string }>(`/contracts/${id}/export?format=${format}`),
@@ -51,16 +67,27 @@ export const contractsApi = {
 /* ------------------------------------------------------------------ */
 
 export const documentsApi = {
-  list: (caseId?: string): Promise<ApiResult<Document[]>> => {
+  list: async (caseId?: string): Promise<ApiResult<Document[]>> => {
     const qs = caseId ? `?case_id=${caseId}` : "";
-    return api.get<Document[]>(`/documents${qs}`);
+    const result = await api.get<PaginatedResponse<Document> | Document[]>(`/documents${qs}`);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: unwrapList(result.data),
+    };
   },
 
   create: (data: Partial<Document>): Promise<ApiResult<Document>> =>
     api.post<Document>("/documents", data),
 
-  listTemplates: (): Promise<ApiResult<DocumentTemplate[]>> =>
-    api.get<DocumentTemplate[]>("/document-templates"),
+  listTemplates: async (): Promise<ApiResult<DocumentTemplate[]>> => {
+    const result = await api.get<DocumentTemplate[]>("/document-templates");
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: result.data.map(mapTemplate),
+    };
+  },
 
   createVersion: (docId: string, content: string): Promise<ApiResult<DocumentVersion>> =>
     api.post<DocumentVersion>(`/documents/${docId}/versions`, { content }),

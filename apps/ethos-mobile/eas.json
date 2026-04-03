@@ -6,7 +6,8 @@
   "build": {
     "base": {
       "env": {
-        "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
+        "NPM_CONFIG_LEGACY_PEER_DEPS": "true",
+        "SENTRY_DISABLE_AUTO_UPLOAD": "true"
       }
     },
     "development": {
@@ -28,6 +29,8 @@
         "buildType": "apk"
       },
       "env": {
+        "EXPO_PUBLIC_ETHOS_API_URL": "https://ethos-clinical.onrender.com",
+        "EXPO_PUBLIC_ETHOS_CONTROL_API_URL": "https://ethos-control.onrender.com",
         "EXPO_NO_DEV_CLIENT": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
@@ -39,6 +42,8 @@
         "buildType": "app-bundle"
       },
       "env": {
+        "EXPO_PUBLIC_ETHOS_API_URL": "https://ethos-clinical.onrender.com",
+        "EXPO_PUBLIC_ETHOS_CONTROL_API_URL": "https://ethos-control.onrender.com",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
     },
@@ -46,6 +51,8 @@
       "extends": "base",
       "distribution": "store",
       "env": {
+        "EXPO_PUBLIC_ETHOS_API_URL": "https://ethos-clinical.onrender.com",
+        "EXPO_PUBLIC_ETHOS_CONTROL_API_URL": "https://ethos-control.onrender.com",
         "EXPO_NO_DEV_CLIENT": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }
@@ -57,6 +64,8 @@
         "simulator": true
       },
       "env": {
+        "EXPO_PUBLIC_ETHOS_API_URL": "https://ethos-clinical.onrender.com",
+        "EXPO_PUBLIC_ETHOS_CONTROL_API_URL": "https://ethos-control.onrender.com",
         "EXPO_NO_DEV_CLIENT": "1",
         "NPM_CONFIG_LEGACY_PEER_DEPS": "true"
       }

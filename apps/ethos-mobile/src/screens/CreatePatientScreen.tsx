@@ -22,27 +22,26 @@ export default function CreatePatientScreen({ navigation }: any) {
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
-  const [phone, setPhone] = useState('');
-  const [notes, setNotes] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Campo obrigatÃ³rio', 'Informe o nome do paciente.');
+      Alert.alert('Campo obrigatório', 'Informe o nome do paciente.');
       return;
     }
 
     try {
       setIsSubmitting(true);
-      await createPatient({
+      const patient = await createPatient({
         name: name.trim(),
         email: email.trim() || undefined,
-        phone: phone.trim() || undefined,
-        notes: notes.trim() || undefined,
+        whatsapp: whatsapp.trim() || undefined,
       });
-      navigation.goBack();
+
+      navigation.replace('PatientDetail', { patientId: patient.id });
     } catch (error: any) {
-      Alert.alert('Erro', error?.message ?? 'NÃ£o foi possÃ­vel cadastrar o paciente.');
+      Alert.alert('Erro', error?.message ?? 'Não foi possível cadastrar o paciente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -55,6 +54,11 @@ export default function CreatePatientScreen({ navigation }: any) {
     >
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <Text style={[styles.title, { color: theme.foreground }]}>Cadastro rápido</Text>
+          <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
+            Crie o paciente com o básico agora e complete a ficha logo em seguida.
+          </Text>
+
           <Text style={[styles.label, { color: theme.foreground }]}>Nome</Text>
           <TextInput
             style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
@@ -62,6 +66,16 @@ export default function CreatePatientScreen({ navigation }: any) {
             onChangeText={setName}
             placeholder="Nome completo do paciente"
             placeholderTextColor={theme.mutedForeground}
+          />
+
+          <Text style={[styles.label, { color: theme.foreground }]}>WhatsApp</Text>
+          <TextInput
+            style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
+            value={whatsapp}
+            onChangeText={setWhatsapp}
+            placeholder="(11) 99999-9999"
+            placeholderTextColor={theme.mutedForeground}
+            keyboardType="phone-pad"
           />
 
           <Text style={[styles.label, { color: theme.foreground }]}>E-mail</Text>
@@ -75,29 +89,8 @@ export default function CreatePatientScreen({ navigation }: any) {
             keyboardType="email-address"
           />
 
-          <Text style={[styles.label, { color: theme.foreground }]}>Telefone</Text>
-          <TextInput
-            style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
-            value={phone}
-            onChangeText={setPhone}
-            placeholder="(11) 99999-9999"
-            placeholderTextColor={theme.mutedForeground}
-            keyboardType="phone-pad"
-          />
-
-          <Text style={[styles.label, { color: theme.foreground }]}>ObservaÃ§Ãµes</Text>
-          <TextInput
-            style={[styles.textarea, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
-            value={notes}
-            onChangeText={setNotes}
-            placeholder="Notas iniciais, contatos de apoio, pontos importantes..."
-            placeholderTextColor={theme.mutedForeground}
-            multiline
-            textAlignVertical="top"
-          />
-
           <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Salvar Paciente</Text>}
+            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Criar e abrir ficha</Text>}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -117,6 +110,18 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 20,
   },
+  title: {
+    fontFamily: 'Lora',
+    fontSize: 24,
+    fontWeight: '700',
+  },
+  subtitle: {
+    fontFamily: 'Inter',
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+    marginBottom: 16,
+  },
   label: {
     fontFamily: 'Inter',
     fontSize: 14,
@@ -129,15 +134,6 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     paddingHorizontal: 16,
     paddingVertical: 14,
-    fontFamily: 'Inter',
-    fontSize: 15,
-  },
-  textarea: {
-    borderWidth: 1,
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    minHeight: 140,
     fontFamily: 'Inter',
     fontSize: 15,
   },

@@ -33,7 +33,7 @@ const formatDate = (value: string) =>
   });
 
 const getPatientName = (document: ClinicalDocumentRecord, patients: PatientRecord[]) =>
-  patients.find((patient) => patient.id === document.patient_id || patient.external_id === document.patient_id)?.label ?? 'Paciente nÃƒÂ£o identificado';
+  patients.find((patient) => patient.id === document.patient_id || patient.external_id === document.patient_id)?.label ?? 'Paciente não identificado';
 
 const filterDocuments = (documents: ClinicalDocumentRecord[], filter: string) => {
   if (filter === 'Assinados') return documents.filter((document) => document.status === 'signed');
@@ -65,7 +65,7 @@ export default function DocumentsScreen() {
       setDocuments(documentResponse);
       setPatients(patientResponse);
     } catch (loadError: any) {
-      setError(loadError?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel carregar os documentos.');
+      setError(loadError?.message ?? 'Não foi possível carregar os documentos.');
     } finally {
       setIsLoading(false);
     }
@@ -96,7 +96,7 @@ export default function DocumentsScreen() {
 
       <View style={styles.header}>
         <View>
-          <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>ProntuÃƒÂ¡rios e Laudos</Text>
+          <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Prontuários e Laudos</Text>
           <Text style={[styles.title, { color: primaryTeal }]}>Documentos</Text>
         </View>
         <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={loadDocuments}>
@@ -158,7 +158,7 @@ export default function DocumentsScreen() {
           showsVerticalScrollIndicator={false}
           ListEmptyComponent={(
             <View style={styles.stateCard}>
-              <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhum documento nesta seleÃƒÂ§ÃƒÂ£o.</Text>
+              <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhum documento nesta seleção.</Text>
               <Text style={[styles.stateText, { color: theme.mutedForeground }]}>Ajuste os filtros ou gere um novo documento.</Text>
             </View>
           )}

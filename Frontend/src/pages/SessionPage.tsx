@@ -15,9 +15,9 @@ import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
 
 interface SessionPageProps {
-  sessionId: number;
+  sessionId: string;
   onBack: () => void;
-  onOpenProntuario?: (sessionId: number) => void;
+  onOpenProntuario?: (sessionId: string) => void;
 }
 
 const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) => {
@@ -40,7 +40,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   // Track active job from store
   const pendingJobs = useAppStore((s) => s.pendingJobs);
   const activeJob = pendingJobs.find(
-    (j) => j.sessionId === String(sessionId) && j.type === "transcription"
+    (j) => j.sessionId === sessionId && j.type === "transcription"
   );
 
   useEffect(() => {
@@ -61,7 +61,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 
   useEffect(() => {
     const load = async () => {
-      const res = await sessionService.getById(String(sessionId));
+      const res = await sessionService.getById(sessionId);
       if (!res.success) {
         setError({ message: res.error.message, requestId: res.request_id });
       } else {
@@ -89,7 +89,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setConsentOpen(false);
     if (!audioBlob) return;
     setUploading(true);
-    const res = await audioService.upload(String(sessionId), audioBlob);
+    const res = await audioService.upload(sessionId, audioBlob);
     if (res.success) {
       setShowSaved(true);
     } else {
@@ -103,8 +103,8 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setTranscriptionStatus("Organizando registro...");
 
     const jobId = await startJob(
-      { type: "transcription", sessionId: String(sessionId) },
-      () => audioService.transcribe(String(sessionId)) as any
+      { type: "transcription", sessionId },
+      () => audioService.transcribe(sessionId) as any
     );
 
     if (!jobId) {

@@ -11,7 +11,6 @@ import ContractPortalPage from "./pages/ContractPortalPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { EntitlementsProvider } from "./contexts/EntitlementsContext";
-import ConnectivityBanner from "./components/ConnectivityBanner";
 import { rehydratePendingJobs } from "./stores/appStore";
 
 const queryClient = new QueryClient();
@@ -32,7 +31,6 @@ const App = () => (
           <Sonner />
           <JobRehydrator />
           <BrowserRouter>
-            <ConnectivityBanner />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/accept-invite" element={<AcceptInvitePage />} />

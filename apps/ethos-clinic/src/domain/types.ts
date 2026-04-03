@@ -42,6 +42,10 @@ export type User = {
   email: string;
   name: string;
   password_hash?: string;
+  crp?: string;
+  specialty?: string;
+  clinical_approach?: string;
+  accepted_ethics_at?: string;
   role: Role;
   status: UserStatus;
   created_at: string;
@@ -66,11 +70,30 @@ export type SessionToken = {
 
 export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 
+export type PatientBilling = {
+  mode: "per_session" | "package";
+  session_price?: number;
+  package_total_price?: number;
+  package_session_count?: number;
+};
+
 export type Patient = Owned & {
   external_id: string;
   label: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
+  birth_date?: string;
+  address?: string;
+  cpf?: string;
+  main_complaint?: string;
+  psychiatric_medications?: string;
+  has_psychiatric_followup?: boolean;
+  psychiatrist_name?: string;
+  psychiatrist_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  billing?: PatientBilling;
   notes?: string;
 };
 

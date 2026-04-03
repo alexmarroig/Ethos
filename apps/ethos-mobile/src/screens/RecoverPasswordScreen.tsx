@@ -39,7 +39,7 @@ export default function RecoverPasswordScreen({ navigation }: any) {
                 <Animated.View entering={FadeInDown.duration(800)}>
                     <Text style={styles.title}>Recuperar{'\n'}Senha</Text>
                     <Text style={styles.subtitle}>
-                        Enviaremos um link de recuperaÃƒÂ§ÃƒÂ£o para o seu e-mail cadastrado.
+                        Enviaremos um link de recuperação para o seu e-mail cadastrado.
                     </Text>
 
                     <View style={styles.inputGroup}>
@@ -62,7 +62,7 @@ export default function RecoverPasswordScreen({ navigation }: any) {
                         style={styles.primaryButton}
                         onPress={() => navigation.navigate('EmailSent')}
                     >
-                        <Text style={styles.primaryButtonText}>Enviar Link de RecuperaÃƒÂ§ÃƒÂ£o</Text>
+                        <Text style={styles.primaryButtonText}>Enviar Link de Recuperação</Text>
                         <Send size={20} color="#15171a" />
                     </TouchableOpacity>
                 </Animated.View>
@@ -78,7 +78,7 @@ export default function RecoverPasswordScreen({ navigation }: any) {
                     <View style={styles.securityBadge}>
                         <ShieldCheck size={16} color={accentTeal} />
                         <Text style={[styles.securityBadgeText, { color: accentTeal }]}>
-                            PROTOCOLO Ãƒâ€°TICO CRIPTOGRAFADO
+                            PROTOCOLO ÉTICO CRIPTOGRAFADO
                         </Text>
                     </View>
                 </Animated.View>

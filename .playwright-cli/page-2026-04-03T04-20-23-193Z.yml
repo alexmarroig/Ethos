@@ -1,0 +1,136 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Formulários / Diários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+            - listitem:
+              - button:
+                - img
+                - generic: Diagnóstico
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Agenda clinica
+                - paragraph: Visao semanal.
+              - generic:
+                - generic:
+                  - button:
+                    - img
+                  - generic: Esta semana
+                  - button:
+                    - img
+                - button [expanded]:
+                  - img
+                  - text: Agendar sessao
+              - generic:
+                - generic:
+                  - generic: Seg
+                  - generic: Ter
+                  - generic: Qua
+                  - generic: Qui
+                  - generic: Sex
+                - generic:
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+  - dialog "Agendar sessao" [ref=e228]:
+    - heading "Agendar sessao" [level=2] [ref=e230]
+    - generic [ref=e231]:
+      - generic [ref=e232]:
+        - text: Paciente
+        - combobox [active] [ref=e233]:
+          - option "Selecione um paciente" [selected]
+          - option "Felipe"
+      - textbox [ref=e234]
+      - textbox [ref=e235]
+      - spinbutton [ref=e236]: "50"
+    - generic [ref=e237]:
+      - button "Agendar" [disabled]
+    - button "Close" [ref=e238] [cursor=pointer]:
+      - img [ref=e239]
+      - generic [ref=e242]: Close

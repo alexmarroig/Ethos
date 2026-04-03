@@ -19,20 +19,20 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
     const steps = [
         {
             id: 1,
-            title: '1. Agende sua primeira sessÃƒÂ£o',
-            subtitle: 'Configure seus horÃƒÂ¡rios de atendimento',
+            title: '1. Agende sua primeira sessão',
+            subtitle: 'Configure seus horários de atendimento',
             icon: Calendar,
         },
         {
             id: 2,
             title: '2. Cadastre um paciente',
-            subtitle: 'ProntuÃƒÂ¡rios seguros e criptografados',
+            subtitle: 'Prontuários seguros e criptografados',
             icon: UserPlus,
         },
         {
             id: 3,
             title: '3. Explore o financeiro',
-            subtitle: 'Controle honorÃƒÂ¡rios e recibos',
+            subtitle: 'Controle honorários e recibos',
             icon: BarChart3,
         }
     ];
@@ -57,7 +57,7 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
                 <Animated.View entering={FadeIn.duration(800)} style={styles.welcomeSection}>
                     <Text style={[styles.title, { color: primaryTeal }]}>Bem-vindo(a){'\n'}ao ETHOS</Text>
                     <Text style={[styles.subtitle, { color: primaryTeal }]}>
-                        Sua plataforma clÃƒÂ­nica estÃƒÂ¡ pronta. Vamos comeÃƒÂ§ar a organizar seus atendimentos com ÃƒÂ©tica e tecnologia?
+                        Sua plataforma clínica está pronta. Vamos começar a organizar seus atendimentos com ética e tecnologia?
                     </Text>
                 </Animated.View>
 
@@ -88,7 +88,7 @@ export default function WelcomeOnboardingScreen({ navigation }: any) {
                         style={[styles.primaryButton, { backgroundColor: primaryTeal }]}
                         onPress={() => navigation.replace('Login')}
                     >
-                        <Text style={styles.primaryButtonText}>ComeÃƒÂ§ar Agora</Text>
+                        <Text style={styles.primaryButtonText}>Começar Agora</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity style={styles.supportLink}>

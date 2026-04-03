@@ -3,24 +3,24 @@
 
 import { CONTROL_BASE_URL } from "@/config/runtime";
 import type { ApiResult } from "./apiClient";
+import { WEB_CONTROL_TOKEN_KEY } from "./authStorage";
 
 const DEFAULT_TIMEOUT = 15_000;
-const STORAGE_KEY = "ethos_control_token";
 
 export function getControlToken(): string | null {
   try {
-    return localStorage.getItem(STORAGE_KEY);
+    return localStorage.getItem(WEB_CONTROL_TOKEN_KEY);
   } catch {
     return null;
   }
 }
 
 export function setControlToken(token: string): void {
-  localStorage.setItem(STORAGE_KEY, token);
+  localStorage.setItem(WEB_CONTROL_TOKEN_KEY, token);
 }
 
 export function clearControlToken(): void {
-  localStorage.removeItem(STORAGE_KEY);
+  localStorage.removeItem(WEB_CONTROL_TOKEN_KEY);
 }
 
 export async function controlRequest<T = unknown>(

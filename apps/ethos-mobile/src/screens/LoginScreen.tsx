@@ -42,7 +42,7 @@ export default function LoginScreen({ navigation }: any) {
       setError(null);
       await login(email.trim(), password);
     } catch (loginError: any) {
-      setError(loginError?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel iniciar a sessÃƒÂ£o.');
+      setError(loginError?.message ?? 'Não foi possível iniciar a sessão.');
     }
   };
 
@@ -59,13 +59,13 @@ export default function LoginScreen({ navigation }: any) {
               <Shield size={40} color={accentTeal} fill={accentTeal + '20'} />
             ) : (
               <View style={styles.lightLogoIcon}>
-                <Text style={styles.lightLogoSymbol}>Ã¢Å¡â€“Ã¯Â¸Â</Text>
+                <Shield size={30} color={primaryTeal} />
               </View>
             )}
           </View>
           <Text style={[styles.brandTitle, { color: isDark ? '#fff' : '#234e5c' }]}>ETHOS</Text>
           <Text style={[styles.brandSubtitle, { color: isDark ? '#00f2ff80' : '#234e5c80' }]}>
-            {isDark ? 'CLINICAL ETHICS PLATFORM' : 'Ãƒâ€°tica ClÃƒÂ­nica para PsicÃƒÂ³logos'}
+            {isDark ? 'CLINICAL ETHICS PLATFORM' : 'Ética Clínica para Psicólogos'}
           </Text>
         </Animated.View>
 
@@ -103,7 +103,7 @@ export default function LoginScreen({ navigation }: any) {
               <Lock size={20} color={theme.mutedForeground} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: theme.foreground }]}
-                placeholder="Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢Ã¢â‚¬Â¢"
+                placeholder="••••••••"
                 placeholderTextColor={theme.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
@@ -157,7 +157,7 @@ export default function LoginScreen({ navigation }: any) {
 
             <View style={styles.signupPrompt}>
               <Text style={[styles.footerText, { color: theme.mutedForeground }]}>
-                {isDark ? "Don't have an account?" : 'NÃƒÂ£o tem uma conta?'}
+                {isDark ? "Don't have an account?" : 'Não tem uma conta?'}
               </Text>
               <TouchableOpacity onPress={() => navigation.navigate('RegisterStep1')}>
                 <Text style={[styles.signupLink, { color: primaryTeal }]}>
@@ -361,4 +361,3 @@ const styles = StyleSheet.create({
     opacity: 0.5,
   },
 });
-

@@ -28,6 +28,7 @@ import {
   createJob,
   createPatientAccess,
   createPrivateComment,
+  registerClinician,
   createReport,
   createScaleRecord,
   createSession,
@@ -63,6 +64,8 @@ import {
   listPatientSessions,
   listPatients,
   listPrivateComments,
+  listFormsCatalog,
+  listFormEntries,
   listScales,
   listSessionClinicalNotes,
   listTemplates,
@@ -81,6 +84,7 @@ import {
   sendPatientAsyncMessage,
   syncLocalEntitlements,
   updateClinicalNote,
+  updatePatient,
   updateRetentionPolicy,
   updateTemplate,
   validateClinicalNote,
@@ -100,15 +104,23 @@ import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database"
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
 const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
-const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
+const allowedHeaders = "Authorization,Content-Type,Idempotency-Key,X-Request-Id,x-request-id";
 
 const defaultAllowedOrigins = [
   "https://ethos-clinical-space.lovable.app",
   "*.lovableproject.com",
+  "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:8082",
   "http://localhost:19006",
   "http://localhost:3000",
+  "http://localhost:4173",
+  "http://localhost:4174",
+  "http://127.0.0.1:8080",
+  "http://127.0.0.1:8081",
+  "http://127.0.0.1:8082",
+  "http://127.0.0.1:4173",
+  "http://127.0.0.1:4174",
 ];
 
 const parseAllowedOrigins = () => {
@@ -319,6 +331,73 @@ const getPaginationOrError = (res: ServerResponse, requestId: string, url: URL) 
 const normalizeOptionalText = (value: unknown) =>
   typeof value === "string" && value.trim() ? value.trim() : undefined;
 
+const normalizeOptionalNumber = (value: unknown) => {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+  return undefined;
+};
+
+type PatientPayload = {
+  name?: string;
+  email?: string;
+  phone?: string;
+  whatsapp?: string;
+  birth_date?: string;
+  address?: string;
+  cpf?: string;
+  main_complaint?: string;
+  psychiatric_medications?: string;
+  has_psychiatric_followup?: boolean;
+  psychiatrist_name?: string;
+  psychiatrist_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  billing?: {
+    mode: "per_session" | "package";
+    session_price?: number;
+    package_total_price?: number;
+    package_session_count?: number;
+  };
+  notes?: string;
+};
+
+const parsePatientBilling = (value: unknown): PatientPayload["billing"] => {
+  if (!value || typeof value !== "object") return undefined;
+
+  const billing = value as Record<string, unknown>;
+  const mode = billing.mode === "package" ? "package" : billing.mode === "per_session" ? "per_session" : undefined;
+  if (!mode) return undefined;
+
+  return {
+    mode,
+    session_price: normalizeOptionalNumber(billing.session_price),
+    package_total_price: normalizeOptionalNumber(billing.package_total_price),
+    package_session_count: normalizeOptionalNumber(billing.package_session_count),
+  };
+};
+
+const parsePatientPayload = (body: Record<string, unknown>, options?: { includeName?: boolean }): PatientPayload => ({
+  name: options?.includeName && typeof body.name === "string" ? body.name.trim() || undefined : undefined,
+  email: normalizeOptionalText(body.email),
+  phone: normalizeOptionalText(body.phone),
+  whatsapp: normalizeOptionalText(body.whatsapp),
+  birth_date: typeof body.birth_date === "string" ? body.birth_date : undefined,
+  address: normalizeOptionalText(body.address),
+  cpf: normalizeOptionalText(body.cpf),
+  main_complaint: normalizeOptionalText(body.main_complaint),
+  psychiatric_medications: normalizeOptionalText(body.psychiatric_medications),
+  has_psychiatric_followup: typeof body.has_psychiatric_followup === "boolean" ? body.has_psychiatric_followup : undefined,
+  psychiatrist_name: normalizeOptionalText(body.psychiatrist_name),
+  psychiatrist_contact: normalizeOptionalText(body.psychiatrist_contact),
+  emergency_contact_name: normalizeOptionalText(body.emergency_contact_name),
+  emergency_contact_phone: normalizeOptionalText(body.emergency_contact_phone),
+  billing: parsePatientBilling(body.billing),
+  notes: normalizeOptionalText(body.notes),
+});
+
 const parseDiaryPayload = (body: Record<string, unknown>) => {
   const mood = Number(body.mood);
   if (!Number.isInteger(mood) || mood < 1 || mood > 5) {
@@ -417,6 +496,38 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { user: session.user, token: session.token });
       }
 
+      if (method === "POST" && url.pathname === "/auth/register") {
+        const body = await readJson(req);
+        const name = String(body.name ?? "").trim();
+        const email = String(body.email ?? "").trim();
+        const password = String(body.password ?? "");
+        const crp = typeof body.crp === "string" ? body.crp.trim() : undefined;
+        const specialty = typeof body.specialty === "string" ? body.specialty.trim() : undefined;
+        const clinicalApproach = typeof body.clinical_approach === "string" ? body.clinical_approach.trim() : undefined;
+        const acceptedEthics = body.accepted_ethics === true;
+
+        if (!name) return error(res, requestId, 422, "VALIDATION_ERROR", "name is required");
+        if (!email || !email.includes("@")) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
+        if (password.length < 6) return error(res, requestId, 422, "VALIDATION_ERROR", "Password must have at least 6 characters");
+        if (!crp) return error(res, requestId, 422, "VALIDATION_ERROR", "CRP is required");
+        if (!specialty) return error(res, requestId, 422, "VALIDATION_ERROR", "Specialty is required");
+        if (!clinicalApproach) return error(res, requestId, 422, "VALIDATION_ERROR", "Clinical approach is required");
+        if (!acceptedEthics) return error(res, requestId, 422, "VALIDATION_ERROR", "Ethics acceptance is required");
+
+        const session = registerClinician({
+          name,
+          email,
+          password,
+          crp,
+          specialty,
+          clinical_approach: clinicalApproach,
+          accepted_ethics: acceptedEthics,
+        });
+
+        if (!session) return error(res, requestId, 409, "EMAIL_IN_USE", "This email is already registered");
+        return ok(res, requestId, 201, { user: session.user, token: session.token });
+      }
+
       if (method === "POST" && url.pathname === "/auth/invite") {
         const auth = requireAuth(req, res, requestId);
         if (!auth) return;
@@ -439,11 +550,7 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
-<<<<<<< HEAD
-        const token = String(req.headers["authorization"] ?? "").replace(/^Bearer\s+/i, "");
-=======
         const token = tokenFrom(req);
->>>>>>> 97f19340c110e556bf5c1ebe71a5b625f605e9e4
         if (token) logout(token);
         return ok(res, requestId, 200, { success: true });
       }
@@ -467,10 +574,8 @@ export const createEthosBackend = () =>
           requestId,
           201,
           createPatient(auth.user.id, {
-            name: body.name,
-            email: typeof body.email === "string" ? body.email : undefined,
-            phone: typeof body.phone === "string" ? body.phone : undefined,
-            notes: typeof body.notes === "string" ? body.notes : undefined,
+            name: body.name.trim(),
+            ...parsePatientPayload(body),
           }),
         );
       }
@@ -480,6 +585,13 @@ export const createEthosBackend = () =>
         const detail = getPatientDetail(auth.user.id, patientById[1]);
         if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
         return ok(res, requestId, 200, detail);
+      }
+
+      if (method === "PATCH" && patientById) {
+        const body = await readJson(req);
+        const updated = updatePatient(auth.user.id, patientById[1], parsePatientPayload(body, { includeName: true }));
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+        return ok(res, requestId, 200, updated);
       }
 
       // Patient access management (apenas psicólogo “user”)
@@ -707,7 +819,7 @@ export const createEthosBackend = () =>
         if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
         return ok(res, requestId, 200, {
           contract,
-          portal_url: contract.portal_token ? `/portal/contracts/${contract.portal_token}` : null,
+          portal_url: contract.portal_token ? `/portal/contract?token=${contract.portal_token}` : null,
         });
       }
 
@@ -1171,7 +1283,11 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.scales.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const patientId = url.searchParams.get("patient_id");
+        const items = Array.from(db.scales.values()).filter((item) =>
+          item.owner_user_id === auth.user.id
+          && (!patientId || item.patient_id === patientId),
+        );
         recordProntuarioAudit(auth.user.id, "ACCESS", "scale_record");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
@@ -1186,7 +1302,18 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.forms.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const items = listFormsCatalog();
+        recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
+        return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "GET" && url.pathname === "/forms/entries") {
+        const pagination = getPaginationOrError(res, requestId, url);
+        if (!pagination) return;
+
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        const formId = url.searchParams.get("form_id") ?? undefined;
+        const items = listFormEntries(auth.user.id, { patient_id: patientId, form_id: formId });
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }

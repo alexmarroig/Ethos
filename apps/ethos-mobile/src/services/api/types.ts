@@ -2,6 +2,10 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  crp?: string;
+  specialty?: string;
+  clinical_approach?: string;
+  accepted_ethics_at?: string;
   role: string;
   status: string;
   created_at: string;
@@ -20,8 +24,34 @@ export type PatientRecord = {
   label: string;
   email?: string;
   phone?: string;
+  whatsapp?: string;
+  birth_date?: string;
+  address?: string;
+  cpf?: string;
+  main_complaint?: string;
+  psychiatric_medications?: string;
+  has_psychiatric_followup?: boolean;
+  psychiatrist_name?: string;
+  psychiatrist_contact?: string;
+  emergency_contact_name?: string;
+  emergency_contact_phone?: string;
+  billing?: {
+    mode: "per_session" | "package";
+    session_price?: number;
+    package_total_price?: number;
+    package_session_count?: number;
+  };
   notes?: string;
+  total_sessions?: number;
+  next_session?: string;
+  last_session?: string;
   created_at: string;
+};
+
+export type PatientSummaryRecord = {
+  total_sessions: number;
+  next_session: SessionRecord | null;
+  last_session: SessionRecord | null;
 };
 
 export type SessionRecord = {
@@ -164,6 +194,7 @@ export type PatientTimelineItem = {
 
 export type PatientDetailResponse = {
   patient: PatientRecord;
+  summary: PatientSummaryRecord;
   sessions: SessionRecord[];
   documents: ClinicalDocumentRecord[];
   clinical_notes: ClinicalNoteRecord[];

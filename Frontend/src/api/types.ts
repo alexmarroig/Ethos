@@ -71,9 +71,13 @@ export interface Report {
 
 export interface DocumentTemplate {
   id: string;
-  name: string;
+  title?: string;
+  name?: string;
   description?: string;
+  version?: number;
+  html?: string;
   template_body?: string;
+  fields?: Array<{ key: string; label: string; required?: boolean }>;
   created_at?: string;
 }
 
@@ -85,6 +89,7 @@ export interface Document {
   title: string;
   content?: string;
   status?: string;
+  versions_count?: number;
   created_at?: string;
   updated_at?: string;
 }
@@ -101,9 +106,27 @@ export interface Contract {
   id: string;
   patient_id: string;
   patient_name?: string;
-  title: string;
-  content: string;
+  title?: string;
+  content?: string;
+  psychologist?: {
+    name: string;
+    license: string;
+    email: string;
+    phone?: string;
+  };
+  patient?: {
+    name: string;
+    email: string;
+    document: string;
+  };
+  terms?: {
+    value: string;
+    periodicity: string;
+    absence_policy: string;
+    payment_method: string;
+  };
   status: "draft" | "sent" | "accepted" | "expired";
+  portal_token?: string;
   portal_url?: string;
   accepted_at?: string;
   accepted_by?: string;

@@ -9,3 +9,14 @@ export const fetchDocuments = async () => {
 
 export const fetchDocumentDetail = (documentId: string) =>
   clinicalApiClient.request<DocumentDetailResponse>(`/documents/${documentId}`, { method: "GET" });
+
+export const createDocument = (payload: {
+  patient_id: string;
+  case_id: string;
+  template_id: string;
+  title: string;
+}) =>
+  clinicalApiClient.request<ClinicalDocumentRecord>("/documents", {
+    method: "POST",
+    body: payload,
+  });

@@ -46,7 +46,7 @@ export default function CreateSessionScreen({ navigation, route }: any) {
         }
       } catch (error: any) {
         if (active) {
-          Alert.alert('Erro', error?.message ?? 'NÃ£o foi possÃ­vel carregar os pacientes.');
+          Alert.alert('Erro', error?.message ?? 'Não foi possível carregar os pacientes.');
         }
       } finally {
         if (active) setIsLoading(false);
@@ -67,13 +67,13 @@ export default function CreateSessionScreen({ navigation, route }: any) {
 
   const handleSubmit = async () => {
     if (!selectedPatientId) {
-      Alert.alert('Paciente obrigatÃ³rio', 'Selecione um paciente para agendar a sessÃ£o.');
+      Alert.alert('Paciente obrigatório', 'Selecione um paciente para agendar a sessão.');
       return;
     }
 
     const scheduledAt = new Date(`${date}T${time}:00`);
     if (Number.isNaN(scheduledAt.getTime())) {
-      Alert.alert('Data invÃ¡lida', 'Revise a data e o horÃ¡rio informados.');
+      Alert.alert('Data inválida', 'Revise a data e o horário informados.');
       return;
     }
 
@@ -90,7 +90,7 @@ export default function CreateSessionScreen({ navigation, route }: any) {
         patientName: selectedPatient?.label,
       });
     } catch (error: any) {
-      Alert.alert('Erro', error?.message ?? 'NÃ£o foi possÃ­vel criar a sessÃ£o.');
+      Alert.alert('Erro', error?.message ?? 'Não foi possível criar a sessão.');
     } finally {
       setIsSubmitting(false);
     }
@@ -138,7 +138,7 @@ export default function CreateSessionScreen({ navigation, route }: any) {
           placeholderTextColor={theme.mutedForeground}
         />
 
-        <Text style={[styles.label, { color: theme.foreground }]}>HorÃ¡rio</Text>
+        <Text style={[styles.label, { color: theme.foreground }]}>Horário</Text>
         <TextInput
           style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
           value={time}
@@ -147,7 +147,7 @@ export default function CreateSessionScreen({ navigation, route }: any) {
           placeholderTextColor={theme.mutedForeground}
         />
 
-        <Text style={[styles.label, { color: theme.foreground }]}>DuraÃ§Ã£o (minutos)</Text>
+        <Text style={[styles.label, { color: theme.foreground }]}>Duração (minutos)</Text>
         <TextInput
           style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
           value={duration}
@@ -158,7 +158,7 @@ export default function CreateSessionScreen({ navigation, route }: any) {
         />
 
         <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Criar SessÃ£o</Text>}
+          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Criar Sessão</Text>}
         </TouchableOpacity>
       </View>
     </ScrollView>

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 
-import { login as loginRequest, logout as logoutRequest } from "../services/api/auth";
+import { login as loginRequest, logout as logoutRequest, register as registerRequest } from "../services/api/auth";
 import { setHttpClientAuthToken, setHttpClientSessionInvalidHandler } from "../services/api/httpClient";
 import type { AuthResponse, AuthUser } from "../services/api/types";
 
@@ -14,6 +14,15 @@ type AuthContextValue = {
   isHydrating: boolean;
   isSubmitting: boolean;
   login: (email: string, password: string) => Promise<void>;
+  register: (payload: {
+    name: string;
+    email: string;
+    password: string;
+    crp: string;
+    specialty: string;
+    clinical_approach: string;
+    accepted_ethics: boolean;
+  }) => Promise<void>;
   logout: () => Promise<void>;
 };
 
@@ -98,6 +107,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applySession]);
 
+  const register = useCallback(async (payload: {
+    name: string;
+    email: string;
+    password: string;
+    crp: string;
+    specialty: string;
+    clinical_approach: string;
+    accepted_ethics: boolean;
+  }) => {
+    setIsSubmitting(true);
+    try {
+      const nextSession = await registerRequest(payload);
+      if (!APP_ROLES.has(nextSession.user.role)) {
+        throw new Error("Esta conta nao possui acesso ao aplicativo mobile.");
+      }
+
+      await applySession(nextSession);
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [applySession]);
+
   const logout = useCallback(async () => {
     try {
       if (session?.token) {
@@ -117,8 +148,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isHydrating,
     isSubmitting,
     login,
+    register,
     logout,
-  }), [isHydrating, isSubmitting, login, logout, session]);
+  }), [isHydrating, isSubmitting, login, logout, register, session]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

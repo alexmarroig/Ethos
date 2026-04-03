@@ -3,7 +3,7 @@ import { createHttpClient } from "./httpClient";
 
 const clinicalContract = {
   "/patients": ["get", "post"],
-  "/patients/{id}": ["get"],
+  "/patients/{id}": ["get", "patch"],
   "/patient/permissions": ["get"],
   "/patient/sessions": ["get"],
   "/patient/sessions/{id}/confirm": ["post"],
@@ -20,6 +20,9 @@ const clinicalContract = {
   "/clinical-notes": ["get", "post"],
   "/clinical-notes/{id}": ["get", "put"],
   "/clinical-notes/{id}/validate": ["post"],
+  "/reports": ["get", "post"],
+  "/contracts": ["get", "post"],
+  "/contracts/{id}/send": ["post"],
   "/documents": ["get", "post"],
   "/documents/{id}": ["get"],
   "/documents/{id}/versions": ["get", "post"],

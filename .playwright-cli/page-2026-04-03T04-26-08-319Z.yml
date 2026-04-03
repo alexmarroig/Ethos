@@ -1,0 +1,123 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Formulários / Diários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+            - listitem:
+              - button:
+                - img
+                - generic: Diagnóstico
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Formulários / Diários
+                - paragraph: Material bruto do paciente. Separado do registro profissional.
+              - generic:
+                - img
+                - paragraph: Este conteúdo nunca é inserido automaticamente em prontuário.
+              - generic:
+                - generic:
+                  - heading [level=2]: Formulários disponíveis
+                  - button [expanded]:
+                    - img
+                    - text: Nova entrada
+                - generic:
+                  - generic:
+                    - heading [level=3]: Diário emocional
+                    - paragraph: Registro breve de humor, gatilhos e acontecimentos do dia.
+                  - generic:
+                    - heading [level=3]: Anamnese inicial
+                    - paragraph: Coleta inicial de histórico pessoal, familiar e clínico.
+                  - generic:
+                    - heading [level=3]: Check-in semanal
+                    - paragraph: Formulário simples para acompanhar a semana entre sessões.
+  - dialog "Nova entrada" [ref=e322]:
+    - heading "Nova entrada" [level=2] [ref=e324]
+    - generic [ref=e325]:
+      - combobox [active] [ref=e326]:
+        - option "Selecione o formulário" [selected]
+        - option "Diário emocional"
+        - option "Anamnese inicial"
+        - option "Check-in semanal"
+      - combobox [ref=e327]:
+        - option "Selecione o paciente" [selected]
+        - option "Felipe"
+      - textbox "Dados (texto livre ou JSON)" [ref=e328]
+    - generic [ref=e329]:
+      - button "Registrar" [disabled]
+    - button "Close" [ref=e330] [cursor=pointer]:
+      - img [ref=e331]
+      - generic [ref=e334]: Close

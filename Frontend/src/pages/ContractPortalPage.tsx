@@ -70,6 +70,32 @@ const ContractPortalPage = () => {
     );
   }
 
+  const contractBody = contract
+    ? [
+        `Psicólogo(a): ${contract.psychologist?.name ?? "Não informado"}`,
+        contract.psychologist?.license ? `Registro: ${contract.psychologist.license}` : null,
+        `Paciente: ${contract.patient?.name ?? "Não informado"}`,
+        contract.patient?.document ? `CPF/Documento: ${contract.patient.document}` : null,
+        "",
+        "OBJETO",
+        "Prestação de serviços psicológicos.",
+        "",
+        "FREQUÊNCIA",
+        contract.terms?.periodicity ?? "Não informada",
+        "",
+        "VALOR",
+        contract.terms?.value ?? "Não informado",
+        "",
+        "POLÍTICA DE CANCELAMENTO",
+        contract.terms?.absence_policy ?? "Não informada",
+        "",
+        "FORMA DE PAGAMENTO",
+        contract.terms?.payment_method ?? "Não informada",
+      ]
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
   return (
     <div className="min-h-screen bg-background">
       <div className="max-w-2xl mx-auto px-4 py-12">
@@ -81,7 +107,7 @@ const ContractPortalPage = () => {
         >
           <ScrollText className="w-10 h-10 text-primary mx-auto mb-4" strokeWidth={1.5} />
           <h1 className="font-serif text-3xl font-medium text-foreground">
-            {contract?.title}
+            Contrato terapêutico
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
             ETHOS · Contrato terapêutico
@@ -96,7 +122,7 @@ const ContractPortalPage = () => {
           transition={{ delay: 0.1 }}
         >
           <div className="prose prose-sm max-w-none text-foreground whitespace-pre-wrap leading-relaxed">
-            {contract?.content}
+            {contractBody}
           </div>
         </motion.div>
 

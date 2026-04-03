@@ -22,7 +22,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import SavedLocally from "@/components/SavedLocally";
 
 interface ProntuarioPageProps {
-  sessionId: number;
+  sessionId: string;
   onBack: () => void;
 }
 
@@ -57,7 +57,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await clinicalNoteService.listBySession(String(sessionId));
+      const res = await clinicalNoteService.listBySession(sessionId);
       if (!res.success) {
         setError({ message: res.error.message, requestId: res.request_id });
         setLoading(false);
@@ -83,7 +83,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
 
   const handleSave = async () => {
     setSaving(true);
-    const res = await clinicalNoteService.create(String(sessionId), content);
+    const res = await clinicalNoteService.create(sessionId, content);
     if (res.success) {
       setNoteId(res.data.id);
       setShowSaved(true);
@@ -95,7 +95,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
 
   const handleValidate = async () => {
     if (!noteId) {
-      const saveRes = await clinicalNoteService.create(String(sessionId), content);
+      const saveRes = await clinicalNoteService.create(sessionId, content);
       if (!saveRes.success) {
         toast({ title: "Erro", description: saveRes.error.message, variant: "destructive" });
         return;

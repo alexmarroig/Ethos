@@ -72,7 +72,7 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.foreground }]}>ConfiguraÃƒÂ§ÃƒÂµes</Text>
+        <Text style={[styles.title, { color: theme.foreground }]}>Configurações</Text>
       </View>
 
       <View style={styles.section}>
@@ -80,12 +80,12 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {renderSettingRow(
             <User size={20} color={theme.primary} />,
-            'Perfil do PsicÃƒÂ³logo',
-            user ? `${user.name} â€¢ ${user.email}` : 'Conta clÃƒÂ­nica conectada',
+            'Perfil do Psicólogo',
+            user ? `${user.name} • ${user.email}` : 'Conta clínica conectada',
           )}
           {renderSettingRow(
             <Shield size={20} color={theme.statusValidated} />,
-            'SeguranÃƒÂ§a & App Lock',
+            'Segurança & App Lock',
             'Biometria ativada',
             <Switch
               value={biometricsEnabled}
@@ -102,8 +102,8 @@ export default function SettingsScreen() {
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {renderSettingRow(
             <Database size={20} color={theme.accent} />,
-            'SincronizaÃƒÂ§ÃƒÂ£o Offline',
-            'ForÃƒÂ§ar modo local',
+            'Sincronização Offline',
+            'Forçar modo local',
             <Switch
               value={offlineMode}
               onValueChange={setOfflineMode}
@@ -112,7 +112,7 @@ export default function SettingsScreen() {
             />,
           )}
           {renderSettingRow(<Smartphone size={20} color={theme.primary} />, 'Armazenamento', '240 MB usados localmente')}
-          {renderSettingRow(<Moon size={20} color={theme.mutedForeground} />, 'AparÃƒÂªncia', 'AutomÃƒÂ¡tico (Sistema)')}
+          {renderSettingRow(<Moon size={20} color={theme.mutedForeground} />, 'Aparência', 'Automático (Sistema)')}
         </View>
       </View>
 
@@ -167,7 +167,7 @@ export default function SettingsScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity style={[styles.logoutButton, { backgroundColor: theme.destructive + '20' }]} onPress={logout}>
-          <Text style={[styles.logoutText, { color: theme.destructive }]}>Encerrar SessÃƒÂ£o Segura</Text>
+          <Text style={[styles.logoutText, { color: theme.destructive }]}>Encerrar Sessão Segura</Text>
         </TouchableOpacity>
         <Text style={[styles.versionText, { color: theme.mutedForeground }]}>ETHOS v1.0.0 (Build 42)</Text>
       </View>

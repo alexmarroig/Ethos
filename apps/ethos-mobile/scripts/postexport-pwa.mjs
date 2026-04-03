@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const appRoot = path.resolve(__dirname, '..');
-const distDir = path.join(appRoot, 'dist');
+const distDir = path.join(appRoot, process.env.PWA_DIST_DIR ?? 'dist');
 const publicDir = path.join(appRoot, 'public');
 
 const copyTargets = [

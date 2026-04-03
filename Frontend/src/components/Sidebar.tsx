@@ -27,7 +27,7 @@ const navigation: NavItem[] = [
   { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
   { id: "scales", label: "Escalas", icon: BarChart3, roles: ["professional"] },
-  { id: "forms", label: "Formulários / Diários", icon: ClipboardList, roles: ["professional"] },
+  { id: "forms", label: "Diário e formulários", icon: ClipboardList, roles: ["professional"] },
   { id: "anamnesis", label: "Anamnese", icon: BookOpen, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
   { id: "reports", label: "Relatórios", icon: FileText, roles: ["professional"] },
@@ -51,8 +51,8 @@ const navigation: NavItem[] = [
   { id: "admin-testlab", label: "Test Lab", icon: FlaskConical, roles: ["admin"] },
   { id: "admin-tickets", label: "Tickets", icon: TicketCheck, roles: ["admin"] },
 
-  // Diagnostics — admin + professional
-  { id: "diagnostics", label: "Diagnóstico", icon: Stethoscope, roles: ["admin", "professional"], separator: true },
+  // Diagnostics — admin only
+  { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
 const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {

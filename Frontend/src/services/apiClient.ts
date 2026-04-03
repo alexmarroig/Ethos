@@ -8,6 +8,7 @@ import {
   LONG_TIMEOUT_PATTERNS,
   IS_DEV,
 } from "@/config/runtime";
+import { readStoredAuthUser } from "@/services/authStorage";
 import { getDemoApiResponse } from "@/services/demoMode";
 
 /* ------------------------------------------------------------------ */
@@ -44,16 +45,7 @@ export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
 /* ------------------------------------------------------------------ */
 
 function getAuthToken(): string | null {
-  try {
-    const stored = localStorage.getItem("ethos_user");
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.token || null;
-    }
-  } catch {
-    // ignore
-  }
-  return null;
+  return readStoredAuthUser()?.token ?? null;
 }
 
 /* ------------------------------------------------------------------ */

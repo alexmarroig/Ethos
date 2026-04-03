@@ -31,6 +31,7 @@ module.exports = ({ config }) => ({
     supportsTablet: true,
     bundleIdentifier: 'app.ethos.mobile',
     infoPlist: {
+      ITSAppUsesNonExemptEncryption: false,
       NSMicrophoneUsageDescription:
         'ETHOS precisa de acesso ao microfone para gravar sessoes clinicas offline.',
     },

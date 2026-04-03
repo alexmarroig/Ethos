@@ -20,11 +20,11 @@ export function SessionContextModal({ visible, onClose, onValidate, onEdit, onDe
                 <View style={styles.overlay}>
                     <TouchableWithoutFeedback>
                         <View style={[styles.sheet, { backgroundColor: theme.card }]}>
-                            <Text style={[styles.title, { color: theme.mutedForeground }]}>AÃƒÂ§ÃƒÂµes da SessÃƒÂ£o</Text>
+                            <Text style={[styles.title, { color: theme.mutedForeground }]}>Ações da Sessão</Text>
 
                             <TouchableOpacity style={[styles.actionButton, { borderBottomColor: theme.border }]} onPress={() => { onValidate(); onClose(); }}>
                                 <CheckCircle size={20} color={theme.statusValidated} />
-                                <Text style={[styles.actionText, { color: theme.foreground }]}>Validar ProntuÃƒÂ¡rio</Text>
+                                <Text style={[styles.actionText, { color: theme.foreground }]}>Validar Prontuário</Text>
                             </TouchableOpacity>
 
                             <TouchableOpacity style={[styles.actionButton, { borderBottomColor: theme.border }]} onPress={() => { onEdit(); onClose(); }}>
@@ -34,7 +34,7 @@ export function SessionContextModal({ visible, onClose, onValidate, onEdit, onDe
 
                             <TouchableOpacity style={[styles.actionButton, { borderBottomColor: 'transparent' }]} onPress={() => { onDelete(); onClose(); }}>
                                 <Trash2 size={20} color={theme.statusPending} />
-                                <Text style={[styles.actionText, { color: theme.statusPending }]}>Excluir SessÃƒÂ£o</Text>
+                                <Text style={[styles.actionText, { color: theme.statusPending }]}>Excluir Sessão</Text>
                             </TouchableOpacity>
                         </View>
                     </TouchableWithoutFeedback>

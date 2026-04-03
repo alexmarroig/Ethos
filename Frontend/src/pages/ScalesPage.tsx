@@ -4,6 +4,7 @@ import { BarChart3, Plus, AlertCircle, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { scaleService, Scale, ScaleRecord } from "@/services/scaleService";
+import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +18,7 @@ const ScalesPage = () => {
   const { toast } = useToast();
   const [scales, setScales] = useState<Scale[]>([]);
   const [records, setRecords] = useState<ScaleRecord[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
@@ -29,9 +31,10 @@ const ScalesPage = () => {
 
   useEffect(() => {
     const load = async () => {
-      const [scalesRes, recordsRes] = await Promise.all([
+      const [scalesRes, recordsRes, patientsRes] = await Promise.all([
         scaleService.list(),
         scaleService.listRecords(),
+        patientService.list(),
       ]);
       if (!scalesRes.success) {
         setError({ message: scalesRes.error.message, requestId: scalesRes.request_id });
@@ -39,6 +42,7 @@ const ScalesPage = () => {
         setScales(scalesRes.data);
       }
       if (recordsRes.success) setRecords(recordsRes.data);
+      if (patientsRes.success) setPatients(patientsRes.data);
       setLoading(false);
     };
     load();
@@ -130,12 +134,37 @@ const ScalesPage = () => {
                   <DialogTitle className="font-serif text-xl">Aplicar escala</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input placeholder="ID da escala" value={selectedScaleId} onChange={(e) => setSelectedScaleId(e.target.value)} />
-                  <Input placeholder="ID do paciente" value={patientId} onChange={(e) => setPatientId(e.target.value)} />
+                  <select
+                    value={selectedScaleId}
+                    onChange={(e) => setSelectedScaleId(e.target.value)}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Selecione a escala</option>
+                    {scales.map((scale) => (
+                      <option key={scale.id} value={scale.id}>
+                        {scale.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={patientId}
+                    onChange={(e) => setPatientId(e.target.value)}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Selecione o paciente</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.name}
+                      </option>
+                    ))}
+                  </select>
                   <Input type="number" placeholder="Score" value={score} onChange={(e) => setScore(e.target.value)} />
+                  {patients.length === 0 && (
+                    <p className="text-sm text-muted-foreground">Cadastre um paciente antes de registrar uma escala.</p>
+                  )}
                 </div>
                 <DialogFooter>
-                  <Button onClick={handleApply} disabled={applying || !selectedScaleId || !patientId || !score} className="gap-2">
+                  <Button onClick={handleApply} disabled={applying || !selectedScaleId || !patientId || !score || patients.length === 0} className="gap-2">
                     {applying && <Loader2 className="w-4 h-4 animate-spin" />}
                     Registrar
                   </Button>

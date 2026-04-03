@@ -41,7 +41,7 @@ export default function EmailSentScreen({ navigation }: any) {
                 <Animated.View entering={FadeIn.delay(400).duration(800)} style={styles.textContainer}>
                     <Text style={[styles.title, { color: primaryTeal }]}>E-mail enviado!</Text>
                     <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
-                        Enviamos as instruÃƒÂ§ÃƒÂµes para o seu e-mail.{'\n'}
+                        Enviamos as instruções para o seu e-mail.{'\n'}
                         Por favor, verifique sua caixa de entrada e spam.
                     </Text>
                 </Animated.View>

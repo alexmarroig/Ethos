@@ -27,12 +27,12 @@ const buildDraftContent = ({
   rawText: string;
 }) => [
   `Paciente: ${patientName}`,
-  `SessÃƒÂ£o: ${sessionTime}`,
+  `Sessão: ${sessionTime}`,
   '',
-  'Rascunho inicial gerado a partir da transcriÃƒÂ§ÃƒÂ£o:',
+  'Rascunho inicial gerado a partir da transcrição:',
   rawText,
   '',
-  'ObservaÃƒÂ§ÃƒÂµes clÃƒÂ­nicas:',
+  'Observações clínicas:',
   '',
 ].join('\n');
 
@@ -41,7 +41,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
   const theme = isDark ? colors.dark : colors.light;
   const session = route?.params?.session;
   const patientName = route?.params?.patientName || 'Paciente';
-  const sessionTime = route?.params?.time || (session?.scheduled_at ? new Date(session.scheduled_at).toLocaleString('pt-BR') : 'SessÃƒÂ£o em andamento');
+  const sessionTime = route?.params?.time || (session?.scheduled_at ? new Date(session.scheduled_at).toLocaleString('pt-BR') : 'Sessão em andamento');
 
   const [isRecording, setIsRecording] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
@@ -113,7 +113,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
       setIsPaused(false);
     } catch (error) {
       console.warn('[SessionHub] Falha ao iniciar gravacao', error);
-      Alert.alert('Erro', 'NÃƒÂ£o foi possÃƒÂ­vel iniciar a gravaÃƒÂ§ÃƒÂ£o.');
+      Alert.alert('Erro', 'Não foi possível iniciar a gravação.');
     }
   };
 
@@ -121,11 +121,11 @@ export default function SessionHubScreen({ navigation, route }: any) {
     for (let attempt = 0; attempt < 12; attempt += 1) {
       const job = await fetchJob(jobId);
       if (job.status === 'completed') return job;
-      if (job.status === 'failed') throw new Error('A transcriÃƒÂ§ÃƒÂ£o falhou.');
+      if (job.status === 'failed') throw new Error('A transcrição falhou.');
       await wait(250);
     }
 
-    throw new Error('A transcriÃƒÂ§ÃƒÂ£o demorou mais do que o esperado.');
+    throw new Error('A transcrição demorou mais do que o esperado.');
   };
 
   const handleStop = async () => {
@@ -138,14 +138,14 @@ export default function SessionHubScreen({ navigation, route }: any) {
       setRecording(null);
 
       if (!session?.id) {
-        Alert.alert('GravaÃƒÂ§ÃƒÂ£o salva', uri ? 'A gravaÃƒÂ§ÃƒÂ£o foi concluÃƒÂ­da localmente.' : 'A gravaÃƒÂ§ÃƒÂ£o foi encerrada.');
+        Alert.alert('Gravação salva', uri ? 'A gravação foi concluída localmente.' : 'A gravação foi encerrada.');
         setDuration(0);
         return;
       }
 
       setIsProcessingDraft(true);
 
-      const rawText = `SessÃƒÂ£o registrada em ${sessionTime}. DuraÃƒÂ§ÃƒÂ£o aproximada: ${formatTime(duration)}. Arquivo local: ${uri ?? 'nÃƒÂ£o disponÃƒÂ­vel'}.`;
+      const rawText = `Sessão registrada em ${sessionTime}. Duração aproximada: ${formatTime(duration)}. Arquivo local: ${uri ?? 'não disponível'}.`;
       const transcription = await startTranscriptionJob(session.id, rawText);
       const completedJob = await waitForCompletedJob(transcription.job_id);
       const draftNoteId = completedJob.draft_note_id
@@ -161,7 +161,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
       });
     } catch (error: any) {
       console.warn('[SessionHub] Falha ao gerar rascunho clinico', error);
-      Alert.alert('Erro', error?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel gerar o rascunho clÃƒÂ­nico.');
+      Alert.alert('Erro', error?.message ?? 'Não foi possível gerar o rascunho clínico.');
     } finally {
       try {
         await Audio.setAudioModeAsync({
@@ -205,7 +205,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
           <Text style={styles.timerText}>{formatTime(duration)}</Text>
           <Text style={styles.recordingStatus}>
             {isProcessingDraft
-              ? 'GERANDO RASCUNHO CLÃƒÂNICO...'
+              ? 'GERANDO RASCUNHO CLÍNICO...'
               : isRecording
                 ? (isPaused ? 'PAUSADO' : 'GRAVANDO...')
                 : 'PRONTO PARA INICIAR'}
@@ -221,7 +221,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
         {isProcessingDraft ? (
           <View style={styles.processingRow}>
             <ActivityIndicator color={theme.primary} />
-            <Text style={styles.processingText}>TranscriÃƒÂ§ÃƒÂ£o concluÃƒÂ­da, preparando nota...</Text>
+            <Text style={styles.processingText}>Transcrição concluída, preparando nota...</Text>
           </View>
         ) : null}
       </View>
@@ -252,7 +252,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
         <View style={styles.micToggleContainer}>
           <View style={[styles.micToggle, { backgroundColor: '#272b34' }]}>
             <Clock size={20} color="#fff" />
-            <Text style={styles.micToggleText}>{session?.duration_minutes ? `${session.duration_minutes} min previstos` : 'SessÃƒÂ£o livre'}</Text>
+            <Text style={styles.micToggleText}>{session?.duration_minutes ? `${session.duration_minutes} min previstos` : 'Sessão livre'}</Text>
           </View>
         </View>
       </Animated.View>

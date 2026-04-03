@@ -3,7 +3,20 @@
   "compilerOptions": {
     "skipLibCheck": true
   },
+  "include": [
+    "App.js",
+    "index.js",
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.d.ts",
+    "src/**/*.js"
+  ],
   "exclude": [
+    "android",
+    "ios",
+    "dist",
+    ".expo",
+    "node_modules",
     "src/index.ts",
     "src/features/**/*",
     "src/shared/**/*",

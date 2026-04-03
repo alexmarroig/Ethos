@@ -46,7 +46,7 @@ export default function PatientsScreen() {
       const response = await fetchPatients();
       setPatients(response);
     } catch (loadError: any) {
-      setError(loadError?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel carregar os pacientes.');
+      setError(loadError?.message ?? 'Não foi possível carregar os pacientes.');
     } finally {
       setIsLoading(false);
     }
@@ -79,7 +79,7 @@ export default function PatientsScreen() {
       <View style={styles.header}>
         <View>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Meus Pacientes</Text>
-          <Text style={[styles.title, { color: primaryTeal }]}>Base ClÃƒÂ­nica</Text>
+          <Text style={[styles.title, { color: primaryTeal }]}>Base Clínica</Text>
         </View>
         <TouchableOpacity style={[styles.addButton, { backgroundColor: primaryTeal }]} onPress={() => navigation.navigate('CreatePatient')}>
           <UserPlus size={22} color="#fff" />
@@ -126,7 +126,7 @@ export default function PatientsScreen() {
           <View style={styles.stateCard}>
             <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhum paciente encontrado.</Text>
             <Text style={[styles.stateText, { color: theme.mutedForeground }]}>
-              Cadastre um paciente para comeÃƒÂ§ar a usar a base clÃƒÂ­nica.
+              Cadastre um paciente para começar a usar a base clínica.
             </Text>
           </View>
         ) : (

@@ -1,4 +1,26 @@
-import { api, ApiResult } from "./apiClient";
+import { api, type ApiResult } from "./apiClient";
+import { patientService, type Patient } from "./patientService";
+
+type RawFinancialEntry = {
+  id: string;
+  patient_id: string;
+  session_id?: string;
+  amount: number;
+  payment_method?: string;
+  status: "paid" | "open";
+  due_date?: string;
+  paid_at?: string;
+  notes?: string;
+  description?: string;
+  created_at: string;
+};
+
+type RawPaginatedFinancialEntries = {
+  items: RawFinancialEntry[];
+  page: number;
+  page_size: number;
+  total: number;
+};
 
 export interface FinancialEntry {
   id: string;
@@ -7,22 +29,113 @@ export interface FinancialEntry {
   session_id?: string;
   amount: number;
   payment_method?: string;
-  status: "paid" | "open" | "exempt" | "package";
+  status: "paid" | "open";
   due_date?: string;
   paid_at?: string;
   notes?: string;
   created_at: string;
 }
 
-export const financeService = {
-  createEntry: (data: Partial<FinancialEntry>): Promise<ApiResult<FinancialEntry>> =>
-    api.post<FinancialEntry>("/financial/entry", data),
+export interface FinanceSummary {
+  month: string;
+  paid_sessions: number;
+  pending_sessions: number;
+  total_per_month: number;
+  entries: FinancialEntry[];
+}
 
-  listEntries: (filters?: { patient_id?: string; status?: string }): Promise<ApiResult<FinancialEntry[]>> => {
+function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
+  const patient = patients.find((item) => item.id === raw.patient_id || item.external_id === raw.patient_id);
+  return {
+    id: raw.id,
+    patient_id: raw.patient_id,
+    patient_name: patient?.name,
+    session_id: raw.session_id,
+    amount: raw.amount,
+    payment_method: raw.payment_method,
+    status: raw.status,
+    due_date: raw.due_date,
+    paid_at: raw.paid_at,
+    notes: raw.notes ?? raw.description,
+    created_at: raw.created_at,
+  };
+}
+
+async function loadPatientsIndex() {
+  const patientsResult = await patientService.list();
+  return patientsResult.success ? patientsResult.data : [];
+}
+
+export const financeService = {
+  createEntry: async (data: {
+    patient_id: string;
+    amount: number;
+    payment_method?: string;
+    due_date?: string;
+    status?: "open" | "paid";
+  }): Promise<ApiResult<FinancialEntry>> => {
+    const [result, patients] = await Promise.all([
+      api.post<RawFinancialEntry>("/financial/entry", {
+        patient_id: data.patient_id,
+        amount: data.amount,
+        payment_method: data.payment_method,
+        status: data.status ?? "open",
+        due_date: data.due_date ?? new Date().toISOString(),
+        type: "receivable",
+        description: "Sessao de psicoterapia",
+      }),
+      loadPatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    return {
+      ...result,
+      data: mapEntry(result.data, patients),
+    };
+  },
+
+  listEntries: async (filters?: { patient_id?: string; status?: string }): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
+    params.set("page", "1");
+    params.set("page_size", "100");
     if (filters?.patient_id) params.set("patient_id", filters.patient_id);
     if (filters?.status) params.set("status", filters.status);
     const qs = params.toString();
-    return api.get<FinancialEntry[]>(`/financial/entries${qs ? `?${qs}` : ""}`);
+
+    const [result, patients] = await Promise.all([
+      api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`),
+      loadPatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    return {
+      ...result,
+      data: result.data.items.map((item) => mapEntry(item, patients)),
+    };
+  },
+
+  getSummary: async (): Promise<ApiResult<FinanceSummary>> => {
+    const [result, patients] = await Promise.all([
+      api.get<{
+        month: string;
+        paid_sessions: number;
+        pending_sessions: number;
+        total_per_month: number;
+        entries: RawFinancialEntry[];
+      }>("/finance"),
+      loadPatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    return {
+      ...result,
+      data: {
+        ...result.data,
+        entries: result.data.entries.map((entry) => mapEntry(entry, patients)),
+      },
+    };
   },
 };

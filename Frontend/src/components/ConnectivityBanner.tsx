@@ -1,7 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
 import { Loader2, WifiOff, ShieldAlert, AlertTriangle, RefreshCw } from "lucide-react";
 import { useAppStore, type ServiceStatus } from "@/stores/appStore";
-import { CLINICAL_BASE_URL, CONTROL_BASE_URL, IS_DEV } from "@/config/runtime";
+import {
+  CLINICAL_BASE_URL,
+  CONTROL_BASE_URL,
+  IS_DEV,
+  SHOW_CONNECTIVITY_BANNER,
+} from "@/config/runtime";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { isDemoModeEnabled } from "@/services/demoMode";
@@ -153,6 +158,10 @@ const ConnectivityBanner = () => {
   const setClinicalStatus = useAppStore((s) => s.setClinicalStatus);
   const setControlStatus = useAppStore((s) => s.setControlStatus);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
+
+  if (!SHOW_CONNECTIVITY_BANNER) {
+    return null;
+  }
 
   const runCheck = useCallback(async () => {
     if (isDemoModeEnabled()) {

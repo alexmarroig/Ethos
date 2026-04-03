@@ -1,82 +1,131 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Search, Plus, ChevronRight, KeyRound, Loader2 } from "lucide-react";
+import { ChevronRight, KeyRound, Loader2, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { patientService, Patient } from "@/services/patientService";
+import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PatientCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
 
-const PatientsPage = () => {
+type PatientsPageProps = {
+  onOpenPatient: (patientId: string) => void;
+};
+
+const formatSessionDate = (value?: string) =>
+  value
+    ? new Date(value).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+      })
+    : null;
+
+const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   const { toast } = useToast();
   const [searchQuery, setSearchQuery] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
-  // Create dialog
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newEmail, setNewEmail] = useState("");
-  const [newPhone, setNewPhone] = useState("");
+  const [newWhatsApp, setNewWhatsApp] = useState("");
 
-  // Access dialog
   const [accessOpen, setAccessOpen] = useState(false);
-  const [accessPatientId, setAccessPatientId] = useState("");
   const [granting, setGranting] = useState(false);
+  const [selectedPatientId, setSelectedPatientId] = useState("");
+  const [portalEmail, setPortalEmail] = useState("");
+  const [portalName, setPortalName] = useState("");
+  const [portalPassword, setPortalPassword] = useState("");
   const [accessCredentials, setAccessCredentials] = useState<string | null>(null);
 
   useEffect(() => {
-    loadPatients();
+    void loadPatients();
   }, []);
 
-  const loadPatients = async () => {
-    const res = await patientService.list();
-    if (!res.success) {
-      setError({ message: res.error.message, requestId: res.request_id });
+  const filteredPatients = useMemo(
+    () => patients.filter((patient) => patient.name.toLowerCase().includes(searchQuery.toLowerCase())),
+    [patients, searchQuery],
+  );
+
+  async function loadPatients() {
+    setLoading(true);
+    const result = await patientService.list();
+    if (!result.success) {
+      setError({ message: result.error.message, requestId: result.request_id });
     } else {
-      setPatients(res.data);
+      setPatients(result.data);
+      setError(null);
     }
     setLoading(false);
+  }
+
+  const openAccessDialog = (patient?: Patient) => {
+    setSelectedPatientId(patient?.id ?? patients[0]?.id ?? "");
+    setPortalName(patient?.name ?? "");
+    setPortalEmail(patient?.email ?? "");
+    setPortalPassword("");
+    setAccessCredentials(null);
+    setAccessOpen(true);
   };
 
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
-    const res = await patientService.create({ name: newName, email: newEmail, phone: newPhone });
-    if (res.success) {
-      setPatients((prev) => [res.data, ...prev]);
-      setCreateOpen(false);
-      setNewName(""); setNewEmail(""); setNewPhone("");
-      toast({ title: "Paciente criado" });
-    } else {
-      toast({ title: "Erro", description: res.error.message, variant: "destructive" });
+    const result = await patientService.create({
+      name: newName.trim(),
+      email: newEmail.trim() || undefined,
+      whatsapp: newWhatsApp.trim() || undefined,
+    });
+
+    if (!result.success) {
+      toast({ title: "Erro", description: result.error.message, variant: "destructive" });
+      setCreating(false);
+      return;
     }
+
+    setPatients((prev) => [result.data, ...prev]);
+    setCreateOpen(false);
+    setNewName("");
+    setNewEmail("");
+    setNewWhatsApp("");
+    toast({ title: "Paciente criado" });
     setCreating(false);
+    onOpenPatient(result.data.id);
   };
 
   const handleGrantAccess = async () => {
-    if (!accessPatientId.trim()) return;
+    if (!selectedPatientId || !portalEmail.trim() || !portalName.trim()) return;
     setGranting(true);
-    const res = await patientService.grantAccess(accessPatientId);
-    if (res.success) {
-      setAccessCredentials(res.data.credentials);
-      toast({ title: "Acesso criado" });
-    } else {
-      toast({ title: "Erro", description: res.error.message, variant: "destructive" });
+
+    const result = await patientService.grantAccess({
+      patient_id: selectedPatientId,
+      patient_email: portalEmail.trim(),
+      patient_name: portalName.trim(),
+      patient_password: portalPassword.trim() || undefined,
+    });
+
+    if (!result.success) {
+      toast({ title: "Erro", description: result.error.message, variant: "destructive" });
+      setGranting(false);
+      return;
     }
+
+    setAccessCredentials(result.data.credentials);
+    toast({ title: "Acesso criado" });
     setGranting(false);
   };
-
-  const filteredPatients = patients.filter((p) =>
-    p.name.toLowerCase().includes(searchQuery.toLowerCase())
-  );
 
   if (loading) {
     return (
@@ -85,8 +134,8 @@ const PatientsPage = () => {
         <Skeleton className="h-5 w-64 mb-8" />
         <Skeleton className="h-11 w-full max-w-md mb-8" />
         <div className="space-y-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <PatientCardSkeleton key={i} />
+          {Array.from({ length: 5 }).map((_, index) => (
+            <PatientCardSkeleton key={index} />
           ))}
         </div>
       </div>
@@ -107,13 +156,13 @@ const PatientsPage = () => {
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Pacientes</h1>
-          <p className="mt-2 text-muted-foreground">Registros organizados ao longo do tempo.</p>
+          <p className="mt-2 text-muted-foreground">Cadastre e acompanhe seus pacientes com calma.</p>
         </motion.header>
 
         <motion.div className="flex flex-col sm:flex-row gap-4 mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input type="text" placeholder="Buscar por nome" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-10 h-11" />
+            <Input type="text" placeholder="Buscar por nome" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="pl-10 h-11" />
           </div>
 
           <div className="flex gap-2">
@@ -129,9 +178,9 @@ const PatientsPage = () => {
                   <DialogTitle className="font-serif text-xl">Novo paciente</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input placeholder="Nome completo *" value={newName} onChange={(e) => setNewName(e.target.value)} />
-                  <Input placeholder="Email (opcional)" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} />
-                  <Input placeholder="Telefone (opcional)" value={newPhone} onChange={(e) => setNewPhone(e.target.value)} />
+                  <Input placeholder="Nome completo *" value={newName} onChange={(event) => setNewName(event.target.value)} />
+                  <Input placeholder="Email (opcional)" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} />
+                  <Input placeholder="WhatsApp (opcional)" value={newWhatsApp} onChange={(event) => setNewWhatsApp(event.target.value)} />
                 </div>
                 <DialogFooter>
                   <Button onClick={handleCreate} disabled={creating || !newName.trim()} className="gap-2">
@@ -142,55 +191,105 @@ const PatientsPage = () => {
               </DialogContent>
             </Dialog>
 
-            <Dialog open={accessOpen} onOpenChange={(o) => { setAccessOpen(o); if (!o) { setAccessCredentials(null); setAccessPatientId(""); } }}>
-              <DialogTrigger asChild>
-                <Button variant="ghost" className="gap-2 h-11">
-                  <KeyRound className="w-4 h-4" strokeWidth={1.5} />
-                  Criar acesso
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">Criar acesso do paciente</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <Input placeholder="ID do paciente" value={accessPatientId} onChange={(e) => setAccessPatientId(e.target.value)} />
-                  {accessCredentials && (
-                    <div className="p-4 rounded-lg bg-status-validated/10 border border-status-validated/20">
-                      <p className="text-sm font-medium text-foreground mb-1">Credenciais geradas:</p>
-                      <code className="text-xs bg-muted px-2 py-1 rounded block break-all">{accessCredentials}</code>
-                    </div>
-                  )}
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleGrantAccess} disabled={granting || !accessPatientId.trim()} className="gap-2">
-                    {granting && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Gerar credenciais
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+            <Button variant="ghost" className="gap-2 h-11" onClick={() => openAccessDialog()}>
+              <KeyRound className="w-4 h-4" strokeWidth={1.5} />
+              Criar acesso
+            </Button>
           </div>
         </motion.div>
 
+        <Dialog
+          open={accessOpen}
+          onOpenChange={(open) => {
+            setAccessOpen(open);
+            if (!open) setAccessCredentials(null);
+          }}
+        >
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Criar acesso do paciente</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Paciente</label>
+                <select
+                  value={selectedPatientId}
+                  onChange={(event) => {
+                    const nextPatient = patients.find((patient) => patient.id === event.target.value);
+                    setSelectedPatientId(event.target.value);
+                    setPortalName(nextPatient?.name ?? "");
+                    setPortalEmail(nextPatient?.email ?? "");
+                  }}
+                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                >
+                  <option value="">Selecione um paciente</option>
+                  {patients.map((patient) => (
+                    <option key={patient.id} value={patient.id}>
+                      {patient.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Input placeholder="Nome do paciente" value={portalName} onChange={(event) => setPortalName(event.target.value)} />
+              <Input placeholder="Email do paciente" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} />
+              <Input placeholder="Senha temporária (opcional)" value={portalPassword} onChange={(event) => setPortalPassword(event.target.value)} />
+              {accessCredentials && (
+                <div className="p-4 rounded-lg bg-status-validated/10 border border-status-validated/20">
+                  <p className="text-sm font-medium text-foreground mb-1">Credenciais geradas:</p>
+                  <code className="text-xs bg-muted px-2 py-1 rounded block break-all">{accessCredentials}</code>
+                </div>
+              )}
+              {patients.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  Cadastre um paciente antes de liberar o acesso.
+                </p>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                onClick={handleGrantAccess}
+                disabled={granting || patients.length === 0 || !selectedPatientId || !portalName.trim() || !portalEmail.trim()}
+                className="gap-2"
+              >
+                {granting && <Loader2 className="w-4 h-4 animate-spin" />}
+                Gerar credenciais
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
         <motion.div className="space-y-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           {filteredPatients.map((patient, index) => (
-            <motion.button
+            <motion.div
               key={patient.id}
-              className="w-full session-card flex items-center justify-between group"
+              className="w-full session-card flex items-center justify-between gap-4 group"
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.4, delay: 0.1 + index * 0.05, ease: [0.25, 0.1, 0.25, 1] }}
             >
-              <div className="text-left">
+              <button className="flex-1 text-left" onClick={() => onOpenPatient(patient.id)}>
                 <h3 className="font-serif text-lg font-medium text-foreground">{patient.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {patient.last_session ? `Última sessão: ${patient.last_session}` : "Sem sessões"}
-                  {patient.total_sessions ? ` · ${patient.total_sessions} sessões` : ""}
+                  {patient.email || "Sem email"}
+                  {patient.whatsapp ? ` · ${patient.whatsapp}` : patient.phone ? ` · ${patient.phone}` : ""}
                 </p>
+                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                  <span>{typeof patient.total_sessions === "number" ? `${patient.total_sessions} sessões` : "Sem sessões"}</span>
+                  {patient.next_session && <span>Próxima: {formatSessionDate(patient.next_session)}</span>}
+                  {patient.last_session && <span>Última: {formatSessionDate(patient.last_session)}</span>}
+                </div>
+              </button>
+
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" className="gap-2" onClick={() => openAccessDialog(patient)}>
+                  <KeyRound className="w-4 h-4" strokeWidth={1.5} />
+                  Criar acesso
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => onOpenPatient(patient.id)} aria-label={`Abrir ficha de ${patient.name}`}>
+                  <ChevronRight className="w-5 h-5 text-muted-foreground/70 group-hover:text-muted-foreground transition-colors duration-200" strokeWidth={1.5} />
+                </Button>
               </div>
-              <ChevronRight className="w-5 h-5 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors duration-200" strokeWidth={1.5} />
-            </motion.button>
+            </motion.div>
           ))}
           {filteredPatients.length === 0 && (
             <div className="text-center py-12">

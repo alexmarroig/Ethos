@@ -41,7 +41,7 @@ export default function DocumentDetailScreen({ route }: any) {
         if (active) setDetail(response);
       } catch (error: any) {
         if (active) {
-          Alert.alert('Erro', error?.message ?? 'NÃ£o foi possÃ­vel carregar o documento.');
+          Alert.alert('Erro', error?.message ?? 'Não foi possível carregar o documento.');
         }
       } finally {
         if (active) setIsLoading(false);
@@ -66,7 +66,7 @@ export default function DocumentDetailScreen({ route }: any) {
   if (!detail) {
     return (
       <View style={[styles.centered, { backgroundColor: theme.background, padding: 24 }]}>
-        <Text style={[styles.emptyTitle, { color: theme.foreground }]}>Documento indisponÃ­vel.</Text>
+        <Text style={[styles.emptyTitle, { color: theme.foreground }]}>Documento indisponível.</Text>
       </View>
     );
   }
@@ -82,7 +82,7 @@ export default function DocumentDetailScreen({ route }: any) {
         </View>
 
         <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
-          Paciente: {detail.patient?.label ?? 'NÃ£o informado'}
+          Paciente: {detail.patient?.label ?? 'Não informado'}
         </Text>
         <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
           Criado em {formatDateTime(detail.document.created_at)}
@@ -92,11 +92,11 @@ export default function DocumentDetailScreen({ route }: any) {
         </Text>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.primaryAction} onPress={() => Alert.alert('Em breve', 'AÃ§Ã£o de download preparada para integraÃ§Ã£o real.')}>
+          <TouchableOpacity style={styles.primaryAction} onPress={() => Alert.alert('Em breve', 'Ação de download preparada para integração real.')}>
             <Download size={16} color="#fff" />
             <Text style={styles.primaryActionText}>Download</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => Alert.alert('Em breve', 'Compartilhamento serÃ¡ conectado na prÃ³xima etapa.')}>
+          <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => Alert.alert('Em breve', 'Compartilhamento será conectado na próxima etapa.')}>
             <Share2 size={16} color={theme.primary} />
             <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Compartilhar</Text>
           </TouchableOpacity>
@@ -104,18 +104,18 @@ export default function DocumentDetailScreen({ route }: any) {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>VersÃµes</Text>
+        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Versões</Text>
         {detail.versions.length === 0 ? (
           <View style={[styles.versionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.versionText, { color: theme.mutedForeground }]}>Nenhuma versÃ£o registrada ainda.</Text>
+            <Text style={[styles.versionText, { color: theme.mutedForeground }]}>Nenhuma versão registrada ainda.</Text>
           </View>
         ) : (
           detail.versions.map((version) => (
             <View key={version.id} style={[styles.versionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={[styles.versionTitle, { color: theme.foreground }]}>VersÃ£o {version.version}</Text>
+              <Text style={[styles.versionTitle, { color: theme.foreground }]}>Versão {version.version}</Text>
               <Text style={[styles.versionMeta, { color: theme.mutedForeground }]}>{formatDateTime(version.created_at)}</Text>
               <Text style={[styles.versionPreview, { color: theme.foreground }]} numberOfLines={4}>
-                {version.content || 'Sem conteÃºdo disponÃ­vel.'}
+                {version.content || 'Sem conteúdo disponível.'}
               </Text>
             </View>
           ))

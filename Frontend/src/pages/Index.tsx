@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import Sidebar from "@/components/Sidebar";
@@ -8,6 +8,7 @@ import HomePage from "@/pages/HomePage";
 import SessionPage from "@/pages/SessionPage";
 import AgendaPage from "@/pages/AgendaPage";
 import PatientsPage from "@/pages/PatientsPage";
+import PatientDetailPage from "@/pages/PatientDetailPage";
 import EthicsPage from "@/pages/EthicsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProntuarioPage from "@/pages/ProntuarioPage";
@@ -36,7 +37,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type Page =
-  | "home" | "agenda" | "patients" | "ethics" | "settings" | "session" | "prontuario" | "install"
+  | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario" | "install"
   | "scales" | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "ai" | "account" | "backup"
   | "contracts"
   | "patient-home" | "patient-sessions" | "patient-scales" | "patient-diary" | "patient-messages"
@@ -47,7 +48,8 @@ const Index = () => {
   const [showSplash, setShowSplash] = useState(true);
   const [showLogin, setShowLogin] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>("home");
-  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const { isAuthenticated, isLoading, hasRole } = useAuth();
   const isMobile = useIsMobile();
 
@@ -62,7 +64,7 @@ const Index = () => {
     setShowLogin(false);
   };
 
-  const handleSessionClick = (sessionId: number) => {
+  const handleSessionClick = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("session");
   };
@@ -72,7 +74,7 @@ const Index = () => {
     setCurrentPage("home");
   };
 
-  const handleOpenProntuario = (sessionId: number) => {
+  const handleOpenProntuario = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("prontuario");
   };
@@ -82,15 +84,28 @@ const Index = () => {
     setCurrentPage("home");
   };
 
+  const handleOpenPatient = (patientId: string) => {
+    setSelectedPatientId(patientId);
+    setCurrentPage("patient-detail");
+  };
+
+  const handleBackFromPatient = () => {
+    setSelectedPatientId(null);
+    setCurrentPage("patients");
+  };
+
   const handleNavigate = (page: string) => {
     setCurrentPage(page as Page);
     setSelectedSessionId(null);
+    if (page !== "patient-detail") {
+      setSelectedPatientId(null);
+    }
   };
 
   // Render page content with role guards
   const renderPage = () => {
     // Professional pages
-    const professionalPages = ["home", "agenda", "patients", "scales", "forms", "anamnesis",
+    const professionalPages = ["home", "agenda", "patients", "patient-detail", "scales", "forms", "anamnesis",
       "finance", "reports", "documents", "contracts", "ai", "backup", "ethics", "install",
       "session", "prontuario", "account", "settings"];
 
@@ -120,10 +135,10 @@ const Index = () => {
       );
     }
 
-    // Diagnostics — admin + professional
+    // Diagnostics — admin only
     if (currentPage === "diagnostics") {
       return (
-        <RoleGate allowed={["admin", "professional"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
+        <RoleGate allowed={["admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
           {renderPageContent()}
         </RoleGate>
       );
@@ -135,7 +150,7 @@ const Index = () => {
   const renderPageContent = () => {
     switch (currentPage) {
       case "home":
-        return <HomePage onSessionClick={handleSessionClick} />;
+        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} />;
       case "session":
         return (
           <SessionPage
@@ -154,7 +169,16 @@ const Index = () => {
       case "agenda":
         return <AgendaPage onSessionClick={handleSessionClick} />;
       case "patients":
-        return <PatientsPage />;
+        return <PatientsPage onOpenPatient={handleOpenPatient} />;
+      case "patient-detail":
+        return (
+          <PatientDetailPage
+            patientId={selectedPatientId!}
+            onBack={handleBackFromPatient}
+            onOpenSession={handleSessionClick}
+            onOpenProntuario={handleOpenProntuario}
+          />
+        );
       case "ethics":
         return <EthicsPage />;
       case "install":
@@ -214,7 +238,7 @@ const Index = () => {
           </div>
         );
       default:
-        return <HomePage onSessionClick={handleSessionClick} />;
+        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} />;
     }
   };
 
@@ -254,7 +278,7 @@ const Index = () => {
             )}>
               <AnimatePresence mode="wait">
                 <motion.div
-                  key={currentPage + (selectedSessionId?.toString() || "")}
+                  key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")}
                   initial={{ opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: -8 }}

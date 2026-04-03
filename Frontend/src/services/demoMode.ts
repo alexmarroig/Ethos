@@ -91,17 +91,11 @@ function buildDemoSessions(): DemoSession[] {
 }
 
 function getStoredToken(): string | null {
-  try {
-    const raw = localStorage.getItem("ethos_user");
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return typeof parsed?.token === "string" ? parsed.token : null;
-  } catch {
-    return null;
-  }
+  return readStoredAuthUser()?.token ?? null;
 }
 
 export function isDemoModeEnabled(): boolean {
+  if (!ENABLE_DEMO_LOGIN) return false;
   const token = getStoredToken();
   return !!token && token.startsWith("dev-token-");
 }
@@ -173,3 +167,5 @@ export function getDemoApiResponse<T>(
 
   return null;
 }
+import { ENABLE_DEMO_LOGIN } from "@/config/runtime";
+import { readStoredAuthUser } from "./authStorage";

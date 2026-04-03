@@ -1,23 +1,49 @@
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ClipboardList, Plus, AlertCircle, Loader2 } from "lucide-react";
+import { BookOpen, ClipboardList, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { formService, Form } from "@/services/formService";
+import { formService, type Form, type FormEntry } from "@/services/formService";
+import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
 } from "@/components/ui/dialog";
+
+type DiaryEntry = {
+  id: string;
+  date?: string;
+  description?: string;
+  thoughts?: string;
+  mood?: number;
+  intensity?: number;
+  created_at?: string;
+};
+
+const formatDate = (value?: string) =>
+  value
+    ? new Date(value).toLocaleDateString("pt-BR", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+      })
+    : "Sem data";
 
 const FormsPage = () => {
   const { toast } = useToast();
   const [forms, setForms] = useState<Form[]>([]);
+  const [entries, setEntries] = useState<FormEntry[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [selectedPatientForDiary, setSelectedPatientForDiary] = useState("");
+  const [diaryEntries, setDiaryEntries] = useState<DiaryEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
-
-  // Create entry dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [selectedFormId, setSelectedFormId] = useState("");
@@ -26,41 +52,88 @@ const FormsPage = () => {
 
   useEffect(() => {
     const load = async () => {
-      const res = await formService.list();
-      if (!res.success) {
-        setError({ message: res.error.message, requestId: res.request_id });
+      const [formsRes, entriesRes, patientsRes] = await Promise.all([
+        formService.list(),
+        formService.listEntries(),
+        patientService.list(),
+      ]);
+
+      if (!formsRes.success) {
+        setError({ message: formsRes.error.message, requestId: formsRes.request_id });
       } else {
-        setForms(res.data);
+        setForms(formsRes.data);
+        setSelectedFormId(formsRes.data[0]?.id ?? "");
       }
+
+      if (entriesRes.success) {
+        setEntries(entriesRes.data);
+      }
+
+      if (patientsRes.success) {
+        setPatients(patientsRes.data);
+        setSelectedPatientForDiary((current) => current || patientsRes.data[0]?.id || "");
+      }
+
       setLoading(false);
     };
-    load();
+
+    void load();
   }, []);
+
+  useEffect(() => {
+    const loadDiary = async () => {
+      if (!selectedPatientForDiary) {
+        setDiaryEntries([]);
+        return;
+      }
+      const result = await patientService.getById(selectedPatientForDiary);
+      if (result.success) {
+        setDiaryEntries((result.data.emotional_diary as DiaryEntry[]) ?? []);
+      }
+    };
+
+    void loadDiary();
+  }, [selectedPatientForDiary]);
+
+  const patientNames = useMemo(
+    () => new Map(patients.map((patient) => [patient.id, patient.name])),
+    [patients],
+  );
 
   const handleCreateEntry = async () => {
     if (!selectedFormId || !patientId) return;
     setCreating(true);
     let parsed: unknown = {};
-    try { parsed = JSON.parse(entryData || "{}"); } catch { parsed = { text: entryData }; }
-    const res = await formService.createEntry({
+    try {
+      parsed = JSON.parse(entryData || "{}");
+    } catch {
+      parsed = { text: entryData };
+    }
+
+    const result = await formService.createEntry({
       form_id: selectedFormId,
       patient_id: patientId,
       data: parsed,
     });
-    if (res.success) {
-      setDialogOpen(false);
-      setSelectedFormId(""); setPatientId(""); setEntryData("");
-      toast({ title: "Entrada registrada" });
-    } else {
-      toast({ title: "Erro", description: res.error.message, variant: "destructive" });
+
+    if (!result.success) {
+      toast({ title: "Erro ao registrar formulário", description: result.error.message, variant: "destructive" });
+      setCreating(false);
+      return;
     }
+
+    setEntries((current) => [result.data, ...current]);
+    setDialogOpen(false);
+    setPatientId("");
+    setEntryData("");
     setCreating(false);
+    toast({ title: "Entrada registrada" });
   };
 
   if (loading) {
     return (
       <div className="content-container py-12">
-        <p className="loading-text">Carregando formulários...</p>
+        <p className="loading-text">Carregando diário e formulários...</p>
       </div>
     );
   }
@@ -68,7 +141,7 @@ const FormsPage = () => {
   if (error) {
     return (
       <div className="content-container py-12">
-        <h1 className="font-serif text-3xl font-medium text-foreground mb-6">Formulários / Diários</h1>
+        <h1 className="font-serif text-3xl font-medium text-foreground mb-6">Diário e formulários</h1>
         <IntegrationUnavailable message={error.message} requestId={error.requestId} />
       </div>
     );
@@ -77,17 +150,75 @@ const FormsPage = () => {
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
-        <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Formulários / Diários</h1>
-          <p className="mt-2 text-muted-foreground">Material bruto do paciente. Separado do registro profissional.</p>
+        <motion.header
+          className="mb-8"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+        >
+          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Diário e formulários</h1>
+          <p className="mt-2 text-muted-foreground">
+            Diário emocional do paciente, anamnese inicial e formulários de acompanhamento entre sessões.
+          </p>
         </motion.header>
 
-        <motion.div className="flex items-start gap-3 p-4 rounded-xl bg-muted/50 border border-border mb-8" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-          <AlertCircle className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" strokeWidth={1.5} />
-          <p className="text-sm text-muted-foreground">Este conteúdo nunca é inserido automaticamente em prontuário.</p>
-        </motion.div>
+        <motion.section
+          className="mb-8 rounded-xl border border-border bg-card p-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+        >
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+            <div>
+              <h2 className="font-serif text-lg font-medium text-foreground">Diário emocional</h2>
+              <p className="text-sm text-muted-foreground mt-1">Visualize os registros enviados pelo paciente.</p>
+            </div>
 
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
+            <select
+              value={selectedPatientForDiary}
+              onChange={(event) => setSelectedPatientForDiary(event.target.value)}
+              className="flex h-11 min-w-[240px] rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">Selecione o paciente</option>
+              {patients.map((patient) => (
+                <option key={patient.id} value={patient.id}>
+                  {patient.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {diaryEntries.length === 0 ? (
+            <div className="text-center py-8">
+              <BookOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
+              <p className="text-muted-foreground text-sm">Nenhuma entrada de diário emocional para este paciente.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {diaryEntries.slice(0, 6).map((entry) => (
+                <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="font-medium text-foreground">
+                      Humor {entry.mood ?? "-"} · Intensidade {entry.intensity ?? "-"}
+                    </p>
+                    <span className="text-xs text-muted-foreground">{formatDate(entry.date ?? entry.created_at)}</span>
+                  </div>
+                  {(entry.description || entry.thoughts) && (
+                    <p className="mt-2 text-sm text-muted-foreground whitespace-pre-wrap">
+                      {entry.description ?? entry.thoughts}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
           <div className="flex items-center justify-between mb-4">
             <h2 className="font-serif text-lg font-medium text-foreground">Formulários disponíveis</h2>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -102,9 +233,36 @@ const FormsPage = () => {
                   <DialogTitle className="font-serif text-xl">Nova entrada</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-4">
-                  <Input placeholder="ID do formulário" value={selectedFormId} onChange={(e) => setSelectedFormId(e.target.value)} />
-                  <Input placeholder="ID do paciente" value={patientId} onChange={(e) => setPatientId(e.target.value)} />
-                  <Textarea placeholder="Dados (texto livre ou JSON)" value={entryData} onChange={(e) => setEntryData(e.target.value)} className="min-h-[100px]" />
+                  <select
+                    value={selectedFormId}
+                    onChange={(event) => setSelectedFormId(event.target.value)}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Selecione o formulário</option>
+                    {forms.map((form) => (
+                      <option key={form.id} value={form.id}>
+                        {form.name}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    value={patientId}
+                    onChange={(event) => setPatientId(event.target.value)}
+                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                  >
+                    <option value="">Selecione o paciente</option>
+                    {patients.map((patient) => (
+                      <option key={patient.id} value={patient.id}>
+                        {patient.name}
+                      </option>
+                    ))}
+                  </select>
+                  <Textarea
+                    placeholder="Dados do formulário em texto livre ou JSON"
+                    value={entryData}
+                    onChange={(event) => setEntryData(event.target.value)}
+                    className="min-h-[120px]"
+                  />
                 </div>
                 <DialogFooter>
                   <Button onClick={handleCreateEntry} disabled={creating || !selectedFormId || !patientId} className="gap-2">
@@ -116,22 +274,43 @@ const FormsPage = () => {
             </Dialog>
           </div>
 
-          {forms.length === 0 ? (
-            <div className="text-center py-12">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 mb-6">
+            {forms.map((form) => (
+              <div key={form.id} className="session-card">
+                <h3 className="font-serif text-lg font-medium text-foreground">{form.name}</h3>
+                {form.description && <p className="mt-1 text-sm text-muted-foreground">{form.description}</p>}
+              </div>
+            ))}
+          </div>
+
+          <h3 className="font-serif text-lg font-medium text-foreground mb-3">Entradas registradas</h3>
+          {entries.length === 0 ? (
+            <div className="text-center py-8">
               <ClipboardList className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">Nenhum formulário disponível.</p>
+              <p className="text-muted-foreground text-sm">Nenhuma entrada registrada ainda.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {forms.map((form) => (
-                <div key={form.id} className="session-card cursor-pointer">
-                  <h3 className="font-serif text-lg font-medium text-foreground">{form.name}</h3>
-                  {form.description && <p className="mt-1 text-sm text-muted-foreground">{form.description}</p>}
+              {entries.slice(0, 8).map((entry) => (
+                <div key={entry.id} className="session-card">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="font-serif text-lg font-medium text-foreground">
+                        {forms.find((form) => form.id === entry.form_id)?.name ?? entry.form_id}
+                      </h3>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {patientNames.get(entry.patient_id) ?? "Paciente"} · {formatDate(entry.created_at)}
+                      </p>
+                    </div>
+                  </div>
+                  <pre className="mt-3 text-xs whitespace-pre-wrap text-foreground/70 bg-muted/50 rounded-lg p-3 overflow-auto">
+                    {JSON.stringify(entry.data, null, 2)}
+                  </pre>
                 </div>
               ))}
             </div>
           )}
-        </motion.div>
+        </motion.section>
       </div>
     </div>
   );

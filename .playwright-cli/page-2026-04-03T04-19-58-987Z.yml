@@ -1,0 +1,108 @@
+- generic [ref=e15]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e35]:
+    - complementary [ref=e36]:
+      - generic [ref=e37]:
+        - heading "ETHOS" [level=1] [ref=e38]
+        - generic [ref=e39]:
+          - paragraph [ref=e40]: Camila Veloso de Freitas
+          - generic [ref=e41]: Profissional
+      - navigation [ref=e42]:
+        - list [ref=e43]:
+          - listitem [ref=e44]:
+            - button "Linha do tempo" [ref=e45] [cursor=pointer]:
+              - img [ref=e46]
+              - generic [ref=e49]: Linha do tempo
+          - listitem [ref=e50]:
+            - button "Agenda clínica" [active] [ref=e51] [cursor=pointer]:
+              - img [ref=e52]
+              - generic [ref=e54]: Agenda clínica
+          - listitem [ref=e55]:
+            - button "Pacientes" [ref=e56] [cursor=pointer]:
+              - img [ref=e57]
+              - generic [ref=e62]: Pacientes
+          - listitem [ref=e63]:
+            - button "Escalas" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - generic [ref=e67]: Escalas
+          - listitem [ref=e68]:
+            - button "Formulários / Diários" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Formulários / Diários
+          - listitem [ref=e74]:
+            - button "Anamnese" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - generic [ref=e78]: Anamnese
+          - listitem [ref=e79]:
+            - button "Financeiro" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+              - generic [ref=e84]: Financeiro
+          - listitem [ref=e85]:
+            - button "Relatórios" [ref=e86] [cursor=pointer]:
+              - img [ref=e87]
+              - generic [ref=e90]: Relatórios
+          - listitem [ref=e91]:
+            - button "Documentos" [ref=e92] [cursor=pointer]:
+              - img [ref=e93]
+              - generic [ref=e95]: Documentos
+          - listitem [ref=e96]:
+            - button "Contratos" [ref=e97] [cursor=pointer]:
+              - img [ref=e98]
+              - generic [ref=e101]: Contratos
+          - listitem [ref=e102]:
+            - button "IA — Organizar texto" [ref=e104] [cursor=pointer]:
+              - img [ref=e105]
+              - generic [ref=e107]: IA — Organizar texto
+          - listitem [ref=e108]:
+            - button "Backup e dados" [ref=e109] [cursor=pointer]:
+              - img [ref=e110]
+              - generic [ref=e116]: Backup e dados
+          - listitem [ref=e117]:
+            - button "Ética e sigilo" [ref=e118] [cursor=pointer]:
+              - img [ref=e119]
+              - generic [ref=e121]: Ética e sigilo
+          - listitem [ref=e122]:
+            - button "Instalar no celular" [ref=e123] [cursor=pointer]:
+              - img [ref=e124]
+              - generic [ref=e126]: Instalar no celular
+          - listitem [ref=e127]:
+            - button "Diagnóstico" [ref=e129] [cursor=pointer]:
+              - img [ref=e130]
+              - generic [ref=e134]: Diagnóstico
+      - generic [ref=e135]:
+        - button "Conta" [ref=e136] [cursor=pointer]:
+          - img [ref=e137]
+          - generic [ref=e140]: Conta
+        - button "Sair" [ref=e141] [cursor=pointer]:
+          - img [ref=e142]
+          - generic [ref=e145]: Sair
+    - main [ref=e146]:
+      - generic [ref=e190]:
+        - generic [ref=e191]:
+          - heading "Agenda clinica" [level=1] [ref=e192]
+          - paragraph [ref=e193]: Visao semanal.
+        - generic [ref=e194]:
+          - generic [ref=e195]:
+            - button [ref=e196] [cursor=pointer]:
+              - img [ref=e197]
+            - generic [ref=e199]: Esta semana
+            - button [ref=e200] [cursor=pointer]:
+              - img [ref=e201]
+          - button "Agendar sessao" [ref=e203] [cursor=pointer]:
+            - img
+            - text: Agendar sessao
+        - generic [ref=e204]:
+          - generic [ref=e205]:
+            - generic [ref=e206]: Seg
+            - generic [ref=e207]: Ter
+            - generic [ref=e208]: Qua
+            - generic [ref=e209]: Qui
+            - generic [ref=e210]: Sex
+          - generic [ref=e211]:
+            - paragraph [ref=e214]: "-"
+            - paragraph [ref=e217]: "-"
+            - paragraph [ref=e220]: "-"
+            - paragraph [ref=e223]: "-"
+            - paragraph [ref=e226]: "-"

@@ -67,7 +67,7 @@ const isSessionReminderPending = (session: SessionRecord) => {
 };
 
 const resolvePatientName = (session: SessionRecord, patients: PatientRecord[]) =>
-  patients.find((patient) => patient.id === session.patient_id || patient.external_id === session.patient_id)?.label ?? 'Paciente sem identificaÃƒÂ§ÃƒÂ£o';
+  patients.find((patient) => patient.id === session.patient_id || patient.external_id === session.patient_id)?.label ?? 'Paciente sem identificação';
 
 export default function ScheduleScreen() {
   const navigation = useNavigation<any>();
@@ -95,7 +95,7 @@ export default function ScheduleScreen() {
       setPatients(patientResponse);
       setMessageSettings(storedSettings);
     } catch (loadError: any) {
-      setError(loadError?.message ?? 'NÃƒÂ£o foi possÃƒÂ­vel carregar a agenda.');
+      setError(loadError?.message ?? 'Não foi possível carregar a agenda.');
     } finally {
       setIsLoading(false);
     }
@@ -159,7 +159,7 @@ export default function ScheduleScreen() {
           <Text style={[styles.greeting, { color: theme.mutedForeground }]}>
             {selectedDate.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
           </Text>
-          <Text style={[styles.title, { color: primaryTeal }]}>Agenda ClÃƒÂ­nica</Text>
+          <Text style={[styles.title, { color: primaryTeal }]}>Agenda Clínica</Text>
         </View>
         <TouchableOpacity style={[styles.iconButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={() => navigation.navigate('CreateSession')}>
           <Plus size={22} color={primaryTeal} />
@@ -192,7 +192,7 @@ export default function ScheduleScreen() {
 
       <ScrollView style={styles.content} contentContainerStyle={styles.scrollContent}>
         <View style={styles.sectionHeader}>
-          <Text style={[styles.sectionTitle, { color: primaryTeal }]}>SessÃƒÂµes do Dia</Text>
+          <Text style={[styles.sectionTitle, { color: primaryTeal }]}>Sessões do Dia</Text>
           <View style={styles.sessionCount}>
             <Text style={styles.sessionCountText}>{filteredSessions.length} agendadas</Text>
           </View>
@@ -214,8 +214,8 @@ export default function ScheduleScreen() {
         ) : filteredSessions.length === 0 ? (
           <View style={styles.stateCard}>
             <CalendarIcon size={22} color={theme.mutedForeground} />
-            <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhuma sessÃƒÂ£o nesta data.</Text>
-            <Text style={[styles.stateText, { color: theme.mutedForeground }]}>Crie uma nova sessÃƒÂ£o para preencher a agenda.</Text>
+            <Text style={[styles.stateTitle, { color: theme.foreground }]}>Nenhuma sessão nesta data.</Text>
+            <Text style={[styles.stateText, { color: theme.mutedForeground }]}>Crie uma nova sessão para preencher a agenda.</Text>
           </View>
         ) : (
           filteredSessions.map((session, index) => {
@@ -244,7 +244,7 @@ export default function ScheduleScreen() {
                     {isCompleted ? (
                       <View style={styles.completedBadge}>
                         <CheckCircle2 size={12} color="#16a34a" />
-                        <Text style={styles.completedText}>CONCLUÃƒÂDA</Text>
+                        <Text style={styles.completedText}>CONCLUÍDA</Text>
                       </View>
                     ) : null}
                   </View>
@@ -296,9 +296,9 @@ export default function ScheduleScreen() {
       <SessionContextModal
         visible={!!selectedSession}
         onClose={() => setSelectedSession(null)}
-        onValidate={() => Alert.alert('Em breve', 'A validaÃƒÂ§ÃƒÂ£o serÃƒÂ¡ conectada na prÃƒÂ³xima etapa.')}
+        onValidate={() => Alert.alert('Em breve', 'A validação será conectada na próxima etapa.')}
         onEdit={() => navigation.navigate('CreateSession', { patientId: selectedSession?.patient_id })}
-        onDelete={() => Alert.alert('Em breve', 'ExclusÃƒÂ£o de sessÃƒÂ£o ainda nÃƒÂ£o foi habilitada.')}
+        onDelete={() => Alert.alert('Em breve', 'Exclusão de sessão ainda não foi habilitada.')}
       />
     </View>
   );

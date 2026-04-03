@@ -111,7 +111,16 @@ const forbiddenTelemetryKeys = ["text", "transcript", "patient", "audio", "file_
 const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
 const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
 
-const defaultAllowedOrigins = ["https://ethos-clinical-space.lovable.app", "*.lovableproject.com"];
+const defaultAllowedOrigins = [
+  "https://ethos-clinical-space.lovable.app",
+  "*.lovableproject.com",
+  "http://localhost:8080",
+  "http://localhost:8081",
+  "http://localhost:8082",
+  "http://127.0.0.1:8080",
+  "http://127.0.0.1:8081",
+  "http://127.0.0.1:8082",
+];
 
 const parseAllowedOrigins = () => {
   const configuredOrigins = (process.env.CORS_ALLOWED_ORIGINS ?? "")

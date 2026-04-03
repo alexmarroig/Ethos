@@ -4,11 +4,27 @@
 
 Use o perfil `preview` para gerar um APK instalavel de verdade. Esse e o fluxo certo quando voce quer abrir o app como aplicativo normal no Android, sem Expo Go e sem development build.
 
+Por padrao, o build `preview` ja sai apontando para:
+
+- `https://ethos-clinical.onrender.com`
+- `https://ethos-control.onrender.com`
+
+Se voce quiser trocar a API do build, sobrescreva antes do comando:
+
+- PowerShell: `$env:EXPO_PUBLIC_ETHOS_API_URL='https://sua-api-clinical'; $env:EXPO_PUBLIC_ETHOS_CONTROL_API_URL='https://sua-api-control'`
+
 1. Faça login no Expo:
    - `npx eas-cli login`
 2. Gere o APK interno:
    - `npm --workspace apps/ethos-mobile run build:android:apk`
 3. Instale o APK no aparelho Android quando o build terminar.
+
+### Validacao rapida do APK instalado
+
+- o app abre sem Expo Go
+- o app abre sem development build
+- login funciona
+- a navegacao inicial funciona
 
 ### Perfis Android
 
