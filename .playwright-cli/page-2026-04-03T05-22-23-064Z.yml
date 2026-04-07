@@ -1,0 +1,111 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Anamnese
+                - paragraph: Coleta inicial do caso com histórico pessoal, familiar e psiquiátrico.
+              - generic:
+                - generic:
+                  - heading [level=2]: Registros de anamnese
+                  - button [expanded]:
+                    - img
+                    - text: Nova anamnese
+                - generic:
+                  - img
+                  - paragraph: Nenhuma anamnese registrada ainda.
+  - dialog "Nova anamnese" [ref=e183]:
+    - heading "Nova anamnese" [level=2] [ref=e185]
+    - generic [ref=e186]:
+      - combobox [ref=e187]:
+        - option "Selecione o paciente"
+        - option "Felipe" [selected]
+      - combobox [ref=e188]:
+        - option "Anamnese inicial" [selected]
+        - option "Complemento de anamnese"
+        - option "Anamnese infantil"
+      - textbox "Histórico pessoal" [active] [ref=e189]: Paciente com histórico de ansiedade.
+      - textbox "Histórico familiar" [ref=e190]
+      - textbox "Histórico psiquiátrico" [ref=e191]
+      - textbox "Medicamentos e condutas em uso" [ref=e192]
+      - textbox "Eventos relevantes" [ref=e193]
+    - button "Salvar anamnese" [ref=e200] [cursor=pointer]
+    - button "Close" [ref=e195] [cursor=pointer]:
+      - img [ref=e196]
+      - generic [ref=e199]: Close

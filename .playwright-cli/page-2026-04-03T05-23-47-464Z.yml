@@ -1,0 +1,108 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Relatórios
+                - paragraph: Relatórios psicológicos para terceiros, paciente ou uso interno, sempre com revisão humana.
+              - generic:
+                - generic:
+                  - heading [level=2]: Relatórios gerados
+                  - button [expanded]:
+                    - img
+                    - text: Novo relatório
+                - generic:
+                  - img
+                  - paragraph: Nenhum relatório criado ainda.
+  - dialog "Novo relatório" [ref=e234]:
+    - heading "Novo relatório" [level=2] [ref=e236]
+    - generic [ref=e237]:
+      - combobox [active] [ref=e238]:
+        - option "Selecione o paciente" [selected]
+        - option "Felipe"
+      - combobox [ref=e239]:
+        - option "Uso profissional" [selected]
+        - option "Entrega ao paciente"
+        - option "Instituição / terceiro"
+      - textbox "Escreva o rascunho inicial do relatório. Depois você pode revisar e complementar." [ref=e240]
+    - generic [ref=e241]:
+      - button "Criar relatório" [disabled]
+    - button "Close" [ref=e242] [cursor=pointer]:
+      - img [ref=e243]
+      - generic [ref=e246]: Close

@@ -1,0 +1,141 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Agenda clinica
+                - paragraph: Visao semanal.
+              - generic:
+                - generic:
+                  - button:
+                    - img
+                  - generic: Esta semana
+                  - button:
+                    - img
+                - button [expanded]:
+                  - img
+                  - text: Agendar sessao
+              - generic:
+                - generic:
+                  - generic: Seg
+                  - generic: Ter
+                  - generic: Qua
+                  - generic: Qui
+                  - generic: Sex
+                  - generic: Sab
+                  - generic: Dom
+                - generic:
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+                  - generic:
+                    - button:
+                      - paragraph: 09:00
+                      - paragraph: Felipe
+                  - generic:
+                    - generic:
+                      - paragraph: "-"
+  - dialog "Agendar sessao" [ref=e544]:
+    - heading "Agendar sessao" [level=2] [ref=e546]
+    - generic [ref=e547]:
+      - generic [ref=e548]:
+        - text: Paciente
+        - combobox [active] [ref=e549]:
+          - option "Selecione um paciente"
+          - option "Felipe" [selected]
+      - textbox [ref=e550]
+      - textbox [ref=e551]
+      - spinbutton [ref=e552]: "50"
+    - generic [ref=e553]:
+      - button "Agendar" [disabled]
+    - button "Close" [ref=e554] [cursor=pointer]:
+      - img [ref=e555]
+      - generic [ref=e558]: Close

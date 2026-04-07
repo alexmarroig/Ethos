@@ -182,9 +182,18 @@ export default function PatientDashboardScreen() {
                 <View key={notification.id} style={[styles.listRow, { borderBottomColor: theme.border }]}>
                   <View style={styles.listTextGroup}>
                     <Text style={[styles.listTitle, { color: theme.foreground }]}>{notification.title}</Text>
-                    <Text style={[styles.listMeta, { color: theme.mutedForeground }]}>{notification.message}</Text>
+                    <Text style={[styles.listMeta, { color: theme.mutedForeground }]}>
+                      {notification.body}
+                    </Text>
                   </View>
-                  <Text style={[styles.listMeta, { color: theme.mutedForeground }]}>{formatDate(notification.created_at)}</Text>
+                  <Text style={[styles.listMeta, { color: theme.mutedForeground }]}>
+                    {notification.timestamp.toLocaleString('pt-BR', {
+                      day: '2-digit',
+                      month: 'short',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    })}
+                  </Text>
                 </View>
               ))
             )}

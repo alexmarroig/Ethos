@@ -4,6 +4,7 @@ import * as SecureStore from "expo-secure-store";
 import { login as loginRequest, logout as logoutRequest, register as registerRequest } from "../services/api/auth";
 import { setHttpClientAuthToken, setHttpClientSessionInvalidHandler } from "../services/api/httpClient";
 import type { AuthResponse, AuthUser } from "../services/api/types";
+import { setNotificationsAuthToken } from "./NotificationsContext";
 
 type AuthSession = AuthResponse;
 
@@ -60,6 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const applySession = useCallback(async (nextSession: AuthSession | null) => {
     setSession(nextSession);
     setHttpClientAuthToken(nextSession?.token ?? null);
+    setNotificationsAuthToken(nextSession?.token ?? null);
     await persistStoredSession(nextSession);
   }, []);
 
@@ -76,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (!mounted) return;
         setSession(storedSession);
         setHttpClientAuthToken(storedSession?.token ?? null);
+        setNotificationsAuthToken(storedSession?.token ?? null);
       } finally {
         if (mounted) setIsHydrating(false);
       }
@@ -89,6 +92,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => {
       mounted = false;
+      setNotificationsAuthToken(null);
       setHttpClientSessionInvalidHandler(null);
     };
   }, [forceLogout]);

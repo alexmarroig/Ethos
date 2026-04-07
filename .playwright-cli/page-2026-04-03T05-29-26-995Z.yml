@@ -1,0 +1,128 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Diário e formulários
+                - paragraph: Diário emocional do paciente, anamnese inicial e formulários de acompanhamento entre sessões.
+              - generic:
+                - generic:
+                  - generic:
+                    - heading [level=2]: Diário emocional
+                    - paragraph: Visualize os registros enviados pelo paciente.
+                  - combobox
+                - generic:
+                  - img
+                  - paragraph: Nenhuma entrada de diário emocional para este paciente.
+              - generic:
+                - generic:
+                  - heading [level=2]: Formulários disponíveis
+                  - button [expanded]:
+                    - img
+                    - text: Nova entrada
+                - generic:
+                  - generic:
+                    - heading [level=3]: Diário emocional
+                    - paragraph: Registro breve de humor, gatilhos e acontecimentos do dia.
+                  - generic:
+                    - heading [level=3]: Anamnese inicial
+                    - paragraph: Coleta inicial de histórico pessoal, familiar e clínico.
+                  - generic:
+                    - heading [level=3]: Check-in semanal
+                    - paragraph: Formulário simples para acompanhar a semana entre sessões.
+                - heading [level=3]: Entradas registradas
+                - generic:
+                  - img
+                  - paragraph: Nenhuma entrada registrada ainda.
+  - dialog "Nova entrada" [ref=e446]:
+    - heading "Nova entrada" [level=2] [ref=e448]
+    - generic [ref=e449]:
+      - combobox [active] [ref=e450]:
+        - option "Selecione o formulário"
+        - option "Diário emocional" [selected]
+        - option "Anamnese inicial"
+        - option "Check-in semanal"
+      - combobox [ref=e451]:
+        - option "Selecione o paciente"
+        - option "Felipe" [selected]
+      - textbox "Dados do formulário em texto livre ou JSON" [ref=e452]
+    - button "Registrar" [ref=e459] [cursor=pointer]
+    - button "Close" [ref=e454] [cursor=pointer]:
+      - img [ref=e455]
+      - generic [ref=e458]: Close

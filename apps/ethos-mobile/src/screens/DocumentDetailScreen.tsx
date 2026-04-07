@@ -38,13 +38,17 @@ export default function DocumentDetailScreen({ route }: any) {
     const loadDocument = async () => {
       try {
         const response = await fetchDocumentDetail(documentId);
-        if (active) setDetail(response);
+        if (active) {
+          setDetail(response);
+        }
       } catch (error: any) {
         if (active) {
-          Alert.alert('Erro', error?.message ?? 'Não foi possível carregar o documento.');
+          Alert.alert('Erro', error?.message ?? 'Nao foi possivel carregar o documento.');
         }
       } finally {
-        if (active) setIsLoading(false);
+        if (active) {
+          setIsLoading(false);
+        }
       }
     };
 
@@ -65,24 +69,41 @@ export default function DocumentDetailScreen({ route }: any) {
 
   if (!detail) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background, padding: 24 }]}>
-        <Text style={[styles.emptyTitle, { color: theme.foreground }]}>Documento indisponível.</Text>
+      <View
+        style={[
+          styles.centered,
+          { backgroundColor: theme.background, padding: 24 },
+        ]}
+      >
+        <Text style={[styles.emptyTitle, { color: theme.foreground }]}>
+          Documento indisponivel.
+        </Text>
       </View>
     );
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background }]} contentContainerStyle={styles.content}>
-      <View style={[styles.heroCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
+    <ScrollView
+      style={[styles.container, { backgroundColor: theme.background }]}
+      contentContainerStyle={styles.content}
+    >
+      <View
+        style={[
+          styles.heroCard,
+          { backgroundColor: theme.card, borderColor: theme.border },
+        ]}
+      >
         <View style={styles.iconRow}>
           <View style={[styles.iconBox, { backgroundColor: theme.background }]}>
             <FileText size={24} color={theme.primary} />
           </View>
-          <Text style={[styles.heroTitle, { color: theme.foreground }]}>{detail.document.title}</Text>
+          <Text style={[styles.heroTitle, { color: theme.foreground }]}>
+            {detail.document.title}
+          </Text>
         </View>
 
         <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
-          Paciente: {detail.patient?.label ?? 'Não informado'}
+          Paciente: {detail.patient?.label ?? 'Nao informado'}
         </Text>
         <Text style={[styles.metaText, { color: theme.mutedForeground }]}>
           Criado em {formatDateTime(detail.document.created_at)}
@@ -92,30 +113,70 @@ export default function DocumentDetailScreen({ route }: any) {
         </Text>
 
         <View style={styles.actionRow}>
-          <TouchableOpacity style={styles.primaryAction} onPress={() => Alert.alert('Em breve', 'Ação de download preparada para integração real.')}>
+          <TouchableOpacity
+            style={styles.primaryAction}
+            onPress={() =>
+              Alert.alert(
+                'Em breve',
+                'Acao de download preparada para integracao real.',
+              )
+            }
+          >
             <Download size={16} color="#fff" />
             <Text style={styles.primaryActionText}>Download</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => Alert.alert('Em breve', 'Compartilhamento será conectado na próxima etapa.')}>
+          <TouchableOpacity
+            style={[styles.secondaryAction, { borderColor: theme.border }]}
+            onPress={() =>
+              Alert.alert(
+                'Em breve',
+                'Compartilhamento sera conectado na proxima etapa.',
+              )
+            }
+          >
             <Share2 size={16} color={theme.primary} />
-            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Compartilhar</Text>
+            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>
+              Compartilhar
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Versões</Text>
+        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>
+          Versoes
+        </Text>
         {detail.versions.length === 0 ? (
-          <View style={[styles.versionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.versionText, { color: theme.mutedForeground }]}>Nenhuma versão registrada ainda.</Text>
+          <View
+            style={[
+              styles.versionCard,
+              { backgroundColor: theme.card, borderColor: theme.border },
+            ]}
+          >
+            <Text style={[styles.versionText, { color: theme.mutedForeground }]}>
+              Nenhuma versao registrada ainda.
+            </Text>
           </View>
         ) : (
           detail.versions.map((version) => (
-            <View key={version.id} style={[styles.versionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-              <Text style={[styles.versionTitle, { color: theme.foreground }]}>Versão {version.version}</Text>
-              <Text style={[styles.versionMeta, { color: theme.mutedForeground }]}>{formatDateTime(version.created_at)}</Text>
-              <Text style={[styles.versionPreview, { color: theme.foreground }]} numberOfLines={4}>
-                {version.content || 'Sem conteúdo disponível.'}
+            <View
+              key={version.id}
+              style={[
+                styles.versionCard,
+                { backgroundColor: theme.card, borderColor: theme.border },
+              ]}
+            >
+              <Text style={[styles.versionTitle, { color: theme.foreground }]}>
+                Versao {version.version}
+              </Text>
+              <Text style={[styles.versionMeta, { color: theme.mutedForeground }]}>
+                {formatDateTime(version.created_at)}
+              </Text>
+              <Text
+                style={[styles.versionPreview, { color: theme.foreground }]}
+                numberOfLines={4}
+              >
+                {version.content || 'Sem conteudo disponivel.'}
               </Text>
             </View>
           ))

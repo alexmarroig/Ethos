@@ -1,0 +1,108 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Contratos
+                - paragraph: Contrato terapêutico com envio por portal e exportação em PDF ou DOCX.
+              - generic:
+                - button [expanded]:
+                  - img
+                  - text: Novo contrato
+              - generic:
+                - generic:
+                  - img
+                  - paragraph: Nenhum contrato criado ainda.
+  - dialog "Novo contrato" [ref=e368]:
+    - heading "Novo contrato" [level=2] [ref=e370]
+    - generic [ref=e371]:
+      - combobox [active] [ref=e372]:
+        - option "Selecione o paciente"
+        - option "Felipe" [selected]
+      - 'textbox "Valor ou pacote (ex.: R$ 220,00 por sessão)" [ref=e373]'
+      - textbox "Periodicidade" [ref=e374]: Sessões semanais
+      - textbox "Política de faltas e cancelamentos" [ref=e375]: Cancelamentos devem ocorrer com 24h de antecedência.
+      - textbox "Forma de pagamento" [ref=e376]: Pix ou transferência
+      - generic [ref=e377]:
+        - checkbox "Enviar ao paciente logo após criar" [checked] [ref=e378]
+        - text: Enviar ao paciente logo após criar
+    - button "Criar contrato" [ref=e385] [cursor=pointer]
+    - button "Close" [ref=e380] [cursor=pointer]:
+      - img [ref=e381]
+      - generic [ref=e384]: Close

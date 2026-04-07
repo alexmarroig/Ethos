@@ -1,0 +1,168 @@
+- generic:
+  - generic:
+    - list
+    - region "Notifications alt+T"
+    - generic:
+      - complementary:
+        - generic:
+          - heading [level=1]: ETHOS
+          - generic:
+            - paragraph: Camila Veloso de Freitas
+            - generic: Profissional
+        - navigation:
+          - list:
+            - listitem:
+              - button:
+                - img
+                - generic: Linha do tempo
+            - listitem:
+              - button:
+                - img
+                - generic: Agenda clínica
+            - listitem:
+              - button:
+                - img
+                - generic: Pacientes
+            - listitem:
+              - button:
+                - img
+                - generic: Escalas
+            - listitem:
+              - button:
+                - img
+                - generic: Diário e formulários
+            - listitem:
+              - button:
+                - img
+                - generic: Anamnese
+            - listitem:
+              - button:
+                - img
+                - generic: Financeiro
+            - listitem:
+              - button:
+                - img
+                - generic: Relatórios
+            - listitem:
+              - button:
+                - img
+                - generic: Documentos
+            - listitem:
+              - button:
+                - img
+                - generic: Contratos
+            - listitem:
+              - button:
+                - img
+                - generic: IA — Organizar texto
+            - listitem:
+              - button:
+                - img
+                - generic: Backup e dados
+            - listitem:
+              - button:
+                - img
+                - generic: Ética e sigilo
+            - listitem:
+              - button:
+                - img
+                - generic: Instalar no celular
+        - generic:
+          - button:
+            - img
+            - generic: Conta
+          - button:
+            - img
+            - generic: Sair
+      - main:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - heading [level=1]: Documentos
+                - paragraph: Modelos padronizados e documentos vinculados aos pacientes.
+              - generic:
+                - generic:
+                  - heading [level=2]: Modelos padronizados
+                  - button [expanded]:
+                    - img
+                    - text: Novo documento
+                - generic:
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Resumo de sessão
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Nota de evolução
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Recibo
+                        - paragraph: Modelo básico de recibo de atendimento.
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Declaração
+                        - paragraph: Declaração simples de comparecimento.
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Atestado psicológico
+                        - paragraph: Atestado psicológico para afastamento ou comparecimento.
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Contrato terapêutico
+                        - paragraph: Rascunho base para contrato de prestação de serviços.
+                    - button:
+                      - img
+                      - text: Usar template
+                  - generic:
+                    - generic:
+                      - generic:
+                        - heading [level=3]: Relatório psicológico
+                        - paragraph: Estrutura inicial para relatórios destinados a terceiros.
+                    - button:
+                      - img
+                      - text: Usar template
+              - generic:
+                - heading [level=2]: Documentos criados
+                - generic:
+                  - img
+                  - paragraph: Nenhum documento criado ainda.
+  - dialog "Novo documento" [ref=e323]:
+    - heading "Novo documento" [level=2] [ref=e325]
+    - generic [ref=e326]:
+      - combobox [active] [ref=e327]:
+        - option "Selecione o paciente"
+        - option "Felipe" [selected]
+      - combobox [ref=e328]:
+        - option "Resumo de sessão" [selected]
+        - option "Nota de evolução"
+        - option "Recibo"
+        - option "Declaração"
+        - option "Atestado psicológico"
+        - option "Contrato terapêutico"
+        - option "Relatório psicológico"
+      - textbox "Título do documento (Resumo de sessão)" [ref=e329]
+    - button "Criar documento" [ref=e336] [cursor=pointer]
+    - button "Close" [ref=e331] [cursor=pointer]:
+      - img [ref=e332]
+      - generic [ref=e335]: Close
