@@ -1,11 +1,13 @@
 // ethos-mobile/src/screens/SettingsScreen.tsx
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Switch, Alert } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { Moon, Shield, Database, Smartphone, User, ChevronRight } from 'lucide-react-native';
+import { useAuth } from '../../../shared/hooks/useAuth';
 
 export default function SettingsScreen() {
     const theme = useTheme();
+    const { handleLogout } = useAuth();
 
     const [biometricsEnabled, setBiometricsEnabled] = React.useState(true);
     const [offlineMode, setOfflineMode] = React.useState(true);
@@ -61,7 +63,17 @@ export default function SettingsScreen() {
             </View>
 
             <View style={styles.footer}>
-                <TouchableOpacity style={[styles.logoutButton, { backgroundColor: theme.destructive + '20' }]}>
+                <TouchableOpacity
+                    style={[styles.logoutButton, { backgroundColor: theme.destructive + '20' }]}
+                    onPress={() => Alert.alert(
+                        'Encerrar Sessão',
+                        'Tem certeza que deseja sair?',
+                        [
+                            { text: 'Cancelar', style: 'cancel' },
+                            { text: 'Sair', style: 'destructive', onPress: handleLogout },
+                        ]
+                    )}
+                >
                     <Text style={[styles.logoutText, { color: theme.destructive }]}>Encerrar Sessão Segura</Text>
                 </TouchableOpacity>
                 <Text style={[styles.versionText, { color: theme.mutedForeground }]}>ETHOS v1.0.0 (Build 42)</Text>
