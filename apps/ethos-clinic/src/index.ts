@@ -1,8 +1,17 @@
 import { createEthosBackend } from "./server";
+import { loadFromFile, saveToFile, startAutosave } from "./infra/persist";
+
+loadFromFile();
+startAutosave(30_000);
 
 const port = Number(process.env.PORT ?? 8787);
-
 const server = createEthosBackend();
+
 server.listen(port, "0.0.0.0", () => {
   process.stdout.write(`ETHOS backend listening on ${port}\n`);
+});
+
+process.on("SIGTERM", () => {
+  saveToFile();
+  process.exit(0);
 });
