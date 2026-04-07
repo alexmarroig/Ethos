@@ -1,10 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Alert, Platform, Modal } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { MoreVertical, Calendar as CalendarIcon, ChevronLeft, ChevronRight, Video, FileText, CheckCircle2, Clock, Search, Bell } from 'lucide-react-native';
 import { SessionContextModal } from '../components/SessionContextModal';
 import { useNavigation } from '@react-navigation/native';
-import { fetchSessions } from '../../../shared/services/api/sessions';
+import { fetchSessions, fetchPatients } from '../../../shared/services/api/sessions';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
 
 const primaryTeal = '#234e5c';
@@ -16,42 +16,39 @@ export default function ScheduleScreen() {
     const [selectedSession, setSelectedSession] = useState<any | null>(null);
     const [showCalendar, setShowCalendar] = useState(false);
     const [sessions, setSessions] = useState<any[]>([]);
+    const [patientMap, setPatientMap] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(true);
     const navigation = useNavigation<any>();
 
-    // Mock dates for the Calendar Strip
-    const weekDays = [
-        { day: 'Seg', date: '02', active: false },
-        { day: 'Ter', date: '03', active: false },
-        { day: 'Qua', date: '04', active: true },
-        { day: 'Qui', date: '05', active: false },
-        { day: 'Sex', date: '06', active: false },
-        { day: 'Sáb', date: '07', active: false },
-    ];
+    const today = new Date();
+    const weekDays = Array.from({ length: 7 }, (_, i) => {
+        const d = new Date(today);
+        d.setDate(today.getDate() - today.getDay() + 1 + i);
+        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        return {
+            day: dayNames[d.getDay()],
+            date: String(d.getDate()).padStart(2, '0'),
+            active: d.toDateString() === today.toDateString(),
+            fullDate: d,
+        };
+    });
 
-    React.useEffect(() => {
-        loadSessions();
-    }, []);
-
-    const loadSessions = async () => {
+    const loadSessions = useCallback(async () => {
+        setIsLoading(true);
         try {
-            setIsLoading(true);
-            const data = await fetchSessions();
-            if (data && data.length > 0) {
-                setSessions(data);
-            } else {
-                throw new Error('No data');
-            }
-        } catch (err: any) {
-            setSessions([
-                { id: '1', patientName: 'João Silva', time: '14:00 - 14:50', status: 'pending', type: 'Presencial' },
-                { id: '2', patientName: 'Maria Antônia', time: '16:30 - 17:20', status: 'in_progress', type: 'Vídeo' },
-                { id: '3', patientName: 'Carlos Mendes', time: '18:00 - 18:50', status: 'completed', type: 'Presencial' },
-            ]);
+            const [data, patients] = await Promise.all([fetchSessions(), fetchPatients()]);
+            const map: Record<string, string> = {};
+            (patients as any[]).forEach(p => { map[p.id] = p.label ?? p.name ?? '—'; });
+            setPatientMap(map);
+            setSessions(Array.isArray(data) ? data : []);
+        } catch {
+            setSessions([]);
         } finally {
             setIsLoading(false);
         }
-    };
+    }, []);
+
+    useEffect(() => { loadSessions(); }, [loadSessions]);
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
@@ -132,7 +129,7 @@ export default function ScheduleScreen() {
 
                             <View style={styles.patientRow}>
                                 <View style={styles.patientInfo}>
-                                    <Text style={[styles.patientName, { color: primaryTeal }]}>{session.patientName}</Text>
+                                    <Text style={[styles.patientName, { color: primaryTeal }]}>{session.patientName ?? patientMap[session.patient_id] ?? '—'}</Text>
                                     <View style={styles.typeTag}>
                                         {session.type === 'Vídeo' ? (
                                             <Video size={14} color={theme.mutedForeground} />
