@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, Dimensions, Platform } from 'react-native';
 import { useTheme } from '../../../shared/hooks/useTheme';
+import { fetchFinancialEntries } from '../../../shared/services/api/sessions';
 import { Banknote, TrendingUp, TrendingDown, ChevronRight, Plus, Download, Filter, ArrowUpRight, ArrowDownLeft } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
 
@@ -11,13 +12,24 @@ const { width } = Dimensions.get('window');
 export default function FinanceScreen() {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
+    const [entries, setEntries] = useState<any[]>([]);
+    const [loadingEntries, setLoadingEntries] = useState(true);
 
-    const transactions = [
-        { id: '1', title: 'Sessão João Silva', value: 'R$ 180,00', date: 'Hoje, 14:00', type: 'income', status: 'received' },
-        { id: '2', title: 'Sessão Maria Antônia', value: 'R$ 200,00', date: 'Hoje, 16:30', type: 'income', status: 'pending' },
-        { id: '3', title: 'Aluguel Consultório', value: 'R$ 1.200,00', date: '01 Mar, 09:00', type: 'expense', status: 'paid' },
-        { id: '4', title: 'Sessão Carlos Mendes', value: 'R$ 180,00', date: 'Ontem, 18:00', type: 'income', status: 'received' },
-    ];
+    useEffect(() => {
+        fetchFinancialEntries()
+            .then(data => setEntries(Array.isArray(data) ? data : []))
+            .catch(() => setEntries([]))
+            .finally(() => setLoadingEntries(false));
+    }, []);
+
+    const transactions = entries.map(e => ({
+        id: e.id,
+        title: e.notes ?? (e.category === 'session' ? 'Sessão' : 'Lançamento'),
+        value: `R$ ${((e.amount ?? 0) / 100).toFixed(2).replace('.', ',')}`,
+        date: new Date(e.created_at ?? e.date ?? Date.now()).toLocaleDateString('pt-BR'),
+        type: e.type === 'payment' ? 'income' : 'expense',
+        status: e.status ?? 'received',
+    }));
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
