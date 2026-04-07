@@ -86,7 +86,7 @@ import {
   scheduleNotification,
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
-import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
+import { db, uid, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";

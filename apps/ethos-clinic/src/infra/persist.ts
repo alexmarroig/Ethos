@@ -7,10 +7,10 @@ const DATA_FILE = process.env.DATA_FILE ?? path.join(process.cwd(), "data", "eth
 export function saveToFile(): void {
   const dir = path.dirname(DATA_FILE);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-  const snapshot: Record<string, [string, unknown][]> = {};
+  const snapshot: Record<string, unknown[][]> = {};
   for (const [key, value] of Object.entries(db)) {
     if (value instanceof Map) {
-      snapshot[key] = Array.from(value.entries());
+      snapshot[key] = Array.from((value as Map<unknown, unknown>).entries());
     }
   }
   writeFileSync(DATA_FILE, JSON.stringify(snapshot, null, 2), "utf8");
