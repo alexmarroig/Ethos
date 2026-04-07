@@ -12,9 +12,14 @@ const sessionContract = {
     '/sessions/{id}/transcribe': ['post'],
     '/sessions/{id}/clinical-note': ['post'],
     '/clinical-notes/{id}/validate': ['post'],
-    '/patients': ['get'], // Assuming patients are at this endpoint from openapi
+    '/clinical-notes': ['post', 'get'],
+    '/patients': ['get', 'post'],
+    '/patients/{id}': ['patch'],
+    '/documents': ['get'],
+    '/financial/entries': ['get'],
+    '/financial/entry': ['post'],
     '/jobs/{id}': ['get'],
-    '/clinical-notes': ['post'],
+    '/notifications/whatsapp/send': ['post'],
 } as const;
 
 const apiClient = createHttpClient({
@@ -83,4 +88,53 @@ export const triggerTranscription = async (sessionId: string): Promise<string> =
         method: 'POST',
     });
     return res.job_id;
+};
+
+export const createPatient = async (data: {
+    label: string;
+    phone?: string;
+    email?: string;
+    cpf?: string;
+    birth_date?: string;
+    notes?: string;
+}): Promise<any> => {
+    return apiClient.request<any>('/patients', { method: 'POST', body: data });
+};
+
+export const updatePatient = async (id: string, data: Partial<{
+    label: string;
+    phone: string;
+    email: string;
+    cpf: string;
+    birth_date: string;
+    notes: string;
+}>): Promise<any> => {
+    return apiClient.request<any>(`/patients/${id}` as any, { method: 'PATCH', body: data });
+};
+
+export const fetchDocuments = async (): Promise<any[]> => {
+    return apiClient.request<any[]>('/documents', { method: 'GET' });
+};
+
+export const fetchFinancialEntries = async (): Promise<any[]> => {
+    return apiClient.request<any[]>('/financial/entries', { method: 'GET' });
+};
+
+export const createFinancialEntry = async (data: {
+    patient_id?: string;
+    amount: number;
+    type: 'payment' | 'charge';
+    category: 'session' | 'package' | 'other';
+    method: string;
+    notes?: string;
+}): Promise<any> => {
+    return apiClient.request<any>('/financial/entry', { method: 'POST', body: data });
+};
+
+export const sendWhatsAppNotification = async (data: {
+    to: string;
+    message: string;
+    patient_id?: string;
+}): Promise<any> => {
+    return apiClient.request<any>('/notifications/whatsapp/send', { method: 'POST', body: data });
 };
