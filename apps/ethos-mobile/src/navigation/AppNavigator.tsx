@@ -45,6 +45,11 @@ const useNavigatorTheme = () => {
 
 function ClinicianTabs() {
   const { themeColors } = useNavigatorTheme();
+  const { user } = useAuth();
+
+  // Assistant can only see Dashboard, Schedule, Patients and Settings.
+  // Documents and Finance are restricted for now to match clinical plane logic.
+  const isAssistant = user?.role === 'assistant';
 
   return (
     <Tab.Navigator
@@ -99,24 +104,28 @@ function ClinicianTabs() {
           tabBarIcon: ({ color, size }) => <Users color={color} size={size} />,
         }}
       />
-      <Tab.Screen
-        name="Documents"
-        component={DocumentsScreen}
-        options={{
-          title: 'Docs',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
-        }}
-      />
-      <Tab.Screen
-        name="Finance"
-        component={FinanceScreen}
-        options={{
-          title: 'Financeiro',
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => <Banknote color={color} size={size} />,
-        }}
-      />
+      {!isAssistant && (
+        <Tab.Screen
+          name="Documents"
+          component={DocumentsScreen}
+          options={{
+            title: 'Docs',
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => <FileText color={color} size={size} />,
+          }}
+        />
+      )}
+      {!isAssistant && (
+        <Tab.Screen
+          name="Finance"
+          component={FinanceScreen}
+          options={{
+            title: 'Financeiro',
+            headerShown: false,
+            tabBarIcon: ({ color, size }) => <Banknote color={color} size={size} />,
+          }}
+        />
+      )}
       <Tab.Screen
         name="Settings"
         component={SettingsScreen}

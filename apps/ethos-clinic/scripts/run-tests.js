@@ -12,13 +12,16 @@ const testFiles = readdirSync(testsDirectory)
 for (const fileName of testFiles) {
   console.log(`Running ${fileName}...`);
   const result = spawnSync(
-    process.execPath,
-    ["--test", "-r", "ts-node/register/transpile-only", path.join("test", fileName)],
+    "npx",
+    ["ts-node", "--transpile-only", "-P", "tsconfig.json", path.join("test", fileName)],
     {
       cwd: workspaceRoot,
       stdio: "inherit",
-      env: process.env,
-    },
+      env: {
+        ...process.env,
+        TS_NODE_PROJECT: "tsconfig.json"
+      }
+    }
   );
 
   if (result.status !== 0) {
