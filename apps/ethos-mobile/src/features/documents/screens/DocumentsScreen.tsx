@@ -3,29 +3,44 @@ import { View, Text, StyleSheet, ScrollView, useColorScheme, TouchableOpacity, T
 import { useTheme } from '../../../shared/hooks/useTheme';
 import { Search, FileText, Filter, CheckCircle, Clock, ChevronRight, ChevronLeft, Plus, MoreHorizontal, FileDown } from 'lucide-react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
+import { fetchDocuments } from '../../../shared/services/api/sessions';
 
 const primaryTeal = '#234e5c';
 const accentTeal = '#439299';
-
-const mockDocs = [
-    { id: '1', title: 'Prontuário - Mariana Albuquerque', patient: 'Mariana Albuquerque', date: 'Hoje, 14:50', status: 'signed', type: 'Prontuário' },
-    { id: '2', title: 'Relatório Psicológico - João Silva', patient: 'João Silva', date: 'Ontem, 16:30', status: 'draft', type: 'Relatório' },
-    { id: '3', title: 'Anamnese - Roberto Santos', patient: 'Roberto Santos', date: '02 Mar, 10:00', status: 'signed', type: 'Prontuário' },
-    { id: '4', title: 'Evolução Clínica - Ana Paula', patient: 'Ana Paula', date: '28 Fev, 15:20', status: 'signed', type: 'Prontuário' },
-];
 
 export default function DocumentsScreen({ navigation, route }: any) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
     const [filter, setFilter] = useState('Todos');
+    const [docs, setDocs] = useState<any[]>([]);
+    const [loadingDocs, setLoadingDocs] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
 
     const categories = ['Todos', 'Assinados', 'Rascunhos', 'Modelos'];
+
+    // Load documents from API
+    useEffect(() => {
+        fetchDocuments()
+            .then(data => setDocs(Array.isArray(data) ? data : []))
+            .catch(() => setDocs([]))
+            .finally(() => setLoadingDocs(false));
+    }, []);
 
     // Apply filter from navigation params (e.g. from "Laudos Atrasados" alert card)
     useEffect(() => {
       const paramFilter = route.params?.filter;
       if (paramFilter) setFilter(paramFilter);
     }, [route.params?.filter]);
+
+    const filteredDocs = docs.filter(doc => {
+        const matchesSearch = !searchQuery || (doc.title ?? doc.type ?? '').toLowerCase().includes(searchQuery.toLowerCase());
+        if (!matchesSearch) return false;
+        if (filter === 'Todos') return true;
+        if (filter === 'Assinados') return doc.status === 'signed' || doc.status === 'validated';
+        if (filter === 'Rascunhos') return doc.status === 'draft';
+        if (filter === 'Modelos') return doc.type === 'template';
+        return true;
+    });
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
@@ -57,6 +72,8 @@ export default function DocumentsScreen({ navigation, route }: any) {
                         placeholder="Buscar por nome ou data..."
                         placeholderTextColor={theme.mutedForeground}
                         style={[styles.searchInput, { color: primaryTeal }]}
+                        value={searchQuery}
+                        onChangeText={setSearchQuery}
                     />
                 </View>
                 <TouchableOpacity style={[styles.filterButton, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
@@ -90,58 +107,69 @@ export default function DocumentsScreen({ navigation, route }: any) {
 
             {/* Documents List */}
             <FlatList
-                data={mockDocs}
+                data={filteredDocs}
                 keyExtractor={(item) => item.id}
                 contentContainerStyle={styles.listContent}
                 showsVerticalScrollIndicator={false}
-                renderItem={({ item, index }) => (
-                    <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
-                        <TouchableOpacity
-                            style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
-                            onPress={() => navigation.navigate('DocumentDetail', { document: {
-                                id: item.id,
-                                title: item.title,
-                                patient: item.patient,
-                                status: item.status === 'signed' ? 'assinado' : 'rascunho',
-                                date: item.date,
-                                content: (item as any).content,
-                            } })}
-                        >
-                            <View style={[styles.docIconWrapper, { backgroundColor: item.status === 'signed' ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
-                                <FileText size={24} color={item.status === 'signed' ? '#16a34a' : '#f59e0b'} />
-                            </View>
-
-                            <View style={styles.docInfo}>
-                                <Text style={[styles.docTitle, { color: primaryTeal }]} numberOfLines={1}>
-                                    {item.title}
-                                </Text>
-                                <View style={styles.docMeta}>
-                                    {item.status === 'signed' ? (
-                                        <View style={styles.statusBadge}>
-                                            <CheckCircle size={12} color="#16a34a" />
-                                            <Text style={[styles.statusText, { color: '#16a34a' }]}>Assinado</Text>
-                                        </View>
-                                    ) : (
-                                        <View style={[styles.statusBadge, { backgroundColor: '#fef3c7' }]}>
-                                            <Clock size={12} color="#d97706" />
-                                            <Text style={[styles.statusText, { color: '#d97706' }]}>Rascunho</Text>
-                                        </View>
-                                    )}
-                                    <Text style={[styles.docDate, { color: theme.mutedForeground }]}>
-                                        {item.date}
-                                    </Text>
+                ListEmptyComponent={
+                    <Text style={{ color: theme.mutedForeground, fontFamily: 'Inter', textAlign: 'center', marginTop: 32 }}>
+                        {loadingDocs ? 'Carregando documentos...' : 'Nenhum documento encontrado.'}
+                    </Text>
+                }
+                renderItem={({ item, index }) => {
+                    const isSigned = item.status === 'signed' || item.status === 'validated';
+                    const docTitle = item.title ?? item.type ?? 'Documento';
+                    const docDate = item.created_at
+                        ? new Date(item.created_at).toLocaleDateString('pt-BR')
+                        : '—';
+                    return (
+                        <Animated.View entering={FadeInDown.delay(index * 100).duration(500)}>
+                            <TouchableOpacity
+                                style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
+                                onPress={() => navigation.navigate('DocumentDetail', { document: {
+                                    id: item.id,
+                                    title: docTitle,
+                                    status: isSigned ? 'assinado' : 'rascunho',
+                                    date: docDate,
+                                    content: item.content ?? '',
+                                } })}
+                            >
+                                <View style={[styles.docIconWrapper, { backgroundColor: isSigned ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
+                                    <FileText size={24} color={isSigned ? '#16a34a' : '#f59e0b'} />
                                 </View>
-                            </View>
 
-                            <View style={styles.cardActions}>
-                                <TouchableOpacity style={styles.actionIcon}>
-                                    <FileDown size={20} color={theme.mutedForeground} />
-                                </TouchableOpacity>
-                                <ChevronRight size={18} color={theme.mutedForeground} />
-                            </View>
-                        </TouchableOpacity>
-                    </Animated.View>
-                )}
+                                <View style={styles.docInfo}>
+                                    <Text style={[styles.docTitle, { color: primaryTeal }]} numberOfLines={1}>
+                                        {docTitle}
+                                    </Text>
+                                    <View style={styles.docMeta}>
+                                        {isSigned ? (
+                                            <View style={styles.statusBadge}>
+                                                <CheckCircle size={12} color="#16a34a" />
+                                                <Text style={[styles.statusText, { color: '#16a34a' }]}>Assinado</Text>
+                                            </View>
+                                        ) : (
+                                            <View style={[styles.statusBadge, { backgroundColor: '#fef3c7' }]}>
+                                                <Clock size={12} color="#d97706" />
+                                                <Text style={[styles.statusText, { color: '#d97706' }]}>Rascunho</Text>
+                                            </View>
+                                        )}
+                                        <Text style={[styles.docDate, { color: theme.mutedForeground }]}>
+                                            {docDate}
+                                        </Text>
+                                    </View>
+                                </View>
+
+                                <View style={styles.cardActions}>
+                                    <TouchableOpacity style={styles.actionIcon}>
+                                        <FileDown size={20} color={theme.mutedForeground} />
+                                    </TouchableOpacity>
+                                    <ChevronRight size={18} color={theme.mutedForeground} />
+                                </View>
+                            </TouchableOpacity>
+                        </Animated.View>
+                    );
+                }}
             />
 
             <TouchableOpacity style={styles.fab}>
