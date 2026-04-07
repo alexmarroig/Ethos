@@ -836,6 +836,28 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
+      // WhatsApp notification (queued — pluggable provider via WHATSAPP_WEBHOOK_URL env)
+      if (method === "POST" && url.pathname === "/notifications/whatsapp/send") {
+        const body = await readJson(req);
+        if (!body.to || !body.message) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "to and message are required");
+        }
+        const logId = uid();
+        const logEntry = {
+          id: logId,
+          channel: "whatsapp",
+          recipient: String(body.to),
+          message: String(body.message),
+          patient_id: body.patient_id ? String(body.patient_id) : undefined,
+          sent_by: auth.user.id,
+          sent_at: new Date().toISOString(),
+          status: "queued",
+        };
+        db.notificationLogs.set(logId, logEntry as any);
+        addAudit(auth.user.id, "WHATSAPP_NOTIFICATION_QUEUED");
+        return ok(res, requestId, 201, { id: logId, status: "queued", message: "Notification queued" });
+      }
+
       // Document templates (lista pública)
       if (method === "GET" && url.pathname === "/document-templates") {
         return ok(res, requestId, 200, listDocumentTemplates());
