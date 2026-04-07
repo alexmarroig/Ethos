@@ -8,15 +8,30 @@ import Animated, { FadeInDown } from 'react-native-reanimated';
 const primaryTeal = '#234e5c';
 const accentTeal = '#439299';
 
-export default function PatientsScreen() {
+export default function PatientsScreen({ navigation }: any) {
     const isDark = useColorScheme() === 'dark';
     const theme = useTheme();
-    const { patients, isLoading, error } = usePatients();
+    const { patients, isLoading, error, reload } = usePatients();
     const [searchQuery, setSearchQuery] = useState('');
 
     const filteredPatients = patients.filter(p =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase())
     ).sort((a, b) => a.name.localeCompare(b.name));
+
+    if (isLoading) return (
+        <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa', justifyContent: 'center', alignItems: 'center' }]}>
+            <Text style={{ color: theme.mutedForeground, fontFamily: 'Inter' }}>Carregando pacientes...</Text>
+        </View>
+    );
+
+    if (error) return (
+        <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa', justifyContent: 'center', alignItems: 'center', padding: 24 }]}>
+            <Text style={{ color: '#ef4444', fontFamily: 'Inter', marginBottom: 16, textAlign: 'center' }}>{error}</Text>
+            <TouchableOpacity onPress={reload} style={[styles.addButton, { backgroundColor: '#234e5c' }]}>
+                <Text style={{ color: '#fff', fontFamily: 'Inter', fontWeight: '600' }}>Tentar novamente</Text>
+            </TouchableOpacity>
+        </View>
+    );
 
     return (
         <View style={[styles.container, { backgroundColor: isDark ? '#1a1d21' : '#f8f9fa' }]}>
@@ -26,7 +41,10 @@ export default function PatientsScreen() {
                     <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Meus Pacientes</Text>
                     <Text style={[styles.title, { color: primaryTeal }]}>Base Clínica</Text>
                 </View>
-                <TouchableOpacity style={[styles.addButton, { backgroundColor: primaryTeal }]}>
+                <TouchableOpacity
+                    style={[styles.addButton, { backgroundColor: primaryTeal }]}
+                    onPress={() => navigation.navigate('CreatePatient')}
+                >
                     <UserPlus size={22} color="#fff" />
                 </TouchableOpacity>
             </View>
@@ -63,6 +81,7 @@ export default function PatientsScreen() {
                     >
                         <TouchableOpacity
                             style={[styles.patientCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
+                            onPress={() => navigation.navigate('PatientDetail', { patient })}
                         >
                             <View style={[styles.avatar, { backgroundColor: patient.status === 'active' ? 'rgba(67, 146, 153, 0.1)' : 'rgba(0,0,0,0.05)' }]}>
                                 <Text style={[styles.avatarText, { color: patient.status === 'active' ? accentTeal : theme.mutedForeground }]}>
