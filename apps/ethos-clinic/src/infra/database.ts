@@ -1,277 +1,126 @@
-import crypto from "node:crypto";
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { writeFileSync, readFileSync, existsSync, mkdirSync } from "node:fs";
+import { join } from "node:path";
 import type {
   AnamnesisResponse,
-  AuditEvent,
-  AudioRecord,
+  AuditEvnt,
+  ClinicalDocument,
+  ClinicalDocumentType,
   ClinicalNote,
   ClinicalReport,
   ClinicalSession,
-  ClinicalDocument,
-  ClinicalDocumentVersion,
+  DocumentTemplate,
+  EmotionalDiaryEntry,
   FinancialEntry,
-  FormEntry,
   Invite,
   Job,
+  LocalEntitlementSnapshot,
   NotificationConsent,
   NotificationLog,
   NotificationSchedule,
   NotificationTemplate,
-  EmotionalDiaryEntry,
-  PatientAsyncMessage,
   Patient,
+  ScaleRecord,
+  ScaleTemplate,
   SessionToken,
   TelemetryEvent,
   Transcript,
-  User,
-  LocalEntitlementSnapshot,
-  ScaleTemplate,
-  ScaleRecord,
-  ObservabilityAlert,
-  DocumentTemplate,
+  UUID,
+  User
 } from "../domain/types";
 
-const now = () => new Date().toISOString();
-export const uid = () => crypto.randomUUID();
+const DATA_DIR = join(__dirname, "../../data");
+const DB_FILE = join(DATA_DIR, "db.json");
 
-export const hashPassword = (password: string) => {
-  const salt = crypto.randomBytes(16).toString("hex");
-  const hash = crypto.scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${hash}`;
-};
-
-export const verifyPassword = (password: string, stored: string) => {
-  const [salt, hash] = stored.split(":");
-  if (!salt || !hash) return false;
-  const calculated = crypto.scryptSync(password, salt, 64).toString("hex");
-  return crypto.timingSafeEqual(Buffer.from(hash), Buffer.from(calculated));
-};
-
-export const hashInviteToken = (token: string) => crypto.createHash("sha256").update(token).digest("hex");
-export const encrypt = (raw: string) => `enc:${Buffer.from(raw).toString("base64")}`;
-
-const DEFAULT_IDEMPOTENCY_TTL_MS = 24 * 60 * 60 * 1000;
-const DEFAULT_IDEMPOTENCY_CLEANUP_INTERVAL_MS = 5 * 60 * 1000;
-
-export type IdempotencyRecord = {
-  statusCode: number;
-  body: unknown;
-  createdAt: string;
-  expiresAt: number;
-};
-
-export const IDEMPOTENCY_TTL_MS = Number(process.env.IDEMPOTENCY_TTL_MS ?? DEFAULT_IDEMPOTENCY_TTL_MS);
-const IDEMPOTENCY_CLEANUP_INTERVAL_MS = Number(process.env.IDEMPOTENCY_CLEANUP_INTERVAL_MS ?? DEFAULT_IDEMPOTENCY_CLEANUP_INTERVAL_MS);
+if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
 
 export const db = {
-  users: new Map<string, User>(),
-  invites: new Map<string, Invite>(),
-  sessionsTokens: new Map<string, SessionToken>(),
-
-  patients: new Map<string, Patient>(),
-  sessions: new Map<string, ClinicalSession>(),
-  audioRecords: new Map<string, AudioRecord>(),
-  transcripts: new Map<string, Transcript>(),
-  clinicalNotes: new Map<string, ClinicalNote>(),
-  reports: new Map<string, ClinicalReport>(),
-  anamnesis: new Map<string, AnamnesisResponse>(),
-  scales: new Map<string, ScaleRecord>(),
-  forms: new Map<string, FormEntry>(),
-  financial: new Map<string, FinancialEntry>(),
-  jobs: new Map<string, Job>(),
-  documents: new Map<string, ClinicalDocument>(),
-  documentVersions: new Map<string, ClinicalDocumentVersion>(),
-  documentTemplates: new Map<string, DocumentTemplate>(),
-  contracts: new Map<string, Record<string, unknown>>(),
-  patientAccess: new Map<string, Record<string, unknown>>(),
-  privateComments: new Map<string, Record<string, unknown>>(),
-  anonymizedCases: new Map<string, Record<string, unknown>>(),
-  retentionPolicies: new Map<string, Record<string, unknown>>(),
-  patientDiaryEntries: new Map<string, EmotionalDiaryEntry>(),
-  patientMessages: new Map<string, PatientAsyncMessage>(),
-  localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
+  users: new Map<UUID, User>(),
+  invites: new Map<UUID, Invite>(),
+  tokens: new Map<string, SessionToken>(),
+  entitlements: new Map<UUID, LocalEntitlementSnapshot>(),
+  patients: new Map<UUID, Patient>(),
+  sessions: new Map<UUID, ClinicalSession>(),
+  clinicalNotes: new Map<UUID, ClinicalNote>(),
+  reports: new Map<UUID, ClinicalReport>(),
+  anamnesis: new Map<UUID, AnamnesisResponse>(),
+  documents: new Map<UUID, ClinicalDocument>(),
+  documentTemplates: new Map<UUID, DocumentTemplate>(),
+  financial: new Map<UUID, FinancialEntry>(),
+  scales: new Map<UUID, ScaleRecord>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
-  notificationTemplates: new Map<string, NotificationTemplate>(),
-  notificationConsents: new Map<string, NotificationConsent>(),
-  notificationSchedules: new Map<string, NotificationSchedule>(),
-  notificationLogs: new Map<string, NotificationLog>(),
-
-  telemetry: new Map<string, TelemetryEvent>(),
-  telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
-  audit: new Map<string, AuditEvent>(),
-  observabilityAlerts: new Map<string, ObservabilityAlert>(),
-  idempotency: new Map<string, IdempotencyRecord>(),
+  emotionalDiary: new Map<UUID, EmotionalDiaryEntry>(),
+  notifications: {
+    templates: new Map<UUID, NotificationTemplate>(),
+    consents: new Map<UUID, NotificationConsent>(),
+    schedules: new Map<UUID, NotificationSchedule>(),
+    logs: new Map<UUID, NotificationLog>(),
+  },
+  audit: new Map<UUID, any>(),
+  telemetry: [] as TelemetryEvent[],
 };
 
-type PersistedDatabaseState = {
-  version: 1;
-  users: User[];
-  invites: Invite[];
-  sessionsTokens: SessionToken[];
-  patients: Patient[];
-  sessions: ClinicalSession[];
-  audioRecords: AudioRecord[];
-  transcripts: Transcript[];
-  clinicalNotes: ClinicalNote[];
-  reports: ClinicalReport[];
-  anamnesis: AnamnesisResponse[];
-  scales: ScaleRecord[];
-  forms: FormEntry[];
-  financial: FinancialEntry[];
-  jobs: Job[];
-  documents: ClinicalDocument[];
-  documentVersions: ClinicalDocumentVersion[];
-  documentTemplates: DocumentTemplate[];
-  patientAccess: Array<Record<string, unknown>>;
-  patientDiaryEntries: EmotionalDiaryEntry[];
-  localEntitlements: LocalEntitlementSnapshot[];
-  telemetry: TelemetryEvent[];
-  audit: AuditEvent[];
-};
+export const uid = () => Math.random().toString(36).substring(2, 15);
+export const now = () => new Date().toISOString();
 
-const persistenceEnabled = process.env.ETHOS_DISABLE_PERSISTENCE !== "1" && !process.execArgv.includes("--test");
-const dataDirectory = path.resolve(__dirname, "../../data");
-const dataFile = path.join(dataDirectory, "clinic-data.json");
-
-const restoreMap = <T>(
-  map: Map<string, T>,
-  items: T[] | undefined,
-  keySelector: (item: T) => string,
-) => {
-  map.clear();
-  for (const item of items ?? []) {
-    map.set(keySelector(item), item);
+export const persistMutation = () => {
+  const serialized: Record<string, any> = {};
+  for (const [key, value] of Object.entries(db)) {
+    if (value instanceof Map) {
+      serialized[key] = Array.from(value.entries());
+    } else if (typeof value === "object") {
+      const nested: Record<string, any> = {};
+      for (const [nKey, nValue] of Object.entries(value)) {
+        if (nValue instanceof Map) nested[nKey] = Array.from(nValue.entries());
+      }
+      serialized[key] = nested;
+    }
   }
+  writeFileSync(DB_FILE, JSON.stringify(serialized, null, 2));
 };
 
-const loadPersistedDatabase = () => {
-  if (!persistenceEnabled || !existsSync(dataFile)) return;
-
+export const loadDatabase = () => {
+  if (!existsSync(DB_FILE)) return;
   try {
-    const raw = readFileSync(dataFile, "utf-8");
-    const snapshot = JSON.parse(raw) as Partial<PersistedDatabaseState>;
-
-    restoreMap(db.users, snapshot.users, (item) => item.id);
-    restoreMap(db.invites, snapshot.invites, (item) => item.id);
-    restoreMap(db.sessionsTokens, snapshot.sessionsTokens, (item) => item.token);
-    restoreMap(db.patients, snapshot.patients, (item) => item.id);
-    restoreMap(db.sessions, snapshot.sessions, (item) => item.id);
-    restoreMap(db.audioRecords, snapshot.audioRecords, (item) => item.id);
-    restoreMap(db.transcripts, snapshot.transcripts, (item) => item.id);
-    restoreMap(db.clinicalNotes, snapshot.clinicalNotes, (item) => item.id);
-    restoreMap(db.reports, snapshot.reports, (item) => item.id);
-    restoreMap(db.anamnesis, snapshot.anamnesis, (item) => item.id);
-    restoreMap(db.scales, snapshot.scales, (item) => item.id);
-    restoreMap(db.forms, snapshot.forms, (item) => item.id);
-    restoreMap(db.financial, snapshot.financial, (item) => item.id);
-    restoreMap(db.jobs, snapshot.jobs, (item) => item.id);
-    restoreMap(db.documents, snapshot.documents, (item) => item.id);
-    restoreMap(db.documentVersions, snapshot.documentVersions, (item) => item.id);
-    restoreMap(db.documentTemplates, snapshot.documentTemplates, (item) => item.id);
-    restoreMap(db.patientAccess, snapshot.patientAccess, (item) => String((item as { id?: string }).id ?? uid()));
-    restoreMap(db.patientDiaryEntries, snapshot.patientDiaryEntries, (item) => item.id);
-    restoreMap(db.localEntitlements, snapshot.localEntitlements, (item) => item.user_id);
-    restoreMap(db.telemetry, snapshot.telemetry, (item) => item.id);
-    restoreMap(db.audit, snapshot.audit, (item) => item.id);
-  } catch (error) {
-    process.stderr.write(`Failed to load persisted ETHOS clinic data: ${String(error)}\n`);
+    const content = readFileSync(DB_FILE, "utf-8");
+    const data = JSON.parse(content);
+    for (const [key, value] of Object.entries(data)) {
+      const target = (db as any)[key];
+      if (Array.isArray(value) && target instanceof Map) {
+        value.forEach(([k, v]) => target.set(k, v));
+      } else if (typeof value === "object" && value !== null) {
+        for (const [nKey, nValue] of Object.entries(value)) {
+          if (Array.isArray(nValue) && target[nKey] instanceof Map) {
+            nValue.forEach(([k, v]) => target[nKey].set(k, v));
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.error("Failed to load DB", e);
   }
 };
 
-const buildPersistedSnapshot = (): PersistedDatabaseState => ({
-  version: 1,
-  users: Array.from(db.users.values()),
-  invites: Array.from(db.invites.values()),
-  sessionsTokens: Array.from(db.sessionsTokens.values()),
-  patients: Array.from(db.patients.values()),
-  sessions: Array.from(db.sessions.values()),
-  audioRecords: Array.from(db.audioRecords.values()),
-  transcripts: Array.from(db.transcripts.values()),
-  clinicalNotes: Array.from(db.clinicalNotes.values()),
-  reports: Array.from(db.reports.values()),
-  anamnesis: Array.from(db.anamnesis.values()),
-  scales: Array.from(db.scales.values()),
-  forms: Array.from(db.forms.values()),
-  financial: Array.from(db.financial.values()),
-  jobs: Array.from(db.jobs.values()),
-  documents: Array.from(db.documents.values()),
-  documentVersions: Array.from(db.documentVersions.values()),
-  documentTemplates: Array.from(db.documentTemplates.values()).filter((item) => item.owner_user_id !== "system"),
-  patientAccess: Array.from(db.patientAccess.values()),
-  patientDiaryEntries: Array.from(db.patientDiaryEntries.values()),
-  localEntitlements: Array.from(db.localEntitlements.values()),
-  telemetry: Array.from(db.telemetry.values()),
-  audit: Array.from(db.audit.values()),
-});
+const hashPassword = (p: string) => require("node:crypto").createHash("sha256").update(p).digest("hex");
 
-export const persistDatabaseNow = () => {
-  if (!persistenceEnabled) return;
-
-  mkdirSync(dataDirectory, { recursive: true });
-  writeFileSync(dataFile, JSON.stringify(buildPersistedSnapshot(), null, 2), "utf-8");
-};
-
-let persistTimer: NodeJS.Timeout | null = null;
-
-export const schedulePersistDatabase = () => {
-  if (!persistenceEnabled) return;
-
-  if (persistTimer) clearTimeout(persistTimer);
-  persistTimer = setTimeout(() => {
-    persistTimer = null;
-    persistDatabaseNow();
-  }, 25);
-  persistTimer.unref?.();
-};
-
-loadPersistedDatabase();
-
-const cleanupExpiredIdempotency = (at = Date.now()) => {
-  for (const [key, entry] of db.idempotency.entries()) {
-    if (entry.expiresAt <= at) db.idempotency.delete(key);
-  }
-};
-
-export const getIdempotencyEntry = (key: string, at = Date.now()) => {
-  cleanupExpiredIdempotency(at);
-  const entry = db.idempotency.get(key);
-  if (!entry) return null;
-  if (entry.expiresAt <= at) {
-    db.idempotency.delete(key);
-    return null;
-  }
-  return entry;
-};
-
-export const setIdempotencyEntry = (key: string, value: Omit<IdempotencyRecord, "expiresAt">, ttlMs = IDEMPOTENCY_TTL_MS, at = Date.now()) => {
-  cleanupExpiredIdempotency(at);
-  db.idempotency.set(key, { ...value, expiresAt: at + ttlMs });
-};
-
-setInterval(() => cleanupExpiredIdempotency(), IDEMPOTENCY_CLEANUP_INTERVAL_MS).unref();
-
-const ensureSeedUser = (input: { email: string; name: string; password: string; role: User["role"] }) => {
-  const existing = Array.from(db.users.values()).find((item) => item.email.toLowerCase() === input.email.toLowerCase());
+const ensureSeedUser = (data: Partial<User> & { password?: string }) => {
+  const existing = Array.from(db.users.values()).find((u) => u.email === data.email);
   if (existing) return existing.id;
-
   const id = uid();
   db.users.set(id, {
     id,
-    email: input.email,
-    name: input.name,
-    password_hash: hashPassword(input.password),
-    role: input.role,
+    email: data.email!,
+    name: data.name!,
+    role: data.role!,
     status: "active",
+    password_hash: data.password ? hashPassword(data.password) : undefined,
     created_at: now(),
   });
   return id;
 };
 
 const ensureClinicalEntitlements = (userId: string) => {
-  if (db.localEntitlements.has(userId)) return;
-
-  db.localEntitlements.set(userId, {
+  if (db.entitlements.has(userId)) return;
+  db.entitlements.set(userId, {
     user_id: userId,
     entitlements: {
       exports_enabled: true,
@@ -279,9 +128,9 @@ const ensureClinicalEntitlements = (userId: string) => {
       forms_enabled: true,
       scales_enabled: true,
       finance_enabled: true,
-      transcription_minutes_per_month: 3000,
-      max_patients: 2000,
-      max_sessions_per_month: 2000,
+      transcription_minutes_per_month: 300,
+      max_patients: 50,
+      max_sessions_per_month: 200,
     },
     source_subscription_status: "active",
     last_entitlements_sync_at: now(),
@@ -289,53 +138,49 @@ const ensureClinicalEntitlements = (userId: string) => {
   });
 };
 
-let camilaId = "";
-let helenaId = "";
-
 const seedBaseData = () => {
-  camilaId = ensureSeedUser({
+  ensureSeedUser({
     email: "camila@ethos.local",
-    name: "Camila",
+    name: "Camila (Admin)",
     password: "admin123",
     role: "admin",
   });
 
-  helenaId = ensureSeedUser({
+  const helenaId = ensureSeedUser({
     email: "helena@ethos.local",
     name: "Dra. Helena Prado",
     password: "ethos123",
-    role: "user",
+    role: "psychologist",
   });
-
   ensureClinicalEntitlements(helenaId);
-  db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "DepressÃƒÂ£o" });
+
+  const assistantId = ensureSeedUser({
+    email: "claudia@ethos.local",
+    name: "Claudia (Secretaria)",
+    password: "ethos123",
+    role: "assistant",
+  });
+  ensureClinicalEntitlements(assistantId);
+
+  db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
   db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
 };
 
+loadDatabase();
 seedBaseData();
+persistMutation();
 
 export const resetDatabaseForTests = () => {
   for (const value of Object.values(db)) {
     if (value instanceof Map) value.clear();
   }
-
   seedBaseData();
 };
 
-export const seeds = {
-  get camilaId() {
-    return camilaId;
-  },
-  get helenaId() {
-    return helenaId;
-  },
-  now,
+export const getByOwner = <T extends { owner_user_id: UUID }>(map: Map<UUID, T>, ownerId: UUID, id: UUID): T | undefined => {
+  const item = map.get(id);
+  if (item && item.owner_user_id === ownerId) return item;
+  return undefined;
 };
 
-db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "DepressÃ£o" });
-db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
-
-if (persistenceEnabled) {
-  process.once("beforeExit", persistDatabaseNow);
-  process.once("exit", persistDatabaseNow);
-}
+export const nextUserVersion = () => 1;
