@@ -37,6 +37,11 @@ export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 export type Patient = Owned & {
   external_id: string;
   label: string;
+  phone?: string;
+  email?: string;
+  cpf?: string;
+  birth_date?: string;
+  notes?: string;
 };
 
 export type ClinicalSession = Owned & {

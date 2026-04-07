@@ -843,3 +843,40 @@ export const listSessionClinicalNotes = (owner: string, sessionId: string) => by
 export const getClinicalNote = (owner: string, noteId: string) => getByOwner(db.clinicalNotes, owner, noteId);
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
+
+export const createPatient = (
+  ownerUserId: string,
+  data: { label: string; external_id?: string; phone?: string; email?: string; cpf?: string; birth_date?: string; notes?: string }
+): Patient => {
+  const patient: Patient = {
+    id: uid(),
+    owner_user_id: ownerUserId,
+    external_id: data.external_id ?? uid(),
+    label: data.label,
+    phone: data.phone,
+    email: data.email,
+    cpf: data.cpf,
+    birth_date: data.birth_date,
+    notes: data.notes,
+    created_at: now(),
+  };
+  db.patients.set(patient.id, patient);
+  return patient;
+};
+
+export const updatePatient = (
+  id: string,
+  ownerUserId: string,
+  data: Partial<{ label: string; phone: string; email: string; cpf: string; birth_date: string; notes: string }>
+): Patient | null => {
+  const patient = db.patients.get(id);
+  if (!patient || patient.owner_user_id !== ownerUserId) return null;
+  if (data.label !== undefined) patient.label = data.label;
+  if (data.phone !== undefined) patient.phone = data.phone;
+  if (data.email !== undefined) patient.email = data.email;
+  if (data.cpf !== undefined) patient.cpf = data.cpf;
+  if (data.birth_date !== undefined) patient.birth_date = data.birth_date;
+  if (data.notes !== undefined) patient.notes = data.notes;
+  db.patients.set(id, patient);
+  return patient;
+};

@@ -22,8 +22,10 @@ import {
   createFormEntry,
   createInvite,
   createJob,
+  createPatient,
   createPatientAccess,
   createPrivateComment,
+  updatePatient,
   createReport,
   createScaleRecord,
   createSession,
@@ -1132,6 +1134,42 @@ export const createEthosBackend = () =>
       // Patients list
       if (method === "GET" && url.pathname === "/patients") {
         return ok(res, requestId, 200, listPatients(auth.user.id));
+      }
+
+      // Create patient
+      if (method === "POST" && url.pathname === "/patients") {
+        const body = await readJson(req);
+        if (typeof body.label !== "string" || !body.label.trim()) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "label is required");
+        }
+        const patient = createPatient(auth.user.id, {
+          label: String(body.label).trim(),
+          external_id: body.external_id ? String(body.external_id) : undefined,
+          phone: body.phone ? String(body.phone) : undefined,
+          email: body.email ? String(body.email) : undefined,
+          cpf: body.cpf ? String(body.cpf) : undefined,
+          birth_date: body.birth_date ? String(body.birth_date) : undefined,
+          notes: body.notes ? String(body.notes) : undefined,
+        });
+        addAudit(auth.user.id, "PATIENT_CREATED", patient.id);
+        return ok(res, requestId, 201, patient);
+      }
+
+      // Update patient
+      if (method === "PATCH" && /^\/patients\/[^/]+$/.test(url.pathname)) {
+        const patientId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const patient = updatePatient(patientId, auth.user.id, {
+          label: body.label ? String(body.label) : undefined,
+          phone: body.phone !== undefined ? String(body.phone) : undefined,
+          email: body.email !== undefined ? String(body.email) : undefined,
+          cpf: body.cpf !== undefined ? String(body.cpf) : undefined,
+          birth_date: body.birth_date !== undefined ? String(body.birth_date) : undefined,
+          notes: body.notes !== undefined ? String(body.notes) : undefined,
+        });
+        if (!patient) return error(res, requestId, 404, "NOT_FOUND", "Patient not found");
+        addAudit(auth.user.id, "PATIENT_UPDATED", patientId);
+        return ok(res, requestId, 200, patient);
       }
 
       // AI organize
