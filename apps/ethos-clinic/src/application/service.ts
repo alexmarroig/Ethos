@@ -186,7 +186,7 @@ export const updatePatient = (ownerId: UUID, id: UUID, data: Partial<Patient>) =
 };
 
 // Sessions
-export const createSession = (ownerId: UUID, patientId: UUID, scheduledAt: string, duration?: number) => {
+export const createSession = (ownerId: UUID, patientId: UUID, scheduledAt: string, duration?: number, isRecurring?: boolean) => {
   const session: ClinicalSession = {
     id: uid(),
     owner_user_id: ownerId,
@@ -195,6 +195,7 @@ export const createSession = (ownerId: UUID, patientId: UUID, scheduledAt: strin
     scheduled_at: scheduledAt,
     status: "scheduled",
     duration_minutes: duration,
+    is_recurring: isRecurring,
   };
   db.sessions.set(session.id, session);
   persistMutation();
