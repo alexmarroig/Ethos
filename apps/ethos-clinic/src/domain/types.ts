@@ -1,13 +1,24 @@
 export type UUID = string;
 
-export type Role = "admin" | "user" | "assistente" | "supervisor" | "patient";
+export type Role = "admin" | "psychologist" | "assistant" | "patient" | "test";
 export type UserStatus = "invited" | "active" | "disabled";
 export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
 export type ClinicalNoteStatus = "draft" | "validated";
 
+export type ClinicalDocumentType =
+  | "clinical_note"
+  | "report"
+  | "declaration"
+  | "certificate"
+  | "receipt"
+  | "contract"
+  | "questionnaire";
+
 export type ClinicalNoteStructuredData = {
   complaint?: string;
   context?: string;
+  demand_assessment?: string;
+  hypotheses?: string[];
   objectives?: string[];
   anamnesis?: {
     personal?: string;
@@ -102,6 +113,7 @@ export type ClinicalSession = Owned & {
   scheduled_at: string;
   status: SessionStatus;
   duration_minutes?: number;
+  is_recurring?: boolean;
 };
 
 export type AudioRecord = Owned & {
@@ -160,6 +172,7 @@ export type FinancialEntry = Owned & {
   due_date: string;
   status: "open" | "paid";
   description: string;
+  lastReminderAt?: string;
 };
 
 export type PatientTimelineItem = {
@@ -214,6 +227,9 @@ export type ClinicalDocument = Owned & {
   case_id: string;
   template_id: UUID;
   title: string;
+  type: ClinicalDocumentType;
+  content: string;
+  metadata?: Record<string, unknown>;
 };
 
 export type ClinicalDocumentVersion = Owned & {
@@ -280,6 +296,9 @@ export type NotificationConsent = Owned & {
 };
 
 export type NotificationSchedule = Owned & {
+  id: UUID;
+  owner_user_id: UUID;
+  created_at: string;
   session_id: UUID;
   patient_id: UUID;
   template_id: UUID;
@@ -291,6 +310,9 @@ export type NotificationSchedule = Owned & {
 };
 
 export type NotificationLog = Owned & {
+  id: UUID;
+  owner_user_id: UUID;
+  created_at: string;
   schedule_id: UUID;
   template_id: UUID;
   channel: NotificationChannel;

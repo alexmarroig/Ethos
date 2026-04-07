@@ -3,49 +3,60 @@ import {
   ActivityIndicator,
   Alert,
   ScrollView,
+  StatusBar,
   StyleSheet,
   Switch,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
+  TextInput,
 } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
-import { Calendar, FileText, PenSquare, Plus, Save, X } from 'lucide-react-native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import {
+  Calendar,
+  ChevronRight,
+  FileText,
+  Plus,
+  PenSquare,
+  Save,
+  X,
+  Share2,
+  Mail,
+  MessageCircle,
+} from 'lucide-react-native';
 
 import { colors } from '../theme/colors';
 import { useAuth } from '../contexts/AuthContext';
-import { fetchPatientDetail, updatePatient } from '../services/api/patients';
+import {
+  fetchPatientDetail,
+  updatePatient,
+} from '../services/api/patients';
 import { createDocument } from '../services/api/documents';
-import { createContract, sendContract } from '../services/api/contracts';
-import { createReport } from '../services/api/reports';
-import type { EmotionalDiaryEntryRecord, PatientDetailResponse, SessionRecord } from '../services/api/types';
+import { openWhatsAppLink } from '../services/whatsapp';
+import type {
+  PatientDetailResponse,
+  PatientRecord,
+  SessionRecord,
+  EmotionalDiaryEntryRecord,
+} from '../services/api/types';
 
-const formatDateTime = (value?: string | null) =>
-  value
-    ? new Date(value).toLocaleString('pt-BR', {
-        day: '2-digit',
-        month: 'short',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit',
-      })
-    : 'Nao definido';
-
-const formatDate = (value?: string | null) =>
+const formatDate = (value?: string) =>
   value
     ? new Date(value).toLocaleDateString('pt-BR', {
         day: '2-digit',
         month: 'short',
-        year: 'numeric',
       })
-    : 'Nao definido';
+    : '--';
 
-const formatCurrency = (value?: number) =>
-  typeof value === 'number'
-    ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value)
-    : 'Nao definido';
+const formatDateTime = (value: string) =>
+  new Date(value).toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 
 const moodEmoji = (mood: EmotionalDiaryEntryRecord['mood']) => {
   if (mood <= 1) return '😞';
@@ -179,7 +190,7 @@ export default function PatientDetailScreen({ navigation, route }: any) {
     try {
       setIsSaving(true);
       await updatePatient(detail.patient.id, {
-        name: form.name.trim(),
+        label: form.name.trim(),
         email: form.email.trim() || undefined,
         phone: form.phone.trim() || undefined,
         whatsapp: form.whatsapp.trim() || undefined,
@@ -237,112 +248,68 @@ export default function PatientDetailScreen({ navigation, route }: any) {
     });
   };
 
-  const handleCreateDocument = async (templateId: string, label: string) => {
+  const handleCreateDocument = async (type: string, label: string) => {
     if (!detail) return;
     try {
-      setShortcutLoading(templateId);
-      const document = await createDocument({
+      setShortcutLoading(type);
+      await createDocument({
         patient_id: detail.patient.id,
         case_id: detail.patient.id,
-        template_id: templateId,
+        template_id: 'default',
         title: buildDocumentTitle(detail.patient.label, label),
+        type,
+        content: '',
       });
       await loadDetail();
-      navigation.navigate('DocumentDetail', { documentId: document.id });
-    } catch (shortcutError: any) {
-      Alert.alert('Erro', shortcutError?.message ?? `Nao foi possivel criar ${label.toLowerCase()}.`);
+      Alert.alert('Documento criado', `${label} gerado com sucesso.`);
+    } catch (err) {
+      Alert.alert('Erro', 'Nao foi possivel criar o documento.');
     } finally {
       setShortcutLoading(null);
     }
   };
 
-  const handleCreateContract = async () => {
-    if (!detail) return;
+  const handleInviteWhatsApp = async () => {
+    if (!detail?.patient.whatsapp && !detail?.patient.phone) {
+       Alert.alert('Erro', 'Paciente sem telefone cadastrado.');
+       return;
+    }
+    const msg = `Olá, ${detail.patient.label}! 😊 Gostaria de te convidar para baixar o app Ethos Paciente, onde você poderá acompanhar suas sessões, documentos e registrar seu diário emocional. Link: https://paciente.ethos.local/invite/${detail.patient.id}`;
     try {
-      setShortcutLoading('contract');
-      const contract = await createContract({
-        patient_id: detail.patient.id,
-        psychologist: {
-          name: user?.name ?? 'Psicologo responsavel',
-          license: user?.crp ?? '',
-          email: user?.email ?? '',
-        },
-        patient: {
-          name: detail.patient.label,
-          email: detail.patient.email ?? '',
-          document: detail.patient.cpf ?? '',
-        },
-        terms: {
-          value:
-            form.billing_mode === 'package'
-              ? `${formatCurrency(Number(form.package_total_price || 0))} por pacote de ${form.package_session_count || '0'} sessoes`
-              : `${formatCurrency(Number(form.session_price || 0))} por sessao`,
-          periodicity: form.billing_mode === 'package' ? 'pacote' : 'sessao',
-          absence_policy: 'Cancelamentos devem ser informados com antecedencia minima de 24 horas.',
-          payment_method: 'A combinar',
-        },
-      });
-
-      if (detail.patient.email) {
-        await sendContract(contract.id);
-        Alert.alert('Contrato criado', 'O contrato foi criado e o portal de aceite foi preparado.');
-      } else {
-        Alert.alert('Contrato criado', 'O paciente nao tem e-mail. O envio pode ser feito depois.');
-      }
-    } catch (contractError: any) {
-      Alert.alert('Erro', contractError?.message ?? 'Nao foi possivel criar o contrato.');
-    } finally {
-      setShortcutLoading(null);
+      await openWhatsAppLink(detail.patient.whatsapp || detail.patient.phone || '', msg);
+    } catch (err) {
+      Alert.alert('Erro', 'Falha ao abrir WhatsApp.');
     }
   };
 
-  const handleCreateReport = async () => {
-    if (!detail) return;
+  const handleShareDiary = async () => {
+    if (!detail?.patient.whatsapp && !detail?.patient.phone) {
+       Alert.alert('Erro', 'Paciente sem telefone cadastrado.');
+       return;
+    }
+    const msg = `Olá, ${detail.patient.label}! Acabei de liberar o seu Diário Emocional no app Ethos. Sempre que sentir algo importante, registre lá para conversarmos na próxima sessão.`;
     try {
-      setShortcutLoading('report');
-      await createReport({
-        patient_id: detail.patient.id,
-        purpose: 'profissional',
-        content: `Relatorio psicologico em elaboracao referente ao acompanhamento clinico de ${detail.patient.label}.`,
-      });
-      Alert.alert('Relatorio criado', 'O relatorio inicial ja foi vinculado ao paciente.');
-    } catch (reportError: any) {
-      Alert.alert('Erro', reportError?.message ?? 'Nao foi possivel criar o relatorio.');
-    } finally {
-      setShortcutLoading(null);
+      await openWhatsAppLink(detail.patient.whatsapp || detail.patient.phone || '', msg);
+    } catch (err) {
+      Alert.alert('Erro', 'Falha ao abrir WhatsApp.');
     }
   };
 
-  const renderField = (
-    label: string,
-    key: keyof PatientFormState,
-    options?: { multiline?: boolean; keyboardType?: 'default' | 'email-address' | 'phone-pad' | 'numeric' },
-  ) => {
-    const value = form[key];
-    const displayValue = typeof value === 'boolean' ? (value ? 'Sim' : 'Nao') : value || 'Nao informado';
-
-    return (
-      <View style={styles.fieldBlock}>
-        <Text style={[styles.fieldLabel, { color: theme.mutedForeground }]}>{label}</Text>
-        {isEditing ? (
-          <TextInput
-            style={[
-              options?.multiline ? styles.textarea : styles.input,
-              { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border },
-            ]}
-            value={typeof value === 'string' ? value : ''}
-            onChangeText={(text) => updateFormField(key as any, text)}
-            multiline={options?.multiline}
-            textAlignVertical={options?.multiline ? 'top' : 'center'}
-            keyboardType={options?.keyboardType}
-            placeholderTextColor={theme.mutedForeground}
-          />
-        ) : (
-          <Text style={[styles.fieldValue, { color: theme.foreground }]}>{displayValue}</Text>
-        )}
-      </View>
-    );
-  };
+  const renderField = (label: string, key: keyof PatientFormState, props: any = {}) => (
+    <View style={styles.fieldBlock}>
+      <Text style={[styles.fieldLabel, { color: theme.mutedForeground }]}>{label}</Text>
+      {isEditing ? (
+        <TextInput
+          style={[styles.input, { color: theme.foreground, borderColor: theme.border }]}
+          value={String(form[key])}
+          onChangeText={(val) => updateFormField(key, val as any)}
+          {...props}
+        />
+      ) : (
+        <Text style={[styles.fieldValue, { color: theme.foreground }]}>{String(form[key]) || '--'}</Text>
+      )}
+    </View>
+  );
 
   if (isLoading) {
     return (
@@ -354,11 +321,11 @@ export default function PatientDetailScreen({ navigation, route }: any) {
 
   if (error || !detail) {
     return (
-      <View style={[styles.centered, { backgroundColor: theme.background, padding: 24 }]}>
-        <Text style={[styles.errorTitle, { color: theme.foreground }]}>Nao foi possivel abrir o paciente.</Text>
+      <View style={[styles.centered, { backgroundColor: theme.background, padding: 40 }]}>
+        <Text style={[styles.errorTitle, { color: theme.foreground }]}>Ops!</Text>
         <Text style={[styles.errorText, { color: theme.mutedForeground }]}>{error ?? 'Paciente nao encontrado.'}</Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={loadDetail}>
-          <Text style={styles.primaryButtonText}>Tentar novamente</Text>
+        <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.primaryButtonText}>Voltar</Text>
         </TouchableOpacity>
       </View>
     );
@@ -373,16 +340,21 @@ export default function PatientDetailScreen({ navigation, route }: any) {
 
         <View style={styles.summaryRow}>
           <View style={[styles.summaryCard, { backgroundColor: theme.background }]}>
-            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Total</Text>
+            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Sessões</Text>
             <Text style={[styles.summaryValue, { color: theme.foreground }]}>{detail.summary.total_sessions}</Text>
+          </View>
+          <View style={[styles.summaryCard, { backgroundColor: theme.background }]}>
+            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Valor</Text>
+            <Text style={[styles.summaryValueSmall, { color: theme.foreground }]}>
+              {detail.patient.billing?.mode === 'per_session'
+                ? `R$ ${detail.patient.billing?.session_price ?? '0'}`
+                : `R$ ${detail.patient.billing?.package_total_price ?? '0'}`}
+            </Text>
+            <Text style={{ fontSize: 10, color: theme.mutedForeground }}>{detail.patient.billing?.mode === 'package' ? 'Pacote' : 'Avulsa'}</Text>
           </View>
           <View style={[styles.summaryCard, { backgroundColor: theme.background }]}>
             <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Proxima</Text>
             <Text style={[styles.summaryValueSmall, { color: theme.foreground }]}>{formatDate(detail.summary.next_session?.scheduled_at)}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: theme.background }]}>
-            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Ultima</Text>
-            <Text style={[styles.summaryValueSmall, { color: theme.foreground }]}>{formatDate(detail.summary.last_session?.scheduled_at)}</Text>
           </View>
         </View>
 
@@ -393,7 +365,15 @@ export default function PatientDetailScreen({ navigation, route }: any) {
           </TouchableOpacity>
           <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={handleCreateNote}>
             <Plus size={16} color={theme.primary} />
-            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Nova Nota Clinica</Text>
+            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Nota</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={handleInviteWhatsApp}>
+            <Mail size={16} color={theme.primary} />
+            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Convidar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={handleShareDiary}>
+            <MessageCircle size={16} color={theme.primary} />
+            <Text style={[styles.secondaryActionText, { color: theme.primary }]}>Diário</Text>
           </TouchableOpacity>
         </View>
 
@@ -487,39 +467,21 @@ export default function PatientDetailScreen({ navigation, route }: any) {
       </View>
 
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Psiquiatria e emergencia</Text>
-        <View style={[styles.sectionCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View style={styles.switchRow}>
-            <Text style={[styles.fieldLabel, { color: theme.mutedForeground }]}>Acompanhamento psiquiatrico</Text>
-            {isEditing ? (
-              <Switch value={form.has_psychiatric_followup} onValueChange={(value) => updateFormField('has_psychiatric_followup', value)} />
-            ) : (
-              <Text style={[styles.fieldValue, { color: theme.foreground }]}>{form.has_psychiatric_followup ? 'Sim' : 'Nao'}</Text>
-            )}
-          </View>
-          {renderField('Nome do psiquiatra', 'psychiatrist_name')}
-          {renderField('Contato do psiquiatra', 'psychiatrist_contact', { keyboardType: 'phone-pad' })}
-          {renderField('Contato de emergencia', 'emergency_contact_name')}
-          {renderField('Telefone de emergencia', 'emergency_contact_phone', { keyboardType: 'phone-pad' })}
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Documentos</Text>
+        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Documentos CRP</Text>
         <View style={styles.shortcutRow}>
-          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('payment-receipt', 'Recibo')} disabled={Boolean(shortcutLoading)}>
-            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'payment-receipt' ? 'Criando...' : 'Recibo'}</Text>
+          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('receipt', 'Recibo')} disabled={Boolean(shortcutLoading)}>
+            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'receipt' ? 'Criando...' : 'Recibo'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('attendance-declaration', 'Declaracao')} disabled={Boolean(shortcutLoading)}>
-            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'attendance-declaration' ? 'Criando...' : 'Declaracao'}</Text>
+          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('declaration', 'Declaracao')} disabled={Boolean(shortcutLoading)}>
+            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'declaration' ? 'Criando...' : 'Declaracao'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('psychological-certificate', 'Atestado psicologico')} disabled={Boolean(shortcutLoading)}>
-            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'psychological-certificate' ? 'Criando...' : 'Atestado'}</Text>
+          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('certificate', 'Atestado')} disabled={Boolean(shortcutLoading)}>
+            <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'certificate' ? 'Criando...' : 'Atestado'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateContract()} disabled={Boolean(shortcutLoading)}>
+          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('contract', 'Contrato')} disabled={Boolean(shortcutLoading)}>
             <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'contract' ? 'Criando...' : 'Contrato'}</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateReport()} disabled={Boolean(shortcutLoading)}>
+          <TouchableOpacity style={[styles.shortcutButton, { borderColor: theme.border }]} onPress={() => void handleCreateDocument('report', 'Relatorio')} disabled={Boolean(shortcutLoading)}>
             <Text style={[styles.shortcutText, { color: theme.primary }]}>{shortcutLoading === 'report' ? 'Criando...' : 'Relatorio'}</Text>
           </TouchableOpacity>
         </View>
@@ -540,31 +502,6 @@ export default function PatientDetailScreen({ navigation, route }: any) {
                 <Text style={[styles.listSubtitle, { color: theme.mutedForeground }]}>{formatDateTime(document.created_at)}</Text>
               </View>
               <FileText size={18} color={theme.primary} />
-            </TouchableOpacity>
-          ))
-        )}
-      </View>
-
-      <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.foreground }]}>Sessoes</Text>
-        {detail.sessions.length === 0 ? (
-          <View style={[styles.emptyCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.emptyText, { color: theme.mutedForeground }]}>Nenhuma sessao vinculada ainda.</Text>
-          </View>
-        ) : (
-          detail.sessions.map((session) => (
-            <TouchableOpacity
-              key={session.id}
-              style={[styles.listCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-              onPress={() => openSession(session)}
-            >
-              <View>
-                <Text style={[styles.listTitle, { color: theme.foreground }]}>{formatDateTime(session.scheduled_at)}</Text>
-                <Text style={[styles.listSubtitle, { color: theme.mutedForeground }]}>
-                  {session.duration_minutes ? `${session.duration_minutes} min · ` : ''}{session.status}
-                </Text>
-              </View>
-              <Calendar size={18} color={theme.primary} />
             </TouchableOpacity>
           ))
         )}

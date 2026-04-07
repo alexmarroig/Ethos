@@ -13,7 +13,15 @@ import {
 } from 'react-native';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { CheckCircle, Clock, FileDown, FileText, Filter, Plus, Search } from 'lucide-react-native';
+import {
+  CheckCircle,
+  Clock,
+  FileDown,
+  FileText,
+  Filter,
+  Plus,
+  Search,
+} from 'lucide-react-native';
 
 import { colors } from '../theme/colors';
 import { fetchDocuments } from '../services/api/documents';
@@ -22,24 +30,28 @@ import type { ClinicalDocumentRecord, PatientRecord } from '../services/api/type
 
 const primaryTeal = '#234e5c';
 
-const categories = ['Todos', 'Assinados', 'Rascunhos', 'Modelos'];
+const categories = ['Tudo', 'Notas Clínicas', 'Relatórios', 'Declarações', 'Atestados', 'Recibos', 'Contratos', 'Questionários'];
+
+const categoryMap: Record<string, string> = {
+  'Notas Clínicas': 'clinical_note',
+  'Relatórios': 'report',
+  'Declarações': 'declaration',
+  'Atestados': 'certificate',
+  'Recibos': 'receipt',
+  'Contratos': 'contract',
+  'Questionários': 'questionnaire',
+};
 
 const formatDate = (value: string) =>
-  new Date(value).toLocaleString('pt-BR', {
+  new Date(value).toLocaleDateString('pt-BR', {
     day: '2-digit',
     month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
+    year: 'numeric',
   });
 
-const getPatientName = (document: ClinicalDocumentRecord, patients: PatientRecord[]) =>
-  patients.find((patient) => patient.id === document.patient_id || patient.external_id === document.patient_id)?.label ?? 'Paciente não identificado';
-
-const filterDocuments = (documents: ClinicalDocumentRecord[], filter: string) => {
-  if (filter === 'Assinados') return documents.filter((document) => document.status === 'signed');
-  if (filter === 'Rascunhos') return documents.filter((document) => document.status !== 'signed');
-  if (filter === 'Modelos') return documents.filter((document) => document.template_id.includes('template'));
-  return documents;
+const getPatientName = (doc: ClinicalDocumentRecord, patients: PatientRecord[]) => {
+  const patient = patients.find((p) => p.id === doc.patient_id);
+  return patient ? patient.label : 'Paciente não identificado';
 };
 
 export default function DocumentsScreen() {
@@ -47,25 +59,22 @@ export default function DocumentsScreen() {
   const isDark = useColorScheme() === 'dark';
   const theme = isDark ? colors.dark : colors.light;
 
-  const [filter, setFilter] = useState('Todos');
-  const [searchQuery, setSearchQuery] = useState('');
   const [documents, setDocuments] = useState<ClinicalDocumentRecord[]>([]);
   const [patients, setPatients] = useState<PatientRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState('Tudo');
+  const [searchQuery, setSearchQuery] = useState('');
 
   const loadDocuments = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      const [documentResponse, patientResponse] = await Promise.all([
-        fetchDocuments(),
-        fetchPatients(),
-      ]);
-      setDocuments(documentResponse);
-      setPatients(patientResponse);
-    } catch (loadError: any) {
-      setError(loadError?.message ?? 'Não foi possível carregar os documentos.');
+      const [docsData, patientsData] = await Promise.all([fetchDocuments(), fetchPatients()]);
+      setDocuments(docsData);
+      setPatients(patientsData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Erro ao buscar documentos');
     } finally {
       setIsLoading(false);
     }
@@ -73,20 +82,24 @@ export default function DocumentsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      void loadDocuments();
-    }, [loadDocuments]),
+      loadDocuments();
+    }, [loadDocuments])
   );
 
   const filteredDocuments = useMemo(() => {
-    const normalizedQuery = searchQuery.trim().toLowerCase();
-    return filterDocuments(documents, filter).filter((document) => {
-      if (!normalizedQuery) return true;
+    return documents.filter((document) => {
+      const categoryType = categoryMap[filter];
+      const matchesFilter = filter === 'Tudo' || document.type === categoryType;
+
+      const normalizedQuery = searchQuery.toLowerCase().trim();
+      if (!normalizedQuery) return matchesFilter;
+
       const patientName = getPatientName(document, patients).toLowerCase();
-      return (
+      const matchesSearch =
         document.title.toLowerCase().includes(normalizedQuery) ||
-        patientName.includes(normalizedQuery) ||
-        document.template_id.toLowerCase().includes(normalizedQuery)
-      );
+        patientName.includes(normalizedQuery);
+
+      return matchesFilter && matchesSearch;
     });
   }, [documents, filter, patients, searchQuery]);
 
@@ -99,7 +112,10 @@ export default function DocumentsScreen() {
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Prontuários e Laudos</Text>
           <Text style={[styles.title, { color: primaryTeal }]}>Documentos</Text>
         </View>
-        <TouchableOpacity style={[styles.headerIcon, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]} onPress={loadDocuments}>
+        <TouchableOpacity
+          style={[styles.headerIcon, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
+          onPress={() => navigation.navigate('CreateDocument')}
+        >
           <Plus size={24} color={primaryTeal} />
         </TouchableOpacity>
       </View>
@@ -108,7 +124,7 @@ export default function DocumentsScreen() {
         <View style={[styles.searchBar, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}>
           <Search size={20} color={theme.mutedForeground} />
           <TextInput
-            placeholder="Buscar por nome, documento ou template..."
+            placeholder="Buscar documentos..."
             placeholderTextColor={theme.mutedForeground}
             style={[styles.searchInput, { color: primaryTeal }]}
             value={searchQuery}
@@ -164,7 +180,7 @@ export default function DocumentsScreen() {
           )}
           renderItem={({ item, index }) => {
             const patientName = getPatientName(item, patients);
-            const isSigned = item.status === 'signed';
+            const isNote = item.type === 'clinical_note';
 
             return (
               <Animated.View entering={FadeInDown.delay(index * 70).duration(400)}>
@@ -172,25 +188,19 @@ export default function DocumentsScreen() {
                   style={[styles.docCard, { backgroundColor: isDark ? '#2a2d31' : '#fff' }]}
                   onPress={() => navigation.navigate('DocumentDetail', { documentId: item.id })}
                 >
-                  <View style={[styles.docIconWrapper, { backgroundColor: isSigned ? 'rgba(22, 163, 74, 0.1)' : 'rgba(245, 158, 11, 0.1)' }]}>
-                    <FileText size={24} color={isSigned ? '#16a34a' : '#f59e0b'} />
+                  <View style={[styles.docIconWrapper, { backgroundColor: isNote ? 'rgba(35, 78, 92, 0.1)' : 'rgba(0, 204, 219, 0.1)' }]}>
+                    <FileText size={24} color={isNote ? primaryTeal : '#00ccdb'} />
                   </View>
 
                   <View style={styles.docInfo}>
                     <Text style={[styles.docTitle, { color: primaryTeal }]} numberOfLines={1}>{item.title}</Text>
                     <Text style={[styles.patientText, { color: theme.mutedForeground }]} numberOfLines={1}>{patientName}</Text>
                     <View style={styles.docMeta}>
-                      {isSigned ? (
-                        <View style={styles.statusBadge}>
-                          <CheckCircle size={12} color="#16a34a" />
-                          <Text style={[styles.statusText, { color: '#16a34a' }]}>Assinado</Text>
-                        </View>
-                      ) : (
-                        <View style={[styles.statusBadge, { backgroundColor: '#fef3c7' }]}>
-                          <Clock size={12} color="#d97706" />
-                          <Text style={[styles.statusText, { color: '#d97706' }]}>Rascunho</Text>
-                        </View>
-                      )}
+                      <View style={[styles.statusBadge, { backgroundColor: isNote ? '#f0fdf4' : '#eff6ff' }]}>
+                        <Text style={[styles.statusText, { color: isNote ? '#16a34a' : '#2563eb' }]}>
+                          {categories.find(c => categoryMap[c] === item.type) || 'Nota'}
+                        </Text>
+                      </View>
                       <Text style={[styles.docDate, { color: theme.mutedForeground }]}>{formatDate(item.created_at)}</Text>
                     </View>
                   </View>
@@ -207,7 +217,10 @@ export default function DocumentsScreen() {
         />
       )}
 
-      <TouchableOpacity style={styles.fab} onPress={loadDocuments}>
+      <TouchableOpacity
+        style={styles.fab}
+        onPress={() => navigation.navigate('CreateDocument')}
+      >
         <Plus size={32} color="#fff" />
       </TouchableOpacity>
     </View>
@@ -357,7 +370,6 @@ const styles = StyleSheet.create({
   statusBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f0fdf4',
     paddingHorizontal: 8,
     paddingVertical: 3,
     borderRadius: 8,
@@ -417,4 +429,3 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
 });
-

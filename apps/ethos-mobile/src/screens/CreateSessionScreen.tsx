@@ -1,3 +1,4 @@
+import { sendIntelligentNotification } from "../services/api/notifications";
 import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -9,11 +10,14 @@ import {
   TouchableOpacity,
   View,
   useColorScheme,
+  Switch,
 } from 'react-native';
+import { MessageCircle, Calendar } from 'lucide-react-native';
 
 import { colors } from '../theme/colors';
 import { fetchPatients } from '../services/api/patients';
 import { createSession } from '../services/api/sessions';
+import { openWhatsAppLink } from '../services/whatsapp';
 import type { PatientRecord } from '../services/api/types';
 
 const formatDateInput = (value: Date) => value.toISOString().slice(0, 10);
@@ -30,6 +34,8 @@ export default function CreateSessionScreen({ navigation, route }: any) {
   const [date, setDate] = useState(formatDateInput(new Date()));
   const [time, setTime] = useState(formatTimeInput(new Date()));
   const [duration, setDuration] = useState('50');
+  const [isRecurring, setIsRecurring] = useState(false);
+  const [sendWhatsAppReminder, setSendWhatsAppReminder] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -85,6 +91,16 @@ export default function CreateSessionScreen({ navigation, route }: any) {
         durationMinutes: Number(duration) || 50,
       });
 
+      if (sendWhatsAppReminder && selectedPatient) {
+         const msg = `Olá, ${selectedPatient.label}! 😊 Confirmando nossa sessão para dia ${new Date(scheduledAt).toLocaleDateString('pt-BR')} às ${time}. Até lá!`;
+         try {
+           await openWhatsAppLink(selectedPatient.whatsapp || selectedPatient.phone || '', msg);
+         } catch (e) {
+           console.warn('Failed to open WhatsApp');
+         }
+      }
+
+      sendIntelligentNotification("session_scheduled", { patient: selectedPatient?.label });
       navigation.navigate('SessionHub', {
         session,
         patientName: selectedPatient?.label,
@@ -129,23 +145,28 @@ export default function CreateSessionScreen({ navigation, route }: any) {
           })}
         </ScrollView>
 
-        <Text style={[styles.label, { color: theme.foreground }]}>Data</Text>
-        <TextInput
-          style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
-          value={date}
-          onChangeText={setDate}
-          placeholder="AAAA-MM-DD"
-          placeholderTextColor={theme.mutedForeground}
-        />
-
-        <Text style={[styles.label, { color: theme.foreground }]}>Horário</Text>
-        <TextInput
-          style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
-          value={time}
-          onChangeText={setTime}
-          placeholder="14:00"
-          placeholderTextColor={theme.mutedForeground}
-        />
+        <View style={styles.row}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.label, { color: theme.foreground }]}>Data</Text>
+            <TextInput
+              style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
+              value={date}
+              onChangeText={setDate}
+              placeholder="AAAA-MM-DD"
+              placeholderTextColor={theme.mutedForeground}
+            />
+          </View>
+          <View style={{ flex: 1, marginLeft: 10 }}>
+            <Text style={[styles.label, { color: theme.foreground }]}>Horário</Text>
+            <TextInput
+              style={[styles.input, { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border }]}
+              value={time}
+              onChangeText={setTime}
+              placeholder="14:00"
+              placeholderTextColor={theme.mutedForeground}
+            />
+          </View>
+        </View>
 
         <Text style={[styles.label, { color: theme.foreground }]}>Duração (minutos)</Text>
         <TextInput
@@ -157,8 +178,26 @@ export default function CreateSessionScreen({ navigation, route }: any) {
           placeholderTextColor={theme.mutedForeground}
         />
 
+        <View style={styles.switchRow}>
+          <Text style={[styles.label, { color: theme.foreground, marginTop: 0 }]}>Sessão Recorrente</Text>
+          <Switch value={isRecurring} onValueChange={setIsRecurring} />
+        </View>
+
+        <View style={styles.switchRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <MessageCircle size={18} color="#0f9d58" />
+            <Text style={[styles.label, { color: theme.foreground, marginTop: 0 }]}>Lembrete WhatsApp</Text>
+          </View>
+          <Switch value={sendWhatsAppReminder} onValueChange={setSendWhatsAppReminder} />
+        </View>
+
         <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={isSubmitting}>
-          {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Criar Sessão</Text>}
+          {isSubmitting ? <ActivityIndicator color="#fff" /> : (
+            <>
+              <Calendar size={20} color="#fff" style={{ marginRight: 8 }} />
+              <Text style={styles.primaryButtonText}>Agendar Sessão</Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </ScrollView>
@@ -181,6 +220,9 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 1,
     padding: 20,
+  },
+  row: {
+    flexDirection: 'row',
   },
   label: {
     fontFamily: 'Inter',
@@ -212,12 +254,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 15,
   },
+  switchRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 16,
+  },
   primaryButton: {
     backgroundColor: '#234e5c',
     paddingVertical: 16,
     borderRadius: 18,
     alignItems: 'center',
     marginTop: 24,
+    flexDirection: 'row',
+    justifyContent: 'center',
   },
   primaryButtonText: {
     color: '#fff',

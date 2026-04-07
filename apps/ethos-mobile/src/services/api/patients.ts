@@ -1,3 +1,4 @@
+import { openWhatsAppLink, loadWhatsAppMessageSettings } from "../services/whatsapp";
 import { clinicalApiClient } from "./clinicalClient";
 import type { PatientDetailResponse, PatientRecord } from "./types";
 
