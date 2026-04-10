@@ -1,4 +1,5 @@
 import type { ClinicalSession } from "../../domain/types";
+import { buildLlmHeaders, LLM_API_KEY, LLM_API_URL } from "./llmConfig";
 
 export type GeneratedClinicalNote = {
   soap: {
@@ -24,8 +25,10 @@ type OpenAIChatCompletionResponse = {
   };
 };
 
-const OPENAI_API_URL = process.env.OPENAI_API_URL ?? "https://api.openai.com/v1/chat/completions";
-const OPENAI_MODEL = process.env.ETHOS_CLINICAL_NOTE_MODEL ?? "gpt-4o-mini";
+const OPENAI_MODEL =
+  process.env.OPENROUTER_CLINICAL_NOTE_MODEL
+  ?? process.env.ETHOS_CLINICAL_NOTE_MODEL
+  ?? "deepseek/deepseek-chat-v3-0324:free";
 const OPENAI_TIMEOUT_MS = Number(process.env.ETHOS_CLINICAL_NOTE_TIMEOUT_MS ?? 20_000);
 const MAX_TRANSCRIPTION_CHARS = Number(process.env.ETHOS_CLINICAL_NOTE_MAX_CHARS ?? 12_000);
 
@@ -152,22 +155,18 @@ export const generateClinicalNote = async (
     throw new Error("Clinical note LLM is disabled");
   }
 
-  const apiKey = process.env.OPENAI_API_KEY;
-  if (!apiKey) {
-    throw new Error("OPENAI_API_KEY is not configured");
+  if (!LLM_API_KEY) {
+    throw new Error("Configure OPENROUTER_API_KEY or OPENAI_API_KEY");
   }
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), OPENAI_TIMEOUT_MS);
 
   try {
-    const response = await fetch(OPENAI_API_URL, {
+    const response = await fetch(LLM_API_URL, {
       method: "POST",
       signal: controller.signal,
-      headers: {
-        "content-type": "application/json",
-        authorization: `Bearer ${apiKey}`,
-      },
+      headers: buildLlmHeaders(),
       body: JSON.stringify({
         model: OPENAI_MODEL,
         temperature: 0.2,
