@@ -72,6 +72,7 @@ type PatientFormState = {
   emergency_contact_phone: string;
   notes: string;
   billing_mode: 'per_session' | 'package';
+  weekly_frequency: string;
   session_price: string;
   package_total_price: string;
   package_session_count: string;
@@ -94,6 +95,7 @@ const emptyForm: PatientFormState = {
   emergency_contact_phone: '',
   notes: '',
   billing_mode: 'per_session',
+  weekly_frequency: '1',
   session_price: '',
   package_total_price: '',
   package_session_count: '',
@@ -135,6 +137,7 @@ export default function PatientDetailScreen({ navigation, route }: any) {
       emergency_contact_phone: response.patient.emergency_contact_phone ?? '',
       notes: response.patient.notes ?? '',
       billing_mode: response.patient.billing?.mode ?? 'per_session',
+      weekly_frequency: response.patient.billing?.weekly_frequency?.toString() ?? '1',
       session_price: response.patient.billing?.session_price?.toString() ?? '',
       package_total_price: response.patient.billing?.package_total_price?.toString() ?? '',
       package_session_count: response.patient.billing?.package_session_count?.toString() ?? '',
@@ -195,6 +198,7 @@ export default function PatientDetailScreen({ navigation, route }: any) {
         emergency_contact_phone: form.emergency_contact_phone.trim() || undefined,
         billing: {
           mode: form.billing_mode,
+          weekly_frequency: form.weekly_frequency ? Number(form.weekly_frequency) as 1 | 2 | 3 | 4 | 5 : undefined,
           session_price: form.billing_mode === 'per_session' && form.session_price ? Number(form.session_price) : undefined,
           package_total_price: form.billing_mode === 'package' && form.package_total_price ? Number(form.package_total_price) : undefined,
           package_session_count: form.billing_mode === 'package' && form.package_session_count ? Number(form.package_session_count) : undefined,
@@ -275,9 +279,12 @@ export default function PatientDetailScreen({ navigation, route }: any) {
         terms: {
           value:
             form.billing_mode === 'package'
-              ? `${formatCurrency(Number(form.package_total_price || 0))} por pacote de ${form.package_session_count || '0'} sessoes`
+              ? `${formatCurrency(Number(form.package_total_price || 0))} por acompanhamento`
               : `${formatCurrency(Number(form.session_price || 0))} por sessao`,
-          periodicity: form.billing_mode === 'package' ? 'pacote' : 'sessao',
+          periodicity:
+            form.billing_mode === 'package'
+              ? `${form.weekly_frequency || '1'}x por semana`
+              : 'sessao avulsa',
           absence_policy: 'Cancelamentos devem ser informados com antecedencia minima de 24 horas.',
           payment_method: 'A combinar',
         },
@@ -475,12 +482,37 @@ export default function PatientDetailScreen({ navigation, route }: any) {
             <Text style={[styles.fieldValue, { color: theme.foreground }]}>{form.billing_mode === 'package' ? 'Pacote' : 'Sessao avulsa'}</Text>
           )}
 
+          <Text style={[styles.fieldLabel, { color: theme.mutedForeground }]}>Frequencia semanal</Text>
+          {isEditing ? (
+            <View style={styles.billingToggleRow}>
+              {['1', '2', '3', '4', '5'].map((value) => (
+                <TouchableOpacity
+                  key={value}
+                  style={[
+                    styles.frequencyChip,
+                    {
+                      backgroundColor: form.weekly_frequency === value ? theme.primary : theme.background,
+                      borderColor: theme.border,
+                    },
+                  ]}
+                  onPress={() => updateFormField('weekly_frequency', value)}
+                >
+                  <Text style={[styles.billingToggleText, { color: form.weekly_frequency === value ? '#fff' : theme.foreground }]}>
+                    {value}x
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          ) : (
+            <Text style={[styles.fieldValue, { color: theme.foreground }]}>{form.weekly_frequency}x por semana</Text>
+          )}
+
           {form.billing_mode === 'per_session'
             ? renderField('Valor por sessao', 'session_price', { keyboardType: 'numeric' })
             : (
               <>
-                {renderField('Valor total do pacote', 'package_total_price', { keyboardType: 'numeric' })}
-                {renderField('Quantidade de sessoes', 'package_session_count', { keyboardType: 'numeric' })}
+                {renderField('Valor mensal / acompanhamento', 'package_total_price', { keyboardType: 'numeric' })}
+                {renderField('Observacao do acordo', 'package_session_count')}
               </>
             )}
         </View>
@@ -759,6 +791,14 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter',
     fontSize: 13,
     fontWeight: '700',
+  },
+  frequencyChip: {
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   shortcutRow: {
     flexDirection: 'row',

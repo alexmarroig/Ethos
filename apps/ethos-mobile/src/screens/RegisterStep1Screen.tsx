@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import {
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -11,11 +12,21 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
+import * as DocumentPicker from 'expo-document-picker';
+import * as FileSystem from 'expo-file-system';
 import Animated, { FadeInDown } from 'react-native-reanimated';
-import { ChevronLeft, Eye, EyeOff } from 'lucide-react-native';
+import { ChevronLeft, Eye, EyeOff, User } from 'lucide-react-native';
 
 import { useTheme } from '../hooks/useTheme';
 import { colors } from '../theme/colors';
+import { CRP_REGEX, EMAIL_REGEX } from '../constants/professionalOptions';
+
+const readAvatarDataUrl = async (uri: string, mimeType?: string | null) => {
+  const base64 = await FileSystem.readAsStringAsync(uri, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+  return `data:${mimeType || 'image/jpeg'};base64,${base64}`;
+};
 
 export default function RegisterStep1Screen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
@@ -25,30 +36,66 @@ export default function RegisterStep1Screen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [crp, setCrp] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [avatarUrl, setAvatarUrl] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const primaryTeal = '#234e5c';
   const inputBg = isDark ? '#1e2126' : '#fcfcfb';
 
+  const initials =
+    name
+      .trim()
+      .split(/\s+/)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join('') || 'ET';
+
+  const handleAvatarPick = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'image/*',
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      const dataUrl = await readAvatarDataUrl(asset.uri, asset.mimeType);
+      setAvatarUrl(dataUrl);
+    } catch (pickError: any) {
+      setError(pickError?.message ?? 'Nao foi possivel selecionar a foto agora.');
+    }
+  };
+
   const handleContinue = () => {
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedCrp = crp.trim().replace(/\s+/g, '');
+
     if (!name.trim()) {
       setError('Informe o nome completo para continuar.');
       return;
     }
 
-    if (!email.trim() || !email.includes('@')) {
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
       setError('Informe um e-mail valido.');
       return;
     }
 
-    if (!crp.trim()) {
-      setError('Informe o CRP da psicologa.');
+    if (!CRP_REGEX.test(normalizedCrp)) {
+      setError('Informe o CRP no formato 00/0000 a 00/000000.');
       return;
     }
 
-    if (password.length < 6) {
-      setError('A senha precisa ter pelo menos 6 caracteres.');
+    if (password.length < 8) {
+      setError('A senha precisa ter pelo menos 8 caracteres.');
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError('As senhas nao conferem.');
       return;
     }
 
@@ -56,9 +103,10 @@ export default function RegisterStep1Screen({ navigation }: any) {
     navigation.navigate('RegisterStep2', {
       registrationDraft: {
         name: name.trim(),
-        email: email.trim().toLowerCase(),
-        crp: crp.trim().toUpperCase(),
+        email: normalizedEmail,
+        crp: normalizedCrp.toUpperCase(),
         password,
+        avatar_url: avatarUrl || undefined,
       },
     });
   };
@@ -80,11 +128,28 @@ export default function RegisterStep1Screen({ navigation }: any) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.duration(600)}>
-          <Text style={[styles.title, { color: primaryTeal }]}>Dados Pessoais e{'\n'}Profissionais</Text>
+          <Text style={[styles.title, { color: primaryTeal }]}>Dados pessoais e profissionais</Text>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>Passo 1 de 2</Text>
 
+          <TouchableOpacity style={styles.avatarPicker} onPress={handleAvatarPick} activeOpacity={0.9}>
+            {avatarUrl ? (
+              <Image source={{ uri: avatarUrl }} style={styles.avatarImage} />
+            ) : (
+              <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#1e2126' : '#f0f4f3' }]}>
+                <Text style={[styles.avatarFallbackText, { color: primaryTeal }]}>{initials}</Text>
+              </View>
+            )}
+            <View style={styles.avatarTextWrap}>
+              <Text style={[styles.avatarTitle, { color: primaryTeal }]}>Foto profissional</Text>
+              <Text style={[styles.avatarSubtitle, { color: theme.mutedForeground }]}>
+                Adicione uma foto para aparecer no perfil e no painel.
+              </Text>
+            </View>
+            <User size={20} color={primaryTeal} />
+          </TouchableOpacity>
+
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: primaryTeal }]}>Nome Completo</Text>
+            <Text style={[styles.inputLabel, { color: primaryTeal }]}>Nome completo</Text>
             <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
               <TextInput
                 style={[styles.input, { color: theme.foreground }]}
@@ -116,13 +181,16 @@ export default function RegisterStep1Screen({ navigation }: any) {
             <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
               <TextInput
                 style={[styles.input, { color: theme.foreground }]}
-                placeholder="00/00000"
+                placeholder="06/20144"
                 placeholderTextColor={theme.mutedForeground}
                 value={crp}
                 onChangeText={setCrp}
                 autoCapitalize="characters"
               />
             </View>
+            <Text style={[styles.helperText, { color: theme.mutedForeground }]}>
+              Use o formato 00/0000 a 00/000000.
+            </Text>
           </View>
 
           <View style={styles.inputGroup}>
@@ -146,23 +214,38 @@ export default function RegisterStep1Screen({ navigation }: any) {
             </View>
           </View>
 
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: primaryTeal }]}>Confirmar senha</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: theme.border }]}>
+              <TextInput
+                style={[styles.input, { color: theme.foreground }]}
+                placeholder="Repita a senha"
+                placeholderTextColor={theme.mutedForeground}
+                value={confirmPassword}
+                onChangeText={setConfirmPassword}
+                secureTextEntry={!showConfirmPassword}
+              />
+              <TouchableOpacity onPress={() => setShowConfirmPassword((current) => !current)}>
+                {showConfirmPassword ? (
+                  <EyeOff size={20} color={theme.mutedForeground} />
+                ) : (
+                  <Eye size={20} color={theme.mutedForeground} />
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+
           {error ? (
             <View style={styles.errorBox}>
               <Text style={styles.errorText}>{error}</Text>
             </View>
           ) : null}
 
-          <TouchableOpacity
-            style={[styles.primaryButton, { backgroundColor: primaryTeal }]}
-            onPress={handleContinue}
-          >
-            <Text style={styles.primaryButtonText}>Proximo Passo</Text>
+          <TouchableOpacity style={[styles.primaryButton, { backgroundColor: primaryTeal }]} onPress={handleContinue}>
+            <Text style={styles.primaryButtonText}>Proximo passo</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={styles.loginLink}
-            onPress={() => navigation.navigate('Login')}
-          >
+          <TouchableOpacity style={styles.loginLink} onPress={() => navigation.navigate('Login')}>
             <Text style={[styles.loginText, { color: primaryTeal }]}>
               Ja tenho uma conta. <Text style={styles.loginHighlight}>Entrar</Text>
             </Text>
@@ -210,7 +293,44 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter',
     fontWeight: '600',
-    marginBottom: 40,
+    marginBottom: 24,
+  },
+  avatarPicker: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    marginBottom: 28,
+  },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+  },
+  avatarFallback: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarFallbackText: {
+    fontSize: 24,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+  avatarTextWrap: {
+    flex: 1,
+  },
+  avatarTitle: {
+    fontSize: 15,
+    fontFamily: 'Inter',
+    fontWeight: '700',
+  },
+  avatarSubtitle: {
+    marginTop: 4,
+    fontSize: 13,
+    fontFamily: 'Inter',
+    lineHeight: 18,
   },
   inputGroup: {
     marginBottom: 20,
@@ -224,7 +344,7 @@ const styles = StyleSheet.create({
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 56,
+    minHeight: 56,
     borderRadius: 16,
     paddingHorizontal: 16,
     borderWidth: 1,
@@ -232,6 +352,11 @@ const styles = StyleSheet.create({
   input: {
     flex: 1,
     fontSize: 16,
+    fontFamily: 'Inter',
+  },
+  helperText: {
+    marginTop: 6,
+    fontSize: 12,
     fontFamily: 'Inter',
   },
   errorBox: {

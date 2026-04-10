@@ -2,6 +2,7 @@ export type AuthUser = {
   id: string;
   email: string;
   name: string;
+  avatar_url?: string;
   crp?: string;
   specialty?: string;
   clinical_approach?: string;
@@ -37,6 +38,7 @@ export type PatientRecord = {
   emergency_contact_phone?: string;
   billing?: {
     mode: "per_session" | "package";
+    weekly_frequency?: 1 | 2 | 3 | 4 | 5;
     session_price?: number;
     package_total_price?: number;
     package_session_count?: number;

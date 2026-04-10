@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type Patient } from "@/services/patientService";
 import { cn } from "@/lib/utils";
+import { buildContractHtml } from "@/lib/documentBuilders";
 import {
   Dialog,
   DialogContent,
@@ -47,6 +48,7 @@ const ContractsPage = () => {
   const [absencePolicy, setAbsencePolicy] = useState(defaultTerms.absence_policy);
   const [paymentMethod, setPaymentMethod] = useState(defaultTerms.payment_method);
   const [sendAfterCreate, setSendAfterCreate] = useState(true);
+  const [previewContract, setPreviewContract] = useState<Contract | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -159,7 +161,35 @@ const ContractsPage = () => {
       toast({ title: "Erro ao exportar", description: result.error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "Contrato exportado", description: `${format.toUpperCase()} pronto.` });
+
+    const contract = contracts.find((item) => item.id === id);
+    const html = buildContractHtml(contract ?? {});
+
+    if (format === "pdf") {
+      const win = window.open("", "_blank", "noopener,noreferrer,width=980,height=900");
+      if (!win) {
+        toast({ title: "Popup bloqueado", description: "Permita popups para abrir a visualizacao do PDF.", variant: "destructive" });
+        return;
+      }
+      win.document.write(html);
+      win.document.close();
+      win.focus();
+      win.print();
+      toast({ title: "Visualizacao aberta", description: "Use a impressao do navegador para salvar em PDF." });
+      return;
+    }
+
+    const blob = new Blob([html], { type: "application/msword" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `contrato-${id}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+
+    toast({ title: "Contrato exportado", description: "O arquivo foi baixado em formato compatível com Word." });
   };
 
   const statusLabel = (status: string) => {
@@ -335,11 +365,35 @@ const ContractsPage = () => {
                     <Download className="w-3.5 h-3.5" strokeWidth={1.5} />
                     DOCX
                   </Button>
+                  <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setPreviewContract(contract)}>
+                    <ExternalLink className="w-3.5 h-3.5" strokeWidth={1.5} />
+                    Preview
+                  </Button>
                 </div>
               </div>
             ))
           )}
         </motion.div>
+
+        <Dialog open={Boolean(previewContract)} onOpenChange={(open) => !open && setPreviewContract(null)}>
+          <DialogContent className="max-w-5xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Preview do contrato</DialogTitle>
+            </DialogHeader>
+            {previewContract ? (
+              <iframe
+                title="Preview do contrato"
+                srcDoc={buildContractHtml(previewContract)}
+                className="h-[70vh] w-full rounded-lg border border-border bg-white"
+              />
+            ) : null}
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setPreviewContract(null)}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
 {
   "name": "ethos",
+  "main": "apps/ethos-mobile/index.js",
   "private": true,
   "workspaces": [
     "apps/*",

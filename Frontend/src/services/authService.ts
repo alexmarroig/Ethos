@@ -6,16 +6,45 @@ export interface LoginResponse {
     id: string;
     email: string;
     name: string;
+    avatar_url?: string;
+    crp?: string;
+    specialty?: string;
+    clinical_approach?: string;
     role: "admin" | "professional" | "patient";
   };
+}
+
+export interface RegisterPayload {
+  name: string;
+  email: string;
+  password: string;
+  crp: string;
+  specialty: string;
+  clinical_approach: string;
+  accepted_ethics: boolean;
 }
 
 export const authService = {
   login: (email: string, password: string): Promise<ApiResult<LoginResponse>> =>
     api.post<LoginResponse>("/auth/login", { email, password }),
 
-  logout: (): Promise<ApiResult<void>> =>
-    api.post<void>("/auth/logout"),
+  register: (payload: RegisterPayload): Promise<ApiResult<LoginResponse>> =>
+    api.post<LoginResponse>("/auth/register", payload),
+
+  me: (): Promise<ApiResult<LoginResponse["user"]>> =>
+    api.get<LoginResponse["user"]>("/auth/me"),
+
+  updateMe: (payload: Partial<{
+    name: string;
+    email: string;
+    avatar_url?: string;
+    crp?: string;
+    specialty?: string;
+    clinical_approach?: string;
+  }>): Promise<ApiResult<LoginResponse["user"]>> =>
+    api.patch<LoginResponse["user"]>("/auth/me", payload),
+
+  logout: (): Promise<ApiResult<void>> => api.post<void>("/auth/logout"),
 
   invite: (email: string, role: string): Promise<ApiResult<{ invite_token: string }>> =>
     api.post<{ invite_token: string }>("/auth/invite", { email, role }),

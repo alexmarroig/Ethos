@@ -16,6 +16,7 @@ import { Eye, EyeOff, Fingerprint, Lock, Mail, Shield } from 'lucide-react-nativ
 
 import { colors } from '../theme/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { biometricService } from '../services/biometrics';
 
 export default function LoginScreen({ navigation }: any) {
   const isDark = useColorScheme() === 'dark';
@@ -26,6 +27,7 @@ export default function LoginScreen({ navigation }: any) {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isBiometricLoading, setIsBiometricLoading] = useState(false);
 
   const bgPrimary = isDark ? '#15171a' : '#fcfcfb';
   const inputBg = isDark ? '#1e2126' : '#f1f0ed';
@@ -42,7 +44,23 @@ export default function LoginScreen({ navigation }: any) {
       setError(null);
       await login(email.trim(), password);
     } catch (loginError: any) {
-      setError(loginError?.message ?? 'Não foi possível iniciar a sessão.');
+      setError(loginError?.message ?? 'Nao foi possivel iniciar a sessao.');
+    }
+  };
+
+  const handleBiometricAccess = async () => {
+    setError(null);
+    setIsBiometricLoading(true);
+
+    try {
+      const authenticated = await biometricService.authenticate();
+      if (!authenticated) {
+        setError('A autenticacao biometrica nao foi concluida. Use e-mail e senha para entrar.');
+      }
+    } catch (biometricError: any) {
+      setError(biometricError?.message ?? 'Biometria indisponivel neste dispositivo.');
+    } finally {
+      setIsBiometricLoading(false);
     }
   };
 
@@ -56,7 +74,7 @@ export default function LoginScreen({ navigation }: any) {
         <Animated.View entering={FadeIn.delay(200)} style={styles.logoContainer}>
           <View style={[styles.iconWrapper, { backgroundColor: isDark ? '#1a2221' : '#f0f4f3' }]}>
             {isDark ? (
-              <Shield size={40} color={accentTeal} fill={accentTeal + '20'} />
+              <Shield size={40} color={accentTeal} fill={`${accentTeal}20`} />
             ) : (
               <View style={styles.lightLogoIcon}>
                 <Shield size={30} color={primaryTeal} />
@@ -65,7 +83,7 @@ export default function LoginScreen({ navigation }: any) {
           </View>
           <Text style={[styles.brandTitle, { color: isDark ? '#fff' : '#234e5c' }]}>ETHOS</Text>
           <Text style={[styles.brandSubtitle, { color: isDark ? '#00f2ff80' : '#234e5c80' }]}>
-            {isDark ? 'CLINICAL ETHICS PLATFORM' : 'Ética Clínica para Psicólogos'}
+            Plataforma clinica para psicologos
           </Text>
         </Animated.View>
 
@@ -74,40 +92,42 @@ export default function LoginScreen({ navigation }: any) {
             Bem-vindo de volta
           </Text>
           <Text style={[styles.welcomeSubtitle, { color: theme.mutedForeground }]}>
-            {isDark ? 'Enter your credentials to access the clinic' : 'Acesse sua conta para continuar'}
+            Acesse sua conta para continuar.
           </Text>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.foreground }]}>
-              {isDark ? 'Professional Email' : 'E-mail'}
-            </Text>
+            <Text style={[styles.inputLabel, { color: theme.foreground }]}>E-mail profissional</Text>
             <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'transparent' }]}>
               <Mail size={20} color={theme.mutedForeground} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: theme.foreground }]}
-                placeholder="name@clinic.com"
+                placeholder="nome@clinica.com"
                 placeholderTextColor={theme.mutedForeground}
                 value={email}
                 onChangeText={setEmail}
                 autoCapitalize="none"
+                autoCorrect={false}
                 keyboardType="email-address"
+                textContentType="username"
+                returnKeyType="next"
               />
             </View>
           </View>
 
           <View style={styles.inputGroup}>
-            <Text style={[styles.inputLabel, { color: theme.foreground }]}>
-              {isDark ? 'Password' : 'Senha'}
-            </Text>
+            <Text style={[styles.inputLabel, { color: theme.foreground }]}>Senha</Text>
             <View style={[styles.inputWrapper, { backgroundColor: inputBg, borderColor: isDark ? 'rgba(255,255,255,0.05)' : 'transparent' }]}>
               <Lock size={20} color={theme.mutedForeground} style={styles.inputIcon} />
               <TextInput
                 style={[styles.input, { color: theme.foreground }]}
-                placeholder="••••••••"
+                placeholder="Digite sua senha"
                 placeholderTextColor={theme.mutedForeground}
                 value={password}
                 onChangeText={setPassword}
                 secureTextEntry={!showPassword}
+                textContentType="password"
+                returnKeyType="go"
+                onSubmitEditing={handleLogin}
               />
               <TouchableOpacity onPress={() => setShowPassword((current) => !current)}>
                 {showPassword ? (
@@ -131,38 +151,36 @@ export default function LoginScreen({ navigation }: any) {
             disabled={isSubmitting}
           >
             <Text style={[styles.primaryButtonText, { color: isDark ? '#15171a' : '#fff' }]}>
-              {isSubmitting ? (isDark ? 'Signing In...' : 'Entrando...') : isDark ? 'Sign In' : 'Entrar'}
+              {isSubmitting ? 'Entrando...' : 'Entrar'}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.dividerContainer}>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
-            <Text style={[styles.dividerText, { color: theme.mutedForeground }]}>SECURE ACCESS</Text>
+            <Text style={[styles.dividerText, { color: theme.mutedForeground }]}>ACESSO SEGURO</Text>
             <View style={[styles.divider, { backgroundColor: theme.border }]} />
           </View>
 
-          <TouchableOpacity style={[styles.secondaryButton, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : theme.border }]}>
+          <TouchableOpacity
+            style={[styles.secondaryButton, { borderColor: isDark ? 'rgba(255,255,255,0.1)' : theme.border, opacity: isBiometricLoading ? 0.7 : 1 }]}
+            onPress={handleBiometricAccess}
+            disabled={isBiometricLoading}
+          >
             <Fingerprint size={22} color={isDark ? accentTeal : primaryTeal} />
             <Text style={[styles.secondaryButtonText, { color: isDark ? '#fff' : primaryTeal }]}>
-              {isDark ? 'Touch ID / Face ID' : 'Acessar com Biometria'}
+              {isBiometricLoading ? 'Validando biometria...' : 'Acessar com biometria'}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.footerLinks}>
             <TouchableOpacity onPress={() => navigation.navigate('RecoverPassword')}>
-              <Text style={[styles.footerLink, { color: theme.mutedForeground }]}>
-                {isDark ? 'Forgot password?' : 'Esqueci minha senha'}
-              </Text>
+              <Text style={[styles.footerLink, { color: theme.mutedForeground }]}>Esqueci minha senha</Text>
             </TouchableOpacity>
 
             <View style={styles.signupPrompt}>
-              <Text style={[styles.footerText, { color: theme.mutedForeground }]}>
-                {isDark ? "Don't have an account?" : 'Não tem uma conta?'}
-              </Text>
+              <Text style={[styles.footerText, { color: theme.mutedForeground }]}>Nao tem uma conta?</Text>
               <TouchableOpacity onPress={() => navigation.navigate('RegisterStep1')}>
-                <Text style={[styles.signupLink, { color: primaryTeal }]}>
-                  {isDark ? 'Sign Up' : ' Nova conta'}
-                </Text>
+                <Text style={[styles.signupLink, { color: primaryTeal }]}>Nova conta</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -170,7 +188,7 @@ export default function LoginScreen({ navigation }: any) {
           <View style={styles.securityFootnote}>
             <Shield size={14} color={theme.mutedForeground} />
             <Text style={[styles.securityFootnoteText, { color: theme.mutedForeground }]}>
-              HIPAA Compliant & Encrypted
+              Dados protegidos e criptografados
             </Text>
           </View>
         </Animated.View>
@@ -209,9 +227,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  lightLogoSymbol: {
-    fontSize: 30,
-  },
   brandTitle: {
     fontSize: 32,
     fontFamily: 'Lora',
@@ -224,6 +239,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 2,
     marginTop: 4,
+    textAlign: 'center',
   },
   formContainer: {
     flex: 1,
@@ -358,6 +374,6 @@ const styles = StyleSheet.create({
   securityFootnoteText: {
     fontSize: 12,
     fontFamily: 'Inter',
-    opacity: 0.5,
+    opacity: 0.6,
   },
 });

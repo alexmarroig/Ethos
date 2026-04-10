@@ -89,8 +89,12 @@ export const documentsApi = {
     };
   },
 
-  createVersion: (docId: string, content: string): Promise<ApiResult<DocumentVersion>> =>
-    api.post<DocumentVersion>(`/documents/${docId}/versions`, { content }),
+  createVersion: (
+    docId: string,
+    content: string,
+    globalValues: Record<string, string> = {}
+  ): Promise<ApiResult<DocumentVersion>> =>
+    api.post<DocumentVersion>(`/documents/${docId}/versions`, { content, global_values: globalValues }),
 
   listVersions: (docId: string): Promise<ApiResult<DocumentVersion[]>> =>
     api.get<DocumentVersion[]>(`/documents/${docId}/versions`),

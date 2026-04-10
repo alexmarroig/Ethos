@@ -12,8 +12,6 @@ import PatientDetailPage from "@/pages/PatientDetailPage";
 import EthicsPage from "@/pages/EthicsPage";
 import LoginPage from "@/pages/LoginPage";
 import ProntuarioPage from "@/pages/ProntuarioPage";
-import InstallPage from "@/pages/InstallPage";
-import ScalesPage from "@/pages/ScalesPage";
 import FormsPage from "@/pages/FormsPage";
 import AnamnesisPage from "@/pages/AnamnesisPage";
 import ReportsPage from "@/pages/ReportsPage";
@@ -25,7 +23,6 @@ import BackupPage from "@/pages/BackupPage";
 import ContractsPage from "@/pages/ContractsPage";
 import PatientHomePage from "@/pages/patient/PatientHomePage";
 import PatientSessionsPage from "@/pages/patient/PatientSessionsPage";
-import PatientScalesPage from "@/pages/patient/PatientScalesPage";
 import PatientDiaryPage from "@/pages/patient/PatientDiaryPage";
 import PatientMessagesPage from "@/pages/patient/PatientMessagesPage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
@@ -37,10 +34,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
 type Page =
-  | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario" | "install"
-  | "scales" | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "ai" | "account" | "backup"
+  | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
+  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "ai" | "account" | "backup"
   | "contracts"
-  | "patient-home" | "patient-sessions" | "patient-scales" | "patient-diary" | "patient-messages"
+  | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
   | "diagnostics";
 
@@ -105,8 +102,8 @@ const Index = () => {
   // Render page content with role guards
   const renderPage = () => {
     // Professional pages
-    const professionalPages = ["home", "agenda", "patients", "patient-detail", "scales", "forms", "anamnesis",
-      "finance", "reports", "documents", "contracts", "ai", "backup", "ethics", "install",
+    const professionalPages = ["home", "agenda", "patients", "patient-detail", "forms", "anamnesis",
+      "finance", "reports", "documents", "contracts", "ai", "backup", "ethics",
       "session", "prontuario", "account", "settings"];
 
     if (professionalPages.includes(currentPage)) {
@@ -181,10 +178,6 @@ const Index = () => {
         );
       case "ethics":
         return <EthicsPage />;
-      case "install":
-        return <InstallPage onBack={() => setCurrentPage("home")} />;
-      case "scales":
-        return <ScalesPage />;
       case "forms":
         return <FormsPage />;
       case "anamnesis":
@@ -209,8 +202,6 @@ const Index = () => {
         return <PatientHomePage />;
       case "patient-sessions":
         return <PatientSessionsPage />;
-      case "patient-scales":
-        return <PatientScalesPage />;
       case "patient-diary":
         return <PatientDiaryPage />;
       case "patient-messages":

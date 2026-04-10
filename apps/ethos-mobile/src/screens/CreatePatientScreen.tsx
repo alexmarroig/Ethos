@@ -23,11 +23,12 @@ export default function CreatePatientScreen({ navigation }: any) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
+  const [mainComplaint, setMainComplaint] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
     if (!name.trim()) {
-      Alert.alert('Campo obrigatório', 'Informe o nome do paciente.');
+      Alert.alert('Campo obrigatorio', 'Informe o nome do paciente.');
       return;
     }
 
@@ -37,11 +38,12 @@ export default function CreatePatientScreen({ navigation }: any) {
         name: name.trim(),
         email: email.trim() || undefined,
         whatsapp: whatsapp.trim() || undefined,
+        notes: mainComplaint.trim() || undefined,
       });
 
       navigation.replace('PatientDetail', { patientId: patient.id });
     } catch (error: any) {
-      Alert.alert('Erro', error?.message ?? 'Não foi possível cadastrar o paciente.');
+      Alert.alert('Erro', error?.message ?? 'Nao foi possivel cadastrar o paciente.');
     } finally {
       setIsSubmitting(false);
     }
@@ -54,9 +56,9 @@ export default function CreatePatientScreen({ navigation }: any) {
     >
       <ScrollView contentContainerStyle={styles.content}>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.title, { color: theme.foreground }]}>Cadastro rápido</Text>
+          <Text style={[styles.title, { color: theme.foreground }]}>Novo paciente</Text>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
-            Crie o paciente com o básico agora e complete a ficha logo em seguida.
+            Cadastre o basico agora. A ficha completa pode ser editada logo em seguida.
           </Text>
 
           <Text style={[styles.label, { color: theme.foreground }]}>Nome</Text>
@@ -89,8 +91,27 @@ export default function CreatePatientScreen({ navigation }: any) {
             keyboardType="email-address"
           />
 
+          <Text style={[styles.label, { color: theme.foreground }]}>Queixa principal</Text>
+          <TextInput
+            style={[
+              styles.input,
+              styles.textarea,
+              { color: theme.foreground, backgroundColor: theme.background, borderColor: theme.border },
+            ]}
+            value={mainComplaint}
+            onChangeText={setMainComplaint}
+            placeholder="Motivo principal do acompanhamento"
+            placeholderTextColor={theme.mutedForeground}
+            multiline
+            textAlignVertical="top"
+          />
+
           <TouchableOpacity style={styles.primaryButton} onPress={handleSubmit} disabled={isSubmitting}>
-            {isSubmitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryButtonText}>Criar e abrir ficha</Text>}
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.primaryButtonText}>Criar e abrir ficha</Text>
+            )}
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -136,6 +157,9 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     fontFamily: 'Inter',
     fontSize: 15,
+  },
+  textarea: {
+    minHeight: 96,
   },
   primaryButton: {
     backgroundColor: '#234e5c',

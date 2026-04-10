@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
+  Image,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -167,9 +168,13 @@ export default function DashboardScreen() {
 
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#23333a' : '#e8eeed' }]}>
-            <Text style={[styles.avatarFallbackText, { color: primaryTeal }]}>{initials}</Text>
-          </View>
+          {user?.avatar_url ? (
+            <Image source={{ uri: user.avatar_url }} style={styles.avatarImage} />
+          ) : (
+            <View style={[styles.avatarFallback, { backgroundColor: isDark ? '#23333a' : '#e8eeed' }]}>
+              <Text style={[styles.avatarFallbackText, { color: primaryTeal }]}>{initials}</Text>
+            </View>
+          )}
           <View>
             <Text style={[styles.headerGreeting, { color: theme.mutedForeground }]}>Bem-vinda de volta</Text>
             <Text style={[styles.headerName, { color: theme.foreground }]}>Ola, {firstName}</Text>
@@ -179,13 +184,13 @@ export default function DashboardScreen() {
         <View style={styles.headerRight}>
           <TouchableOpacity
             style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]}
-            onPress={() => navigation.navigate('Patients')}
+            onPress={() => navigation.navigate('Search')}
           >
             <Search size={22} color={theme.foreground} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.headerIcon, { backgroundColor: isDark ? '#272b34' : '#edebe8' }]}
-            onPress={() => navigation.navigate('Settings')}
+            onPress={() => navigation.navigate('Notifications')}
           >
             <Bell size={22} color={theme.foreground} />
           </TouchableOpacity>
@@ -409,6 +414,11 @@ const styles = StyleSheet.create({
     borderRadius: 25,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  avatarImage: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
   },
   avatarFallbackText: {
     fontSize: 18,

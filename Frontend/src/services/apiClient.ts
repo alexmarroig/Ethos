@@ -1,6 +1,3 @@
-// ETHOS API Client
-// Wrapper around fetch with timeout, auth, retry for GET, multipart support, and error handling
-
 import {
   CLINICAL_BASE_URL,
   DEFAULT_TIMEOUT,
@@ -9,11 +6,6 @@ import {
   IS_DEV,
 } from "@/config/runtime";
 import { readStoredAuthUser } from "@/services/authStorage";
-import { getDemoApiResponse } from "@/services/demoMode";
-
-/* ------------------------------------------------------------------ */
-/*  Types                                                              */
-/* ------------------------------------------------------------------ */
 
 export interface ApiSuccess<T = unknown> {
   success: true;
@@ -36,41 +28,25 @@ export type ApiResult<T = unknown> = ApiSuccess<T> | ApiError;
 export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   timeout?: number;
   baseUrl?: string;
-  retry?: boolean;          // only for idempotent GETs, default true for GET
+  retry?: boolean;
   body?: BodyInit | object | null;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Auth helpers                                                       */
-/* ------------------------------------------------------------------ */
 
 function getAuthToken(): string | null {
   return readStoredAuthUser()?.token ?? null;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Logout callback (set by AuthContext to avoid circular import)       */
-/* ------------------------------------------------------------------ */
-
-let _onUnauthorized: (() => void) | null = null;
+let onUnauthorized: (() => void) | null = null;
 
 export function setOnUnauthorized(fn: () => void) {
-  _onUnauthorized = fn;
+  onUnauthorized = fn;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Timeout resolver                                                   */
-/* ------------------------------------------------------------------ */
 
 function resolveTimeout(path: string, explicit?: number): number {
   if (explicit !== undefined) return explicit;
-  if (LONG_TIMEOUT_PATTERNS.some((p) => path.includes(p))) return LONG_TIMEOUT;
+  if (LONG_TIMEOUT_PATTERNS.some((pattern) => path.includes(pattern))) return LONG_TIMEOUT;
   return DEFAULT_TIMEOUT;
 }
-
-/* ------------------------------------------------------------------ */
-/*  Core request function                                              */
-/* ------------------------------------------------------------------ */
 
 export async function apiRequest<T = unknown>(
   path: string,
@@ -81,35 +57,31 @@ export async function apiRequest<T = unknown>(
     baseUrl = CLINICAL_BASE_URL,
     retry,
     body,
-    ...fetchOpts
+    ...fetchOptions
   } = options;
 
   const timeout = resolveTimeout(path, explicitTimeout);
   const url = `${baseUrl}${path}`;
-  const method = (fetchOpts.method || "GET").toUpperCase();
-  const shouldRetry = retry ?? (method === "GET");
-
-  // In demo session (dev token), use local deterministic responses for key GET routes.
-  const demoResult = getDemoApiResponse<T>(path, method);
-  if (demoResult) {
-    return demoResult as ApiResult<T>;
-  }
-
-  // Build headers — skip Content-Type for FormData (browser sets boundary)
+  const method = (fetchOptions.method || "GET").toUpperCase();
+  const shouldRetry = retry ?? method === "GET";
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const token = getAuthToken();
 
   const headers: Record<string, string> = {
     ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...((fetchOpts.headers as Record<string, string>) || {}),
+    ...((fetchOptions.headers as Record<string, string>) || {}),
   };
 
-  // Serialize body
   let serializedBody: BodyInit | null | undefined;
   if (body === null || body === undefined) {
     serializedBody = undefined;
-  } else if (isFormData || typeof body === "string" || body instanceof Blob || body instanceof ArrayBuffer) {
+  } else if (
+    isFormData ||
+    typeof body === "string" ||
+    body instanceof Blob ||
+    body instanceof ArrayBuffer
+  ) {
     serializedBody = body as BodyInit;
   } else {
     serializedBody = JSON.stringify(body);
@@ -121,7 +93,7 @@ export async function apiRequest<T = unknown>(
 
     try {
       const response = await fetch(url, {
-        ...fetchOpts,
+        ...fetchOptions,
         method,
         headers,
         body: serializedBody,
@@ -130,16 +102,14 @@ export async function apiRequest<T = unknown>(
 
       clearTimeout(timer);
 
-      // Handle 401 globally — skip for logout and dev tokens to avoid infinite loop
       if (response.status === 401) {
-        const currentToken = getAuthToken();
-        const isDevToken = currentToken?.startsWith("dev-") ?? false;
-        if (!path.includes("/auth/logout") && !isDevToken) {
-          _onUnauthorized?.();
+        if (!path.includes("/auth/logout")) {
+          onUnauthorized?.();
         }
+
         return {
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Sessão expirada. Faça login novamente." },
+          error: { code: "UNAUTHORIZED", message: "Sessao expirada. Faca login novamente." },
           request_id: "local",
           status: 401,
         };
@@ -153,10 +123,13 @@ export async function apiRequest<T = unknown>(
       }
 
       if (!response.ok || responseBody.error) {
-        const errorMsg = getHumanError(response.status, responseBody);
         return {
           success: false,
-          error: responseBody.error || { code: `HTTP_${response.status}`, message: errorMsg },
+          error:
+            responseBody.error || {
+              code: `HTTP_${response.status}`,
+              message: getHumanError(response.status, responseBody),
+            },
           request_id: responseBody.request_id || "unknown",
           status: response.status,
         };
@@ -168,52 +141,55 @@ export async function apiRequest<T = unknown>(
         request_id: responseBody.request_id || "unknown",
         status: response.status,
       };
-    } catch (err: unknown) {
+    } catch (error: unknown) {
       clearTimeout(timer);
-      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const isAbort = error instanceof DOMException && error.name === "AbortError";
+
       return {
         success: false,
         error: {
           code: isAbort ? "TIMEOUT" : "NETWORK_ERROR",
           message: isAbort
             ? "Tempo limite excedido. Tente novamente."
-            : "Integração indisponível. Verifique sua conexão.",
+            : "Integracao indisponivel. Verifique sua conexao.",
         },
         request_id: "local",
       };
     }
   };
 
-  // Execute with optional retry (GET only, max 1 retry with 1s backoff)
   const result = await doFetch();
-  if (!result.success && shouldRetry && (result.error.code === "NETWORK_ERROR" || result.error.code === "TIMEOUT")) {
+  if (
+    !result.success &&
+    shouldRetry &&
+    (result.error.code === "NETWORK_ERROR" || result.error.code === "TIMEOUT")
+  ) {
     if (IS_DEV) console.warn(`[apiClient] Retrying ${method} ${path}...`);
-    await new Promise((r) => setTimeout(r, 1000));
+    await new Promise((resolve) => setTimeout(resolve, 1000));
     return doFetch();
   }
 
   return result;
 }
 
-/* ------------------------------------------------------------------ */
-/*  Human-friendly error messages                                      */
-/* ------------------------------------------------------------------ */
-
 function getHumanError(status: number, body: any): string {
   if (body?.error?.message) return body.error.message;
+
   switch (status) {
-    case 400: return "Dados inválidos. Verifique os campos e tente novamente.";
-    case 403: return "Sem permissão para esta ação.";
-    case 404: return "Recurso não encontrado.";
-    case 409: return "Conflito. Tente novamente.";
-    case 500: return "Erro interno. Tente novamente em alguns instantes.";
-    default: return `Erro inesperado (${status}).`;
+    case 400:
+      return "Dados invalidos. Verifique os campos e tente novamente.";
+    case 403:
+      return "Sem permissao para esta acao.";
+    case 404:
+      return "Recurso nao encontrado.";
+    case 409:
+      return "Conflito. Tente novamente.";
+    case 500:
+      return "Erro interno. Tente novamente em alguns instantes.";
+    default:
+      return `Erro inesperado (${status}).`;
   }
 }
-
-/* ------------------------------------------------------------------ */
-/*  Convenience methods                                                */
-/* ------------------------------------------------------------------ */
 
 export const api = {
   get: <T = unknown>(path: string, opts?: ApiRequestOptions) =>

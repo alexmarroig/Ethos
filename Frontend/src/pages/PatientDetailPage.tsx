@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,6 +11,7 @@ import { patientService, type PatientDetail } from "@/services/patientService";
 import { sessionService } from "@/services/sessionService";
 import { contractsApi, documentsApi } from "@/api/clinical";
 import { reportService } from "@/services/reportService";
+import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
   Dialog,
   DialogContent,
@@ -34,16 +35,29 @@ type PatientFormState = {
   whatsapp: string;
   birth_date: string;
   address: string;
+  address_street: string;
+  address_number: string;
+  address_complement: string;
+  address_neighborhood: string;
+  address_city: string;
+  address_state: string;
+  address_zip: string;
   cpf: string;
+  profession: string;
+  referral_source: string;
+  care_interest: string;
+  therapy_goals: string;
   main_complaint: string;
   psychiatric_medications: string;
   has_psychiatric_followup: boolean;
   psychiatrist_name: string;
   psychiatrist_contact: string;
   emergency_contact_name: string;
+  emergency_contact_relationship: string;
   emergency_contact_phone: string;
   notes: string;
   billing_mode: "per_session" | "package";
+  weekly_frequency: string;
   session_price: string;
   package_total_price: string;
   package_session_count: string;
@@ -56,16 +70,29 @@ const emptyForm: PatientFormState = {
   whatsapp: "",
   birth_date: "",
   address: "",
+  address_street: "",
+  address_number: "",
+  address_complement: "",
+  address_neighborhood: "",
+  address_city: "",
+  address_state: "",
+  address_zip: "",
   cpf: "",
+  profession: "",
+  referral_source: "",
+  care_interest: "",
+  therapy_goals: "",
   main_complaint: "",
   psychiatric_medications: "",
   has_psychiatric_followup: false,
   psychiatrist_name: "",
   psychiatrist_contact: "",
   emergency_contact_name: "",
+  emergency_contact_relationship: "",
   emergency_contact_phone: "",
   notes: "",
   billing_mode: "per_session",
+  weekly_frequency: "1",
   session_price: "",
   package_total_price: "",
   package_session_count: "",
@@ -78,7 +105,7 @@ const formatDate = (value?: string | null) =>
         month: "short",
         year: "numeric",
       })
-    : "Não definido";
+    : "NÃ£o definido";
 
 const formatDateTime = (value?: string | null) =>
   value
@@ -89,15 +116,31 @@ const formatDateTime = (value?: string | null) =>
         hour: "2-digit",
         minute: "2-digit",
       })
-    : "Não definido";
+    : "NÃ£o definido";
 
 const formatCurrency = (value?: number) =>
   typeof value === "number"
     ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
-    : "Não definido";
+    : "NÃ£o definido";
 
 const toInputDate = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 const buildDocumentTitle = (patientName: string, label: string) => `${label} - ${patientName}`;
+const documentTemplateLabel = (templateId?: string) => {
+  switch (templateId) {
+    case "payment-receipt":
+      return "Recibo";
+    case "attendance-declaration":
+      return "Declaração";
+    case "psychological-certificate":
+      return "Atestado psicológico";
+    case "therapy-contract":
+      return "Contrato terapêutico";
+    case "psychological-report":
+      return "Relatório psicológico";
+    default:
+      return "Documento";
+  }
+};
 
 export default function PatientDetailPage({
   patientId,
@@ -124,6 +167,10 @@ export default function PatientDetailPage({
   const [portalPassword, setPortalPassword] = useState("");
   const [accessCredentials, setAccessCredentials] = useState<string | null>(null);
   const [shortcutLoading, setShortcutLoading] = useState<string | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
+  const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
+  const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
+  const [documentPreviewLoading, setDocumentPreviewLoading] = useState(false);
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
@@ -154,16 +201,29 @@ export default function PatientDetailPage({
       whatsapp: detail.patient.whatsapp ?? detail.patient.phone ?? "",
       birth_date: toInputDate(detail.patient.birth_date),
       address: detail.patient.address ?? "",
+      address_street: detail.patient.address_street ?? "",
+      address_number: detail.patient.address_number ?? "",
+      address_complement: detail.patient.address_complement ?? "",
+      address_neighborhood: detail.patient.address_neighborhood ?? "",
+      address_city: detail.patient.address_city ?? "",
+      address_state: detail.patient.address_state ?? "",
+      address_zip: detail.patient.address_zip ?? "",
       cpf: detail.patient.cpf ?? "",
+      profession: detail.patient.profession ?? "",
+      referral_source: detail.patient.referral_source ?? "",
+      care_interest: detail.patient.care_interest ?? "",
+      therapy_goals: detail.patient.therapy_goals ?? "",
       main_complaint: detail.patient.main_complaint ?? "",
       psychiatric_medications: detail.patient.psychiatric_medications ?? "",
       has_psychiatric_followup: Boolean(detail.patient.has_psychiatric_followup),
       psychiatrist_name: detail.patient.psychiatrist_name ?? "",
       psychiatrist_contact: detail.patient.psychiatrist_contact ?? "",
       emergency_contact_name: detail.patient.emergency_contact_name ?? "",
+      emergency_contact_relationship: detail.patient.emergency_contact_relationship ?? "",
       emergency_contact_phone: detail.patient.emergency_contact_phone ?? "",
       notes: detail.patient.notes ?? "",
       billing_mode: detail.patient.billing?.mode ?? "per_session",
+      weekly_frequency: detail.patient.billing?.weekly_frequency?.toString() ?? "1",
       session_price: detail.patient.billing?.session_price?.toString() ?? "",
       package_total_price: detail.patient.billing?.package_total_price?.toString() ?? "",
       package_session_count: detail.patient.billing?.package_session_count?.toString() ?? "",
@@ -180,9 +240,9 @@ export default function PatientDetailPage({
   const summaryCards = useMemo(() => {
     if (!detail) return [];
     return [
-      { label: "Total de sessões", value: String(detail.summary.total_sessions) },
-      { label: "Próxima sessão", value: formatDateTime(detail.summary.next_session?.scheduled_at) },
-      { label: "Última sessão", value: formatDateTime(detail.summary.last_session?.scheduled_at) },
+      { label: "Total de sessÃµes", value: String(detail.summary.total_sessions) },
+      { label: "PrÃ³xima sessÃ£o", value: formatDateTime(detail.summary.next_session?.scheduled_at) },
+      { label: "Ãšltima sessÃ£o", value: formatDateTime(detail.summary.last_session?.scheduled_at) },
     ];
   }, [detail]);
 
@@ -201,16 +261,29 @@ export default function PatientDetailPage({
       whatsapp: form.whatsapp.trim() || undefined,
       birth_date: form.birth_date || undefined,
       address: form.address.trim() || undefined,
+      address_street: form.address_street.trim() || undefined,
+      address_number: form.address_number.trim() || undefined,
+      address_complement: form.address_complement.trim() || undefined,
+      address_neighborhood: form.address_neighborhood.trim() || undefined,
+      address_city: form.address_city.trim() || undefined,
+      address_state: form.address_state.trim() || undefined,
+      address_zip: form.address_zip.trim() || undefined,
       cpf: form.cpf.trim() || undefined,
+      profession: form.profession.trim() || undefined,
+      referral_source: form.referral_source.trim() || undefined,
+      care_interest: form.care_interest.trim() || undefined,
+      therapy_goals: form.therapy_goals.trim() || undefined,
       main_complaint: form.main_complaint.trim() || undefined,
       psychiatric_medications: form.psychiatric_medications.trim() || undefined,
       has_psychiatric_followup: form.has_psychiatric_followup,
       psychiatrist_name: form.psychiatrist_name.trim() || undefined,
       psychiatrist_contact: form.psychiatrist_contact.trim() || undefined,
       emergency_contact_name: form.emergency_contact_name.trim() || undefined,
+      emergency_contact_relationship: form.emergency_contact_relationship.trim() || undefined,
       emergency_contact_phone: form.emergency_contact_phone.trim() || undefined,
       billing: {
         mode: form.billing_mode,
+        weekly_frequency: form.weekly_frequency ? Number(form.weekly_frequency) as 1 | 2 | 3 | 4 | 5 : undefined,
         session_price: form.billing_mode === "per_session" && form.session_price ? Number(form.session_price) : undefined,
         package_total_price: form.billing_mode === "package" && form.package_total_price ? Number(form.package_total_price) : undefined,
         package_session_count: form.billing_mode === "package" && form.package_session_count ? Number(form.package_session_count) : undefined,
@@ -251,15 +324,15 @@ export default function PatientDetailPage({
     setSessionDate("");
     setSessionTime("");
     setSessionDuration("50");
-    toast({ title: "Sessão criada" });
+    toast({ title: "SessÃ£o criada" });
     await loadPatient();
   };
 
   const handleOpenLatestProntuario = () => {
     if (!latestSessionId) {
       toast({
-        title: "Sessão necessária",
-        description: "Crie uma sessão antes de abrir uma nova nota clínica.",
+        title: "SessÃ£o necessÃ¡ria",
+        description: "Crie uma sessÃ£o antes de abrir uma nova nota clÃ­nica.",
         variant: "destructive",
       });
       return;
@@ -284,8 +357,64 @@ export default function PatientDetailPage({
       return;
     }
 
-    toast({ title: `${title} criado com sucesso` });
+    const generatedHtml = buildClinicalDocumentHtml(templateId, {
+      psychologist: {
+        name: user?.name ?? "PsicÃ³loga responsÃ¡vel",
+        email: user?.email,
+        crp: user?.crp,
+      },
+      patient: {
+        name: detail.patient.name,
+        email: detail.patient.email,
+        cpf: detail.patient.cpf,
+      },
+      documentTitle: title,
+      dateLabel: new Date().toLocaleDateString("pt-BR"),
+      priceLabel:
+        form.billing_mode === "per_session"
+          ? formatCurrency(Number(form.session_price || 0))
+          : formatCurrency(Number(form.package_total_price || 0)),
+      frequencyLabel: `${form.weekly_frequency || "1"}x por semana`,
+    });
+
+    await documentsApi.createVersion(result.data.id, generatedHtml, {
+      psychologist_name: user?.name ?? "",
+      psychologist_crp: user?.crp ?? "",
+      patient_name: detail.patient.name,
+      date: new Date().toLocaleDateString("pt-BR"),
+    });
+
+    setSelectedDocument(result.data);
+    setSelectedDocumentHtml(generatedHtml);
+    setDocumentDialogOpen(true);
+    toast({ title: `${title} criado com sucesso`, description: "O preview completo foi preparado abaixo." });
     await loadPatient();
+  };
+
+  const openDocumentPreview = async (document: { id: string; title?: string; template_id?: string; created_at?: string; status?: string }) => {
+    setSelectedDocument(document);
+    setSelectedDocumentHtml("");
+    setDocumentDialogOpen(true);
+    setDocumentPreviewLoading(true);
+
+    const versions = await documentsApi.listVersions(document.id);
+    if (versions.success && versions.data.length > 0) {
+      setSelectedDocumentHtml(versions.data[versions.data.length - 1].content);
+    } else {
+      setSelectedDocumentHtml("");
+      if (!versions.success) {
+        toast({ title: "Nao foi possivel abrir o documento", description: versions.error.message, variant: "destructive" });
+      }
+    }
+
+    setDocumentPreviewLoading(false);
+  };
+
+  const closeDocumentPreview = () => {
+    setDocumentDialogOpen(false);
+    setSelectedDocument(null);
+    setSelectedDocumentHtml("");
+    setDocumentPreviewLoading(false);
   };
 
   const handleCreateContract = async () => {
@@ -295,7 +424,7 @@ export default function PatientDetailPage({
     const contractResult = await contractsApi.create({
       patient_id: detail.patient.id,
       psychologist: {
-        name: user?.name ?? "Psicólogo responsável",
+        name: user?.name ?? "PsicÃ³logo responsÃ¡vel",
         license: "",
         email: user?.email ?? "",
       },
@@ -307,10 +436,13 @@ export default function PatientDetailPage({
       terms: {
         value:
           form.billing_mode === "package"
-            ? `${formatCurrency(Number(form.package_total_price || 0))} por pacote de ${form.package_session_count || "0"} sessões`
-            : `${formatCurrency(Number(form.session_price || 0))} por sessão`,
-        periodicity: form.billing_mode === "package" ? "pacote" : "sessão",
-        absence_policy: "Cancelamentos devem ser informados com antecedência mínima de 24 horas.",
+            ? `${formatCurrency(Number(form.package_total_price || 0))} por acompanhamento`
+            : `${formatCurrency(Number(form.session_price || 0))} por sessÃ£o`,
+        periodicity:
+          form.billing_mode === "package"
+            ? `${form.weekly_frequency || "1"}x por semana`
+            : "sessÃ£o avulsa",
+        absence_policy: "Cancelamentos devem ser informados com antecedÃªncia mÃ­nima de 24 horas.",
         payment_method: "A combinar",
       },
     } as any);
@@ -325,7 +457,7 @@ export default function PatientDetailPage({
       const sendResult = await contractsApi.send(contractResult.data.id);
       setShortcutLoading(null);
       if (!sendResult.success) {
-        toast({ title: "Contrato criado", description: "O envio ficou pendente e pode ser feito depois." });
+        toast({ title: "Contrato criado", description: "O envio ficou pendente. Revise depois na pÃ¡gina Contratos." });
         return;
       }
 
@@ -337,7 +469,7 @@ export default function PatientDetailPage({
     }
 
     setShortcutLoading(null);
-    toast({ title: "Contrato criado", description: "Paciente sem e-mail. O envio pode ser feito depois." });
+    toast({ title: "Contrato criado", description: "Paciente sem e-mail. Revise depois na pÃ¡gina Contratos." });
   };
 
   const handleCreateReport = async () => {
@@ -347,16 +479,16 @@ export default function PatientDetailPage({
     const result = await reportService.create({
       patient_id: detail.patient.id,
       purpose: "profissional",
-      content: `Relatório psicológico em elaboração referente ao acompanhamento clínico de ${detail.patient.name}.`,
+      content: `RelatÃ³rio psicolÃ³gico em elaboraÃ§Ã£o referente ao acompanhamento clÃ­nico de ${detail.patient.name}.`,
     });
     setShortcutLoading(null);
 
     if (!result.success) {
-      toast({ title: "Erro ao criar relatório", description: result.error.message, variant: "destructive" });
+      toast({ title: "Erro ao criar relatÃ³rio", description: result.error.message, variant: "destructive" });
       return;
     }
 
-    toast({ title: "Relatório criado", description: "O relatório inicial já está vinculado ao paciente." });
+    toast({ title: "RelatÃ³rio criado", description: "Revise o conteÃºdo depois na pÃ¡gina RelatÃ³rios." });
   };
 
   const handleGrantAccess = async () => {
@@ -397,7 +529,7 @@ export default function PatientDetailPage({
             Voltar
           </Button>
         </div>
-        <IntegrationUnavailable message={error?.message ?? "Paciente não encontrado"} requestId={error?.requestId ?? "local"} />
+        <IntegrationUnavailable message={error?.message ?? "Paciente nÃ£o encontrado"} requestId={error?.requestId ?? "local"} />
       </div>
     );
   }
@@ -413,7 +545,7 @@ export default function PatientDetailPage({
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">{detail.patient.name}</h1>
-              <p className="mt-2 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
+              <p className="mt-2 text-muted-foreground">Ficha clÃ­nica completa do paciente, com visÃ£o operacional e atalhos de documentos.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -421,12 +553,12 @@ export default function PatientDetailPage({
                 <DialogTrigger asChild>
                   <Button variant="secondary" className="gap-2">
                     <CalendarPlus className="w-4 h-4" />
-                    Nova sessão
+                    Nova sessÃ£o
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle className="font-serif text-xl">Agendar sessão</DialogTitle>
+                    <DialogTitle className="font-serif text-xl">Agendar sessÃ£o</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <Input type="date" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} />
@@ -444,7 +576,7 @@ export default function PatientDetailPage({
 
               <Button variant="secondary" className="gap-2" onClick={handleOpenLatestProntuario}>
                 <FileText className="w-4 h-4" />
-                Nova nota clínica
+                Nova nota clÃ­nica
               </Button>
 
               <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
@@ -461,7 +593,7 @@ export default function PatientDetailPage({
                   <div className="space-y-4">
                     <Input placeholder="Nome do paciente" value={portalName} onChange={(event) => setPortalName(event.target.value)} />
                     <Input placeholder="E-mail do paciente" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} />
-                    <Input placeholder="Senha temporária (opcional)" value={portalPassword} onChange={(event) => setPortalPassword(event.target.value)} />
+                    <Input placeholder="Senha temporÃ¡ria (opcional)" value={portalPassword} onChange={(event) => setPortalPassword(event.target.value)} />
                     {accessCredentials && (
                       <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-foreground">
                         <p className="font-medium mb-2">Credenciais geradas</p>
@@ -497,8 +629,8 @@ export default function PatientDetailPage({
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Identificação</h2>
-            <p className="text-sm text-muted-foreground mt-1">Dados de contato e identificação do paciente.</p>
+            <h2 className="font-serif text-2xl text-foreground">IdentificaÃ§Ã£o</h2>
+            <p className="text-sm text-muted-foreground mt-1">Dados de contato e identificaÃ§Ã£o do paciente.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -517,82 +649,142 @@ export default function PatientDetailPage({
               <label className="text-sm font-medium text-foreground">Telefone legado</label>
               <Input value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} placeholder="Opcional" />
             </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Data de nascimento</label>
-              <Input type="date" value={form.birth_date} onChange={(event) => updateForm("birth_date", event.target.value)} />
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Data de nascimento</label>
+            <Input type="date" value={form.birth_date} onChange={(event) => updateForm("birth_date", event.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">CPF</label>
+            <Input value={form.cpf} onChange={(event) => updateForm("cpf", event.target.value)} placeholder="000.000.000-00" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">ProfissÃ£o</label>
+            <Input value={form.profession} onChange={(event) => updateForm("profession", event.target.value)} placeholder="ProfissÃ£o atual" />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Interesse em</label>
+            <Input value={form.care_interest} onChange={(event) => updateForm("care_interest", event.target.value)} placeholder="Online, presencial ou ambos" />
+          </div>
+        </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-foreground">Rua</label>
+              <Input value={form.address_street} onChange={(event) => updateForm("address_street", event.target.value)} placeholder="Rua / Avenida" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">CPF</label>
-              <Input value={form.cpf} onChange={(event) => updateForm("cpf", event.target.value)} placeholder="000.000.000-00" />
+              <label className="text-sm font-medium text-foreground">NÃºmero</label>
+              <Input value={form.address_number} onChange={(event) => updateForm("address_number", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Complemento</label>
+              <Input value={form.address_complement} onChange={(event) => updateForm("address_complement", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Bairro</label>
+              <Input value={form.address_neighborhood} onChange={(event) => updateForm("address_neighborhood", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">CEP</label>
+              <Input value={form.address_zip} onChange={(event) => updateForm("address_zip", event.target.value)} placeholder="00000-000" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Cidade</label>
+              <Input value={form.address_city} onChange={(event) => updateForm("address_city", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Estado</label>
+              <Input value={form.address_state} onChange={(event) => updateForm("address_state", event.target.value)} placeholder="SP" />
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Endereço</label>
+            <label className="text-sm font-medium text-foreground">EndereÃ§o livre / observaÃ§Ãµes</label>
             <Textarea value={form.address} onChange={(event) => updateForm("address", event.target.value)} className="min-h-[100px]" />
           </div>
         </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Clínico</h2>
-            <p className="text-sm text-muted-foreground mt-1">Contexto principal e observações clínicas permanentes.</p>
+            <h2 className="font-serif text-2xl text-foreground">ClÃ­nico</h2>
+            <p className="text-sm text-muted-foreground mt-1">Contexto principal e observaÃ§Ãµes clÃ­nicas permanentes.</p>
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">Como chegou atÃ© a clÃ­nica</label>
+            <Textarea value={form.referral_source} onChange={(event) => updateForm("referral_source", event.target.value)} className="min-h-[90px]" placeholder="Site, Instagram, indicaÃ§Ã£o, etc." />
+          </div>
+          <div className="space-y-2">
+            <label className="text-sm font-medium text-foreground">O que faz procurar por psicoterapia</label>
+            <Textarea value={form.therapy_goals} onChange={(event) => updateForm("therapy_goals", event.target.value)} className="min-h-[110px]" />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Queixa principal</label>
             <Textarea value={form.main_complaint} onChange={(event) => updateForm("main_complaint", event.target.value)} className="min-h-[110px]" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Remédios psiquiátricos</label>
+            <label className="text-sm font-medium text-foreground">RemÃ©dios psiquiÃ¡tricos</label>
             <Textarea value={form.psychiatric_medications} onChange={(event) => updateForm("psychiatric_medications", event.target.value)} className="min-h-[100px]" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Observações adicionais</label>
+            <label className="text-sm font-medium text-foreground">ObservaÃ§Ãµes adicionais</label>
             <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} className="min-h-[120px]" />
           </div>
         </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Cobrança</h2>
-            <p className="text-sm text-muted-foreground mt-1">Preferência padrão de cobrança para este paciente.</p>
+            <h2 className="font-serif text-2xl text-foreground">CobranÃ§a</h2>
+            <p className="text-sm text-muted-foreground mt-1">Modelo de cobranÃ§a e frequÃªncia clÃ­nica de referÃªncia.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Tipo de cobrança</label>
+              <label className="text-sm font-medium text-foreground">Tipo de cobranÃ§a</label>
               <select
                 value={form.billing_mode}
                 onChange={(event) => updateForm("billing_mode", event.target.value as "per_session" | "package")}
                 className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="per_session">Sessão avulsa</option>
+                <option value="per_session">SessÃ£o avulsa</option>
                 <option value="package">Pacote</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">FrequÃªncia semanal</label>
+              <select
+                value={form.weekly_frequency}
+                onChange={(event) => updateForm("weekly_frequency", event.target.value)}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="1">1x por semana</option>
+                <option value="2">2x por semana</option>
+                <option value="3">3x por semana</option>
+                <option value="4">4x por semana</option>
+                <option value="5">5x por semana</option>
               </select>
             </div>
 
             {form.billing_mode === "per_session" ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Valor por sessão</label>
+                <label className="text-sm font-medium text-foreground">Valor por sessÃ£o</label>
                 <Input type="number" min="0" step="0.01" value={form.session_price} onChange={(event) => updateForm("session_price", event.target.value)} />
               </div>
             ) : (
               <>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Valor total do pacote</label>
+                  <label className="text-sm font-medium text-foreground">Valor mensal / acompanhamento</label>
                   <Input type="number" min="0" step="0.01" value={form.package_total_price} onChange={(event) => updateForm("package_total_price", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Quantidade de sessões</label>
-                  <Input type="number" min="1" step="1" value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} />
+                  <label className="text-sm font-medium text-foreground">ObservaÃ§Ã£o do acordo</label>
+                  <Input value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} placeholder="Ex.: varia conforme o mÃªs" />
                 </div>
               </>
             )}
           </div>
         </motion.section>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+        <motion.section className="grid gap-5 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergência</h2>
-            <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e segurança do caso.</p>
+            <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergÃªncia</h2>
+            <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e seguranÃ§a do caso.</p>
           </div>
           <label className="flex items-center gap-3 text-sm text-foreground">
             <input
@@ -600,7 +792,7 @@ export default function PatientDetailPage({
               checked={form.has_psychiatric_followup}
               onChange={(event) => updateForm("has_psychiatric_followup", event.target.checked)}
             />
-            Em acompanhamento psiquiátrico
+            Em acompanhamento psiquiÃ¡trico
           </label>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -612,11 +804,11 @@ export default function PatientDetailPage({
               <Input value={form.psychiatrist_contact} onChange={(event) => updateForm("psychiatrist_contact", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Contato de emergência</label>
+              <label className="text-sm font-medium text-foreground">Contato de emergÃªncia</label>
               <Input value={form.emergency_contact_name} onChange={(event) => updateForm("emergency_contact_name", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Telefone de emergência</label>
+              <label className="text-sm font-medium text-foreground">Telefone de emergÃªncia</label>
               <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", event.target.value)} />
             </div>
           </div>
@@ -625,19 +817,19 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="font-serif text-2xl text-foreground">Histórico operacional</h2>
-              <p className="text-sm text-muted-foreground mt-1">Sessões registradas e atalhos clínicos do caso.</p>
+              <h2 className="font-serif text-2xl text-foreground">HistÃ³rico de sessÃµes</h2>
+              <p className="text-sm text-muted-foreground mt-1">SessÃµes registradas e acesso rÃ¡pido ao prontuÃ¡rio.</p>
             </div>
             {latestSessionId && (
               <Button variant="outline" onClick={() => onOpenProntuario(latestSessionId)}>
-                Abrir prontuário mais recente
+                Abrir prontuÃ¡rio mais recente
               </Button>
             )}
           </div>
 
           {detail.sessions.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Nenhuma sessão vinculada ainda.
+              Nenhuma sessÃ£o vinculada ainda.
             </div>
           ) : (
             <div className="space-y-3">
@@ -646,16 +838,16 @@ export default function PatientDetailPage({
                   <div>
                     <p className="font-medium text-foreground">{formatDateTime(session.scheduled_at)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {session.duration_minutes ? `${session.duration_minutes} min · ` : ""}
-                      {session.status}
+                      {session.duration_minutes ? `${session.duration_minutes} min Â· ` : ""}
+                      {session.status === "scheduled" ? "agendado" : session.status}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => onOpenSession(session.id)}>
-                      Abrir sessão
+                      Abrir sessÃ£o
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => onOpenProntuario(session.id)}>
-                      Nota clínica
+                      Nota clÃ­nica
                     </Button>
                   </div>
                 </div>
@@ -667,7 +859,7 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div>
             <h2 className="font-serif text-2xl text-foreground">Documentos</h2>
-            <p className="text-sm text-muted-foreground mt-1">Atalhos rápidos para os principais documentos do caso.</p>
+            <p className="text-sm text-muted-foreground mt-1">Atalhos rÃ¡pidos para os principais documentos do caso.</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -675,11 +867,11 @@ export default function PatientDetailPage({
               {shortcutLoading === "payment-receipt" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Criar recibo
             </Button>
-            <Button variant="secondary" onClick={() => void createTemplateDocument("attendance-declaration", buildDocumentTitle(detail.patient.name, "Declaração"))} disabled={shortcutLoading === "attendance-declaration"} className="justify-start gap-2">
+            <Button variant="secondary" onClick={() => void createTemplateDocument("attendance-declaration", buildDocumentTitle(detail.patient.name, "DeclaraÃ§Ã£o"))} disabled={shortcutLoading === "attendance-declaration"} className="justify-start gap-2">
               {shortcutLoading === "attendance-declaration" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              Criar declaração
+              Criar declaraÃ§Ã£o
             </Button>
-            <Button variant="secondary" onClick={() => void createTemplateDocument("psychological-certificate", buildDocumentTitle(detail.patient.name, "Atestado psicológico"))} disabled={shortcutLoading === "psychological-certificate"} className="justify-start gap-2">
+            <Button variant="secondary" onClick={() => void createTemplateDocument("psychological-certificate", buildDocumentTitle(detail.patient.name, "Atestado psicolÃ³gico"))} disabled={shortcutLoading === "psychological-certificate"} className="justify-start gap-2">
               {shortcutLoading === "psychological-certificate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Criar atestado
             </Button>
@@ -689,23 +881,33 @@ export default function PatientDetailPage({
             </Button>
             <Button variant="outline" onClick={() => void handleCreateReport()} disabled={shortcutLoading === "report"} className="justify-start gap-2">
               {shortcutLoading === "report" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              Criar relatório
+              Criar relatÃ³rio
             </Button>
           </div>
 
           {detail.documents.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Nenhum documento clínico vinculado a este paciente ainda.
+              Nenhum documento clÃ­nico vinculado a este paciente ainda.
             </div>
           ) : (
             <div className="space-y-3">
               {detail.documents.map((document) => (
-                <div key={(document as { id: string }).id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <p className="font-medium text-foreground">{(document as { title?: string }).title ?? "Documento"}</p>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Template {(document as { template_id?: string }).template_id ?? "n/a"} · criado em {formatDate((document as { created_at?: string }).created_at)}
-                  </p>
-                </div>
+                <button
+                  key={(document as { id: string }).id}
+                  type="button"
+                  className="w-full cursor-pointer rounded-xl border border-border bg-background/60 p-4 text-left transition hover:border-primary/40 hover:bg-background"
+                  onClick={() => void openDocumentPreview(document as { id: string; title?: string; template_id?: string; created_at?: string; status?: string })}
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <p className="font-medium text-foreground">{(document as { title?: string }).title ?? "Documento"}</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        {documentTemplateLabel((document as { template_id?: string }).template_id)} · criado em {formatDate((document as { created_at?: string }).created_at)}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">Abrir</span>
+                  </div>
+                </button>
               ))}
             </div>
           )}
@@ -713,26 +915,78 @@ export default function PatientDetailPage({
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Diário emocional</h2>
-            <p className="text-sm text-muted-foreground mt-1">Últimos registros do paciente para consulta rápida.</p>
+            <h2 className="font-serif text-2xl text-foreground">DiÃ¡rio emocional</h2>
+            <p className="text-sm text-muted-foreground mt-1">Ãšltimos registros do paciente para consulta rÃ¡pida.</p>
           </div>
 
           {detail.emotional_diary.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Ainda não há registros emocionais vinculados.
+              Ainda nÃ£o hÃ¡ registros emocionais vinculados.
             </div>
           ) : (
             <div className="space-y-3">
               {detail.emotional_diary.slice(0, 5).map((entry: any) => (
                 <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <p className="font-medium text-foreground">{formatDateTime(entry.date)} · Humor {entry.mood}/5 · Intensidade {entry.intensity}/10</p>
-                  <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descrição adicional."}</p>
+                  <p className="font-medium text-foreground">{formatDateTime(entry.date)} Â· Humor {entry.mood}/5 Â· Intensidade {entry.intensity}/10</p>
+                  <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descriÃ§Ã£o adicional."}</p>
                 </div>
               ))}
             </div>
           )}
         </motion.section>
+
+        <Dialog open={documentDialogOpen} onOpenChange={(open) => !open && closeDocumentPreview()}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">
+                {(selectedDocument as { title?: string } | null)?.title ?? "Documento"}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedDocument ? (
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>
+                  <span className="font-medium text-foreground">Template:</span>{" "}
+                  {documentTemplateLabel((selectedDocument as { template_id?: string }).template_id)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Criado em:</span>{" "}
+                  {formatDateTime((selectedDocument as { created_at?: string }).created_at)}
+                </p>
+                <p>
+                  <span className="font-medium text-foreground">Status:</span>{" "}
+                  {(selectedDocument as { status?: string }).status ?? "draft"}
+                </p>
+                {documentPreviewLoading ? (
+                  <div className="rounded-lg border border-border bg-muted/30 p-4">
+                    Carregando visualizacao do documento...
+                  </div>
+                ) : selectedDocumentHtml ? (
+                  <div className="rounded-lg border border-border bg-background overflow-hidden">
+                    <iframe
+                      title="Preview do documento"
+                      srcDoc={selectedDocumentHtml}
+                      className="h-[480px] w-full bg-white"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-border bg-muted/30 p-4">
+                    Ainda nao ha visualizacao disponivel para este documento.
+                  </div>
+                )}
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="secondary" onClick={closeDocumentPreview}>
+                Fechar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
 }
+
+
+
+

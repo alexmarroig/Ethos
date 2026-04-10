@@ -290,7 +290,6 @@ const ensureClinicalEntitlements = (userId: string) => {
 };
 
 let camilaId = "";
-let helenaId = "";
 
 const seedBaseData = () => {
   camilaId = ensureSeedUser({
@@ -300,14 +299,6 @@ const seedBaseData = () => {
     role: "admin",
   });
 
-  helenaId = ensureSeedUser({
-    email: "helena@ethos.local",
-    name: "Dra. Helena Prado",
-    password: "ethos123",
-    role: "user",
-  });
-
-  ensureClinicalEntitlements(helenaId);
   db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "DepressÃƒÂ£o" });
   db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
 };
@@ -325,9 +316,6 @@ export const resetDatabaseForTests = () => {
 export const seeds = {
   get camilaId() {
     return camilaId;
-  },
-  get helenaId() {
-    return helenaId;
   },
   now,
 };

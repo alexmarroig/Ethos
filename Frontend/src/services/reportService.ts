@@ -21,6 +21,12 @@ export const reportService = {
   create: (data: { patient_id: string; purpose: string; content: string }): Promise<ApiResult<Report>> =>
     api.post<Report>("/reports", data),
 
+  update: (
+    reportId: string,
+    data: Partial<{ purpose: string; content: string; status: "draft" | "final" }>,
+  ): Promise<ApiResult<Report>> =>
+    api.patch<Report>(`/reports/${reportId}`, data),
+
   list: async (): Promise<ApiResult<Report[]>> => {
     const result = await api.get<PaginatedResponse<Report> | Report[]>("/reports");
     if (!result.success) return result;

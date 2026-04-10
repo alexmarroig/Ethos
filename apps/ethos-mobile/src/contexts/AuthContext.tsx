@@ -1,12 +1,27 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import * as SecureStore from "expo-secure-store";
 
-import { login as loginRequest, logout as logoutRequest, register as registerRequest } from "../services/api/auth";
+import {
+  fetchCurrentUser,
+  login as loginRequest,
+  logout as logoutRequest,
+  register as registerRequest,
+  updateCurrentUser,
+} from "../services/api/auth";
 import { setHttpClientAuthToken, setHttpClientSessionInvalidHandler } from "../services/api/httpClient";
 import type { AuthResponse, AuthUser } from "../services/api/types";
 import { setNotificationsAuthToken } from "./NotificationsContext";
 
 type AuthSession = AuthResponse;
+
+type ProfileUpdatePayload = Partial<{
+  name: string;
+  email: string;
+  avatar_url?: string;
+  crp?: string;
+  specialty?: string;
+  clinical_approach?: string;
+}>;
 
 type AuthContextValue = {
   user: AuthUser | null;
@@ -19,11 +34,14 @@ type AuthContextValue = {
     name: string;
     email: string;
     password: string;
+    avatar_url?: string;
     crp: string;
     specialty: string;
     clinical_approach: string;
     accepted_ethics: boolean;
   }) => Promise<void>;
+  refreshUser: () => Promise<AuthUser | null>;
+  updateProfile: (payload: ProfileUpdatePayload) => Promise<AuthUser>;
   logout: () => Promise<void>;
 };
 
@@ -97,41 +115,78 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [forceLogout]);
 
-  const login = useCallback(async (email: string, password: string) => {
-    setIsSubmitting(true);
-    try {
-      const nextSession = await loginRequest(email, password);
-      if (!APP_ROLES.has(nextSession.user.role)) {
-        throw new Error("Esta conta nao possui acesso ao aplicativo mobile.");
+  const login = useCallback(
+    async (email: string, password: string) => {
+      setIsSubmitting(true);
+      try {
+        const nextSession = await loginRequest(email, password);
+        if (!APP_ROLES.has(nextSession.user.role)) {
+          throw new Error("Esta conta nao possui acesso ao aplicativo mobile.");
+        }
+
+        await applySession(nextSession);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [applySession]
+  );
+
+  const register = useCallback(
+    async (payload: {
+      name: string;
+      email: string;
+      password: string;
+      avatar_url?: string;
+      crp: string;
+      specialty: string;
+      clinical_approach: string;
+      accepted_ethics: boolean;
+    }) => {
+      setIsSubmitting(true);
+      try {
+        const nextSession = await registerRequest(payload);
+        if (!APP_ROLES.has(nextSession.user.role)) {
+          throw new Error("Esta conta nao possui acesso ao aplicativo mobile.");
+        }
+
+        await applySession(nextSession);
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [applySession]
+  );
+
+  const refreshUser = useCallback(async () => {
+    if (!session?.token) return null;
+    const user = await fetchCurrentUser();
+    const nextSession = {
+      token: session.token,
+      user,
+    };
+    await applySession(nextSession);
+    return user;
+  }, [applySession, session]);
+
+  const updateProfile = useCallback(
+    async (payload: ProfileUpdatePayload) => {
+      if (!session?.token) {
+        throw new Error("Sessao expirada. Entre novamente para atualizar o perfil.");
       }
 
-      await applySession(nextSession);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [applySession]);
-
-  const register = useCallback(async (payload: {
-    name: string;
-    email: string;
-    password: string;
-    crp: string;
-    specialty: string;
-    clinical_approach: string;
-    accepted_ethics: boolean;
-  }) => {
-    setIsSubmitting(true);
-    try {
-      const nextSession = await registerRequest(payload);
-      if (!APP_ROLES.has(nextSession.user.role)) {
-        throw new Error("Esta conta nao possui acesso ao aplicativo mobile.");
+      setIsSubmitting(true);
+      try {
+        const user = await updateCurrentUser(payload);
+        const nextSession = { token: session.token, user };
+        await applySession(nextSession);
+        return user;
+      } finally {
+        setIsSubmitting(false);
       }
-
-      await applySession(nextSession);
-    } finally {
-      setIsSubmitting(false);
-    }
-  }, [applySession]);
+    },
+    [applySession, session]
+  );
 
   const logout = useCallback(async () => {
     try {
@@ -145,16 +200,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [applySession, session?.token]);
 
-  const value = useMemo<AuthContextValue>(() => ({
-    user: session?.user ?? null,
-    token: session?.token ?? null,
-    isAuthenticated: Boolean(session?.token),
-    isHydrating,
-    isSubmitting,
-    login,
-    register,
-    logout,
-  }), [isHydrating, isSubmitting, login, logout, register, session]);
+  const value = useMemo<AuthContextValue>(
+    () => ({
+      user: session?.user ?? null,
+      token: session?.token ?? null,
+      isAuthenticated: Boolean(session?.token),
+      isHydrating,
+      isSubmitting,
+      login,
+      register,
+      refreshUser,
+      updateProfile,
+      logout,
+    }),
+    [isHydrating, isSubmitting, login, logout, refreshUser, register, session, updateProfile]
+  );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

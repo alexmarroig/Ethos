@@ -1,12 +1,13 @@
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Shield, Settings, LogOut, Smartphone,
-  FileText, BarChart3, ClipboardList, DollarSign, FolderOpen,
+  Calendar, Clock, Users, Shield, Settings, LogOut,
+  FileText, ClipboardList, DollarSign, FolderOpen,
   Sparkles, User, FlaskConical, UserCog, TicketCheck, BookOpen, Stethoscope,
-  Home, MessageCircle, DatabaseBackup, ScrollText
+  Home, MessageCircle, DatabaseBackup, ScrollText, Moon, Sun
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
+import { useTheme } from "next-themes";
 
 interface SidebarProps {
   currentPage: string;
@@ -26,7 +27,6 @@ const navigation: NavItem[] = [
   { id: "home", label: "Linha do tempo", icon: Home, roles: ["professional", "admin"] },
   { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
-  { id: "scales", label: "Escalas", icon: BarChart3, roles: ["professional"] },
   { id: "forms", label: "Diário e formulários", icon: ClipboardList, roles: ["professional"] },
   { id: "anamnesis", label: "Anamnese", icon: BookOpen, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
@@ -36,12 +36,10 @@ const navigation: NavItem[] = [
   { id: "ai", label: "IA — Organizar texto", icon: Sparkles, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
   { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },
-  { id: "install", label: "Instalar no celular", icon: Smartphone, roles: ["professional", "admin"] },
 
   // Patient
   { id: "patient-home", label: "Início", icon: Home, roles: ["patient"] },
   { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
-  { id: "patient-scales", label: "Escalas", icon: BarChart3, roles: ["patient"] },
   { id: "patient-diary", label: "Diário", icon: ClipboardList, roles: ["patient"] },
   { id: "patient-messages", label: "Mensagens", icon: MessageCircle, roles: ["patient"] },
 
@@ -57,39 +55,75 @@ const navigation: NavItem[] = [
 
 const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
   const { user, logout, hasRole } = useAuth();
+  const { resolvedTheme, setTheme } = useTheme();
 
   const visibleItems = navigation.filter((item) =>
     item.roles.some((r) => hasRole(r))
   );
 
   const roleBadge = user?.role === "admin"
-    ? "Admin"
+    ? "Conta admin"
     : user?.role === "patient"
-    ? "Paciente"
-    : "Profissional";
+    ? "Conta paciente"
+    : "Conta clínica";
+
+  const initials = user?.name
+    ? user.name
+        .trim()
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part.charAt(0).toUpperCase())
+        .join("")
+    : "ET";
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 bottom-0 w-64 bg-sidebar border-r border-sidebar-border z-40 hidden md:flex flex-col"
+      className="fixed left-0 top-0 bottom-0 w-72 bg-sidebar border-r border-sidebar-border z-40 hidden md:flex flex-col"
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
     >
       {/* Logo and User */}
-      <div className="px-6 py-6 border-b border-sidebar-border">
-        <h1 className="font-serif text-2xl font-medium text-sidebar-primary tracking-tight">
-          ETHOS
-        </h1>
-        {user && (
-          <div className="mt-2 flex items-center gap-2">
-            <p className="text-sm text-muted-foreground truncate flex-1">
-              {user.name}
-            </p>
-            <span className="text-[10px] px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-              {roleBadge}
-            </span>
+      <div className="px-6 py-6 border-b border-sidebar-border bg-gradient-to-br from-sidebar to-sidebar-accent/40">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3 min-w-0 flex-1">
+            {user?.avatar_url ? (
+              <img
+                src={user.avatar_url}
+                alt="Foto de perfil"
+                className="h-12 w-12 rounded-2xl object-cover ring-1 ring-sidebar-border"
+              />
+            ) : (
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sidebar-primary/10 text-sidebar-primary font-semibold">
+                {initials}
+              </div>
+            )}
+            <div className="min-w-0 flex-1">
+              <h1 className="font-serif text-2xl font-medium text-sidebar-primary tracking-tight">
+                ETHOS
+              </h1>
+              {user ? (
+                <div className="mt-1 space-y-2 min-w-0">
+                  <p className="text-sm text-muted-foreground break-words leading-snug">
+                    {user.name}
+                  </p>
+                  <span className="inline-flex text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
+                    {roleBadge}
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
-        )}
+
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="flex h-10 w-10 items-center justify-center rounded-xl border border-sidebar-border bg-card/70 text-sidebar-foreground hover:border-primary/40 hover:text-primary"
+            aria-label="Alternar tema"
+          >
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       {/* Navigation */}

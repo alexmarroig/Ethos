@@ -5,100 +5,85 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
   useColorScheme,
 } from 'react-native';
 import Animated, { FadeInDown, FadeInRight } from 'react-native-reanimated';
-import { Check, ChevronDown, ChevronLeft, ChevronUp } from 'lucide-react-native';
+import { Check, ChevronLeft } from 'lucide-react-native';
 
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../hooks/useTheme';
 import { colors } from '../theme/colors';
-
-const SPECIALTY_OPTIONS = [
-  'Psicologia Clinica',
-  'Psicologia Infantil',
-  'Terapia de Casal e Familia',
-  'Neuropsicologia',
-  'Psicologia Organizacional',
-];
-
-const APPROACH_OPTIONS = [
-  'TCC',
-  'Psicanalise',
-  'Sistemica',
-  'Humanista',
-  'ACT',
-];
+import { APPROACH_OPTIONS, SPECIALTY_OPTIONS } from '../constants/professionalOptions';
 
 type RegistrationDraft = {
   name: string;
   email: string;
   crp: string;
   password: string;
+  avatar_url?: string;
 };
 
-type SelectorName = 'specialty' | 'approach' | null;
-
-type SelectorFieldProps = {
-  accentTeal: string;
-  backgroundColor: string;
-  borderColor: string;
-  inputLabel: string;
-  isOpen: boolean;
-  onToggle: () => void;
-  onSelect: (value: string) => void;
-  options: string[];
-  placeholder: string;
+type ChoiceGridProps = {
+  title: string;
+  options: readonly string[];
+  selectedValues: string[];
+  allowMultiple?: boolean;
+  onToggle: (value: string) => void;
   textColor: string;
-  value: string;
-  mutedColor: string;
+  selectedBackground: string;
+  selectedText: string;
+  borderColor: string;
 };
 
-function SelectorField({
-  accentTeal,
-  backgroundColor,
-  borderColor,
-  inputLabel,
-  isOpen,
-  onToggle,
-  onSelect,
+function ChoiceGrid({
+  title,
   options,
-  placeholder,
+  selectedValues,
+  allowMultiple,
+  onToggle,
   textColor,
-  value,
-  mutedColor,
-}: SelectorFieldProps) {
+  selectedBackground,
+  selectedText,
+  borderColor,
+}: ChoiceGridProps) {
   return (
     <View style={styles.inputGroup}>
-      <Text style={[styles.inputLabel, { color: textColor }]}>{inputLabel}</Text>
-      <TouchableOpacity
-        style={[styles.dropdownWrapper, { backgroundColor, borderColor }]}
-        onPress={onToggle}
-        activeOpacity={0.9}
-      >
-        <Text style={[styles.dropdownText, { color: value ? textColor : mutedColor }]}>
-          {value || placeholder}
-        </Text>
-        {isOpen ? <ChevronUp size={20} color={accentTeal} /> : <ChevronDown size={20} color={accentTeal} />}
-      </TouchableOpacity>
-
-      {isOpen ? (
-        <View style={[styles.optionsContainer, { backgroundColor, borderColor }]}>
-          {options.map((option) => (
+      <Text style={[styles.inputLabel, { color: textColor }]}>
+        {title}
+        {allowMultiple ? ' (pode selecionar mais de uma)' : ''}
+      </Text>
+      <View style={styles.choiceGrid}>
+        {options.map((option) => {
+          const isSelected = selectedValues.includes(option);
+          return (
             <TouchableOpacity
               key={option}
-              style={styles.optionRow}
-              onPress={() => onSelect(option)}
-              activeOpacity={0.85}
+              style={[
+                styles.choiceButton,
+                {
+                  borderColor,
+                  backgroundColor: isSelected ? selectedBackground : 'transparent',
+                },
+              ]}
+              onPress={() => onToggle(option)}
+              activeOpacity={0.9}
             >
-              <Text style={[styles.optionText, { color: textColor }]}>{option}</Text>
-              {value === option ? <Check size={16} color={accentTeal} /> : null}
+              <Text
+                style={[
+                  styles.choiceText,
+                  { color: isSelected ? selectedText : textColor },
+                ]}
+              >
+                {option}
+              </Text>
+              {isSelected ? <Check size={14} color={selectedText} /> : null}
             </TouchableOpacity>
-          ))}
-        </View>
-      ) : null}
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -109,9 +94,10 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
   const { register, isSubmitting } = useAuth();
 
   const [specialty, setSpecialty] = useState('');
-  const [approach, setApproach] = useState('');
+  const [specialtyOther, setSpecialtyOther] = useState('');
+  const [approaches, setApproaches] = useState<string[]>([]);
+  const [approachOther, setApproachOther] = useState('');
   const [acceptedEthics, setAcceptedEthics] = useState(false);
-  const [openSelector, setOpenSelector] = useState<SelectorName>(null);
   const [error, setError] = useState<string | null>(null);
 
   const registrationDraft: RegistrationDraft | undefined = route?.params?.registrationDraft;
@@ -119,7 +105,45 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
   const primaryTeal = '#234e5c';
   const accentTeal = '#00f2ff';
   const inputBg = isDark ? '#1e2126' : '#fcfcfb';
-  const isSubmitEnabled = Boolean(registrationDraft && specialty && approach && acceptedEthics && !isSubmitting);
+  const specialtyList = specialty
+    .split(' | ')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const resolvedSpecialty = specialtyList.includes('Outros')
+    ? [...specialtyList.filter((value) => value !== 'Outros'), ...specialtyOther.split(',').map((value) => value.trim()).filter(Boolean)].join(' | ')
+    : specialtyList.join(' | ');
+  const resolvedApproachList = approaches.includes('Outros')
+    ? [...approaches.filter((value) => value !== 'Outros'), ...approachOther.split(',').map((value) => value.trim()).filter(Boolean)]
+    : approaches;
+  const resolvedApproach = resolvedApproachList.join(' | ');
+  const isSubmitEnabled = Boolean(
+    registrationDraft &&
+      resolvedSpecialty &&
+      resolvedApproach &&
+      acceptedEthics &&
+      !isSubmitting
+  );
+
+  const toggleApproach = (value: string) => {
+    setApproaches((current) =>
+      current.includes(value)
+        ? current.filter((item) => item !== value)
+        : [...current, value]
+    );
+  };
+
+  const toggleSpecialty = (value: string) => {
+    setSpecialty((current) => {
+      const parsed = current
+        .split(' | ')
+        .map((item) => item.trim())
+        .filter(Boolean);
+      const next = parsed.includes(value)
+        ? parsed.filter((item) => item !== value)
+        : [...parsed, value];
+      return next.join(' | ');
+    });
+  };
 
   const handleFinishRegistration = async () => {
     if (!registrationDraft) {
@@ -127,8 +151,8 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
       return;
     }
 
-    if (!specialty || !approach) {
-      setError('Selecione a especialidade e a abordagem clinica.');
+    if (!resolvedSpecialty || !resolvedApproach) {
+      setError('Selecione a especialidade e ao menos uma abordagem clinica.');
       return;
     }
 
@@ -143,13 +167,18 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
         name: registrationDraft.name,
         email: registrationDraft.email,
         password: registrationDraft.password,
+        avatar_url: registrationDraft.avatar_url,
         crp: registrationDraft.crp,
-        specialty,
-        clinical_approach: approach,
+        specialty: resolvedSpecialty,
+        clinical_approach: resolvedApproach,
         accepted_ethics: true,
       });
     } catch (registrationError: any) {
-      setError(registrationError?.message ?? 'Nao foi possivel concluir o cadastro agora.');
+      setError(
+        registrationError?.message === 'This email is already registered'
+          ? 'Este email ja esta cadastrado. Entre com ele ou recupere o acesso.'
+          : registrationError?.message ?? 'Nao foi possivel concluir o cadastro agora.'
+      );
     }
   };
 
@@ -167,7 +196,7 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
 
       <View style={styles.progressSection}>
         <View style={styles.progressHeader}>
-          <Text style={[styles.progressTitle, { color: primaryTeal }]}>Especialidade e Etica</Text>
+          <Text style={[styles.progressTitle, { color: primaryTeal }]}>Foco clinico e etica</Text>
           <Text style={[styles.progressStep, { color: '#00ccdb' }]}>2 de 2</Text>
         </View>
         <View style={styles.progressBarBg}>
@@ -177,59 +206,77 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
 
       <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         <Animated.View entering={FadeInDown.delay(200).duration(600)}>
-          <Text style={[styles.title, { color: primaryTeal }]}>Dados Profissionais</Text>
+          <Text style={[styles.title, { color: primaryTeal }]}>Atendimento clinico</Text>
           <Text style={[styles.subtitle, { color: theme.mutedForeground }]}>
-            Informe sua area de atuacao e aceite os termos eticos da plataforma para concluir o cadastro clinico.
+            Escolha seu foco principal de atendimento e as abordagens que voce utiliza.
           </Text>
 
-          <SelectorField
-            accentTeal={accentTeal}
-            backgroundColor={inputBg}
-            borderColor={theme.border}
-            inputLabel="Especialidade Principal"
-            isOpen={openSelector === 'specialty'}
-            onToggle={() => setOpenSelector((current) => (current === 'specialty' ? null : 'specialty'))}
-            onSelect={(value) => {
-              setSpecialty(value);
-              setOpenSelector(null);
-            }}
+          <ChoiceGrid
+            title="Especialidade/foco principal"
             options={SPECIALTY_OPTIONS}
-            placeholder="Selecione sua especialidade"
+            selectedValues={specialtyList}
+            allowMultiple
+            onToggle={toggleSpecialty}
             textColor={primaryTeal}
-            value={specialty}
-            mutedColor={theme.mutedForeground}
+            selectedBackground={primaryTeal}
+            selectedText="#ffffff"
+            borderColor={theme.border}
           />
 
-          <SelectorField
-            accentTeal={accentTeal}
-            backgroundColor={inputBg}
-            borderColor={theme.border}
-            inputLabel="Abordagem Clinica"
-            isOpen={openSelector === 'approach'}
-            onToggle={() => setOpenSelector((current) => (current === 'approach' ? null : 'approach'))}
-            onSelect={(value) => {
-              setApproach(value);
-              setOpenSelector(null);
-            }}
+          {specialtyList.includes('Outros') ? (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: primaryTeal }]}>Outro foco clinico</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: inputBg, borderColor: theme.border, color: theme.foreground }]}
+                value={specialtyOther}
+                onChangeText={setSpecialtyOther}
+                placeholder="Separe por virgula"
+                placeholderTextColor={theme.mutedForeground}
+              />
+            </View>
+          ) : null}
+
+          <ChoiceGrid
+            title="Abordagem clinica"
             options={APPROACH_OPTIONS}
-            placeholder="Escolha sua abordagem"
+            selectedValues={approaches}
+            allowMultiple
+            onToggle={toggleApproach}
             textColor={primaryTeal}
-            value={approach}
-            mutedColor={theme.mutedForeground}
+            selectedBackground={primaryTeal}
+            selectedText="#ffffff"
+            borderColor={theme.border}
           />
+
+          {approaches.includes('Outros') ? (
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: primaryTeal }]}>Outras abordagens</Text>
+              <TextInput
+                style={[styles.textInput, { backgroundColor: inputBg, borderColor: theme.border, color: theme.foreground }]}
+                value={approachOther}
+                onChangeText={setApproachOther}
+                placeholder="Separe por virgula"
+                placeholderTextColor={theme.mutedForeground}
+              />
+            </View>
+          ) : null}
 
           <TouchableOpacity
             style={[styles.termsContainer, { backgroundColor: isDark ? 'rgba(0,242,255,0.05)' : '#f0f4f3' }]}
             onPress={() => setAcceptedEthics((current) => !current)}
             activeOpacity={0.9}
           >
-            <View style={[styles.checkbox, { borderColor: accentTeal, backgroundColor: acceptedEthics ? accentTeal : 'transparent' }]}>
+            <View
+              style={[
+                styles.checkbox,
+                { borderColor: accentTeal, backgroundColor: acceptedEthics ? accentTeal : 'transparent' },
+              ]}
+            >
               {acceptedEthics ? <Check size={14} color="#fff" /> : null}
             </View>
             <Text style={[styles.termsText, { color: primaryTeal }]}>
-              Li e concordo com o <Text style={styles.boldText}>Codigo de Etica Profissional</Text> do Psicologo e os{' '}
-              <Text style={styles.boldText}>Termos de Uso</Text> da plataforma ETHOS. Estou ciente do meu compromisso
-              com o sigilo e a pratica baseada em evidencias.
+              Li e concordo com o <Text style={styles.boldText}>Codigo de Etica Profissional</Text> e os{' '}
+              <Text style={styles.boldText}>Termos de Uso</Text> da plataforma ETHOS.
             </Text>
           </TouchableOpacity>
 
@@ -245,13 +292,13 @@ export default function RegisterStep2Screen({ navigation, route }: any) {
             disabled={!isSubmitEnabled}
           >
             <Text style={[styles.primaryButtonText, { color: '#15171a' }]}>
-              {isSubmitting ? 'Criando conta...' : 'Finalizar Cadastro'}
+              {isSubmitting ? 'Criando conta...' : 'Finalizar cadastro'}
             </Text>
           </TouchableOpacity>
 
           <View style={styles.securityBadge}>
             <Text style={[styles.securityBadgeText, { color: theme.mutedForeground }]}>
-              AMBIENTE SEGURO & CRIPTOGRAFADO
+              AMBIENTE SEGURO E CRIPTOGRAFADO
             </Text>
           </View>
         </Animated.View>
@@ -325,7 +372,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter',
     lineHeight: 24,
-    marginBottom: 40,
+    marginBottom: 28,
   },
   inputGroup: {
     marginBottom: 24,
@@ -336,42 +383,33 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 12,
   },
-  dropdownWrapper: {
+  choiceGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+  },
+  choiceButton: {
+    minHeight: 44,
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    minHeight: 64,
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    borderWidth: 1,
+    gap: 8,
   },
-  dropdownText: {
-    fontSize: 16,
+  choiceText: {
+    fontSize: 14,
     fontFamily: 'Inter',
-    flex: 1,
-    paddingRight: 16,
+    fontWeight: '600',
   },
-  optionsContainer: {
-    borderWidth: 1,
-    borderRadius: 20,
-    marginTop: 10,
-    overflow: 'hidden',
-  },
-  optionRow: {
+  textInput: {
     minHeight: 52,
-    paddingHorizontal: 18,
-    paddingVertical: 14,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#d6dfdd',
-  },
-  optionText: {
+    borderRadius: 16,
+    borderWidth: 1,
+    paddingHorizontal: 16,
     fontSize: 15,
     fontFamily: 'Inter',
-    flex: 1,
-    paddingRight: 16,
   },
   termsContainer: {
     flexDirection: 'row',

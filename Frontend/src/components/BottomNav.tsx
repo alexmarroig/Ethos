@@ -1,4 +1,4 @@
-import { Home, Calendar, PlusCircle, Users, User, BarChart3, FlaskConical, Clipboard } from "lucide-react";
+import { Home, Calendar, PlusCircle, Users, User, FlaskConical, Clipboard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -15,7 +15,6 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       return [
         { id: "patient-home", label: "Início", icon: Home },
         { id: "patient-sessions", label: "Sessões", icon: Calendar },
-        { id: "patient-scales", label: "Escalas", icon: BarChart3 },
         { id: "patient-diary", label: "Diário", icon: Clipboard },
         { id: "account", label: "Conta", icon: User },
       ];
@@ -25,7 +24,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       return [
         { id: "home", label: "Início", icon: Home },
         { id: "admin-users", label: "Usuários", icon: Users },
-        { id: "admin-dashboard", label: "Métricas", icon: BarChart3 },
+        { id: "admin-dashboard", label: "Métricas", icon: Clipboard },
         { id: "admin-testlab", label: "Test Lab", icon: FlaskConical },
         { id: "account", label: "Conta", icon: User },
       ];

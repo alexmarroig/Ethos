@@ -45,9 +45,32 @@ Importante:
   - altere temporariamente o bloco `build.preview.env` em [apps/ethos-mobile/eas.json](C:\Users\gaming\Desktop\Projetos\Ethos-main\apps\ethos-mobile\eas.json)
   - ou mova essas variaveis para o ambiente gerenciado do EAS e pare de fixa-las no profile
 
+<<<<<<< ours
 Se o objetivo for usar Render, nao precisa mudar nada antes do build.
 
 ## Runbook operacional
+=======
+### Opcao 1 (recomendada): EAS cloud build
+
+1. Faça login no Expo:
+   - `npx eas-cli login`
+2. Gere o APK interno:
+   - `npm --workspace apps/ethos-mobile run build:android:apk`
+3. Instale o APK no aparelho Android quando o build terminar.
+
+### Opcao 2: APK local via Gradle (sem EAS)
+
+Use essa opcao quando o ambiente nao consegue baixar/executar `eas-cli`.
+
+1. Gere/projete o Android nativo e compile release:
+   - `npm --workspace apps/ethos-mobile run build:android:apk:local`
+2. O APK final ficara em:
+   - `apps/ethos-mobile/android/app/build/outputs/apk/release/app-release.apk`
+
+> Observacao: para a opcao local voce precisa ter Android SDK + Java configurados na maquina.
+
+### Validacao rapida do APK instalado
+>>>>>>> theirs
 
 ### 1. Login no Expo / EAS
 
@@ -151,4 +174,8 @@ Para Android interno, use sempre:
 npm --workspace apps/ethos-mobile run build:android:apk
 ```
 
+<<<<<<< ours
 Nao use `development` para distribuicao.
+=======
+Se o app "nao abrir automaticamente no celular", quase sempre o problema e usar o perfil `development`. Para app instalavel no Android, use sempre `preview` (ou o `build:android:apk:local` para gerar localmente).
+>>>>>>> theirs

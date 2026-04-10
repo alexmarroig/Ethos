@@ -32,6 +32,8 @@ import PatientDocumentsScreen from '../screens/PatientDocumentsScreen';
 import PatientSettingsScreen from '../screens/PatientSettingsScreen';
 import PatientDocumentDetailScreen from '../screens/PatientDocumentDetailScreen';
 import EmotionalDiaryScreen from '../screens/EmotionalDiaryScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import SearchScreen from '../screens/SearchScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -233,6 +235,8 @@ function ClinicianStackNavigator() {
       <Stack.Screen name="CreateSession" component={CreateSessionScreen} options={{ title: 'Nova Sessao' }} />
       <Stack.Screen name="ClinicalNoteEditor" component={ClinicalNoteEditorScreen} options={{ title: 'Nota Clinica' }} />
       <Stack.Screen name="DocumentDetail" component={DocumentDetailScreen} options={{ title: 'Documento' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificacoes' }} />
+      <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Busca' }} />
     </Stack.Navigator>
   );
 }
@@ -257,6 +261,7 @@ function PatientStackNavigator() {
       <Stack.Screen name="PatientTabs" component={PatientTabs} options={{ headerShown: false }} />
       <Stack.Screen name="EmotionalDiary" component={EmotionalDiaryScreen} options={{ title: 'Diario emocional' }} />
       <Stack.Screen name="PatientDocumentDetail" component={PatientDocumentDetailScreen} options={{ title: 'Documento' }} />
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificacoes' }} />
     </Stack.Navigator>
   );
 }

@@ -1,4 +1,4 @@
-export type UUID = string;
+﻿export type UUID = string;
 
 export type Role = "admin" | "user" | "assistente" | "supervisor" | "patient";
 export type UserStatus = "invited" | "active" | "disabled";
@@ -42,6 +42,7 @@ export type User = {
   email: string;
   name: string;
   password_hash?: string;
+  avatar_url?: string;
   crp?: string;
   specialty?: string;
   clinical_approach?: string;
@@ -72,6 +73,7 @@ export type Owned = { id: UUID; owner_user_id: UUID; created_at: string };
 
 export type PatientBilling = {
   mode: "per_session" | "package";
+  weekly_frequency?: 1 | 2 | 3 | 4 | 5;
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
@@ -85,13 +87,25 @@ export type Patient = Owned & {
   whatsapp?: string;
   birth_date?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   cpf?: string;
+  profession?: string;
+  referral_source?: string;
+  care_interest?: string;
+  therapy_goals?: string;
   main_complaint?: string;
   psychiatric_medications?: string;
   has_psychiatric_followup?: boolean;
   psychiatrist_name?: string;
   psychiatrist_contact?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   billing?: PatientBilling;
   notes?: string;
@@ -128,8 +142,9 @@ export type ClinicalNote = Owned & {
 
 export type ClinicalReport = Owned & {
   patient_id: string;
-  purpose: "instituição" | "profissional" | "paciente";
+  purpose: "instituiÃ§Ã£o" | "profissional" | "paciente";
   content: string;
+  status?: "draft" | "final";
 };
 
 export type AnamnesisResponse = Owned & {
@@ -150,6 +165,31 @@ export type FormEntry = Owned & {
   patient_id: string;
   form_id: string;
   content: Record<string, unknown>;
+  submitted_by?: "patient" | "professional";
+};
+
+export type FormFieldType = "text" | "textarea" | "date" | "select";
+
+export type FormFieldOption = {
+  label: string;
+  value: string;
+};
+
+export type FormField = {
+  id: UUID;
+  label: string;
+  type: FormFieldType;
+  placeholder?: string;
+  required?: boolean;
+  options?: FormFieldOption[];
+};
+
+export type FormTemplate = Owned & {
+  title: string;
+  description?: string;
+  audience: "patient" | "professional";
+  active: boolean;
+  fields: FormField[];
 };
 
 export type FinancialEntry = Owned & {
@@ -160,6 +200,9 @@ export type FinancialEntry = Owned & {
   due_date: string;
   status: "open" | "paid";
   description: string;
+  payment_method?: string;
+  paid_at?: string;
+  notes?: string;
 };
 
 export type PatientTimelineItem = {
@@ -351,3 +394,4 @@ export type ApiError = {
   request_id: string;
   error: { code: string; message: string };
 };
+

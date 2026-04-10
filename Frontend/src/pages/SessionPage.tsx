@@ -1,13 +1,15 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2 } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import AudioRecorder from "@/components/AudioRecorder";
 import ConsentModal from "@/components/ConsentModal";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { sessionService, Session } from "@/services/sessionService";
 import { audioService } from "@/services/audioService";
+import { financeService, type FinancialEntry } from "@/services/financeService";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { startJob } from "@/jobs/jobManager";
@@ -34,6 +36,12 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   const [showTranscription, setShowTranscription] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
+  const [confirmingSession, setConfirmingSession] = useState(false);
+  const [linkedEntry, setLinkedEntry] = useState<FinancialEntry | null>(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
+  const [paymentDueDate, setPaymentDueDate] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [paymentSaving, setPaymentSaving] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -71,6 +79,20 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       setLoading(false);
     };
     load();
+  }, [sessionId]);
+
+  useEffect(() => {
+    const loadLinkedPayment = async () => {
+      const result = await financeService.listEntries();
+      if (!result.success) return;
+      const entry = result.data.find((item) => item.session_id === sessionId) ?? null;
+      setLinkedEntry(entry);
+      setPaymentAmount(entry ? String(entry.amount) : "");
+      setPaymentDueDate(entry?.due_date ? new Date(entry.due_date).toISOString().slice(0, 10) : "");
+      setPaymentMethod(entry?.payment_method ?? "");
+    };
+
+    void loadLinkedPayment();
   }, [sessionId]);
 
   const canGenerateProntuario = hasAudio || notes.trim().length > 0;
@@ -120,6 +142,68 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     }
   };
 
+  const handleConfirmSession = async () => {
+    if (!session) return;
+    setConfirmingSession(true);
+    const result = await sessionService.updateStatus(session.id, "confirmed");
+    setConfirmingSession(false);
+    if (!result.success) {
+      toast({ title: "Erro ao confirmar", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    setSession(result.data);
+    toast({ title: "Sessão confirmada", description: "Marcada como confirmada pelo paciente." });
+  };
+
+  const statusLabel = session?.status === "pending"
+    ? "Pendente de confirmação"
+    : session?.status === "confirmed"
+    ? "Confirmada pelo paciente"
+    : session?.status === "completed"
+    ? "Sessão concluída"
+    : session?.status === "missed"
+    ? "Paciente faltou"
+    : session?.status ?? "Sessão";
+
+  const handleSavePayment = async (markAsPaid = false) => {
+    if (!session || !paymentAmount.trim()) {
+      toast({ title: "Informe o valor", description: "Preencha o valor para registrar o pagamento.", variant: "destructive" });
+      return;
+    }
+
+    setPaymentSaving(true);
+    const payload = {
+      session_id: session.id,
+      patient_id: session.patient_id,
+      amount: Number(paymentAmount),
+      due_date: paymentDueDate ? new Date(`${paymentDueDate}T12:00:00`).toISOString() : undefined,
+      payment_method: paymentMethod || undefined,
+      status: markAsPaid ? ("paid" as const) : ("open" as const),
+      paid_at: markAsPaid ? new Date().toISOString() : undefined,
+      description: "SessÃ£o de psicoterapia",
+    };
+
+    const result = linkedEntry
+      ? await financeService.updateEntry(linkedEntry.id, payload)
+      : await financeService.createEntry(payload);
+
+    setPaymentSaving(false);
+
+    if (!result.success) {
+      toast({ title: "Erro ao salvar pagamento", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    setLinkedEntry(result.data);
+    setPaymentAmount(String(result.data.amount));
+    setPaymentDueDate(result.data.due_date ? new Date(result.data.due_date).toISOString().slice(0, 10) : "");
+    setPaymentMethod(result.data.payment_method ?? "");
+    toast({
+      title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "CobranÃ§a atualizada" : "CobranÃ§a registrada",
+      description: markAsPaid ? "A sessÃ£o ficou quitada no financeiro." : "O pagamento desta sessÃ£o foi vinculado ao financeiro.",
+    });
+  };
+
   if (loading) {
     return (
       <div className="content-container py-12">
@@ -159,7 +243,13 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
           </div>
           <div className="mt-3 flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-status-pending" />
-            <span className="text-sm text-muted-foreground capitalize">{session?.status}</span>
+            <span className="text-sm text-muted-foreground">{statusLabel}</span>
+            {session?.status === "pending" ? (
+              <Button variant="outline" size="sm" className="ml-2 gap-2" onClick={handleConfirmSession} disabled={confirmingSession}>
+                {confirmingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Confirmado pelo paciente
+              </Button>
+            ) : null}
           </div>
         </motion.header>
 
@@ -204,6 +294,46 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
         <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <h2 className="font-serif text-xl font-medium text-foreground mb-4">Anotações do profissional</h2>
           <Textarea placeholder="Escreva observações livres. Este campo não é exportado automaticamente." value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[160px] resize-none text-base leading-relaxed" />
+        </motion.section>
+
+        <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+          <h2 className="font-serif text-xl font-medium text-foreground mb-4">Pagamento da sessÃ£o</h2>
+          <div className="session-card space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Wallet className="w-4 h-4 text-primary" />
+                <span className="text-sm text-muted-foreground">
+                  {linkedEntry
+                    ? linkedEntry.status === "paid"
+                      ? "Pagamento jÃ¡ registrado como pago"
+                      : "CobranÃ§a pendente vinculada a esta sessÃ£o"
+                    : "Nenhuma cobranÃ§a vinculada a esta sessÃ£o ainda"}
+                </span>
+              </div>
+              {linkedEntry ? (
+                <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">
+                  {linkedEntry.status === "paid" ? "Pago" : "Pendente"}
+                </span>
+              ) : null}
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-3">
+              <Input type="number" step="0.01" placeholder="Valor da sessÃ£o" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
+              <Input type="date" value={paymentDueDate} onChange={(event) => setPaymentDueDate(event.target.value)} />
+              <Input placeholder="Forma de pagamento" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} />
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" onClick={() => void handleSavePayment(false)} disabled={paymentSaving || !paymentAmount.trim()}>
+                {paymentSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                {linkedEntry ? "Atualizar cobranÃ§a" : "LanÃ§ar cobranÃ§a da sessÃ£o"}
+              </Button>
+              <Button onClick={() => void handleSavePayment(true)} disabled={paymentSaving || !paymentAmount.trim()}>
+                {paymentSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                Marcar como pago
+              </Button>
+            </div>
+          </div>
         </motion.section>
 
         <motion.div className={`fixed bottom-0 right-0 p-4 md:p-6 bg-gradient-to-t from-background via-background to-transparent ${isMobile ? "left-0" : "left-64"}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

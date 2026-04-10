@@ -15,33 +15,33 @@
 
 @layer base {
   :root {
-    /* Warm off-white foundation */
-    --background: 40 25% 97%;
-    --foreground: 220 15% 18%;
+    /* Warm editorial foundation */
+    --background: 36 35% 96%;
+    --foreground: 213 29% 17%;
 
     /* Cards and surfaces */
-    --card: 40 20% 99%;
-    --card-foreground: 220 15% 18%;
+    --card: 36 30% 98%;
+    --card-foreground: 213 29% 17%;
 
     /* Popover */
-    --popover: 40 20% 99%;
-    --popover-foreground: 220 15% 18%;
+    --popover: 36 30% 98%;
+    --popover-foreground: 213 29% 17%;
 
-    /* Primary: Deep petrol blue — institutional, trustworthy */
-    --primary: 195 45% 25%;
-    --primary-foreground: 40 30% 96%;
+    /* Primary: deep Atlantic teal */
+    --primary: 193 52% 23%;
+    --primary-foreground: 36 30% 97%;
 
-    /* Secondary: Warm muted gray */
-    --secondary: 40 12% 92%;
-    --secondary-foreground: 220 15% 25%;
+    /* Secondary: linen stone */
+    --secondary: 35 20% 91%;
+    --secondary-foreground: 213 24% 24%;
 
     /* Muted surfaces */
-    --muted: 40 15% 94%;
-    --muted-foreground: 220 10% 45%;
+    --muted: 35 18% 93%;
+    --muted-foreground: 214 14% 42%;
 
-    /* Accent: Soft amber — used sparingly for warmth */
-    --accent: 35 55% 52%;
-    --accent-foreground: 40 30% 98%;
+    /* Accent: copper gold */
+    --accent: 28 58% 48%;
+    --accent-foreground: 36 30% 98%;
 
     /* Status colors */
     --status-pending: 45 85% 55%;
@@ -53,9 +53,9 @@
     --destructive-foreground: 0 0% 98%;
 
     /* Borders and inputs */
-    --border: 40 15% 88%;
-    --input: 40 15% 88%;
-    --ring: 195 45% 35%;
+    --border: 33 18% 85%;
+    --input: 33 18% 85%;
+    --ring: 193 52% 31%;
 
     --radius: 0.875rem;
 
@@ -74,37 +74,37 @@
     --transition-gentle: 500ms cubic-bezier(0.4, 0, 0.2, 1);
 
     /* Sidebar */
-    --sidebar-background: 40 18% 96%;
-    --sidebar-foreground: 220 15% 25%;
-    --sidebar-primary: 195 45% 25%;
-    --sidebar-primary-foreground: 40 30% 96%;
-    --sidebar-accent: 40 15% 92%;
-    --sidebar-accent-foreground: 220 15% 20%;
-    --sidebar-border: 40 12% 90%;
-    --sidebar-ring: 195 45% 35%;
+    --sidebar-background: 34 24% 94%;
+    --sidebar-foreground: 213 24% 24%;
+    --sidebar-primary: 193 52% 23%;
+    --sidebar-primary-foreground: 36 30% 97%;
+    --sidebar-accent: 34 19% 90%;
+    --sidebar-accent-foreground: 213 29% 17%;
+    --sidebar-border: 33 18% 86%;
+    --sidebar-ring: 193 52% 31%;
   }
 
   .dark {
-    --background: 220 18% 10%;
-    --foreground: 40 20% 92%;
+    --background: 210 22% 9%;
+    --foreground: 38 22% 92%;
 
-    --card: 220 18% 12%;
-    --card-foreground: 40 20% 92%;
+    --card: 210 18% 12%;
+    --card-foreground: 38 22% 92%;
 
-    --popover: 220 18% 12%;
-    --popover-foreground: 40 20% 92%;
+    --popover: 210 18% 12%;
+    --popover-foreground: 38 22% 92%;
 
-    --primary: 195 40% 55%;
-    --primary-foreground: 220 18% 8%;
+    --primary: 191 55% 62%;
+    --primary-foreground: 210 22% 10%;
 
-    --secondary: 220 15% 18%;
-    --secondary-foreground: 40 20% 88%;
+    --secondary: 211 15% 18%;
+    --secondary-foreground: 38 20% 88%;
 
-    --muted: 220 15% 16%;
-    --muted-foreground: 40 15% 55%;
+    --muted: 211 14% 16%;
+    --muted-foreground: 36 14% 64%;
 
-    --accent: 35 50% 50%;
-    --accent-foreground: 220 18% 8%;
+    --accent: 28 62% 55%;
+    --accent-foreground: 210 22% 10%;
 
     --status-pending: 45 80% 50%;
     --status-validated: 155 40% 45%;
@@ -113,18 +113,18 @@
     --destructive: 0 50% 45%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 220 15% 20%;
-    --input: 220 15% 20%;
-    --ring: 195 40% 50%;
+    --border: 211 14% 19%;
+    --input: 211 14% 19%;
+    --ring: 191 55% 52%;
 
-    --sidebar-background: 220 18% 8%;
-    --sidebar-foreground: 40 20% 88%;
-    --sidebar-primary: 195 40% 55%;
-    --sidebar-primary-foreground: 220 18% 8%;
-    --sidebar-accent: 220 15% 14%;
-    --sidebar-accent-foreground: 40 20% 90%;
-    --sidebar-border: 220 15% 16%;
-    --sidebar-ring: 195 40% 50%;
+    --sidebar-background: 210 24% 8%;
+    --sidebar-foreground: 38 22% 90%;
+    --sidebar-primary: 191 55% 62%;
+    --sidebar-primary-foreground: 210 22% 10%;
+    --sidebar-accent: 211 17% 13%;
+    --sidebar-accent-foreground: 38 22% 92%;
+    --sidebar-border: 211 14% 16%;
+    --sidebar-ring: 191 55% 52%;
   }
 }
 
@@ -142,6 +142,10 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
+    background-image:
+      radial-gradient(circle at top left, hsl(var(--accent) / 0.08), transparent 26%),
+      radial-gradient(circle at top right, hsl(var(--primary) / 0.08), transparent 24%);
+    background-attachment: fixed;
   }
 
   /* Serif headings for clinical depth */

@@ -33,6 +33,7 @@ export interface FinancialEntry {
   due_date?: string;
   paid_at?: string;
   notes?: string;
+  description?: string;
   created_at: string;
 }
 
@@ -57,6 +58,7 @@ function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
     due_date: raw.due_date,
     paid_at: raw.paid_at,
     notes: raw.notes ?? raw.description,
+    description: raw.description,
     created_at: raw.created_at,
   };
 }
@@ -69,21 +71,51 @@ async function loadPatientsIndex() {
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
+    session_id?: string;
     amount: number;
     payment_method?: string;
     due_date?: string;
     status?: "open" | "paid";
+    notes?: string;
+    description?: string;
   }): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
       api.post<RawFinancialEntry>("/financial/entry", {
         patient_id: data.patient_id,
+        session_id: data.session_id,
         amount: data.amount,
         payment_method: data.payment_method,
         status: data.status ?? "open",
         due_date: data.due_date ?? new Date().toISOString(),
         type: "receivable",
-        description: "Sessao de psicoterapia",
+        notes: data.notes,
+        description: data.description ?? "Sessao de psicoterapia",
       }),
+      loadPatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    return {
+      ...result,
+      data: mapEntry(result.data, patients),
+    };
+  },
+
+  updateEntry: async (
+    entryId: string,
+    data: Partial<{
+      amount: number;
+      payment_method?: string;
+      due_date?: string;
+      status: "open" | "paid";
+      paid_at?: string;
+      notes?: string;
+      description?: string;
+    }>,
+  ): Promise<ApiResult<FinancialEntry>> => {
+    const [result, patients] = await Promise.all([
+      api.patch<RawFinancialEntry>(`/financial/entries/${entryId}`, data),
       loadPatientsIndex(),
     ]);
 

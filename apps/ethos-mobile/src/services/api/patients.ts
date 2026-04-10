@@ -37,6 +37,7 @@ export const updatePatient = (
     emergency_contact_phone?: string;
     billing?: {
       mode: "per_session" | "package";
+      weekly_frequency?: 1 | 2 | 3 | 4 | 5;
       session_price?: number;
       package_total_price?: number;
       package_session_count?: number;

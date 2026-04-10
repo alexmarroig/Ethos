@@ -2,6 +2,7 @@ import { api, type ApiResult } from "./apiClient";
 
 type RawPatientBilling = {
   mode: "per_session" | "package";
+  weekly_frequency?: 1 | 2 | 3 | 4 | 5;
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
@@ -17,13 +18,25 @@ type RawPatient = {
   whatsapp?: string;
   birth_date?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   cpf?: string;
+  profession?: string;
+  referral_source?: string;
+  care_interest?: string;
+  therapy_goals?: string;
   main_complaint?: string;
   psychiatric_medications?: string;
   has_psychiatric_followup?: boolean;
   psychiatrist_name?: string;
   psychiatrist_contact?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   billing?: RawPatientBilling;
   notes?: string;
@@ -64,6 +77,7 @@ type RawPatientAccessResponse = {
 
 export interface PatientBilling {
   mode: "per_session" | "package";
+  weekly_frequency?: 1 | 2 | 3 | 4 | 5;
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
@@ -91,13 +105,25 @@ export interface Patient {
   whatsapp?: string;
   birth_date?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   cpf?: string;
+  profession?: string;
+  referral_source?: string;
+  care_interest?: string;
+  therapy_goals?: string;
   main_complaint?: string;
   psychiatric_medications?: string;
   has_psychiatric_followup?: boolean;
   psychiatrist_name?: string;
   psychiatrist_contact?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   billing?: PatientBilling;
   notes?: string;
@@ -155,13 +181,25 @@ function mapPatient(raw: RawPatient): Patient {
     whatsapp: raw.whatsapp ?? raw.phone,
     birth_date: raw.birth_date,
     address: raw.address,
+    address_street: raw.address_street,
+    address_number: raw.address_number,
+    address_complement: raw.address_complement,
+    address_neighborhood: raw.address_neighborhood,
+    address_city: raw.address_city,
+    address_state: raw.address_state,
+    address_zip: raw.address_zip,
     cpf: raw.cpf,
+    profession: raw.profession,
+    referral_source: raw.referral_source,
+    care_interest: raw.care_interest,
+    therapy_goals: raw.therapy_goals,
     main_complaint: raw.main_complaint,
     psychiatric_medications: raw.psychiatric_medications,
     has_psychiatric_followup: raw.has_psychiatric_followup,
     psychiatrist_name: raw.psychiatrist_name,
     psychiatrist_contact: raw.psychiatrist_contact,
     emergency_contact_name: raw.emergency_contact_name,
+    emergency_contact_relationship: raw.emergency_contact_relationship,
     emergency_contact_phone: raw.emergency_contact_phone,
     billing: raw.billing,
     notes: raw.notes,

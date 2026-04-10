@@ -86,7 +86,10 @@ export function useNotifications(): NotificationsContextValue {
 // ==========================
 // CONFIG
 // ==========================
-const API_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://192.168.15.182:8787';
+const API_URL =
+  process.env.EXPO_PUBLIC_ETHOS_API_URL ??
+  process.env.EXPO_PUBLIC_API_URL ??
+  'http://192.168.15.182:8787';
 
 let authTokenRef: string | null = null;
 export const setNotificationsAuthToken = (token: string | null) => {

@@ -29,6 +29,7 @@ export interface Session {
   id: string;
   patient_id: string;
   patient_name: string;
+  patient_total_sessions?: number;
   date: string;
   time: string;
   duration?: number;
@@ -39,6 +40,13 @@ export interface Session {
   clinical_note_status?: "draft" | "validated";
   payment_status?: "paid" | "open" | "exempt";
   scheduled_at?: string;
+}
+
+export interface SessionTranscript {
+  id: string;
+  session_id: string;
+  raw_text: string;
+  created_at: string;
 }
 
 export interface SessionFilters {
@@ -93,6 +101,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
     id: String(raw.id),
     patient_id: raw.patient_id,
     patient_name: raw.patient_name ?? patient?.name ?? "Paciente",
+    patient_total_sessions: patient?.total_sessions,
     date,
     time,
     duration: raw.duration ?? raw.duration_minutes,
@@ -190,4 +199,24 @@ export const sessionService = {
       data: mapSession(result.data, patients),
     };
   },
+
+  update: async (
+    id: string,
+    data: Partial<{ patient_id: string; scheduled_at: string; duration_minutes?: number }>
+  ): Promise<ApiResult<Session>> => {
+    const [result, patients] = await Promise.all([
+      api.patch<RawSession>(`/sessions/${id}`, data),
+      loadPatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    return {
+      ...result,
+      data: mapSession(result.data, patients),
+    };
+  },
+
+  getTranscript: (id: string): Promise<ApiResult<SessionTranscript>> =>
+    api.get<SessionTranscript>(`/sessions/${id}/transcript`),
 };

@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { db, encrypt, hashInviteToken, hashPassword, schedulePersistDatabase, seeds, uid, verifyPassword } from "../infra/database";
 import {
   detectAnomalousBehavior,
@@ -67,6 +67,11 @@ const grantClinicalEntitlements = (userId: string) => {
   });
 };
 
+const sanitizeAuthUser = (user: User) => {
+  const { password_hash, ...safeUser } = user;
+  return safeUser;
+};
+
 const createSessionForUser = (user: User) => {
   const token = crypto.randomBytes(24).toString("hex");
   db.sessionsTokens.set(token, {
@@ -77,7 +82,7 @@ const createSessionForUser = (user: User) => {
   });
   user.last_seen_at = now();
   persistMutation();
-  return { user, token };
+  return { user: sanitizeAuthUser(user), token };
 };
 
 export const addAudit = (actorUserId: string, event: string, targetUserId?: string) => {
@@ -181,7 +186,7 @@ export const evaluateObservability = () => {
     createdOrUpdated.push(upsertObservabilityAlert({
       source: "detectAnomalousBehavior",
       severity: "medium",
-      title: "Comportamento anômalo",
+      title: "Comportamento anÃ´malo",
       message: `${anomaly.probableCause}. ${anomaly.suggestedAction}`,
       fingerprint: `anomaly:${anomaly.timestamp}:${anomaly.probableCause}`,
       context: anomaly,
@@ -190,11 +195,11 @@ export const evaluateObservability = () => {
 
   if (logs.length > 0) {
     const suggestion = suggestRootCauseFromLogs(logs.slice(-20));
-    if (!suggestion.toLowerCase().includes("não conclusiva")) {
+    if (!suggestion.toLowerCase().includes("nÃ£o conclusiva")) {
       createdOrUpdated.push(upsertObservabilityAlert({
         source: "suggestRootCauseFromLogs",
         severity: "medium",
-        title: "Hipótese de causa raiz",
+        title: "HipÃ³tese de causa raiz",
         message: suggestion,
         fingerprint: `root-cause:${suggestion.toLowerCase()}`,
         context: { based_on_logs: logs.slice(-5) },
@@ -247,6 +252,7 @@ export const registerClinician = (input: {
   email: string;
   name: string;
   password: string;
+  avatar_url?: string;
   crp?: string;
   specialty?: string;
   clinical_approach?: string;
@@ -265,6 +271,7 @@ export const registerClinician = (input: {
     email,
     name,
     password_hash: hashPassword(password),
+    avatar_url: input.avatar_url?.trim() || undefined,
     crp: input.crp?.trim() || undefined,
     specialty: input.specialty?.trim() || undefined,
     clinical_approach: input.clinical_approach?.trim() || undefined,
@@ -277,6 +284,41 @@ export const registerClinician = (input: {
   db.users.set(user.id, user);
   grantClinicalEntitlements(user.id);
   return createSessionForUser(user);
+};
+
+export const updateOwnProfile = (
+  userId: string,
+  input: Partial<{
+    name: string;
+    email: string;
+    avatar_url?: string;
+    crp?: string;
+    specialty?: string;
+    clinical_approach?: string;
+  }>
+) => {
+  const user = db.users.get(userId);
+  if (!user) return null;
+
+  if (typeof input.name === "string" && input.name.trim()) user.name = input.name.trim();
+  if (typeof input.email === "string" && input.email.trim()) {
+    const normalizedEmail = input.email.trim().toLowerCase();
+    const existing = Array.from(db.users.values()).find(
+      (entry) => entry.id !== userId && entry.email.toLowerCase() === normalizedEmail
+    );
+    if (existing) {
+      throw new Error("EMAIL_IN_USE");
+    }
+    user.email = normalizedEmail;
+  }
+  if ("avatar_url" in input) user.avatar_url = input.avatar_url?.trim() || undefined;
+  if ("crp" in input) user.crp = input.crp?.trim() || undefined;
+  if ("specialty" in input) user.specialty = input.specialty?.trim() || undefined;
+  if ("clinical_approach" in input) user.clinical_approach = input.clinical_approach?.trim() || undefined;
+
+  user.last_seen_at = now();
+  persistMutation();
+  return sanitizeAuthUser(user);
 };
 
 export const login = (email: string, password: string) => {
@@ -365,13 +407,25 @@ type PatientUpsertInput = {
   whatsapp?: string;
   birth_date?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   cpf?: string;
+  profession?: string;
+  referral_source?: string;
+  care_interest?: string;
+  therapy_goals?: string;
   main_complaint?: string;
   psychiatric_medications?: string;
   has_psychiatric_followup?: boolean;
   psychiatrist_name?: string;
   psychiatrist_contact?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   billing?: PatientBilling;
   notes?: string;
@@ -419,9 +473,14 @@ const normalizePatientBilling = (value: PatientUpsertInput["billing"]) => {
   const sessionPrice = normalizeOptionalNumber(value.session_price);
   const packageTotalPrice = normalizeOptionalNumber(value.package_total_price);
   const packageSessionCount = normalizeOptionalNumber(value.package_session_count);
+  const weeklyFrequency = normalizeOptionalNumber((value as PatientBilling & { weekly_frequency?: number }).weekly_frequency);
 
   return {
     mode: value.mode,
+    weekly_frequency:
+      weeklyFrequency && weeklyFrequency >= 1 && weeklyFrequency <= 5
+        ? (weeklyFrequency as 1 | 2 | 3 | 4 | 5)
+        : undefined,
     session_price: value.mode === "per_session" ? sessionPrice : undefined,
     package_total_price: value.mode === "package" ? packageTotalPrice : undefined,
     package_session_count: value.mode === "package" ? packageSessionCount : undefined,
@@ -439,14 +498,26 @@ const normalizePatientInput = (input: Partial<PatientUpsertInput>) => {
     whatsapp,
     birth_date: normalizeOptionalDate(input.birth_date),
     address: normalizeOptionalText(input.address),
+    address_street: normalizeOptionalText(input.address_street),
+    address_number: normalizeOptionalText(input.address_number),
+    address_complement: normalizeOptionalText(input.address_complement),
+    address_neighborhood: normalizeOptionalText(input.address_neighborhood),
+    address_city: normalizeOptionalText(input.address_city),
+    address_state: normalizeOptionalText(input.address_state),
+    address_zip: normalizeOptionalText(input.address_zip),
     cpf: normalizeOptionalText(input.cpf),
+    profession: normalizeOptionalText(input.profession),
+    referral_source: normalizeOptionalText(input.referral_source),
+    care_interest: normalizeOptionalText(input.care_interest),
+    therapy_goals: normalizeOptionalText(input.therapy_goals),
     main_complaint: normalizeOptionalText(input.main_complaint),
     psychiatric_medications: normalizeOptionalText(input.psychiatric_medications),
     has_psychiatric_followup: normalizeOptionalBoolean(input.has_psychiatric_followup),
-    psychiatrist_name: normalizeOptionalText(input.psychiatrist_name),
-    psychiatrist_contact: normalizeOptionalText(input.psychiatrist_contact),
-    emergency_contact_name: normalizeOptionalText(input.emergency_contact_name),
-    emergency_contact_phone: normalizeOptionalText(input.emergency_contact_phone),
+      psychiatrist_name: normalizeOptionalText(input.psychiatrist_name),
+      psychiatrist_contact: normalizeOptionalText(input.psychiatrist_contact),
+      emergency_contact_name: normalizeOptionalText(input.emergency_contact_name),
+      emergency_contact_relationship: normalizeOptionalText(input.emergency_contact_relationship),
+      emergency_contact_phone: normalizeOptionalText(input.emergency_contact_phone),
     billing: normalizePatientBilling(input.billing),
     notes: normalizeOptionalText(input.notes),
   };
@@ -493,14 +564,26 @@ export const createPatient = (
     whatsapp: normalized.whatsapp,
     birth_date: normalized.birth_date,
     address: normalized.address,
+    address_street: normalized.address_street,
+    address_number: normalized.address_number,
+    address_complement: normalized.address_complement,
+    address_neighborhood: normalized.address_neighborhood,
+    address_city: normalized.address_city,
+    address_state: normalized.address_state,
+    address_zip: normalized.address_zip,
     cpf: normalized.cpf,
+    profession: normalized.profession,
+    referral_source: normalized.referral_source,
+    care_interest: normalized.care_interest,
+    therapy_goals: normalized.therapy_goals,
     main_complaint: normalized.main_complaint,
     psychiatric_medications: normalized.psychiatric_medications,
     has_psychiatric_followup: normalized.has_psychiatric_followup,
-    psychiatrist_name: normalized.psychiatrist_name,
-    psychiatrist_contact: normalized.psychiatrist_contact,
-    emergency_contact_name: normalized.emergency_contact_name,
-    emergency_contact_phone: normalized.emergency_contact_phone,
+      psychiatrist_name: normalized.psychiatrist_name,
+      psychiatrist_contact: normalized.psychiatrist_contact,
+      emergency_contact_name: normalized.emergency_contact_name,
+      emergency_contact_relationship: normalized.emergency_contact_relationship,
+      emergency_contact_phone: normalized.emergency_contact_phone,
     billing: normalized.billing,
     notes: normalized.notes,
     created_at: now(),
@@ -568,14 +651,26 @@ export const updatePatient = (owner: string, patientId: string, input: Partial<P
   if ("whatsapp" in input || ("phone" in input && !("whatsapp" in input))) patient.whatsapp = normalized.whatsapp;
   if ("birth_date" in input) patient.birth_date = normalized.birth_date;
   if ("address" in input) patient.address = normalized.address;
+  if ("address_street" in input) patient.address_street = normalized.address_street;
+  if ("address_number" in input) patient.address_number = normalized.address_number;
+  if ("address_complement" in input) patient.address_complement = normalized.address_complement;
+  if ("address_neighborhood" in input) patient.address_neighborhood = normalized.address_neighborhood;
+  if ("address_city" in input) patient.address_city = normalized.address_city;
+  if ("address_state" in input) patient.address_state = normalized.address_state;
+  if ("address_zip" in input) patient.address_zip = normalized.address_zip;
   if ("cpf" in input) patient.cpf = normalized.cpf;
+  if ("profession" in input) patient.profession = normalized.profession;
+  if ("referral_source" in input) patient.referral_source = normalized.referral_source;
+  if ("care_interest" in input) patient.care_interest = normalized.care_interest;
+  if ("therapy_goals" in input) patient.therapy_goals = normalized.therapy_goals;
   if ("main_complaint" in input) patient.main_complaint = normalized.main_complaint;
   if ("psychiatric_medications" in input) patient.psychiatric_medications = normalized.psychiatric_medications;
   if ("has_psychiatric_followup" in input) patient.has_psychiatric_followup = normalized.has_psychiatric_followup;
-  if ("psychiatrist_name" in input) patient.psychiatrist_name = normalized.psychiatrist_name;
-  if ("psychiatrist_contact" in input) patient.psychiatrist_contact = normalized.psychiatrist_contact;
-  if ("emergency_contact_name" in input) patient.emergency_contact_name = normalized.emergency_contact_name;
-  if ("emergency_contact_phone" in input) patient.emergency_contact_phone = normalized.emergency_contact_phone;
+    if ("psychiatrist_name" in input) patient.psychiatrist_name = normalized.psychiatrist_name;
+    if ("psychiatrist_contact" in input) patient.psychiatrist_contact = normalized.psychiatrist_contact;
+    if ("emergency_contact_name" in input) patient.emergency_contact_name = normalized.emergency_contact_name;
+    if ("emergency_contact_relationship" in input) patient.emergency_contact_relationship = normalized.emergency_contact_relationship;
+    if ("emergency_contact_phone" in input) patient.emergency_contact_phone = normalized.emergency_contact_phone;
   if ("billing" in input) patient.billing = normalized.billing;
   if ("notes" in input) patient.notes = normalized.notes;
 
@@ -646,7 +741,7 @@ export const buildPatientTimeline = (owner: string, patientId: string): PatientT
     patient_id: patient.id,
     kind: "session" as const,
     date: session.scheduled_at,
-    title: "SessÃ£o agendada",
+    title: "SessÃƒÂ£o agendada",
     subtitle: session.status,
     related_id: session.id,
   }));
@@ -656,7 +751,7 @@ export const buildPatientTimeline = (owner: string, patientId: string): PatientT
     patient_id: patient.id,
     kind: "clinical_note" as const,
     date: note.validated_at ?? note.created_at,
-    title: "Nota clÃ­nica",
+    title: "Nota clÃƒÂ­nica",
     subtitle: note.status,
     related_id: note.id,
   }));
@@ -701,6 +796,29 @@ export const createSession = (owner: string, patientId: string, scheduledAt: str
     created_at: now(),
   };
   db.sessions.set(session.id, session);
+  persistMutation();
+  return session;
+};
+
+export const updateSession = (
+  owner: string,
+  sessionId: string,
+  input: Partial<{ scheduled_at: string; duration_minutes?: number; patient_id: string }>
+) => {
+  const session = getByOwner(db.sessions, owner, sessionId);
+  if (!session) return null;
+
+  if (typeof input.patient_id === "string" && input.patient_id.trim()) {
+    createPatientIfMissing(owner, input.patient_id);
+    session.patient_id = input.patient_id.trim();
+  }
+  if (typeof input.scheduled_at === "string" && input.scheduled_at.trim()) {
+    session.scheduled_at = input.scheduled_at;
+  }
+  if ("duration_minutes" in input) {
+    session.duration_minutes = typeof input.duration_minutes === "number" ? input.duration_minutes : undefined;
+  }
+
   persistMutation();
   return session;
 };
@@ -868,7 +986,7 @@ export const sendPatientAsyncMessage = (access: PatientAccess, message: string) 
   return {
     payload,
     remaining: Math.max(0, access.permissions.async_messages_per_day - (todayCount + 1)),
-    disclaimer: "Mensagens assíncronas não substituem atendimento de urgência.",
+    disclaimer: "Mensagens assÃ­ncronas nÃ£o substituem atendimento de urgÃªncia.",
   };
 };
 
@@ -921,13 +1039,13 @@ export const exportContract = (owner: string, id: string, format: "pdf" | "docx"
 };
 
 const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string }> = [
-  { id: "session-summary", title: "Resumo de sessão", html: "<h1>{{title}}</h1>{{content}}" },
-  { id: "evolution-note", title: "Nota de evolução", html: "<h1>Evolução</h1>{{content}}" },
-  { id: "payment-receipt", title: "Recibo", description: "Modelo básico de recibo de atendimento.", html: "<h1>Recibo</h1><p>{{content}}</p>" },
-  { id: "attendance-declaration", title: "Declaração", description: "Declaração simples de comparecimento.", html: "<h1>Declaração</h1><p>{{content}}</p>" },
-  { id: "psychological-certificate", title: "Atestado psicológico", description: "Atestado psicológico para afastamento ou comparecimento.", html: "<h1>Atestado psicológico</h1><p>{{content}}</p>" },
-  { id: "therapy-contract", title: "Contrato terapêutico", description: "Rascunho base para contrato de prestação de serviços.", html: "<h1>Contrato terapêutico</h1><p>{{content}}</p>" },
-  { id: "psychological-report", title: "Relatório psicológico", description: "Estrutura inicial para relatórios destinados a terceiros.", html: "<h1>Relatório psicológico</h1><p>{{content}}</p>" },
+  { id: "session-summary", title: "Resumo de sessÃ£o", html: "<h1>{{title}}</h1>{{content}}" },
+  { id: "evolution-note", title: "Nota de evoluÃ§Ã£o", html: "<h1>EvoluÃ§Ã£o</h1>{{content}}" },
+  { id: "payment-receipt", title: "Recibo", description: "Modelo bÃ¡sico de recibo de atendimento.", html: "<h1>Recibo</h1><p>{{content}}</p>" },
+  { id: "attendance-declaration", title: "DeclaraÃ§Ã£o", description: "DeclaraÃ§Ã£o simples de comparecimento.", html: "<h1>DeclaraÃ§Ã£o</h1><p>{{content}}</p>" },
+  { id: "psychological-certificate", title: "Atestado psicolÃ³gico", description: "Atestado psicolÃ³gico para afastamento ou comparecimento.", html: "<h1>Atestado psicolÃ³gico</h1><p>{{content}}</p>" },
+  { id: "therapy-contract", title: "Contrato terapÃªutico", description: "Rascunho base para contrato de prestaÃ§Ã£o de serviÃ§os.", html: "<h1>Contrato terapÃªutico</h1><p>{{content}}</p>" },
+  { id: "psychological-report", title: "RelatÃ³rio psicolÃ³gico", description: "Estrutura inicial para relatÃ³rios destinados a terceiros.", html: "<h1>RelatÃ³rio psicolÃ³gico</h1><p>{{content}}</p>" },
 ];
 
 const ensureDefaultDocumentTemplates = () => {
@@ -1276,7 +1394,24 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
 };
 
 export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, created_at: now() };
+  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, status: "draft" as const, created_at: now() };
+  db.reports.set(report.id, report);
+  persistMutation();
+  return report;
+};
+
+export const updateReport = (
+  owner: string,
+  reportId: string,
+  input: Partial<Pick<ClinicalReport, "purpose" | "content" | "status">>,
+) => {
+  const report = getByOwner(db.reports, owner, reportId);
+  if (!report) return null;
+
+  if (typeof input.purpose === "string") report.purpose = input.purpose;
+  if (typeof input.content === "string") report.content = input.content;
+  if (input.status === "draft" || input.status === "final") report.status = input.status;
+
   db.reports.set(report.id, report);
   persistMutation();
   return report;
@@ -1299,18 +1434,18 @@ export const createScaleRecord = (owner: string, scaleId: string, patientId: str
 const defaultFormsCatalog = [
   {
     id: "emotion-diary",
-    name: "Diário emocional",
+    name: "DiÃ¡rio emocional",
     description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
   },
   {
     id: "initial-anamnesis",
     name: "Anamnese inicial",
-    description: "Coleta inicial de histórico pessoal, familiar e clínico.",
+    description: "Coleta inicial de histÃ³rico pessoal, familiar e clÃ­nico.",
   },
   {
     id: "weekly-checkin",
     name: "Check-in semanal",
-    description: "Formulário simples para acompanhar a semana entre sessões.",
+    description: "FormulÃ¡rio simples para acompanhar a semana entre sessÃµes.",
   },
 ] as const;
 
@@ -1334,6 +1469,39 @@ export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry
   db.financial.set(item.id, item);
   persistMutation();
   return item;
+};
+
+export const updateFinancialEntry = (
+  owner: string,
+  entryId: string,
+  patch: Partial<Pick<FinancialEntry, "amount" | "due_date" | "status" | "description" | "payment_method" | "paid_at" | "notes">>,
+): FinancialEntry | undefined => {
+  const current = getByOwner(db.financial, owner, entryId);
+  if (!current) return undefined;
+
+  const next: FinancialEntry = {
+    ...current,
+    amount: typeof patch.amount === "number" ? patch.amount : current.amount,
+    due_date: typeof patch.due_date === "string" && patch.due_date.trim() ? patch.due_date : current.due_date,
+    status: patch.status ?? current.status,
+    description: patch.description !== undefined ? patch.description.trim() || current.description : current.description,
+    payment_method: patch.payment_method !== undefined ? patch.payment_method.trim() || undefined : current.payment_method,
+    notes: patch.notes !== undefined ? patch.notes.trim() || undefined : current.notes,
+    paid_at:
+      patch.status === "paid"
+        ? typeof patch.paid_at === "string" && patch.paid_at.trim()
+          ? patch.paid_at
+          : current.paid_at ?? now()
+        : patch.status === "open"
+          ? undefined
+          : patch.paid_at !== undefined
+            ? patch.paid_at.trim() || undefined
+            : current.paid_at,
+  };
+
+  db.financial.set(next.id, next);
+  persistMutation();
+  return next;
 };
 
 export const buildFinanceSummary = (owner: string, referenceDate = new Date()) => {
@@ -1417,10 +1585,10 @@ const createStructuredDraftForTranscript = async (job: Job, session: ClinicalSes
       formatClinicalNoteContent(
         {
           soap: {
-            subjective: "Rascunho estruturado indisponível no momento. Revisar a transcrição original.",
-            objective: "Sem extração automática confiável de dados observáveis.",
-            assessment: "Interpretação clínica não automatizada. Completar manualmente.",
-            plan: "Definir próximos passos após revisão manual.",
+            subjective: "Rascunho estruturado indisponÃ­vel no momento. Revisar a transcriÃ§Ã£o original.",
+            objective: "Sem extraÃ§Ã£o automÃ¡tica confiÃ¡vel de dados observÃ¡veis.",
+            assessment: "InterpretaÃ§Ã£o clÃ­nica nÃ£o automatizada. Completar manualmente.",
+            plan: "Definir prÃ³ximos passos apÃ³s revisÃ£o manual.",
           },
         },
         {
@@ -1637,9 +1805,15 @@ export const listSessionClinicalNotes = (owner: string, sessionId: string) =>
     .filter((item) => item.session_id === sessionId)
     .sort(compareByNewestDate)
     .map((note) => hydrateClinicalNote(owner, note));
+
+export const getLatestTranscriptForSession = (owner: string, sessionId: string) =>
+  byOwner(db.transcripts.values(), owner)
+    .filter((item) => item.session_id === sessionId)
+    .sort(compareByNewestDate)[0] ?? null;
 export const getClinicalNote = (owner: string, noteId: string) => {
   const note = getByOwner(db.clinicalNotes, owner, noteId);
   return note ? hydrateClinicalNote(owner, note) : null;
 };
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
+

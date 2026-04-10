@@ -14,7 +14,8 @@
     "submit:ios:testflight": "npx eas-cli submit -p ios --profile ios-production",
     "build:ios:simulator": "npx eas-cli build -p ios --profile ios-simulator",
     "build:web": "expo export --platform web && node ./scripts/postexport-pwa.mjs",
-    "deploy:web": "npx eas-cli deploy"
+    "deploy:web": "npx eas-cli deploy",
+    "build:android:apk:local": "npx expo prebuild --platform android --no-install --non-interactive && cd android && gradlew.bat assembleRelease"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.2.3",

@@ -1,7 +1,8 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
+import { generateReportFromNotes, generateReportFromTranscript } from "../application/ai/reportGenerator";
 import {
   acceptInvite,
   acceptContract,
@@ -30,6 +31,7 @@ import {
   createPrivateComment,
   registerClinician,
   createReport,
+  getReport,
   createScaleRecord,
   createSession,
   createTemplate,
@@ -47,6 +49,7 @@ import {
   getPatientAccessForUser,
   getPatientAccessibleDocumentDetail,
   getRetentionPolicy,
+  getLatestTranscriptForSession,
   getTemplate,
   getUserFromToken,
   handleTranscriberWebhook,
@@ -78,12 +81,16 @@ import {
   recordPatientScale,
   recordProntuarioAudit,
   renderTemplate,
+  updateOwnProfile,
+  updateSession,
   resolveLocalEntitlements,
   runJob,
   sendContract,
   sendPatientAsyncMessage,
   syncLocalEntitlements,
   updateClinicalNote,
+  updateFinancialEntry,
+  updateReport,
   updatePatient,
   updateRetentionPolicy,
   updateTemplate,
@@ -105,6 +112,8 @@ const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
 const allowedMethods = "GET,POST,PATCH,PUT,DELETE,HEAD,OPTIONS";
 const allowedHeaders = "Authorization,Content-Type,Idempotency-Key,X-Request-Id,x-request-id";
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+const CRP_REGEX = /^\d{2}\/\d{4,6}$/;
 
 const defaultAllowedOrigins = [
   "https://ethos-clinical-space.lovable.app",
@@ -121,6 +130,8 @@ const defaultAllowedOrigins = [
   "http://127.0.0.1:8082",
   "http://127.0.0.1:4173",
   "http://127.0.0.1:4174",
+  "http://127.0.0.1:4177",
+  "http://localhost:4177",
 ];
 
 const parseAllowedOrigins = () => {
@@ -173,7 +184,7 @@ const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: st
   return true;
 };
 
-// ✅ Correção importante: “user” (psicólogo) precisa ser clínico.
+// âœ… CorreÃ§Ã£o importante: â€œuserâ€ (psicÃ³logo) precisa ser clÃ­nico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
 
 const CLINICAL_PATHS = [
@@ -340,6 +351,12 @@ const normalizeOptionalNumber = (value: unknown) => {
   return undefined;
 };
 
+const normalizeWeeklyFrequency = (value: unknown): 1 | 2 | 3 | 4 | 5 | undefined => {
+  const parsed = normalizeOptionalNumber(value);
+  if (parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4 || parsed === 5) return parsed;
+  return undefined;
+};
+
 type PatientPayload = {
   name?: string;
   email?: string;
@@ -347,16 +364,29 @@ type PatientPayload = {
   whatsapp?: string;
   birth_date?: string;
   address?: string;
+  address_street?: string;
+  address_number?: string;
+  address_complement?: string;
+  address_neighborhood?: string;
+  address_city?: string;
+  address_state?: string;
+  address_zip?: string;
   cpf?: string;
+  profession?: string;
+  referral_source?: string;
+  care_interest?: string;
+  therapy_goals?: string;
   main_complaint?: string;
   psychiatric_medications?: string;
   has_psychiatric_followup?: boolean;
   psychiatrist_name?: string;
   psychiatrist_contact?: string;
   emergency_contact_name?: string;
+  emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
   billing?: {
     mode: "per_session" | "package";
+    weekly_frequency?: 1 | 2 | 3 | 4 | 5;
     session_price?: number;
     package_total_price?: number;
     package_session_count?: number;
@@ -373,6 +403,7 @@ const parsePatientBilling = (value: unknown): PatientPayload["billing"] => {
 
   return {
     mode,
+    weekly_frequency: normalizeWeeklyFrequency(billing.weekly_frequency),
     session_price: normalizeOptionalNumber(billing.session_price),
     package_total_price: normalizeOptionalNumber(billing.package_total_price),
     package_session_count: normalizeOptionalNumber(billing.package_session_count),
@@ -386,13 +417,25 @@ const parsePatientPayload = (body: Record<string, unknown>, options?: { includeN
   whatsapp: normalizeOptionalText(body.whatsapp),
   birth_date: typeof body.birth_date === "string" ? body.birth_date : undefined,
   address: normalizeOptionalText(body.address),
+  address_street: normalizeOptionalText(body.address_street),
+  address_number: normalizeOptionalText(body.address_number),
+  address_complement: normalizeOptionalText(body.address_complement),
+  address_neighborhood: normalizeOptionalText(body.address_neighborhood),
+  address_city: normalizeOptionalText(body.address_city),
+  address_state: normalizeOptionalText(body.address_state),
+  address_zip: normalizeOptionalText(body.address_zip),
   cpf: normalizeOptionalText(body.cpf),
+  profession: normalizeOptionalText(body.profession),
+  referral_source: normalizeOptionalText(body.referral_source),
+  care_interest: normalizeOptionalText(body.care_interest),
+  therapy_goals: normalizeOptionalText(body.therapy_goals),
   main_complaint: normalizeOptionalText(body.main_complaint),
   psychiatric_medications: normalizeOptionalText(body.psychiatric_medications),
   has_psychiatric_followup: typeof body.has_psychiatric_followup === "boolean" ? body.has_psychiatric_followup : undefined,
   psychiatrist_name: normalizeOptionalText(body.psychiatrist_name),
   psychiatrist_contact: normalizeOptionalText(body.psychiatrist_contact),
   emergency_contact_name: normalizeOptionalText(body.emergency_contact_name),
+  emergency_contact_relationship: normalizeOptionalText(body.emergency_contact_relationship),
   emergency_contact_phone: normalizeOptionalText(body.emergency_contact_phone),
   billing: parsePatientBilling(body.billing),
   notes: normalizeOptionalText(body.notes),
@@ -466,7 +509,7 @@ export const createEthosBackend = () =>
         return res.end(openApi);
       }
 
-      // Portal público: obter contrato por portal token
+      // Portal pÃºblico: obter contrato por portal token
       if (method === "GET" && url.pathname.startsWith("/portal/contracts/")) {
         const token = url.pathname.split("/")[3];
         if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
@@ -475,7 +518,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Portal público: aceitar contrato
+      // Portal pÃºblico: aceitar contrato
       if (method === "POST" && url.pathname.startsWith("/portal/contracts/") && url.pathname.endsWith("/accept")) {
         const parts = url.pathname.split("/");
         const token = parts[3];
@@ -501,15 +544,16 @@ export const createEthosBackend = () =>
         const name = String(body.name ?? "").trim();
         const email = String(body.email ?? "").trim();
         const password = String(body.password ?? "");
+        const avatarUrl = typeof body.avatar_url === "string" ? body.avatar_url.trim() : undefined;
         const crp = typeof body.crp === "string" ? body.crp.trim() : undefined;
         const specialty = typeof body.specialty === "string" ? body.specialty.trim() : undefined;
         const clinicalApproach = typeof body.clinical_approach === "string" ? body.clinical_approach.trim() : undefined;
         const acceptedEthics = body.accepted_ethics === true;
 
         if (!name) return error(res, requestId, 422, "VALIDATION_ERROR", "name is required");
-        if (!email || !email.includes("@")) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
-        if (password.length < 6) return error(res, requestId, 422, "VALIDATION_ERROR", "Password must have at least 6 characters");
-        if (!crp) return error(res, requestId, 422, "VALIDATION_ERROR", "CRP is required");
+        if (!email || !EMAIL_REGEX.test(email)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
+        if (password.length < 8) return error(res, requestId, 422, "VALIDATION_ERROR", "Password must have at least 8 characters");
+        if (!crp || !CRP_REGEX.test(crp)) return error(res, requestId, 422, "VALIDATION_ERROR", "CRP must match 00/0000 to 00/000000");
         if (!specialty) return error(res, requestId, 422, "VALIDATION_ERROR", "Specialty is required");
         if (!clinicalApproach) return error(res, requestId, 422, "VALIDATION_ERROR", "Clinical approach is required");
         if (!acceptedEthics) return error(res, requestId, 422, "VALIDATION_ERROR", "Ethics acceptance is required");
@@ -518,6 +562,7 @@ export const createEthosBackend = () =>
           name,
           email,
           password,
+          avatar_url: avatarUrl,
           crp,
           specialty,
           clinical_approach: clinicalApproach,
@@ -546,7 +591,8 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const user = acceptInvite(String(body.token ?? ""), String(body.name ?? ""), String(body.password ?? ""));
         if (!user) return error(res, requestId, 422, "INVITE_INVALID", "Invite invalid or expired");
-        return ok(res, requestId, 201, user);
+        const { password_hash, ...safeUser } = user;
+        return ok(res, requestId, 201, safeUser);
       }
 
       if (method === "POST" && url.pathname === "/auth/logout") {
@@ -559,7 +605,43 @@ export const createEthosBackend = () =>
       const auth = requireAuth(req, res, requestId);
       if (!auth) return;
 
-      // Gate para rotas clínicas (corrigido)
+      if (method === "GET" && url.pathname === "/auth/me") {
+        const { password_hash, ...safeUser } = auth.user;
+        return ok(res, requestId, 200, safeUser);
+      }
+
+      if (method === "PATCH" && url.pathname === "/auth/me") {
+        const body = await readJson(req);
+        const email = typeof body.email === "string" ? body.email.trim() : undefined;
+        const crp = typeof body.crp === "string" ? body.crp.trim() : undefined;
+        if (email && !EMAIL_REGEX.test(email)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
+        }
+        if (crp && !CRP_REGEX.test(crp)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "CRP must match 00/0000 to 00/000000");
+        }
+        let updated;
+        try {
+          updated = updateOwnProfile(auth.user.id, {
+            name: typeof body.name === "string" ? body.name : undefined,
+            email,
+            avatar_url: typeof body.avatar_url === "string" ? body.avatar_url : undefined,
+            crp,
+            specialty: typeof body.specialty === "string" ? body.specialty : undefined,
+            clinical_approach:
+              typeof body.clinical_approach === "string" ? body.clinical_approach : undefined,
+          });
+        } catch (profileError) {
+          if (profileError instanceof Error && profileError.message === "EMAIL_IN_USE") {
+            return error(res, requestId, 409, "EMAIL_IN_USE", "This email is already registered");
+          }
+          throw profileError;
+        }
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "User not found");
+        return ok(res, requestId, 200, updated);
+      }
+
+      // Gate para rotas clÃ­nicas (corrigido)
       const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
       if (isClinicalPath && !requireClinicalAccess(res, requestId, auth.user.role)) return;
 
@@ -574,8 +656,8 @@ export const createEthosBackend = () =>
           requestId,
           201,
           createPatient(auth.user.id, {
-            name: body.name.trim(),
             ...parsePatientPayload(body),
+            name: body.name.trim(),
           }),
         );
       }
@@ -594,7 +676,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Patient access management (apenas psicólogo “user”)
+      // Patient access management (apenas psicÃ³logo â€œuserâ€)
       if (method === "POST" && url.pathname === "/patients/access") {
         if (!requireRole(res, requestId, "user", auth.user.role)) return;
 
@@ -793,7 +875,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
       }
 
-      // Contracts (clínico)
+      // Contracts (clÃ­nico)
       if (method === "GET" && url.pathname === "/contracts") {
         return ok(res, requestId, 200, listContracts(auth.user.id));
       }
@@ -838,7 +920,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Sessions (com idempotência)
+      // Sessions (com idempotÃªncia)
       const idemKey = req.headers["idempotency-key"]?.toString();
 
       if (method === "POST" && url.pathname === "/sessions") {
@@ -885,6 +967,17 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, session);
       }
 
+      if (method === "PATCH" && sessionById) {
+        const body = await readJson(req);
+        const updated = updateSession(auth.user.id, sessionById[1], {
+          patient_id: typeof body.patient_id === "string" ? body.patient_id : undefined,
+          scheduled_at: typeof body.scheduled_at === "string" ? body.scheduled_at : undefined,
+          duration_minutes: typeof body.duration_minutes === "number" ? body.duration_minutes : undefined,
+        });
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+        return ok(res, requestId, 200, updated);
+      }
+
       const sessionStatus = url.pathname.match(/^\/sessions\/([^/]+)\/status$/);
       if (method === "PATCH" && sessionStatus) {
         const body = await readJson(req);
@@ -916,6 +1009,13 @@ export const createEthosBackend = () =>
         const job = createJob(auth.user.id, "transcription", sessionTranscribe[1]);
         void runJob(job.id, { rawText: String(body.raw_text ?? "") });
         return ok(res, requestId, 202, { job_id: job.id, status: job.status });
+      }
+
+      const sessionTranscript = url.pathname.match(/^\/sessions\/([^/]+)\/transcript$/);
+      if (method === "GET" && sessionTranscript) {
+        const transcript = getLatestTranscriptForSession(auth.user.id, sessionTranscript[1]);
+        if (!transcript) return error(res, requestId, 404, "NOT_FOUND", "Transcript not found");
+        return ok(res, requestId, 200, transcript);
       }
 
       // Clinical notes
@@ -998,7 +1098,7 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        // Nota: você registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhor:
+        // Nota: vocÃª registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhor:
         // ideal seria registrar por "session_id" explicitamente.
         recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
 
@@ -1169,7 +1269,7 @@ export const createEthosBackend = () =>
         const report = createReport(
           auth.user.id,
           String(body.patient_id ?? ""),
-          String(body.purpose ?? "profissional") as "instituição" | "profissional" | "paciente",
+          String(body.purpose ?? "profissional") as "instituiÃ§Ã£o" | "profissional" | "paciente",
           String(body.content ?? ""),
         );
         if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note for the patient is required before creating reports");
@@ -1185,7 +1285,28 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
-      // Document templates (lista pública)
+
+      const reportById = url.pathname.match(/^\/reports\/([^/]+)$/);
+      if (method === "GET" && reportById) {
+        const report = getReport(auth.user.id, reportById[1]);
+        if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
+        return ok(res, requestId, 200, report);
+      }
+
+      if (method === "PATCH" && reportById) {
+        const body = await readJson(req);
+        const report = updateReport(auth.user.id, reportById[1], {
+          purpose:
+            body.purpose === "instituiÃ§Ã£o" || body.purpose === "profissional" || body.purpose === "paciente"
+              ? body.purpose
+              : undefined,
+          content: typeof body.content === "string" ? body.content : undefined,
+          status: body.status === "draft" || body.status === "final" ? body.status : undefined,
+        });
+        if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
+        return ok(res, requestId, 200, report);
+      }
+      // Document templates (lista pÃºblica)
       if (method === "GET" && url.pathname === "/document-templates") {
         return ok(res, requestId, 200, listDocumentTemplates());
       }
@@ -1198,7 +1319,7 @@ export const createEthosBackend = () =>
           String(body.patient_id ?? ""),
           String(body.case_id ?? ""),
           String(body.template_id ?? ""),
-          String(body.title ?? "Documento clínico"),
+          String(body.title ?? "Documento clÃ­nico"),
         );
         if (!document) return error(res, requestId, 404, "TEMPLATE_NOT_FOUND", "Template not found");
         return ok(res, requestId, 201, document);
@@ -1386,13 +1507,32 @@ export const createEthosBackend = () =>
           createFinancialEntry(auth.user.id, {
             patient_id: String(body.patient_id ?? ""),
             session_id: typeof body.session_id === "string" ? body.session_id : undefined,
-            type: (body.type as "receivable" | "payable") ?? "receivable",
-            amount: Number(body.amount ?? 0),
-            due_date: String(body.due_date ?? new Date().toISOString()),
-            status: (body.status as "open" | "paid") ?? "open",
-            description: String(body.description ?? ""),
-          }),
-        );
+              type: (body.type as "receivable" | "payable") ?? "receivable",
+              amount: Number(body.amount ?? 0),
+              due_date: String(body.due_date ?? new Date().toISOString()),
+              status: (body.status as "open" | "paid") ?? "open",
+              payment_method: typeof body.payment_method === "string" ? body.payment_method : undefined,
+              paid_at: typeof body.paid_at === "string" ? body.paid_at : undefined,
+              notes: typeof body.notes === "string" ? body.notes : undefined,
+              description: String(body.description ?? ""),
+            }),
+          );
+        }
+
+      const financialEntryById = url.pathname.match(/^\/financial\/entries\/([^/]+)$/);
+      if (method === "PATCH" && financialEntryById) {
+        const body = await readJson(req);
+        const item = updateFinancialEntry(auth.user.id, financialEntryById[1], {
+          amount: typeof body.amount === "number" ? body.amount : undefined,
+          due_date: typeof body.due_date === "string" ? body.due_date : undefined,
+          status: body.status === "open" || body.status === "paid" ? body.status : undefined,
+          payment_method: typeof body.payment_method === "string" ? body.payment_method : undefined,
+          paid_at: typeof body.paid_at === "string" ? body.paid_at : undefined,
+          notes: typeof body.notes === "string" ? body.notes : undefined,
+          description: typeof body.description === "string" ? body.description : undefined,
+        });
+        if (!item) return error(res, requestId, 404, "NOT_FOUND", "Financial entry not found");
+        return ok(res, requestId, 200, item);
       }
 
       if (method === "GET" && url.pathname === "/financial/entries") {
@@ -1524,7 +1664,39 @@ export const createEthosBackend = () =>
       if (method === "POST" && url.pathname === "/ai/organize") {
         const body = await readJson(req);
         const text = String(body.text ?? "").trim();
-        return ok(res, requestId, 200, { summary: text, tokens_estimate: text.split(/\s+/).filter(Boolean).length });
+        const kind = typeof body.kind === "string" ? body.kind : "generic";
+
+        if (kind === "report_manual" || kind === "report_transcript") {
+          try {
+            const payload = {
+              psychologistName: String(body.psychologist_name ?? "").trim() || "Psicólogo(a)",
+              crp: typeof body.crp === "string" ? body.crp.trim() : undefined,
+              patientName: typeof body.patient_name === "string" ? body.patient_name.trim() : undefined,
+              dateLabel: typeof body.date_label === "string" ? body.date_label.trim() : undefined,
+              attendanceType: typeof body.attendance_type === "string" ? body.attendance_type.trim() : undefined,
+              sourceText: text,
+            };
+
+            const organizedText = kind === "report_transcript"
+              ? await generateReportFromTranscript(payload)
+              : await generateReportFromNotes(payload);
+
+            return ok(res, requestId, 200, {
+              organized_text: organizedText,
+              tokens_estimate: organizedText.split(/\s+/).filter(Boolean).length,
+            });
+          } catch (errorValue) {
+            return error(
+              res,
+              requestId,
+              500,
+              "AI_REPORT_ERROR",
+              errorValue instanceof Error ? errorValue.message : "Não foi possível gerar o relatório com IA",
+            );
+          }
+        }
+
+        return ok(res, requestId, 200, { organized_text: text, tokens_estimate: text.split(/\s+/).filter(Boolean).length });
       }
 
       // Admin routes
@@ -1583,6 +1755,8 @@ export const createEthosBackend = () =>
         return error(res, requestId, err.statusCode, err.code, err.message);
       }
 
+      console.error("[ethos-clinic] unexpected error", err);
+
       addTelemetry({
         user_id: authUserId(req),
         event_type: "HTTP_ERROR",
@@ -1591,6 +1765,13 @@ export const createEthosBackend = () =>
         error_code: (err as Error).name,
       });
 
-      return error(res, requestId, 500, "INTERNAL_ERROR", "Unexpected server error");
+      return error(
+        res,
+        requestId,
+        500,
+        "INTERNAL_ERROR",
+        err instanceof Error ? err.message : "Unexpected server error"
+      );
     }
   });
+
