@@ -1038,14 +1038,13 @@ export const exportContract = (owner: string, id: string, format: "pdf" | "docx"
   return { contract_id: id, format, content: JSON.stringify(contract) };
 };
 
-const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string }> = [
-  { id: "session-summary", title: "Resumo de sessÃ£o", html: "<h1>{{title}}</h1>{{content}}" },
-  { id: "evolution-note", title: "Nota de evoluÃ§Ã£o", html: "<h1>EvoluÃ§Ã£o</h1>{{content}}" },
-  { id: "payment-receipt", title: "Recibo", description: "Modelo bÃ¡sico de recibo de atendimento.", html: "<h1>Recibo</h1><p>{{content}}</p>" },
-  { id: "attendance-declaration", title: "DeclaraÃ§Ã£o", description: "DeclaraÃ§Ã£o simples de comparecimento.", html: "<h1>DeclaraÃ§Ã£o</h1><p>{{content}}</p>" },
-  { id: "psychological-certificate", title: "Atestado psicolÃ³gico", description: "Atestado psicolÃ³gico para afastamento ou comparecimento.", html: "<h1>Atestado psicolÃ³gico</h1><p>{{content}}</p>" },
-  { id: "therapy-contract", title: "Contrato terapÃªutico", description: "Rascunho base para contrato de prestaÃ§Ã£o de serviÃ§os.", html: "<h1>Contrato terapÃªutico</h1><p>{{content}}</p>" },
-  { id: "psychological-report", title: "RelatÃ³rio psicolÃ³gico", description: "Estrutura inicial para relatÃ³rios destinados a terceiros.", html: "<h1>RelatÃ³rio psicolÃ³gico</h1><p>{{content}}</p>" },
+const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string; fields?: Array<{ key: string; label: string; required?: boolean }> }> = [
+  { id: "attendance-declaration", title: "Declara\u00e7\u00e3o", description: "Declara\u00e7\u00e3o de comparecimento a atendimento psicol\u00f3gico conforme CFP.", html: "<h1>Declara\u00e7\u00e3o</h1><p>{{content}}</p>", fields: [{ key: "attendance_date", label: "Data do atendimento", required: true }, { key: "attendance_time", label: "Hor\u00e1rio do atendimento", required: true }] },
+  { id: "psychological-certificate", title: "Atestado psicol\u00f3gico", description: "Atestado psicol\u00f3gico para afastamento ou acompanhamento conforme CRP.", html: "<h1>Atestado psicol\u00f3gico</h1><p>{{content}}</p>", fields: [{ key: "period_start", label: "Data in\u00edcio", required: true }, { key: "period_end", label: "Data fim", required: true }, { key: "cid_code", label: "CID (opcional)" }] },
+  { id: "payment-receipt", title: "Recibo", description: "Recibo de presta\u00e7\u00e3o de servi\u00e7os psicol\u00f3gicos.", html: "<h1>Recibo</h1><p>{{content}}</p>", fields: [{ key: "amount", label: "Valor (R$)", required: true }, { key: "payment_method", label: "Forma de pagamento", required: true }, { key: "service_type", label: "Tipo de servi\u00e7o" }, { key: "attendance_date", label: "Data do atendimento", required: true }] },
+  { id: "clinical-record", title: "Prontu\u00e1rio Psicol\u00f3gico", description: "Registro cl\u00ednico completo do acompanhamento psicol\u00f3gico.", html: "<h1>Prontu\u00e1rio</h1><p>{{content}}</p>", fields: [] },
+  { id: "therapy-contract", title: "Contrato terap\u00eautico", description: "Contrato de presta\u00e7\u00e3o de servi\u00e7os psicol\u00f3gicos.", html: "<h1>Contrato terap\u00eautico</h1><p>{{content}}</p>" },
+  { id: "psychological-report", title: "Relat\u00f3rio psicol\u00f3gico", description: "Relat\u00f3rio psicol\u00f3gico destinado a terceiros.", html: "<h1>Relat\u00f3rio psicol\u00f3gico</h1><p>{{content}}</p>" },
 ];
 
 const ensureDefaultDocumentTemplates = () => {
@@ -1059,7 +1058,7 @@ const ensureDefaultDocumentTemplates = () => {
         description: template.description,
         version: 1,
         html: template.html,
-        fields: [],
+        fields: template.fields ?? [],
       });
     }
   }

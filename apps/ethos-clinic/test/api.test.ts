@@ -167,7 +167,7 @@ test("api regression suite", async (t) => {
       const document = await req(base, "/documents", "POST", {
         patient_id: "portal-patient",
         case_id: "portal-case",
-        template_id: "session-summary",
+        template_id: "attendance-declaration",
         title: "Orientacoes da sessao",
       }, userToken);
       assert.equal(document.status, 201);
