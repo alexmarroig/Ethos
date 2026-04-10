@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { FilePlus2, FileText, FolderOpen, Loader2 } from "lucide-react";
+import { Download, ExternalLink, FilePlus2, FileText, FolderOpen, Loader2, Printer } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { documentsApi } from "@/api/clinical";
 import type { Document, DocumentTemplate } from "@/api/types";
 import { patientService, type Patient } from "@/services/patientService";
+import { useAuth } from "@/contexts/AuthContext";
+import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -26,8 +28,20 @@ const formatDate = (value?: string) =>
       })
     : "Sem data";
 
-const DocumentsPage = () => {
+const REDIRECT_TEMPLATES: Record<string, { page: string; label: string }> = {
+  "therapy-contract": { page: "contracts", label: "Ir para Contratos" },
+  "psychological-report": { page: "reports", label: "Ir para Relat\u00f3rios" },
+};
+
+const HIDDEN_TEMPLATES = new Set(["session-summary", "evolution-note"]);
+
+interface DocumentsPageProps {
+  onNavigate?: (page: string) => void;
+}
+
+const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [documents, setDocuments] = useState<Document[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -38,6 +52,21 @@ const DocumentsPage = () => {
   const [patientId, setPatientId] = useState("");
   const [templateId, setTemplateId] = useState("");
   const [title, setTitle] = useState("");
+
+  // Template-specific fields
+  const [attendanceDate, setAttendanceDate] = useState("");
+  const [attendanceTime, setAttendanceTime] = useState("");
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [cidCode, setCidCode] = useState("");
+  const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("");
+  const [serviceType, setServiceType] = useState("session");
+
+  // Preview state
+  const [previewDoc, setPreviewDoc] = useState<Document | null>(null);
+  const [previewHtml, setPreviewHtml] = useState("");
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -55,9 +84,6 @@ const DocumentsPage = () => {
 
       if (templatesRes.success) {
         setTemplates(templatesRes.data);
-        if (templatesRes.data[0]) {
-          setTemplateId(templatesRes.data[0].id);
-        }
       }
 
       if (patientsRes.success) {
@@ -75,7 +101,15 @@ const DocumentsPage = () => {
     [patients],
   );
 
-  const selectedTemplate = templates.find((template) => template.id === templateId);
+  const visibleTemplates = useMemo(
+    () => templates.filter((t) => !HIDDEN_TEMPLATES.has(t.id)),
+    [templates],
+  );
+
+  const visibleDocuments = useMemo(
+    () => documents.filter((d) => (d.versions_count ?? 0) > 0),
+    [documents],
+  );
 
   const refreshDocuments = async () => {
     const result = await documentsApi.list();
@@ -84,22 +118,48 @@ const DocumentsPage = () => {
     }
   };
 
-  const openCreateDialog = (template?: DocumentTemplate) => {
-    setTemplateId(template?.id ?? templates[0]?.id ?? "");
-    setTitle(template ? `${template.name ?? template.title ?? "Documento"} - ` : "");
+  const resetFormFields = () => {
+    setPatientId("");
+    setTitle("");
+    setAttendanceDate("");
+    setAttendanceTime("");
+    setPeriodStart("");
+    setPeriodEnd("");
+    setCidCode("");
+    setAmount("");
+    setPaymentMethod("");
+    setServiceType("session");
+  };
+
+  const openCreateDialog = (template: DocumentTemplate) => {
+    resetFormFields();
+    setTemplateId(template.id);
     setDialogOpen(true);
   };
+
+  // Auto-update title when patient or template changes
+  useEffect(() => {
+    if (!dialogOpen) return;
+    const patient = patients.find((p) => p.id === patientId);
+    const template = templates.find((t) => t.id === templateId);
+    if (patient && template) {
+      setTitle(`${template.name ?? template.title ?? "Documento"} - ${patient.name}`);
+    }
+  }, [patientId, templateId, dialogOpen, patients, templates]);
 
   const handleCreate = async () => {
     if (!patientId || !templateId) return;
 
     setCreating(true);
-    const template = templates.find((item) => item.id === templateId);
-    const patientName = patientNames.get(patientId) ?? "Paciente";
+    const patient = patients.find((p) => p.id === patientId);
+    const template = templates.find((t) => t.id === templateId);
+    const patientName = patient?.name ?? "Paciente";
+    const docTitle = title.trim() || `${template?.name ?? template?.title ?? "Documento"} - ${patientName}`;
+
     const result = await documentsApi.create({
       patient_id: patientId,
       template_id: templateId,
-      title: title.trim() || `${template?.name ?? template?.title ?? "Documento"} - ${patientName}`,
+      title: docTitle,
     });
 
     if (!result.success) {
@@ -108,12 +168,182 @@ const DocumentsPage = () => {
       return;
     }
 
+    const generatedHtml = buildClinicalDocumentHtml(templateId, {
+      psychologist: {
+        name: user?.name ?? "Psic\u00f3logo(a) respons\u00e1vel",
+        email: user?.email,
+        crp: user?.crp,
+      },
+      patient: {
+        name: patientName,
+        email: patient?.email,
+        cpf: patient?.cpf,
+      },
+      documentTitle: docTitle,
+      dateLabel: new Date().toLocaleDateString("pt-BR"),
+      attendanceDate,
+      attendanceTime,
+      periodStart,
+      periodEnd,
+      cidCode,
+      amount,
+      paymentMethod,
+      serviceType,
+      specialty: user?.specialty,
+      clinicalApproach: user?.clinical_approach,
+      patientBirthDate: patient?.birth_date,
+      patientProfession: patient?.profession,
+      patientPhone: patient?.phone ?? patient?.whatsapp,
+    });
+
+    await documentsApi.createVersion(result.data.id, generatedHtml, {
+      psychologist_name: user?.name ?? "",
+      psychologist_crp: user?.crp ?? "",
+      patient_name: patientName,
+      date: new Date().toLocaleDateString("pt-BR"),
+    });
+
     await refreshDocuments();
     setDialogOpen(false);
     setCreating(false);
-    setPatientId("");
-    setTitle("");
-    toast({ title: "Documento criado" });
+    resetFormFields();
+
+    setPreviewDoc({ ...result.data, versions_count: 1 });
+    setPreviewHtml(generatedHtml);
+
+    toast({ title: `${docTitle} criado com sucesso` });
+  };
+
+  const openDocumentPreview = async (doc: Document) => {
+    setPreviewDoc(doc);
+    setPreviewHtml("");
+    setPreviewLoading(true);
+
+    const versions = await documentsApi.listVersions(doc.id);
+    if (versions.success && versions.data.length > 0) {
+      setPreviewHtml(versions.data[versions.data.length - 1].content);
+    } else if (!versions.success) {
+      toast({ title: "Erro ao carregar documento", description: versions.error.message, variant: "destructive" });
+    }
+
+    setPreviewLoading(false);
+  };
+
+  const closePreview = () => {
+    setPreviewDoc(null);
+    setPreviewHtml("");
+    setPreviewLoading(false);
+  };
+
+  const handlePrint = () => {
+    if (!previewHtml) return;
+    const win = window.open("", "_blank", "noopener,noreferrer,width=980,height=900");
+    if (!win) {
+      toast({ title: "Popup bloqueado", description: "Permita popups para imprimir.", variant: "destructive" });
+      return;
+    }
+    win.document.write(previewHtml);
+    win.document.close();
+    win.focus();
+    win.print();
+  };
+
+  const handleDownloadDoc = () => {
+    if (!previewHtml) return;
+    const blob = new Blob([previewHtml], { type: "application/msword" });
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = href;
+    link.download = `${previewDoc?.title ?? "documento"}.doc`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(href);
+  };
+
+  const renderTemplateFields = () => {
+    if (templateId === "attendance-declaration") {
+      return (
+        <>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Data do atendimento</label>
+            <Input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Hor\u00e1rio do atendimento</label>
+            <Input type="time" value={attendanceTime} onChange={(e) => setAttendanceTime(e.target.value)} />
+          </div>
+        </>
+      );
+    }
+
+    if (templateId === "psychological-certificate") {
+      return (
+        <>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Per\u00edodo de afastamento \u2014 in\u00edcio</label>
+            <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Per\u00edodo de afastamento \u2014 fim</label>
+            <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">CID (opcional)</label>
+            <Input value={cidCode} onChange={(e) => setCidCode(e.target.value)} placeholder="Ex: F41.1" />
+          </div>
+        </>
+      );
+    }
+
+    if (templateId === "payment-receipt") {
+      return (
+        <>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Data do atendimento</label>
+            <Input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Valor (R$)</label>
+            <Input value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Ex: 250,00" />
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Forma de pagamento</label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+            >
+              <option value="">Selecione</option>
+              <option value="Dinheiro">Dinheiro</option>
+              <option value="PIX">PIX</option>
+              <option value="Cart\u00e3o de cr\u00e9dito">Cart\u00e3o de cr\u00e9dito</option>
+              <option value="Cart\u00e3o de d\u00e9bito">Cart\u00e3o de d\u00e9bito</option>
+              <option value="Transfer\u00eancia banc\u00e1ria">Transfer\u00eancia banc\u00e1ria</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-sm font-medium text-foreground">Tipo de servi\u00e7o</label>
+            <div className="flex gap-4 pt-1">
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="radio" name="serviceType" value="session" checked={serviceType === "session"} onChange={() => setServiceType("session")} />
+                Sess\u00e3o de psicoterapia
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="radio" name="serviceType" value="evaluation" checked={serviceType === "evaluation"} onChange={() => setServiceType("evaluation")} />
+                Avalia\u00e7\u00e3o psicol\u00f3gica
+              </label>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <input type="radio" name="serviceType" value="other" checked={serviceType === "other"} onChange={() => setServiceType("other")} />
+                Outro
+              </label>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    return null;
   };
 
   if (loading) {
@@ -150,97 +380,64 @@ const DocumentsPage = () => {
           </p>
         </motion.header>
 
+        {/* Template cards */}
         <motion.section
           className="mb-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-serif text-lg font-medium text-foreground">Modelos padronizados</h2>
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" className="gap-2" onClick={() => openCreateDialog()}>
-                  <FilePlus2 className="w-4 h-4" strokeWidth={1.5} />
-                  Novo documento
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">Novo documento</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <select
-                    value={patientId}
-                    onChange={(event) => setPatientId(event.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    <option value="">Selecione o paciente</option>
-                    {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.name}
-                      </option>
-                    ))}
-                  </select>
+          <h2 className="font-serif text-lg font-medium text-foreground mb-4">Modelos padronizados</h2>
 
-                  <select
-                    value={templateId}
-                    onChange={(event) => setTemplateId(event.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
-                    {templates.map((template) => (
-                      <option key={template.id} value={template.id}>
-                        {template.name ?? template.title}
-                      </option>
-                    ))}
-                  </select>
-
-                  <Input
-                    value={title}
-                    onChange={(event) => setTitle(event.target.value)}
-                    placeholder={`Título do documento (${selectedTemplate?.name ?? selectedTemplate?.title ?? "template"})`}
-                  />
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleCreate} disabled={creating || !patientId || !templateId} className="gap-2">
-                    {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Criar documento
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
-
-          {templates.length === 0 ? (
+          {visibleTemplates.length === 0 ? (
             <div className="text-center py-12">
               <FolderOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-muted-foreground text-sm">Nenhum template cadastrado.</p>
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {templates.map((template) => (
-                <div key={template.id} className="session-card">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-serif text-lg font-medium text-foreground">
-                        {template.name ?? template.title ?? "Template"}
-                      </h3>
-                      {template.description && (
-                        <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
-                      )}
+              {visibleTemplates.map((template) => {
+                const redirect = REDIRECT_TEMPLATES[template.id];
+                return (
+                  <div key={template.id} className="session-card">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-serif text-lg font-medium text-foreground">
+                          {template.name ?? template.title ?? "Template"}
+                        </h3>
+                        {template.description && (
+                          <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
+                        )}
+                      </div>
                     </div>
-                  </div>
 
-                  <Button variant="outline" className="mt-4 gap-2" onClick={() => openCreateDialog(template)}>
-                    <FilePlus2 className="w-4 h-4" strokeWidth={1.5} />
-                    Usar template
-                  </Button>
-                </div>
-              ))}
+                    {redirect ? (
+                      <Button
+                        variant="outline"
+                        className="mt-4 gap-2"
+                        onClick={() => onNavigate?.(redirect.page)}
+                      >
+                        <ExternalLink className="w-4 h-4" strokeWidth={1.5} />
+                        {redirect.label}
+                      </Button>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        className="mt-4 gap-2"
+                        onClick={() => openCreateDialog(template)}
+                      >
+                        <FilePlus2 className="w-4 h-4" strokeWidth={1.5} />
+                        Usar template
+                      </Button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </motion.section>
 
+        {/* Created documents */}
         <motion.section
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -248,30 +445,34 @@ const DocumentsPage = () => {
         >
           <h2 className="font-serif text-lg font-medium text-foreground mb-4">Documentos criados</h2>
 
-          {documents.length === 0 ? (
+          {visibleDocuments.length === 0 ? (
             <div className="text-center py-12">
               <FileText className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
               <p className="text-muted-foreground text-sm">Nenhum documento criado ainda.</p>
             </div>
           ) : (
             <div className="space-y-3">
-              {documents.map((document) => (
-                <div key={document.id} className="session-card">
+              {visibleDocuments.map((document) => (
+                <div
+                  key={document.id}
+                  className="session-card cursor-pointer hover:border-primary/20 transition-colors"
+                  onClick={() => openDocumentPreview(document)}
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="font-serif text-lg font-medium text-foreground">
                         {document.title}
                       </h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {patientNames.get(document.patient_id ?? "") ?? "Paciente não identificado"} · {formatDate(document.created_at)}
+                        {patientNames.get(document.patient_id ?? "") ?? "Paciente n\u00e3o identificado"} \u00b7 {formatDate(document.created_at)}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                      {document.status ?? "draft"}
+                      {(document.versions_count ?? 0) > 0 ? "criado" : "draft"}
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Template: {templates.find((template) => template.id === document.template_id)?.name ?? templates.find((template) => template.id === document.template_id)?.title ?? document.template_id ?? "n/a"} · versões: {document.versions_count ?? 0}
+                    Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} \u00b7 vers\u00f5es: {document.versions_count ?? 0}
                   </p>
                 </div>
               ))}
@@ -279,6 +480,88 @@ const DocumentsPage = () => {
           )}
         </motion.section>
       </div>
+
+      {/* Create document dialog */}
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">
+              {templates.find((t) => t.id === templateId)?.name ?? templates.find((t) => t.id === templateId)?.title ?? "Novo documento"}
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">Paciente</label>
+              <select
+                value={patientId}
+                onChange={(e) => setPatientId(e.target.value)}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+              >
+                <option value="">Selecione o paciente</option>
+                {patients.map((patient) => (
+                  <option key={patient.id} value={patient.id}>
+                    {patient.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {renderTemplateFields()}
+
+            <div className="space-y-1">
+              <label className="text-sm font-medium text-foreground">T\u00edtulo do documento</label>
+              <Input
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                placeholder="T\u00edtulo (preenchido automaticamente)"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button onClick={handleCreate} disabled={creating || !patientId || !templateId} className="gap-2">
+              {creating && <Loader2 className="w-4 h-4 animate-spin" />}
+              Criar documento
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Document preview dialog */}
+      <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => { if (!open) closePreview(); }}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">{previewDoc?.title ?? "Documento"}</DialogTitle>
+          </DialogHeader>
+          {previewLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : previewHtml ? (
+            <iframe
+              title="Preview do documento"
+              srcDoc={previewHtml}
+              className="h-[70vh] w-full rounded-lg border border-border bg-white"
+            />
+          ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground text-sm">Nenhuma vers\u00e3o dispon\u00edvel para este documento.</p>
+            </div>
+          )}
+          <DialogFooter className="gap-2">
+            <Button variant="outline" className="gap-2" onClick={handlePrint} disabled={!previewHtml}>
+              <Printer className="w-4 h-4" />
+              Imprimir / PDF
+            </Button>
+            <Button variant="outline" className="gap-2" onClick={handleDownloadDoc} disabled={!previewHtml}>
+              <Download className="w-4 h-4" />
+              DOCX
+            </Button>
+            <Button variant="secondary" onClick={closePreview}>
+              Fechar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

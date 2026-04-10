@@ -28,7 +28,6 @@ import type {
   EmotionalDiaryEntry,
   FinancialEntry,
   FormEntry,
-  FormTemplate,
   Job,
   JobStatus,
   JobType,
@@ -376,15 +375,10 @@ type Contract = {
   id: string;
   owner_user_id: string;
   patient_id: string;
-  template_id?: string;
-  title?: string;
-  content?: string;
   psychologist: { name: string; license: string; email: string; phone?: string };
-  patient: { name: string; email: string; document: string; address?: string };
+  patient: { name: string; email: string; document: string };
   terms: { value: string; periodicity: string; absence_policy: string; payment_method: string };
-  status: "draft" | "sent" | "accepted" | "signed";
-  delivery_channels?: Array<{ channel: "email" | "whatsapp"; recipient?: string; sent_at: string }>;
-  signed_attachment?: { file_name: string; mime_type: string; data_url: string; uploaded_at: string };
+  status: "draft" | "sent" | "accepted";
   portal_token?: string;
   accepted_by?: string;
   accepted_at?: string;
@@ -786,7 +780,6 @@ export const getPatientDetail = (owner: string, patientId: string) => {
     documents: listPatientDocuments(owner, patient.id),
     clinical_notes: listPatientClinicalNotes(owner, patient.id),
     emotional_diary: listPatientDiaryEntriesByReference(owner, patient.id),
-    form_entries: listFormEntries(owner, { patient_id: patient.id }),
     timeline: buildPatientTimeline(owner, patient.id),
   };
 };
@@ -997,133 +990,28 @@ export const sendPatientAsyncMessage = (access: PatientAccess, message: string) 
   };
 };
 
-const renderTemplateString = (template: string, values: Record<string, string>) =>
-  template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => values[key] ?? "");
-
-const buildContractTemplateValues = (input: {
-  psychologist: Contract["psychologist"];
-  patient: Contract["patient"];
-  terms: Contract["terms"];
-  patientRecord?: Patient | null;
-}) => ({
-  psychologist_name: input.psychologist.name,
-  psychologist_license: input.psychologist.license,
-  psychologist_email: input.psychologist.email,
-  psychologist_phone: input.psychologist.phone ?? "",
-  patient_name: input.patient.name,
-  patient_email: input.patient.email,
-  patient_document: input.patient.document,
-  patient_address:
-    input.patient.address
-    ?? [input.patientRecord?.address_street, input.patientRecord?.address_number, input.patientRecord?.address_complement, input.patientRecord?.address_neighborhood, input.patientRecord?.address_city, input.patientRecord?.address_state]
-      .filter(Boolean)
-      .join(", "),
-  contract_value: input.terms.value,
-  contract_periodicity: input.terms.periodicity,
-  contract_absence_policy: input.terms.absence_policy,
-  contract_payment_method: input.terms.payment_method,
-  patient_birth_date: input.patientRecord?.birth_date ?? "",
-  patient_cpf: input.patientRecord?.cpf ?? input.patient.document,
-  weekly_frequency: input.patientRecord?.billing?.weekly_frequency ? `${input.patientRecord.billing.weekly_frequency}x por semana` : "",
-});
-
-const defaultContractTemplateBody = `CONTRATO DE PRESTAÇÃO DE SERVIÇO PROFISSIONAL PARA
-REALIZAÇÃO DO ATENDIMENTO PSICOLÓGICO
-
-Psicóloga: {{psychologist_name}}
-São partes no presente instrumento particular de Contrato de Prestação de Serviço Profissional, de um lado como
-CONTRATADA: {{psychologist_name}}, psicóloga CRP: {{psychologist_license}}, e como CONTRATANTE: {{patient_name}}, CPF {{patient_cpf}}, residente em {{patient_address}}.
-
-Pelos serviços de Atendimento Psicológico prestados, a CONTRATANTE se compromete a pagar à CONTRATADA a importância de {{contract_value}}.
-
-TIPO DE ATENDIMENTO E FREQUÊNCIA
-- Frequência: {{contract_periodicity}}
-- Forma de pagamento: {{contract_payment_method}}
-
-NORMAS DE FUNCIONAMENTO
-1. O pagamento seguirá a condição acordada entre as partes.
-2. O não comparecimento deve ser informado com antecedência mínima de 24 horas para não haver cobrança integral.
-3. Cada sessão tem duração de 50 a 60 minutos, salvo ajuste prévio.
-4. Faltas recorrentes sem justificativa podem implicar revisão do horário reservado.
-5. Reajustes poderão ocorrer mediante comunicação prévia e acordo entre as partes.
-
-POLÍTICA DE FALTAS E CANCELAMENTOS
-{{contract_absence_policy}}
-
-Estou ciente e concordo com os termos estabelecidos neste contrato.
-`;
-
-const resolveContractContent = (
-  owner: string,
-  input: Pick<Contract, "patient_id" | "psychologist" | "patient" | "terms"> & { template_id?: string; content?: string },
-) => {
-  if (input.content?.trim()) return input.content.trim();
-
-  const patientRecord = getPatient(owner, input.patient_id);
-  const values = buildContractTemplateValues({
-    psychologist: input.psychologist,
-    patient: input.patient,
-    terms: input.terms,
-    patientRecord,
-  });
-
-  const template = input.template_id ? db.documentTemplates.get(input.template_id) : null;
-  const templateBody = template?.html || defaultContractTemplateBody;
-  return renderTemplateString(templateBody, values);
-};
-
 export const createContract = (owner: string, input: Omit<Contract, "id" | "owner_user_id" | "status" | "created_at" | "updated_at">) => {
   const contract: Contract = {
-      id: uid(),
-      owner_user_id: owner,
-      status: "draft",
-      created_at: now(),
-      updated_at: now(),
-      ...input,
-      content: resolveContractContent(owner, input),
-    };
-    db.contracts.set(contract.id, contract);
-    persistMutation();
-    return contract;
+    id: uid(),
+    owner_user_id: owner,
+    status: "draft",
+    created_at: now(),
+    updated_at: now(),
+    ...input,
   };
-
-export const listContracts = (owner: string) => byOwner(db.contracts.values() as Iterable<Contract>, owner);
-export const getContract = (owner: string, id: string) => getByOwner(db.contracts as Map<string, Contract>, owner, id);
-
-export const updateContract = (
-  owner: string,
-  id: string,
-  input: Partial<Omit<Contract, "id" | "owner_user_id" | "created_at" | "updated_at">>,
-) => {
-  const contract = getContract(owner, id);
-  if (!contract) return null;
-
-  Object.assign(contract, input);
-  if (input.content !== undefined || input.template_id !== undefined || input.terms || input.patient || input.psychologist) {
-    contract.content = resolveContractContent(owner, {
-      patient_id: contract.patient_id,
-      psychologist: contract.psychologist,
-      patient: contract.patient,
-      terms: contract.terms,
-      template_id: contract.template_id,
-      content: contract.content,
-    });
-  }
-  contract.updated_at = now();
   db.contracts.set(contract.id, contract);
   persistMutation();
   return contract;
 };
 
-export const sendContract = (owner: string, id: string, channel: "email" | "whatsapp", recipient?: string) => {
+export const listContracts = (owner: string) => byOwner(db.contracts.values() as Iterable<Contract>, owner);
+export const getContract = (owner: string, id: string) => getByOwner(db.contracts as Map<string, Contract>, owner, id);
+
+export const sendContract = (owner: string, id: string) => {
   const contract = getContract(owner, id);
   if (!contract) return null;
   contract.status = "sent";
   contract.portal_token = contract.portal_token ?? crypto.randomBytes(12).toString("hex");
-  contract.delivery_channels = [
-    ...(contract.delivery_channels ?? []),
-    { channel, recipient, sent_at: now() },
-  ];
   contract.updated_at = now();
   persistMutation();
   return contract;
@@ -1144,51 +1032,20 @@ export const acceptContract = (portalToken: string, acceptedBy: string, accepted
   return contract;
 };
 
-export const attachSignedContract = (
-  owner: string,
-  id: string,
-  input: { file_name: string; mime_type: string; data_url: string },
-) => {
-  const contract = getContract(owner, id);
-  if (!contract) return null;
-
-  contract.status = "signed";
-  contract.signed_attachment = {
-    file_name: input.file_name,
-    mime_type: input.mime_type,
-    data_url: input.data_url,
-    uploaded_at: now(),
-  };
-  contract.updated_at = now();
-  const contractDocument = createDocument(owner, contract.patient_id, contract.patient_id, "therapy-contract", `Contrato assinado - ${contract.patient.name}`) ?? null;
-  if (contractDocument) {
-    addDocumentVersion(owner, contractDocument.id, {
-      content: `<h1>Contrato assinado</h1><p>Arquivo: ${input.file_name}</p><p>Mime type: ${input.mime_type}</p><p><a href="${input.data_url}">Abrir anexo assinado</a></p>`,
-      global_values: {
-        contract_id: contract.id,
-        file_name: input.file_name,
-      },
-    });
-  }
-  persistMutation();
-  return contract;
-};
-
 export const exportContract = (owner: string, id: string, format: "pdf" | "docx") => {
   const contract = getContract(owner, id);
   if (!contract) return null;
   return { contract_id: id, format, content: JSON.stringify(contract) };
 };
 
-const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; kind?: "document" | "contract"; html: string }> = [
-  { id: "session-summary", title: "Resumo de sessão", kind: "document", html: "<h1>{{title}}</h1>{{content}}" },
-  { id: "evolution-note", title: "Nota de evolução", kind: "document", html: "<h1>Evolução</h1>{{content}}" },
-  { id: "payment-receipt", title: "Recibo", kind: "document", description: "Modelo básico de recibo de atendimento.", html: "<h1>Recibo</h1><p>{{content}}</p>" },
-  { id: "attendance-declaration", title: "Declaração", kind: "document", description: "Declaração simples de comparecimento.", html: "<h1>Declaração</h1><p>{{content}}</p>" },
-  { id: "psychological-certificate", title: "Atestado psicológico", kind: "document", description: "Atestado psicológico para afastamento ou comparecimento.", html: "<h1>Atestado psicológico</h1><p>{{content}}</p>" },
-  { id: "therapy-contract", title: "Contrato terapêutico", kind: "contract", description: "Rascunho base para contrato de prestação de serviços.", html: defaultContractTemplateBody },
-  { id: "psychological-report", title: "Relatório psicológico", kind: "document", description: "Estrutura inicial para relatórios destinados a terceiros.", html: "<h1>Relatório psicológico</h1><p>{{content}}</p>" },
-  ];
+const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string; fields?: Array<{ key: string; label: string; required?: boolean }> }> = [
+  { id: "attendance-declaration", title: "Declara\u00e7\u00e3o", description: "Declara\u00e7\u00e3o de comparecimento a atendimento psicol\u00f3gico conforme CFP.", html: "<h1>Declara\u00e7\u00e3o</h1><p>{{content}}</p>", fields: [{ key: "attendance_date", label: "Data do atendimento", required: true }, { key: "attendance_time", label: "Hor\u00e1rio do atendimento", required: true }] },
+  { id: "psychological-certificate", title: "Atestado psicol\u00f3gico", description: "Atestado psicol\u00f3gico para afastamento ou acompanhamento conforme CRP.", html: "<h1>Atestado psicol\u00f3gico</h1><p>{{content}}</p>", fields: [{ key: "period_start", label: "Data in\u00edcio", required: true }, { key: "period_end", label: "Data fim", required: true }, { key: "cid_code", label: "CID (opcional)" }] },
+  { id: "payment-receipt", title: "Recibo", description: "Recibo de presta\u00e7\u00e3o de servi\u00e7os psicol\u00f3gicos.", html: "<h1>Recibo</h1><p>{{content}}</p>", fields: [{ key: "amount", label: "Valor (R$)", required: true }, { key: "payment_method", label: "Forma de pagamento", required: true }, { key: "service_type", label: "Tipo de servi\u00e7o" }, { key: "attendance_date", label: "Data do atendimento", required: true }] },
+  { id: "clinical-record", title: "Prontu\u00e1rio Psicol\u00f3gico", description: "Registro cl\u00ednico completo do acompanhamento psicol\u00f3gico.", html: "<h1>Prontu\u00e1rio</h1><p>{{content}}</p>", fields: [] },
+  { id: "therapy-contract", title: "Contrato terap\u00eautico", description: "Contrato de presta\u00e7\u00e3o de servi\u00e7os psicol\u00f3gicos.", html: "<h1>Contrato terap\u00eautico</h1><p>{{content}}</p>" },
+  { id: "psychological-report", title: "Relat\u00f3rio psicol\u00f3gico", description: "Relat\u00f3rio psicol\u00f3gico destinado a terceiros.", html: "<h1>Relat\u00f3rio psicol\u00f3gico</h1><p>{{content}}</p>" },
+];
 
 const ensureDefaultDocumentTemplates = () => {
   for (const template of defaultDocumentTemplates) {
@@ -1199,10 +1056,9 @@ const ensureDefaultDocumentTemplates = () => {
         created_at: now(),
         title: template.title,
         description: template.description,
-        kind: template.kind ?? "document",
         version: 1,
         html: template.html,
-        fields: [],
+        fields: template.fields ?? [],
       });
     }
   }
@@ -1272,7 +1128,6 @@ export const listDocumentVersions = (owner: string, documentId: string) =>
 type TemplateInput = {
   title: string;
   description?: string;
-  kind?: "document" | "contract";
   version: number;
   html: string;
   fields: Array<{ key: string; label: string; required?: boolean }>;
@@ -1537,14 +1392,8 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
   return hydrateClinicalNote(owner, note);
 };
 
-export const createReport = (
-  owner: string,
-  patientId: string,
-  purpose: ClinicalReport["purpose"],
-  content: string,
-  kind: ClinicalReport["kind"] = "session_report",
-) => {
-  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, kind, content, status: "draft" as const, created_at: now() };
+export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
+  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, status: "draft" as const, created_at: now() };
   db.reports.set(report.id, report);
   persistMutation();
   return report;
@@ -1553,13 +1402,12 @@ export const createReport = (
 export const updateReport = (
   owner: string,
   reportId: string,
-  input: Partial<Pick<ClinicalReport, "purpose" | "content" | "status" | "kind">>,
+  input: Partial<Pick<ClinicalReport, "purpose" | "content" | "status">>,
 ) => {
   const report = getByOwner(db.reports, owner, reportId);
   if (!report) return null;
 
   if (typeof input.purpose === "string") report.purpose = input.purpose;
-  if (input.kind === "session_report" || input.kind === "longitudinal_record") report.kind = input.kind;
   if (typeof input.content === "string") report.content = input.content;
   if (input.status === "draft" || input.status === "final") report.status = input.status;
 
@@ -1582,119 +1430,28 @@ export const createScaleRecord = (owner: string, scaleId: string, patientId: str
   return record;
 };
 
-const defaultFormTemplates: Array<Omit<FormTemplate, "created_at">> = [
+const defaultFormsCatalog = [
   {
     id: "emotion-diary",
-    owner_user_id: "system",
-    title: "Diário de Emoções",
-    description: "Registro de situações, pensamentos, emoções e ações desconfortáveis entre sessões.",
-    audience: "patient",
-    active: true,
-    fields: [
-      { id: "event", label: "Qual foi o acontecimento e quando ocorreu?", type: "textarea", required: true, placeholder: "Descreva a situação com o máximo de clareza." },
-      { id: "event_date", label: "Data de quando ocorreu", type: "date", required: true },
-      { id: "emotion", label: "Qual emoção ficou mais forte?", type: "select", required: true, options: [
-        { label: "Angústia", value: "angustia" },
-        { label: "Ansiedade", value: "ansiedade" },
-        { label: "Raiva", value: "raiva" },
-        { label: "Tristeza", value: "tristeza" },
-        { label: "Culpa", value: "culpa" },
-        { label: "Vergonha", value: "vergonha" },
-        { label: "Outra", value: "outra" },
-      ] },
-      { id: "thoughts", label: "O que passou pela sua cabeça nesse momento?", type: "textarea", required: true, placeholder: "Escreva pensamentos, interpretações e lembranças ligadas à situação." },
-      { id: "actions", label: "O que você fez ou teve vontade de fazer?", type: "textarea", placeholder: "Descreva ações, reações, impulsos ou evitação." },
-      { id: "body_signals", label: "O que percebeu no corpo?", type: "textarea", placeholder: "Ex.: aperto no peito, tremor, falta de ar, dor, cansaço." },
-      { id: "intensity", label: "Intensidade da emoção", type: "select", required: true, options: [
-        { label: "1 - Muito leve", value: "1" },
-        { label: "2", value: "2" },
-        { label: "3", value: "3" },
-        { label: "4", value: "4" },
-        { label: "5 - Muito intensa", value: "5" },
-      ] },
-      { id: "notes", label: "Algo mais que queira anotar?", type: "textarea", placeholder: "Campo livre." },
-    ],
-  },
-  {
-    id: "weekly-checkin",
-    owner_user_id: "system",
-    title: "Check-in semanal",
-    description: "Formulário simples para acompanhar a semana entre sessões.",
-    audience: "patient",
-    active: true,
-    fields: [
-      { id: "week_summary", label: "Como foi sua semana?", type: "textarea", required: true },
-      { id: "main_difficulty", label: "Qual foi sua principal dificuldade?", type: "textarea" },
-      { id: "main_progress", label: "Qual foi seu principal avanço?", type: "textarea" },
-      { id: "next_session_topics", label: "Tem algo importante para falar na próxima sessão?", type: "textarea" },
-    ],
+    name: "DiÃ¡rio emocional",
+    description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
   },
   {
     id: "initial-anamnesis",
-    owner_user_id: "system",
-    title: "Anamnese inicial",
-    description: "Coleta inicial de histórico pessoal, familiar e clínico.",
-    audience: "patient",
-    active: true,
-    fields: [
-      { id: "chief_complaint", label: "O que motivou a busca por atendimento neste momento?", type: "textarea", required: true },
-      { id: "previous_therapy", label: "Já fez psicoterapia antes?", type: "select", options: [{ label: "Sim", value: "sim" }, { label: "Não", value: "nao" }] },
-      { id: "medication", label: "Usa alguma medicação atualmente?", type: "textarea" },
-      { id: "psychiatric_followup", label: "Está em acompanhamento psiquiátrico?", type: "select", options: [{ label: "Sim", value: "sim" }, { label: "Não", value: "nao" }] },
-      { id: "goals", label: "O que espera alcançar com a psicoterapia?", type: "textarea" },
-    ],
+    name: "Anamnese inicial",
+    description: "Coleta inicial de histÃ³rico pessoal, familiar e clÃ­nico.",
   },
-];
+  {
+    id: "weekly-checkin",
+    name: "Check-in semanal",
+    description: "FormulÃ¡rio simples para acompanhar a semana entre sessÃµes.",
+  },
+] as const;
 
-const ensureDefaultFormTemplates = () => {
-  for (const template of defaultFormTemplates) {
-    if (!db.formTemplates.has(template.id)) {
-      db.formTemplates.set(template.id, { ...template, created_at: now() });
-    }
-  }
-};
+export const listFormsCatalog = () => [...defaultFormsCatalog];
 
-ensureDefaultFormTemplates();
-
-export const listFormsCatalog = (owner?: string, audience?: "patient" | "professional") =>
-  Array.from(db.formTemplates.values())
-    .filter((item) => item.owner_user_id === "system" || (owner ? item.owner_user_id === owner : true))
-    .filter((item) => !audience || item.audience === audience)
-    .filter((item) => item.active)
-    .sort(compareByNewestDate);
-
-export const createFormTemplate = (owner: string, input: Omit<FormTemplate, "id" | "owner_user_id" | "created_at">): FormTemplate => {
-  const item: FormTemplate = { id: uid(), owner_user_id: owner, created_at: now(), ...input };
-  db.formTemplates.set(item.id, item);
-  persistMutation();
-  return item;
-};
-
-export const updateFormTemplate = (owner: string, formId: string, input: Partial<Omit<FormTemplate, "id" | "owner_user_id" | "created_at">>) => {
-  const template = getByOwner(db.formTemplates, owner, formId);
-  if (!template) return null;
-  Object.assign(template, input);
-  db.formTemplates.set(template.id, template);
-  persistMutation();
-  return template;
-};
-
-export const deleteFormTemplate = (owner: string, formId: string) => {
-  const template = getByOwner(db.formTemplates, owner, formId);
-  if (!template) return false;
-  db.formTemplates.delete(template.id);
-  persistMutation();
-  return true;
-};
-
-export const createFormEntry = (
-  owner: string,
-  patientId: string,
-  formId: string,
-  content: Record<string, unknown>,
-  submittedBy: "patient" | "professional" = "professional",
-): FormEntry => {
-  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, submitted_by: submittedBy, created_at: now() };
+export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
+  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
   db.forms.set(item.id, item);
   persistMutation();
   return item;

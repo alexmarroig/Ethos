@@ -187,7 +187,7 @@ const Index = () => {
       case "finance":
         return <FinancePage />;
       case "documents":
-        return <DocumentsPage />;
+        return <DocumentsPage onNavigate={handleNavigate} />;
       case "contracts":
         return <ContractsPage />;
       case "ai":
