@@ -30,6 +30,11 @@ const purposes = [
   { id: "instituição", label: "Instituição / terceiro" },
 ];
 
+const reportKinds = [
+  { id: "session_report", label: "Relatório de sessão" },
+  { id: "longitudinal_record", label: "Prontuário / relatório longitudinal" },
+] as const;
+
 const attendanceTypes = [
   "Psicoterapia individual",
   "Psicoterapia online",
@@ -47,17 +52,69 @@ const formatDate = (value?: string) =>
       })
     : "Sem data";
 
+type ReportKind = "session_report" | "longitudinal_record";
+
+type ReportEditorState = {
+  patient_id: string;
+  session_id: string;
+  kind: ReportKind;
+  purpose: string;
+  attendanceType: string;
+  content: string;
+  sourceText: string;
+};
+
 const buildInitialReportBody = (input: {
   psychologistName: string;
   crp?: string;
-  patientName?: string;
+  patient?: Patient;
   dateLabel: string;
   attendanceType: string;
-}) => `RELATÓRIO DE SESSÃO PSICOLÓGICA
+  kind: ReportKind;
+}) =>
+  input.kind === "longitudinal_record"
+    ? `${input.psychologistName.toUpperCase()}
+PSICÓLOGA CLÍNICA | CRP ${input.crp || ""}
+
+Psicoterapia
+
+PRONTUÁRIO Nº 
+
+NOME: ${input.patient?.name || ""}
+DATA DE NASCIMENTO: ${input.patient?.birth_date || ""}
+IDADE: 
+FILIAÇÃO:
+PAI:
+MÃE:
+RESPONSÁVEL:
+
+TIPO DE ATENDIMENTO: ${input.attendanceType}
+
+TÉCNICAS E INSTRUMENTOS UTILIZADOS:
+
+PERÍODO DE ATENDIMENTO: ${input.dateLabel} A
+NÚMERO DE SESSÕES:
+NÚMERO DE FALTAS:
+
+ENCAMINHAMENTOS INTERNOS A OUTROS SERVIÇOS:
+
+DEMANDA INICIAL:
+
+EVOLUÇÃO DO ATENDIMENTO
+
+Sessão nº 1 - ${input.dateLabel}
+Formato:
+Conteúdo:
+
+Intervenções:
+
+Plano:
+`
+    : `RELATÓRIO DE SESSÃO PSICOLÓGICA
 
 Psicólogo(a): ${input.psychologistName}
 CRP: ${input.crp || ""}
-Paciente: ${input.patientName || ""}
+Paciente: ${input.patient?.name || ""}
 Data: ${input.dateLabel}
 Tipo de atendimento: ${input.attendanceType}
 
@@ -72,25 +129,18 @@ Tipo de atendimento: ${input.attendanceType}
 5. Encaminhamentos / Plano:
 `;
 
-type ReportEditorState = {
-  patient_id: string;
-  session_id: string;
-  purpose: string;
-  attendanceType: string;
-  content: string;
-  sourceText: string;
-};
-
-const createEmptyEditor = (defaultPurpose: string, psychologistName: string, crp?: string): ReportEditorState => ({
+const createEmptyEditor = (psychologistName: string, crp?: string): ReportEditorState => ({
   patient_id: "",
   session_id: "",
-  purpose: defaultPurpose,
+  kind: "session_report",
+  purpose: purposes[0].id,
   attendanceType: attendanceTypes[0],
   content: buildInitialReportBody({
     psychologistName,
     crp,
     dateLabel: new Date().toLocaleDateString("pt-BR"),
     attendanceType: attendanceTypes[0],
+    kind: "session_report",
   }),
   sourceText: "",
 });
@@ -107,7 +157,7 @@ const ReportsPage = () => {
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
-  const [editor, setEditor] = useState<ReportEditorState>(() => createEmptyEditor(purposes[0].id, "Psicólogo(a)"));
+  const [editor, setEditor] = useState<ReportEditorState>(() => createEmptyEditor("Psicóloga responsável"));
 
   useEffect(() => {
     const load = async () => {
@@ -161,42 +211,47 @@ const ReportsPage = () => {
     setSelectedReportId(nextReport.id);
   };
 
-  const handlePatientChange = (patientId: string) => {
-    const patient = patients.find((item) => item.id === patientId);
+  const rebuildContent = (next: Partial<ReportEditorState>) => {
+    const patient = patients.find((item) => item.id === (next.patient_id ?? editor.patient_id));
+    const kind = (next.kind ?? editor.kind) as ReportKind;
+    const attendanceType = next.attendanceType ?? editor.attendanceType;
     setEditor((current) => ({
       ...current,
-      patient_id: patientId,
-      session_id: "",
+      ...next,
       content: buildInitialReportBody({
-        psychologistName: user?.name || "Psicólogo(a)",
+        psychologistName: user?.name || "Psicóloga responsável",
         crp: user?.crp,
-        patientName: patient?.name,
+        patient,
         dateLabel: new Date().toLocaleDateString("pt-BR"),
-        attendanceType: current.attendanceType,
+        attendanceType,
+        kind,
       }),
     }));
   };
 
   const handleOpenNew = () => {
     setSelectedReportId(null);
-    setEditor(createEmptyEditor(purposes[0].id, user?.name || "Psicólogo(a)", user?.crp));
+    setEditor(createEmptyEditor(user?.name || "Psicóloga responsável", user?.crp));
     setDialogOpen(true);
   };
 
   const handleOpenExisting = (report: Report) => {
     const patient = patients.find((item) => item.id === report.patient_id);
+    const kind = report.kind ?? "session_report";
     setSelectedReportId(report.id);
     setEditor({
       patient_id: report.patient_id,
       session_id: "",
+      kind,
       purpose: report.purpose,
       attendanceType: attendanceTypes[0],
       content: report.content || buildInitialReportBody({
-        psychologistName: user?.name || "Psicólogo(a)",
+        psychologistName: user?.name || "Psicóloga responsável",
         crp: user?.crp,
-        patientName: patient?.name || report.patient_name,
+        patient,
         dateLabel: formatDate(report.created_at),
         attendanceType: attendanceTypes[0],
+        kind,
       }),
       sourceText: "",
     });
@@ -210,6 +265,7 @@ const ReportsPage = () => {
     const payload = {
       patient_id: editor.patient_id,
       purpose: editor.purpose,
+      kind: editor.kind,
       content: editor.content.trim(),
       status: markAsFinal ? ("final" as const) : ("draft" as const),
     };
@@ -254,7 +310,7 @@ const ReportsPage = () => {
 
     setImproving(true);
     const payload = {
-      psychologist_name: user?.name || "Psicólogo(a)",
+      psychologist_name: user?.name || "Psicóloga responsável",
       crp: user?.crp,
       patient_name: selectedPatient?.name,
       date_label: new Date().toLocaleDateString("pt-BR"),
@@ -274,46 +330,34 @@ const ReportsPage = () => {
     }
 
     setEditor((current) => ({ ...current, content: result.data.organized_text }));
-    toast({ title: "Relatório melhorado", description: "A IA estruturou o relatório diretamente no campo principal." });
+    toast({ title: "Relatório melhorado", description: "A IA estruturou o relatório no campo principal." });
   };
 
+  const previewHtml = buildReportHtml({
+    report: {
+      id: selectedReportId ?? "preview",
+      patient_id: editor.patient_id,
+      patient_name: selectedPatient?.name,
+      purpose: editor.purpose,
+      kind: editor.kind,
+      content: editor.content,
+      status: "draft",
+      created_at: new Date().toISOString(),
+    },
+    patient: selectedPatient,
+    psychologistName: user?.name || "Psicóloga responsável",
+    crp: user?.crp,
+  });
+
   const handlePrintPdf = () => {
-    const html = buildReportHtml({
-      report: {
-        id: selectedReportId ?? "preview",
-        patient_id: editor.patient_id,
-        patient_name: selectedPatient?.name,
-        purpose: editor.purpose,
-        content: editor.content,
-        status: "draft",
-        created_at: new Date().toISOString(),
-      },
-      patient: selectedPatient,
-      psychologistName: user?.name || "Psicólogo(a)",
-      crp: user?.crp,
-    });
-    const ok = openReportPrintPreview(html);
+    const ok = openReportPrintPreview(previewHtml);
     if (!ok) {
       toast({ title: "Não foi possível abrir o PDF", description: "Verifique se o navegador bloqueou a janela.", variant: "destructive" });
     }
   };
 
   const handleDownloadDoc = () => {
-    const html = buildReportHtml({
-      report: {
-        id: selectedReportId ?? "preview",
-        patient_id: editor.patient_id,
-        patient_name: selectedPatient?.name,
-        purpose: editor.purpose,
-        content: editor.content,
-        status: "draft",
-        created_at: new Date().toISOString(),
-      },
-      patient: selectedPatient,
-      psychologistName: user?.name || "Psicólogo(a)",
-      crp: user?.crp,
-    });
-    downloadReportDoc(`relatorio-${selectedReportId ?? "preview"}.doc`, html);
+    downloadReportDoc(`relatorio-${selectedReportId ?? "preview"}.doc`, previewHtml);
     toast({ title: "DOC gerado", description: "O relatório foi baixado em formato compatível com Word." });
   };
 
@@ -337,15 +381,10 @@ const ReportsPage = () => {
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
-        <motion.header
-          className="mb-8"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-        >
+        <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Relatórios</h1>
           <p className="mt-2 text-muted-foreground">
-            Escreva no modelo clínico, puxe a transcrição da sessão quando houver e refine com IA sem mostrar prompt ao usuário.
+            Relatórios profissionais com formato de sessão ou prontuário longitudinal.
           </p>
         </motion.header>
 
@@ -366,19 +405,14 @@ const ReportsPage = () => {
           ) : (
             <div className="space-y-3">
               {reports.map((report) => (
-                <button
-                  key={report.id}
-                  type="button"
-                  onClick={() => handleOpenExisting(report)}
-                  className="session-card w-full text-left"
-                >
+                <button key={report.id} type="button" onClick={() => handleOpenExisting(report)} className="session-card w-full text-left">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="font-serif text-lg font-medium text-foreground">
                         {report.patient_name ?? patients.find((patient) => patient.id === report.patient_id)?.name ?? "Paciente"}
                       </h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {purposes.find((option) => option.id === report.purpose)?.label ?? report.purpose} · {formatDate(report.created_at)}
+                        {reportKinds.find((kind) => kind.id === (report.kind ?? "session_report"))?.label} · {purposes.find((option) => option.id === report.purpose)?.label ?? report.purpose} · {formatDate(report.created_at)}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
@@ -402,83 +436,55 @@ const ReportsPage = () => {
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-4">
-                  <select
-                    value={editor.patient_id}
-                    onChange={(event) => handlePatientChange(event.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
+                  <select value={editor.patient_id} onChange={(event) => rebuildContent({ patient_id: event.target.value, session_id: "" })} className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                     <option value="">Selecione o paciente</option>
                     {patients.map((patient) => (
-                      <option key={patient.id} value={patient.id}>
-                        {patient.name}
-                      </option>
+                      <option key={patient.id} value={patient.id}>{patient.name}</option>
                     ))}
                   </select>
 
-                  <select
-                    value={editor.purpose}
-                    onChange={(event) => updateEditor("purpose", event.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
+                  <select value={editor.purpose} onChange={(event) => updateEditor("purpose", event.target.value)} className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                     {purposes.map((option) => (
-                      <option key={option.id} value={option.id}>
-                        {option.label}
-                      </option>
+                      <option key={option.id} value={option.id}>{option.label}</option>
                     ))}
                   </select>
 
-                  <select
-                    value={editor.session_id}
-                    onChange={(event) => updateEditor("session_id", event.target.value)}
-                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                  >
+                  <select value={editor.kind} onChange={(event) => rebuildContent({ kind: event.target.value as ReportKind })} className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
+                    {reportKinds.map((kind) => (
+                      <option key={kind.id} value={kind.id}>{kind.label}</option>
+                    ))}
+                  </select>
+
+                  <select value={editor.session_id} onChange={(event) => updateEditor("session_id", event.target.value)} className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm">
                     <option value="">Sessão vinculada (opcional)</option>
                     {availableSessions.map((session) => (
-                      <option key={session.id} value={session.id}>
-                        {session.patient_name} · {session.date} {session.time}
-                      </option>
+                      <option key={session.id} value={session.id}>{session.patient_name} · {session.date} {session.time}</option>
                     ))}
                   </select>
-
-                  <Input
-                    value={editor.attendanceType}
-                    onChange={(event) => updateEditor("attendanceType", event.target.value)}
-                    placeholder="Tipo de atendimento"
-                    list="attendance-types"
-                  />
-                  <datalist id="attendance-types">
-                    {attendanceTypes.map((item) => (
-                      <option key={item} value={item} />
-                    ))}
-                  </datalist>
                 </div>
 
-                <div className="rounded-2xl border border-border bg-muted/20 p-4">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    Campo principal do relatório. A psicóloga escreve aqui normalmente e pode usar a IA para refinar.
-                  </p>
-                  <Textarea
-                    value={editor.content}
-                    onChange={(event) => updateEditor("content", event.target.value)}
-                    className="min-h-[340px]"
-                  />
-                </div>
+                <Input
+                  value={editor.attendanceType}
+                  onChange={(event) => rebuildContent({ attendanceType: event.target.value })}
+                  placeholder="Tipo de atendimento"
+                  list="attendance-types"
+                />
+                <datalist id="attendance-types">
+                  {attendanceTypes.map((item) => (
+                    <option key={item} value={item} />
+                  ))}
+                </datalist>
+
+                <Textarea value={editor.content} onChange={(event) => updateEditor("content", event.target.value)} className="min-h-[380px]" />
 
                 <div className="rounded-2xl border border-border bg-background p-4 space-y-3">
-                  <div>
-                    <h3 className="font-serif text-lg text-foreground">Fonte para IA</h3>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      No web você pode escrever anotações livres ou carregar a transcrição de uma sessão já processada.
-                    </p>
-                  </div>
-
+                  <h3 className="font-serif text-lg text-foreground">Fonte para IA</h3>
                   <Textarea
                     value={editor.sourceText}
                     onChange={(event) => updateEditor("sourceText", event.target.value)}
-                    placeholder="Cole anotações clínicas ou use o botão para carregar a transcrição da sessão."
-                    className="min-h-[180px]"
+                    placeholder="Cole anotações clínicas ou carregue a transcrição de uma sessão."
+                    className="min-h-[160px]"
                   />
-
                   <div className="flex flex-wrap gap-2">
                     <Button type="button" variant="secondary" onClick={() => void handleImportTranscript()} disabled={!editor.session_id}>
                       Carregar transcrição da sessão
@@ -496,32 +502,9 @@ const ReportsPage = () => {
               </div>
 
               <div className="rounded-2xl border border-border bg-muted/20 p-4 space-y-4">
-                <div>
-                  <h3 className="font-serif text-lg text-foreground">Preview do relatório</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    Revise como o relatório ficará antes de salvar e exportar.
-                  </p>
-                </div>
-
+                <h3 className="font-serif text-lg text-foreground">Preview do relatório</h3>
                 <div className="rounded-xl overflow-hidden border border-border bg-white">
-                  <iframe
-                    title="Preview do relatório"
-                    srcDoc={buildReportHtml({
-                      report: {
-                        id: selectedReportId ?? "preview",
-                        patient_id: editor.patient_id,
-                        patient_name: selectedPatient?.name,
-                        purpose: editor.purpose,
-                        content: editor.content,
-                        status: "draft",
-                        created_at: new Date().toISOString(),
-                      },
-                      patient: selectedPatient,
-                      psychologistName: user?.name || "Psicólogo(a)",
-                      crp: user?.crp,
-                    })}
-                    className="h-[520px] w-full bg-white"
-                  />
+                  <iframe title="Preview do relatório" srcDoc={previewHtml} className="h-[520px] w-full bg-white" />
                 </div>
               </div>
             </div>
@@ -538,9 +521,7 @@ const ReportsPage = () => {
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => setDialogOpen(false)}>
-                  Fechar
-                </Button>
+                <Button variant="secondary" onClick={() => setDialogOpen(false)}>Fechar</Button>
                 <Button onClick={() => void handleSave(false)} disabled={saving || !editor.patient_id || !editor.content.trim()} className="gap-2">
                   {saving && <Loader2 className="w-4 h-4 animate-spin" />}
                   Salvar rascunho

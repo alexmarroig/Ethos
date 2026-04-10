@@ -88,7 +88,6 @@ const purposeLabel = (purpose?: string) => {
     case "paciente":
       return "Entrega ao paciente";
     case "instituição":
-    case "instituiÃ§Ã£o":
       return "Instituição / terceiro";
     default:
       return "Uso profissional";

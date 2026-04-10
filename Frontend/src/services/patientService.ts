@@ -66,6 +66,7 @@ type RawPatientDetail = {
   documents?: unknown[];
   clinical_notes?: unknown[];
   emotional_diary?: unknown[];
+  form_entries?: unknown[];
   timeline?: unknown[];
 };
 
@@ -140,6 +141,7 @@ export interface PatientDetail {
   documents: RawPatientDetail["documents"];
   clinical_notes: RawPatientDetail["clinical_notes"];
   emotional_diary: RawPatientDetail["emotional_diary"];
+  form_entries?: RawPatientDetail["form_entries"];
   timeline: RawPatientDetail["timeline"];
 }
 
@@ -230,6 +232,7 @@ function mapPatientDetail(raw: RawPatientDetail): PatientDetail {
     documents: raw.documents ?? [],
     clinical_notes: raw.clinical_notes ?? [],
     emotional_diary: raw.emotional_diary ?? [],
+    form_entries: raw.form_entries ?? [],
     timeline: raw.timeline ?? [],
   };
 }

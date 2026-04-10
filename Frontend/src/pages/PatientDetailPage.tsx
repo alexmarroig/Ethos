@@ -10,6 +10,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
 import { sessionService } from "@/services/sessionService";
 import { contractsApi, documentsApi } from "@/api/clinical";
+import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
@@ -105,7 +106,7 @@ const formatDate = (value?: string | null) =>
         month: "short",
         year: "numeric",
       })
-    : "NÃ£o definido";
+    : "Não definido";
 
 const formatDateTime = (value?: string | null) =>
   value
@@ -116,12 +117,12 @@ const formatDateTime = (value?: string | null) =>
         hour: "2-digit",
         minute: "2-digit",
       })
-    : "NÃ£o definido";
+    : "Não definido";
 
 const formatCurrency = (value?: number) =>
   typeof value === "number"
     ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
-    : "NÃ£o definido";
+    : "Não definido";
 
 const toInputDate = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 const buildDocumentTitle = (patientName: string, label: string) => `${label} - ${patientName}`;
@@ -167,6 +168,7 @@ export default function PatientDetailPage({
   const [portalPassword, setPortalPassword] = useState("");
   const [accessCredentials, setAccessCredentials] = useState<string | null>(null);
   const [shortcutLoading, setShortcutLoading] = useState<string | null>(null);
+  const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
@@ -190,6 +192,16 @@ export default function PatientDetailPage({
   useEffect(() => {
     void loadPatient();
   }, [loadPatient]);
+
+  useEffect(() => {
+    const loadContracts = async () => {
+      const result = await contractsApi.list();
+      if (!result.success) return;
+      setContracts(result.data.filter((contract) => contract.patient_id === patientId));
+    };
+
+    void loadContracts();
+  }, [patientId]);
 
   useEffect(() => {
     if (!detail) return;
@@ -236,13 +248,17 @@ export default function PatientDetailPage({
   }, [detail]);
 
   const latestSessionId = detail?.summary.last_session?.id ?? detail?.summary.next_session?.id ?? detail?.sessions[0]?.id;
+  const signedContracts = useMemo(
+    () => contracts.filter((contract) => Boolean(contract.signed_attachment)),
+    [contracts],
+  );
 
   const summaryCards = useMemo(() => {
     if (!detail) return [];
     return [
-      { label: "Total de sessÃµes", value: String(detail.summary.total_sessions) },
-      { label: "PrÃ³xima sessÃ£o", value: formatDateTime(detail.summary.next_session?.scheduled_at) },
-      { label: "Ãšltima sessÃ£o", value: formatDateTime(detail.summary.last_session?.scheduled_at) },
+      { label: "Total de sessões", value: String(detail.summary.total_sessions) },
+      { label: "Próxima sessão", value: formatDateTime(detail.summary.next_session?.scheduled_at) },
+      { label: "Última sessão", value: formatDateTime(detail.summary.last_session?.scheduled_at) },
     ];
   }, [detail]);
 
@@ -324,15 +340,15 @@ export default function PatientDetailPage({
     setSessionDate("");
     setSessionTime("");
     setSessionDuration("50");
-    toast({ title: "SessÃ£o criada" });
+    toast({ title: "Sessão criada" });
     await loadPatient();
   };
 
   const handleOpenLatestProntuario = () => {
     if (!latestSessionId) {
       toast({
-        title: "SessÃ£o necessÃ¡ria",
-        description: "Crie uma sessÃ£o antes de abrir uma nova nota clÃ­nica.",
+        title: "Sessão necessária",
+        description: "Crie uma sessão antes de abrir uma nova nota clínica.",
         variant: "destructive",
       });
       return;
@@ -359,7 +375,7 @@ export default function PatientDetailPage({
 
     const generatedHtml = buildClinicalDocumentHtml(templateId, {
       psychologist: {
-        name: user?.name ?? "PsicÃ³loga responsÃ¡vel",
+        name: user?.name ?? "Psicóloga responsável",
         email: user?.email,
         crp: user?.crp,
       },
@@ -424,7 +440,7 @@ export default function PatientDetailPage({
     const contractResult = await contractsApi.create({
       patient_id: detail.patient.id,
       psychologist: {
-        name: user?.name ?? "PsicÃ³logo responsÃ¡vel",
+        name: user?.name ?? "Psicólogo responsável",
         license: "",
         email: user?.email ?? "",
       },
@@ -437,12 +453,12 @@ export default function PatientDetailPage({
         value:
           form.billing_mode === "package"
             ? `${formatCurrency(Number(form.package_total_price || 0))} por acompanhamento`
-            : `${formatCurrency(Number(form.session_price || 0))} por sessÃ£o`,
+            : `${formatCurrency(Number(form.session_price || 0))} por sessão`,
         periodicity:
           form.billing_mode === "package"
             ? `${form.weekly_frequency || "1"}x por semana`
-            : "sessÃ£o avulsa",
-        absence_policy: "Cancelamentos devem ser informados com antecedÃªncia mÃ­nima de 24 horas.",
+            : "sessão avulsa",
+        absence_policy: "Cancelamentos devem ser informados com antecedência mínima de 24 horas.",
         payment_method: "A combinar",
       },
     } as any);
@@ -457,7 +473,7 @@ export default function PatientDetailPage({
       const sendResult = await contractsApi.send(contractResult.data.id);
       setShortcutLoading(null);
       if (!sendResult.success) {
-        toast({ title: "Contrato criado", description: "O envio ficou pendente. Revise depois na pÃ¡gina Contratos." });
+        toast({ title: "Contrato criado", description: "O envio ficou pendente. Revise depois na página Contratos." });
         return;
       }
 
@@ -469,7 +485,7 @@ export default function PatientDetailPage({
     }
 
     setShortcutLoading(null);
-    toast({ title: "Contrato criado", description: "Paciente sem e-mail. Revise depois na pÃ¡gina Contratos." });
+    toast({ title: "Contrato criado", description: "Paciente sem e-mail. Revise depois na página Contratos." });
   };
 
   const handleCreateReport = async () => {
@@ -479,16 +495,16 @@ export default function PatientDetailPage({
     const result = await reportService.create({
       patient_id: detail.patient.id,
       purpose: "profissional",
-      content: `RelatÃ³rio psicolÃ³gico em elaboraÃ§Ã£o referente ao acompanhamento clÃ­nico de ${detail.patient.name}.`,
+      content: `Relatório psicológico em elaboração referente ao acompanhamento clínico de ${detail.patient.name}.`,
     });
     setShortcutLoading(null);
 
     if (!result.success) {
-      toast({ title: "Erro ao criar relatÃ³rio", description: result.error.message, variant: "destructive" });
+      toast({ title: "Erro ao criar relatório", description: result.error.message, variant: "destructive" });
       return;
     }
 
-    toast({ title: "RelatÃ³rio criado", description: "Revise o conteÃºdo depois na pÃ¡gina RelatÃ³rios." });
+    toast({ title: "Relatório criado", description: "Revise o conteúdo depois na página Relatórios." });
   };
 
   const handleGrantAccess = async () => {
@@ -529,7 +545,7 @@ export default function PatientDetailPage({
             Voltar
           </Button>
         </div>
-        <IntegrationUnavailable message={error?.message ?? "Paciente nÃ£o encontrado"} requestId={error?.requestId ?? "local"} />
+        <IntegrationUnavailable message={error?.message ?? "Paciente não encontrado"} requestId={error?.requestId ?? "local"} />
       </div>
     );
   }
@@ -545,7 +561,7 @@ export default function PatientDetailPage({
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div>
               <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">{detail.patient.name}</h1>
-              <p className="mt-2 text-muted-foreground">Ficha clÃ­nica completa do paciente, com visÃ£o operacional e atalhos de documentos.</p>
+              <p className="mt-2 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -553,12 +569,12 @@ export default function PatientDetailPage({
                 <DialogTrigger asChild>
                   <Button variant="secondary" className="gap-2">
                     <CalendarPlus className="w-4 h-4" />
-                    Nova sessÃ£o
+                    Nova sessão
                   </Button>
                 </DialogTrigger>
                 <DialogContent>
                   <DialogHeader>
-                    <DialogTitle className="font-serif text-xl">Agendar sessÃ£o</DialogTitle>
+                    <DialogTitle className="font-serif text-xl">Agendar sessão</DialogTitle>
                   </DialogHeader>
                   <div className="space-y-4">
                     <Input type="date" value={sessionDate} onChange={(event) => setSessionDate(event.target.value)} />
@@ -576,7 +592,7 @@ export default function PatientDetailPage({
 
               <Button variant="secondary" className="gap-2" onClick={handleOpenLatestProntuario}>
                 <FileText className="w-4 h-4" />
-                Nova nota clÃ­nica
+                Nova nota clínica
               </Button>
 
               <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
@@ -593,7 +609,7 @@ export default function PatientDetailPage({
                   <div className="space-y-4">
                     <Input placeholder="Nome do paciente" value={portalName} onChange={(event) => setPortalName(event.target.value)} />
                     <Input placeholder="E-mail do paciente" value={portalEmail} onChange={(event) => setPortalEmail(event.target.value)} />
-                    <Input placeholder="Senha temporÃ¡ria (opcional)" value={portalPassword} onChange={(event) => setPortalPassword(event.target.value)} />
+                    <Input placeholder="Senha temporária (opcional)" value={portalPassword} onChange={(event) => setPortalPassword(event.target.value)} />
                     {accessCredentials && (
                       <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-foreground">
                         <p className="font-medium mb-2">Credenciais geradas</p>
@@ -629,8 +645,8 @@ export default function PatientDetailPage({
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">IdentificaÃ§Ã£o</h2>
-            <p className="text-sm text-muted-foreground mt-1">Dados de contato e identificaÃ§Ã£o do paciente.</p>
+            <h2 className="font-serif text-2xl text-foreground">Identificação</h2>
+            <p className="text-sm text-muted-foreground mt-1">Dados de contato e identificação do paciente.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -658,8 +674,8 @@ export default function PatientDetailPage({
             <Input value={form.cpf} onChange={(event) => updateForm("cpf", event.target.value)} placeholder="000.000.000-00" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">ProfissÃ£o</label>
-            <Input value={form.profession} onChange={(event) => updateForm("profession", event.target.value)} placeholder="ProfissÃ£o atual" />
+            <label className="text-sm font-medium text-foreground">Profissão</label>
+            <Input value={form.profession} onChange={(event) => updateForm("profession", event.target.value)} placeholder="Profissão atual" />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">Interesse em</label>
@@ -672,7 +688,7 @@ export default function PatientDetailPage({
               <Input value={form.address_street} onChange={(event) => updateForm("address_street", event.target.value)} placeholder="Rua / Avenida" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">NÃºmero</label>
+              <label className="text-sm font-medium text-foreground">Número</label>
               <Input value={form.address_number} onChange={(event) => updateForm("address_number", event.target.value)} />
             </div>
             <div className="space-y-2">
@@ -697,19 +713,19 @@ export default function PatientDetailPage({
             </div>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">EndereÃ§o livre / observaÃ§Ãµes</label>
+            <label className="text-sm font-medium text-foreground">Endereço livre / observações</label>
             <Textarea value={form.address} onChange={(event) => updateForm("address", event.target.value)} className="min-h-[100px]" />
           </div>
         </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">ClÃ­nico</h2>
-            <p className="text-sm text-muted-foreground mt-1">Contexto principal e observaÃ§Ãµes clÃ­nicas permanentes.</p>
+            <h2 className="font-serif text-2xl text-foreground">Clínico</h2>
+            <p className="text-sm text-muted-foreground mt-1">Contexto principal e observações clínicas permanentes.</p>
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Como chegou atÃ© a clÃ­nica</label>
-            <Textarea value={form.referral_source} onChange={(event) => updateForm("referral_source", event.target.value)} className="min-h-[90px]" placeholder="Site, Instagram, indicaÃ§Ã£o, etc." />
+            <label className="text-sm font-medium text-foreground">Como chegou até a clínica</label>
+            <Textarea value={form.referral_source} onChange={(event) => updateForm("referral_source", event.target.value)} className="min-h-[90px]" placeholder="Site, Instagram, indicação, etc." />
           </div>
           <div className="space-y-2">
             <label className="text-sm font-medium text-foreground">O que faz procurar por psicoterapia</label>
@@ -720,34 +736,34 @@ export default function PatientDetailPage({
             <Textarea value={form.main_complaint} onChange={(event) => updateForm("main_complaint", event.target.value)} className="min-h-[110px]" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">RemÃ©dios psiquiÃ¡tricos</label>
+            <label className="text-sm font-medium text-foreground">Remédios psiquiátricos</label>
             <Textarea value={form.psychiatric_medications} onChange={(event) => updateForm("psychiatric_medications", event.target.value)} className="min-h-[100px]" />
           </div>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">ObservaÃ§Ãµes adicionais</label>
+            <label className="text-sm font-medium text-foreground">Observações adicionais</label>
             <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} className="min-h-[120px]" />
           </div>
         </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">CobranÃ§a</h2>
-            <p className="text-sm text-muted-foreground mt-1">Modelo de cobranÃ§a e frequÃªncia clÃ­nica de referÃªncia.</p>
+            <h2 className="font-serif text-2xl text-foreground">Cobrança</h2>
+            <p className="text-sm text-muted-foreground mt-1">Modelo de cobrança e frequência clínica de referência.</p>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Tipo de cobranÃ§a</label>
+              <label className="text-sm font-medium text-foreground">Tipo de cobrança</label>
               <select
                 value={form.billing_mode}
                 onChange={(event) => updateForm("billing_mode", event.target.value as "per_session" | "package")}
                 className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
-                <option value="per_session">SessÃ£o avulsa</option>
+                <option value="per_session">Sessão avulsa</option>
                 <option value="package">Pacote</option>
               </select>
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">FrequÃªncia semanal</label>
+              <label className="text-sm font-medium text-foreground">Frequência semanal</label>
               <select
                 value={form.weekly_frequency}
                 onChange={(event) => updateForm("weekly_frequency", event.target.value)}
@@ -763,7 +779,7 @@ export default function PatientDetailPage({
 
             {form.billing_mode === "per_session" ? (
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Valor por sessÃ£o</label>
+                <label className="text-sm font-medium text-foreground">Valor por sessão</label>
                 <Input type="number" min="0" step="0.01" value={form.session_price} onChange={(event) => updateForm("session_price", event.target.value)} />
               </div>
             ) : (
@@ -773,8 +789,8 @@ export default function PatientDetailPage({
                   <Input type="number" min="0" step="0.01" value={form.package_total_price} onChange={(event) => updateForm("package_total_price", event.target.value)} />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">ObservaÃ§Ã£o do acordo</label>
-                  <Input value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} placeholder="Ex.: varia conforme o mÃªs" />
+                  <label className="text-sm font-medium text-foreground">Observação do acordo</label>
+                  <Input value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} placeholder="Ex.: varia conforme o mês" />
                 </div>
               </>
             )}
@@ -783,8 +799,8 @@ export default function PatientDetailPage({
 
         <motion.section className="grid gap-5 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergÃªncia</h2>
-            <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e seguranÃ§a do caso.</p>
+            <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergência</h2>
+            <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e segurança do caso.</p>
           </div>
           <label className="flex items-center gap-3 text-sm text-foreground">
             <input
@@ -792,7 +808,7 @@ export default function PatientDetailPage({
               checked={form.has_psychiatric_followup}
               onChange={(event) => updateForm("has_psychiatric_followup", event.target.checked)}
             />
-            Em acompanhamento psiquiÃ¡trico
+            Em acompanhamento psiquiátrico
           </label>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
@@ -804,11 +820,11 @@ export default function PatientDetailPage({
               <Input value={form.psychiatrist_contact} onChange={(event) => updateForm("psychiatrist_contact", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Contato de emergÃªncia</label>
+              <label className="text-sm font-medium text-foreground">Contato de emergência</label>
               <Input value={form.emergency_contact_name} onChange={(event) => updateForm("emergency_contact_name", event.target.value)} />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Telefone de emergÃªncia</label>
+              <label className="text-sm font-medium text-foreground">Telefone de emergência</label>
               <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", event.target.value)} />
             </div>
           </div>
@@ -817,19 +833,19 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
-              <h2 className="font-serif text-2xl text-foreground">HistÃ³rico de sessÃµes</h2>
-              <p className="text-sm text-muted-foreground mt-1">SessÃµes registradas e acesso rÃ¡pido ao prontuÃ¡rio.</p>
+              <h2 className="font-serif text-2xl text-foreground">Histórico de sessões</h2>
+              <p className="text-sm text-muted-foreground mt-1">Sessões registradas e acesso rápido ao prontuário.</p>
             </div>
             {latestSessionId && (
               <Button variant="outline" onClick={() => onOpenProntuario(latestSessionId)}>
-                Abrir prontuÃ¡rio mais recente
+                Abrir prontuário mais recente
               </Button>
             )}
           </div>
 
           {detail.sessions.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Nenhuma sessÃ£o vinculada ainda.
+              Nenhuma sessão vinculada ainda.
             </div>
           ) : (
             <div className="space-y-3">
@@ -838,16 +854,16 @@ export default function PatientDetailPage({
                   <div>
                     <p className="font-medium text-foreground">{formatDateTime(session.scheduled_at)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {session.duration_minutes ? `${session.duration_minutes} min Â· ` : ""}
+                      {session.duration_minutes ? `${session.duration_minutes} min · ` : ""}
                       {session.status === "scheduled" ? "agendado" : session.status}
                     </p>
                   </div>
                   <div className="flex gap-2">
                     <Button variant="secondary" size="sm" onClick={() => onOpenSession(session.id)}>
-                      Abrir sessÃ£o
+                      Abrir sessão
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => onOpenProntuario(session.id)}>
-                      Nota clÃ­nica
+                      Nota clínica
                     </Button>
                   </div>
                 </div>
@@ -859,7 +875,7 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div>
             <h2 className="font-serif text-2xl text-foreground">Documentos</h2>
-            <p className="text-sm text-muted-foreground mt-1">Atalhos rÃ¡pidos para os principais documentos do caso.</p>
+            <p className="text-sm text-muted-foreground mt-1">Atalhos rápidos para os principais documentos do caso.</p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -867,11 +883,11 @@ export default function PatientDetailPage({
               {shortcutLoading === "payment-receipt" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Criar recibo
             </Button>
-            <Button variant="secondary" onClick={() => void createTemplateDocument("attendance-declaration", buildDocumentTitle(detail.patient.name, "DeclaraÃ§Ã£o"))} disabled={shortcutLoading === "attendance-declaration"} className="justify-start gap-2">
+            <Button variant="secondary" onClick={() => void createTemplateDocument("attendance-declaration", buildDocumentTitle(detail.patient.name, "Declaração"))} disabled={shortcutLoading === "attendance-declaration"} className="justify-start gap-2">
               {shortcutLoading === "attendance-declaration" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              Criar declaraÃ§Ã£o
+              Criar declaração
             </Button>
-            <Button variant="secondary" onClick={() => void createTemplateDocument("psychological-certificate", buildDocumentTitle(detail.patient.name, "Atestado psicolÃ³gico"))} disabled={shortcutLoading === "psychological-certificate"} className="justify-start gap-2">
+            <Button variant="secondary" onClick={() => void createTemplateDocument("psychological-certificate", buildDocumentTitle(detail.patient.name, "Atestado psicológico"))} disabled={shortcutLoading === "psychological-certificate"} className="justify-start gap-2">
               {shortcutLoading === "psychological-certificate" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
               Criar atestado
             </Button>
@@ -881,13 +897,13 @@ export default function PatientDetailPage({
             </Button>
             <Button variant="outline" onClick={() => void handleCreateReport()} disabled={shortcutLoading === "report"} className="justify-start gap-2">
               {shortcutLoading === "report" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
-              Criar relatÃ³rio
+              Criar relatório
             </Button>
           </div>
 
           {detail.documents.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Nenhum documento clÃ­nico vinculado a este paciente ainda.
+              Nenhum documento clínico vinculado a este paciente ainda.
             </div>
           ) : (
             <div className="space-y-3">
@@ -913,22 +929,92 @@ export default function PatientDetailPage({
           )}
         </motion.section>
 
+        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
+          <div>
+            <h2 className="font-serif text-2xl text-foreground">Contrato assinado</h2>
+            <p className="text-sm text-muted-foreground mt-1">Visualização rápida do contrato assinado já vinculado ao paciente.</p>
+          </div>
+
+          {signedContracts.length === 0 ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+              Nenhum contrato assinado foi anexado ainda.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {signedContracts.map((contract) => (
+                <div key={contract.id} className="rounded-xl border border-border bg-background/60 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">{contract.title ?? "Contrato terapêutico"}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        Arquivo: {contract.signed_attachment?.file_name ?? "Anexo"}
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-status-validated/10 px-3 py-1 text-xs font-medium text-status-validated">
+                      Assinado
+                    </span>
+                  </div>
+                  {contract.signed_attachment?.data_url ? (
+                    <div className="mt-4">
+                      <a
+                        href={contract.signed_attachment.data_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm font-medium text-primary hover:underline"
+                      >
+                        Abrir contrato assinado
+                      </a>
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
+
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">DiÃ¡rio emocional</h2>
-            <p className="text-sm text-muted-foreground mt-1">Ãšltimos registros do paciente para consulta rÃ¡pida.</p>
+            <h2 className="font-serif text-2xl text-foreground">Diário emocional</h2>
+            <p className="text-sm text-muted-foreground mt-1">Últimos registros do paciente para consulta rápida.</p>
           </div>
 
           {detail.emotional_diary.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Ainda nÃ£o hÃ¡ registros emocionais vinculados.
+              Ainda não há registros emocionais vinculados.
             </div>
           ) : (
             <div className="space-y-3">
               {detail.emotional_diary.slice(0, 5).map((entry: any) => (
                 <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <p className="font-medium text-foreground">{formatDateTime(entry.date)} Â· Humor {entry.mood}/5 Â· Intensidade {entry.intensity}/10</p>
-                  <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descriÃ§Ã£o adicional."}</p>
+                  <p className="font-medium text-foreground">{formatDateTime(entry.date)} · Humor {entry.mood}/5 · Intensidade {entry.intensity}/10</p>
+                  <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descrição adicional."}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
+
+        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
+          <div>
+            <h2 className="font-serif text-2xl text-foreground">Formulários respondidos</h2>
+            <p className="text-sm text-muted-foreground mt-1">Respostas enviadas pelo paciente e registradas na ficha.</p>
+          </div>
+
+          {!(detail.form_entries && detail.form_entries.length) ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+              Nenhum formulário foi respondido ainda.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {detail.form_entries.map((entry: any) => (
+                <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="font-medium text-foreground">{entry.form_id}</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {formatDateTime(entry.created_at)} · {entry.submitted_by === "patient" ? "enviado pelo paciente" : "registrado pelo profissional"}
+                  </p>
+                  <pre className="mt-3 text-xs whitespace-pre-wrap text-foreground/70 bg-muted/50 rounded-lg p-3 overflow-auto">
+                    {JSON.stringify(entry.content ?? entry.data ?? {}, null, 2)}
+                  </pre>
                 </div>
               ))}
             </div>

@@ -1,9 +1,26 @@
 import { motion } from "framer-motion";
 import {
-  Calendar, Clock, Users, Shield, Settings, LogOut,
-  FileText, ClipboardList, DollarSign, FolderOpen,
-  Sparkles, User, FlaskConical, UserCog, TicketCheck, BookOpen, Stethoscope,
-  Home, MessageCircle, DatabaseBackup, ScrollText, Moon, Sun
+  Calendar,
+  Users,
+  Shield,
+  LogOut,
+  FileText,
+  ClipboardList,
+  DollarSign,
+  FolderOpen,
+  Sparkles,
+  User,
+  FlaskConical,
+  UserCog,
+  TicketCheck,
+  BookOpen,
+  Stethoscope,
+  Home,
+  MessageCircle,
+  DatabaseBackup,
+  ScrollText,
+  Moon,
+  Sun,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
@@ -23,7 +40,6 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  // Professional + Admin
   { id: "home", label: "Linha do tempo", icon: Home, roles: ["professional", "admin"] },
   { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
@@ -37,19 +53,15 @@ const navigation: NavItem[] = [
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
   { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },
 
-  // Patient
   { id: "patient-home", label: "Início", icon: Home, roles: ["patient"] },
   { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
-  { id: "patient-diary", label: "Diário", icon: ClipboardList, roles: ["patient"] },
+  { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
   { id: "patient-messages", label: "Mensagens", icon: MessageCircle, roles: ["patient"] },
 
-  // Admin
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },
   { id: "admin-users", label: "Usuários", icon: Users, roles: ["admin"] },
   { id: "admin-testlab", label: "Test Lab", icon: FlaskConical, roles: ["admin"] },
   { id: "admin-tickets", label: "Tickets", icon: TicketCheck, roles: ["admin"] },
-
-  // Diagnostics — admin only
   { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
@@ -57,15 +69,14 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
   const { user, logout, hasRole } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
-  const visibleItems = navigation.filter((item) =>
-    item.roles.some((r) => hasRole(r))
-  );
+  const visibleItems = navigation.filter((item) => item.roles.some((role) => hasRole(role)));
 
-  const roleBadge = user?.role === "admin"
-    ? "Conta admin"
-    : user?.role === "patient"
-    ? "Conta paciente"
-    : "Conta clínica";
+  const roleBadge =
+    user?.role === "admin"
+      ? "Conta admin"
+      : user?.role === "patient"
+        ? "Conta paciente"
+        : "Conta clínica";
 
   const initials = user?.name
     ? user.name
@@ -83,7 +94,6 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
     >
-      {/* Logo and User */}
       <div className="px-6 py-6 border-b border-sidebar-border bg-gradient-to-br from-sidebar to-sidebar-accent/40">
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-start gap-3 min-w-0 flex-1">
@@ -99,14 +109,10 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
               </div>
             )}
             <div className="min-w-0 flex-1">
-              <h1 className="font-serif text-2xl font-medium text-sidebar-primary tracking-tight">
-                ETHOS
-              </h1>
+              <h1 className="font-serif text-2xl font-medium text-sidebar-primary tracking-tight">ETHOS</h1>
               {user ? (
                 <div className="mt-1 space-y-2 min-w-0">
-                  <p className="text-sm text-muted-foreground break-words leading-snug">
-                    {user.name}
-                  </p>
+                  <p className="text-sm text-muted-foreground break-words leading-snug">{user.name}</p>
                   <span className="inline-flex text-[10px] px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">
                     {roleBadge}
                   </span>
@@ -126,7 +132,6 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
         </div>
       </div>
 
-      {/* Navigation */}
       <nav className="flex-1 px-3 py-2 overflow-y-auto">
         <ul className="space-y-0.5">
           {visibleItems.map((item) => {
@@ -135,24 +140,20 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
 
             return (
               <li key={item.id}>
-                {item.separator && (
-                  <div className="my-3 border-t border-sidebar-border" />
-                )}
+                {item.separator ? <div className="my-3 border-t border-sidebar-border" /> : null}
                 <button
                   onClick={() => onNavigate(item.id)}
                   className={cn(
                     "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-left transition-all duration-200",
                     "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     "active:translate-y-[1px]",
-                    isActive
-                      ? "bg-sidebar-accent text-sidebar-primary font-medium"
-                      : "text-sidebar-foreground"
+                    isActive ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground",
                   )}
                 >
                   <Icon
                     className={cn(
                       "w-[18px] h-[18px] transition-colors duration-200 shrink-0",
-                      isActive ? "text-sidebar-primary" : "text-muted-foreground"
+                      isActive ? "text-sidebar-primary" : "text-muted-foreground",
                     )}
                     strokeWidth={1.5}
                   />
@@ -164,29 +165,26 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
         </ul>
       </nav>
 
-      {/* Footer */}
       <div className="px-3 pb-4 space-y-0.5 border-t border-sidebar-border pt-2">
         <button
           onClick={() => onNavigate("account")}
           className={cn(
             "w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-left transition-all duration-200",
             "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            currentPage === "account"
-              ? "bg-sidebar-accent text-sidebar-primary font-medium"
-              : "text-sidebar-foreground"
+            currentPage === "account" ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground",
           )}
         >
           <User
             className={cn(
               "w-[18px] h-[18px] transition-colors duration-200",
-              currentPage === "account" ? "text-sidebar-primary" : "text-muted-foreground"
+              currentPage === "account" ? "text-sidebar-primary" : "text-muted-foreground",
             )}
             strokeWidth={1.5}
           />
           <span className="text-sm">Conta</span>
         </button>
 
-        {user && (
+        {user ? (
           <button
             onClick={logout}
             className="w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-left transition-all duration-200 hover:bg-destructive/10 text-muted-foreground hover:text-destructive"
@@ -194,7 +192,7 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
             <LogOut className="w-[18px] h-[18px]" strokeWidth={1.5} />
             <span className="text-sm">Sair</span>
           </button>
-        )}
+        ) : null}
       </div>
     </motion.aside>
   );

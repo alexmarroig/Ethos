@@ -12,6 +12,7 @@ import type {
   ClinicalDocumentVersion,
   FinancialEntry,
   FormEntry,
+  FormTemplate,
   Invite,
   Job,
   NotificationConsent,
@@ -78,6 +79,7 @@ export const db = {
   anamnesis: new Map<string, AnamnesisResponse>(),
   scales: new Map<string, ScaleRecord>(),
   forms: new Map<string, FormEntry>(),
+  formTemplates: new Map<string, FormTemplate>(),
   financial: new Map<string, FinancialEntry>(),
   jobs: new Map<string, Job>(),
   documents: new Map<string, ClinicalDocument>(),
@@ -118,6 +120,7 @@ type PersistedDatabaseState = {
   anamnesis: AnamnesisResponse[];
   scales: ScaleRecord[];
   forms: FormEntry[];
+  formTemplates: FormTemplate[];
   financial: FinancialEntry[];
   jobs: Job[];
   documents: ClinicalDocument[];
@@ -164,6 +167,7 @@ const loadPersistedDatabase = () => {
     restoreMap(db.anamnesis, snapshot.anamnesis, (item) => item.id);
     restoreMap(db.scales, snapshot.scales, (item) => item.id);
     restoreMap(db.forms, snapshot.forms, (item) => item.id);
+    restoreMap(db.formTemplates, snapshot.formTemplates, (item) => item.id);
     restoreMap(db.financial, snapshot.financial, (item) => item.id);
     restoreMap(db.jobs, snapshot.jobs, (item) => item.id);
     restoreMap(db.documents, snapshot.documents, (item) => item.id);
@@ -193,6 +197,7 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   anamnesis: Array.from(db.anamnesis.values()),
   scales: Array.from(db.scales.values()),
   forms: Array.from(db.forms.values()),
+  formTemplates: Array.from(db.formTemplates.values()).filter((item) => item.owner_user_id !== "system"),
   financial: Array.from(db.financial.values()),
   jobs: Array.from(db.jobs.values()),
   documents: Array.from(db.documents.values()),
@@ -290,12 +295,15 @@ const ensureClinicalEntitlements = (userId: string) => {
 };
 
 let camilaId = "";
+const PREFERRED_LOCAL_CLINICIAN_EMAIL = "psi.camilafreitas@gmail.com";
+const PREFERRED_LOCAL_CLINICIAN_PASSWORD = "admin123";
+const LEGACY_LOCAL_CLINICIAN_EMAIL = "camila@ethos.local";
 
 const seedBaseData = () => {
   camilaId = ensureSeedUser({
-    email: "camila@ethos.local",
+    email: LEGACY_LOCAL_CLINICIAN_EMAIL,
     name: "Camila",
-    password: "admin123",
+    password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,
     role: "admin",
   });
 
@@ -303,7 +311,45 @@ const seedBaseData = () => {
   db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
 };
 
+const ensurePreferredLocalClinician = () => {
+  const preferred = Array.from(db.users.values()).find(
+    (item) => item.email.toLowerCase() === PREFERRED_LOCAL_CLINICIAN_EMAIL.toLowerCase()
+  );
+
+  if (preferred) {
+    preferred.status = "active";
+    preferred.password_hash = hashPassword(PREFERRED_LOCAL_CLINICIAN_PASSWORD);
+    if (!preferred.name?.trim()) preferred.name = "Camila Veloso de Freitas";
+    ensureClinicalEntitlements(preferred.id);
+    camilaId = preferred.id;
+    return;
+  }
+
+  const legacy = Array.from(db.users.values()).find(
+    (item) => item.email.toLowerCase() === LEGACY_LOCAL_CLINICIAN_EMAIL.toLowerCase()
+  );
+
+  if (legacy) {
+    legacy.email = PREFERRED_LOCAL_CLINICIAN_EMAIL;
+    legacy.name = legacy.name?.trim() || "Camila Veloso de Freitas";
+    legacy.status = "active";
+    legacy.password_hash = hashPassword(PREFERRED_LOCAL_CLINICIAN_PASSWORD);
+    ensureClinicalEntitlements(legacy.id);
+    camilaId = legacy.id;
+    return;
+  }
+
+  camilaId = ensureSeedUser({
+    email: PREFERRED_LOCAL_CLINICIAN_EMAIL,
+    name: "Camila Veloso de Freitas",
+    password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,
+    role: "admin",
+  });
+  ensureClinicalEntitlements(camilaId);
+};
+
 seedBaseData();
+ensurePreferredLocalClinician();
 
 export const resetDatabaseForTests = () => {
   for (const value of Object.values(db)) {

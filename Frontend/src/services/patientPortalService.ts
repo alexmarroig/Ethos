@@ -1,4 +1,5 @@
 import { api, ApiResult } from "./apiClient";
+import type { Form, FormEntry } from "./formService";
 
 export interface PatientSession {
   id: string;
@@ -39,4 +40,10 @@ export const patientPortalService = {
 
   sendMessage: (content: string): Promise<ApiResult<PatientMessage>> =>
     api.post<PatientMessage>("/patient/messages", { content }),
+
+  listForms: (): Promise<ApiResult<Form[]>> =>
+    api.get<Form[]>("/patient/forms"),
+
+  createFormEntry: (data: { form_id: string; content: Record<string, unknown> }): Promise<ApiResult<FormEntry>> =>
+    api.post<FormEntry>("/patient/forms/entry", data),
 };

@@ -48,8 +48,20 @@ export const contractsApi = {
   create: (data: Partial<Contract>): Promise<ApiResult<Contract>> =>
     api.post<Contract>("/contracts", data),
 
-  send: (id: string): Promise<ApiResult<{ contract: Contract; portal_url: string | null }>> =>
-    api.post<{ contract: Contract; portal_url: string | null }>(`/contracts/${id}/send`),
+  update: (id: string, data: Partial<Contract>): Promise<ApiResult<Contract>> =>
+    api.patch<Contract>(`/contracts/${id}`, data),
+
+  send: (
+    id: string,
+    data: { channel: "email" | "whatsapp"; recipient?: string },
+  ): Promise<ApiResult<{ contract: Contract; portal_url: string | null; whatsapp_url: string | null }>> =>
+    api.post<{ contract: Contract; portal_url: string | null; whatsapp_url: string | null }>(`/contracts/${id}/send`, data),
+
+  uploadSigned: (
+    id: string,
+    data: { file_name: string; mime_type: string; data_url: string },
+  ): Promise<ApiResult<Contract>> =>
+    api.post<Contract>(`/contracts/${id}/signed-upload`, data),
 
   exportContract: (id: string, format: "pdf" | "docx" = "pdf"): Promise<ApiResult<{ url: string }>> =>
     api.get<{ url: string }>(`/contracts/${id}/export?format=${format}`),
@@ -101,6 +113,20 @@ export const documentsApi = {
 
   renderTemplate: (templateId: string, variables: Record<string, string>): Promise<ApiResult<{ rendered: string }>> =>
     api.post<{ rendered: string }>("/templates/render", { template_id: templateId, variables }),
+};
+
+export const templatesApi = {
+  list: (): Promise<ApiResult<DocumentTemplate[]>> =>
+    api.get<DocumentTemplate[]>("/templates"),
+
+  create: (data: Partial<DocumentTemplate>): Promise<ApiResult<DocumentTemplate>> =>
+    api.post<DocumentTemplate>("/templates", data),
+
+  update: (id: string, data: Partial<DocumentTemplate>): Promise<ApiResult<DocumentTemplate>> =>
+    api.put<DocumentTemplate>(`/templates/${id}`, data),
+
+  remove: (id: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/templates/${id}`),
 };
 
 /* ------------------------------------------------------------------ */

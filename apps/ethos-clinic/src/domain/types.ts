@@ -142,7 +142,8 @@ export type ClinicalNote = Owned & {
 
 export type ClinicalReport = Owned & {
   patient_id: string;
-  purpose: "instituiÃ§Ã£o" | "profissional" | "paciente";
+  purpose: "instituição" | "profissional" | "paciente";
+  kind?: "session_report" | "longitudinal_record";
   content: string;
   status?: "draft" | "final";
 };
@@ -247,6 +248,7 @@ export type DocumentTemplate = {
   created_at: string;
   title: string;
   description?: string;
+  kind?: "document" | "contract";
   version: number;
   html: string;
   fields: Array<{ key: string; label: string; required?: boolean }>;

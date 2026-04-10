@@ -3,10 +3,20 @@ import { motion } from "framer-motion";
 import { User, CreditCard, Shield, Loader2, ExternalLink, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEntitlements } from "@/contexts/EntitlementsContext";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
+import { templatesApi } from "@/api/clinical";
+import type { DocumentTemplate } from "@/api/types";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   trialing: { label: "Trial", className: "bg-blue-500/10 text-blue-600" },
@@ -31,6 +41,13 @@ const AccountPage = () => {
   const { toast } = useToast();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const [contractTemplates, setContractTemplates] = useState<DocumentTemplate[]>([]);
+  const [templateManagerOpen, setTemplateManagerOpen] = useState(false);
+  const [templateDraftId, setTemplateDraftId] = useState<string | null>(null);
+  const [templateTitle, setTemplateTitle] = useState("");
+  const [templateDescription, setTemplateDescription] = useState("");
+  const [templateBody, setTemplateBody] = useState("");
+  const [templateSaving, setTemplateSaving] = useState(false);
   const [profile, setProfile] = useState({
     name: user?.name ?? "",
     email: user?.email ?? "",
@@ -45,6 +62,17 @@ const AccountPage = () => {
       fetchSubscription();
     }
   }, [isCloudAuthenticated, fetchSubscription]);
+
+  useEffect(() => {
+    const loadTemplates = async () => {
+      const result = await templatesApi.list();
+      if (result.success) {
+        setContractTemplates(result.data.filter((template) => template.kind === "contract"));
+      }
+    };
+
+    void loadTemplates();
+  }, []);
 
   useEffect(() => {
     setProfile({
@@ -129,6 +157,60 @@ const AccountPage = () => {
         variant: "destructive",
       });
     }
+  };
+
+  const openTemplateManager = (template?: DocumentTemplate) => {
+    setTemplateDraftId(template?.id ?? null);
+    setTemplateTitle(template?.name ?? template?.title ?? "");
+    setTemplateDescription(template?.description ?? "");
+    setTemplateBody(template?.template_body ?? template?.html ?? "");
+    setTemplateManagerOpen(true);
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!templateTitle.trim()) return;
+    setTemplateSaving(true);
+
+    const payload = {
+      title: templateTitle.trim(),
+      description: templateDescription.trim() || undefined,
+      kind: "contract" as const,
+      version: 1,
+      html: templateBody,
+      fields: [],
+    };
+
+    const result = templateDraftId
+      ? await templatesApi.update(templateDraftId, payload)
+      : await templatesApi.create(payload);
+
+    setTemplateSaving(false);
+
+    if (!result.success) {
+      toast({ title: "Erro ao salvar modelo", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    setContractTemplates((current) => {
+      const exists = current.some((item) => item.id === result.data.id);
+      return exists ? current.map((item) => (item.id === result.data.id ? result.data : item)) : [result.data, ...current];
+    });
+    setTemplateManagerOpen(false);
+    setTemplateDraftId(null);
+    setTemplateTitle("");
+    setTemplateDescription("");
+    setTemplateBody("");
+    toast({ title: "Modelo salvo" });
+  };
+
+  const handleDeleteTemplate = async (templateId: string) => {
+    const result = await templatesApi.remove(templateId);
+    if (!result.success) {
+      toast({ title: "Erro ao remover modelo", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    setContractTemplates((current) => current.filter((item) => item.id !== templateId));
+    toast({ title: "Modelo removido" });
   };
 
   return (
@@ -238,7 +320,62 @@ const AccountPage = () => {
             </Button>
           </div>
         </motion.section>
+
+        <motion.section
+          className="mt-6 p-6 rounded-xl border border-border bg-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="font-serif text-lg font-medium text-foreground">Modelos de contrato</h2>
+            <Button variant="secondary" onClick={() => openTemplateManager()}>
+              Novo modelo
+            </Button>
+          </div>
+
+          {contractTemplates.length === 0 ? (
+            <p className="text-sm text-muted-foreground">Nenhum modelo personalizado criado ainda.</p>
+          ) : (
+            <div className="space-y-3">
+              {contractTemplates.map((template) => (
+                <div key={template.id} className="rounded-lg border border-border p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-foreground">{template.name ?? template.title}</p>
+                      {template.description ? <p className="mt-1 text-sm text-muted-foreground">{template.description}</p> : null}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openTemplateManager(template)}>Editar</Button>
+                      <Button variant="ghost" size="sm" onClick={() => void handleDeleteTemplate(template.id)}>Remover</Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </motion.section>
       </div>
+
+      <Dialog open={templateManagerOpen} onOpenChange={setTemplateManagerOpen}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">{templateDraftId ? "Editar modelo" : "Novo modelo de contrato"}</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <Input placeholder="Título do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
+            <Input placeholder="Descrição" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
+            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} className="min-h-[320px]" />
+          </div>
+          <DialogFooter>
+            <Button variant="secondary" onClick={() => setTemplateManagerOpen(false)}>Fechar</Button>
+            <Button onClick={() => void handleSaveTemplate()} disabled={templateSaving || !templateTitle.trim()}>
+              {templateSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+              Salvar modelo
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

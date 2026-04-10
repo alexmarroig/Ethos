@@ -89,6 +89,9 @@ const baseStyles = `
     display: block;
     margin-bottom: 4px;
   }
+  .content {
+    white-space: pre-wrap;
+  }
 `;
 
 const wrap = (title: string, body: string) => `
@@ -197,16 +200,33 @@ export const buildClinicalDocumentHtml = (
 };
 
 export const buildContractHtml = (contract: {
+  title?: string;
+  content?: string;
   psychologist?: { name?: string; email?: string; license?: string };
-  patient?: { name?: string; email?: string; document?: string };
+  patient?: { name?: string; email?: string; document?: string; address?: string };
   terms?: {
     value?: string;
     periodicity?: string;
     absence_policy?: string;
     payment_method?: string;
   };
-}) =>
-  wrap(
+}) => {
+  if (contract.content?.trim()) {
+    return wrap(
+      contract.title || "Contrato terapêutico",
+      `
+        ${buildHeader(contract.title || "Contrato terapêutico", "ETHOS · Contrato profissional")}
+        <div class="content">${contract.content}</div>
+        <div class="signature">
+          <strong>${contract.psychologist?.name || "Psicóloga responsável"}</strong>
+          <p>CRP ${contract.psychologist?.license || "não informado"}</p>
+          <p>${contract.psychologist?.email || "Email não informado"}</p>
+        </div>
+      `,
+    );
+  }
+
+  return wrap(
     "Contrato terapêutico",
     `
       ${buildHeader("Contrato terapêutico", "ETHOS · Contrato profissional")}
@@ -233,7 +253,7 @@ export const buildContractHtml = (contract: {
       <p><strong>Periodicidade:</strong> ${contract.terms?.periodicity || "Não informada"}</p>
       <p><strong>Política de faltas:</strong> ${contract.terms?.absence_policy || "Não informada"}</p>
       <p><strong>Forma de pagamento:</strong> ${contract.terms?.payment_method || "Não informada"}</p>
-      <p>As partes reconhecem este documento como base do acordo terapêutico, respeitando o código de ética profissional e o sigilo clínico.</p>
+      <p>Endereço do paciente: ${contract.patient?.address || "Não informado"}</p>
       <div class="signature">
         <strong>${contract.psychologist?.name || "Psicóloga responsável"}</strong>
         <p>CRP ${contract.psychologist?.license || "não informado"}</p>
@@ -241,3 +261,4 @@ export const buildContractHtml = (contract: {
       </div>
     `
   );
+};

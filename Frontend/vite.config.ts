@@ -6,11 +6,16 @@ import tailwindcss from "tailwindcss";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
+const defaultClinicalProxyTarget =
+  process.env.VITE_PROXY_CLINICAL_TARGET || "http://127.0.0.1:8787";
+const defaultControlProxyTarget =
+  process.env.VITE_PROXY_CONTROL_TARGET || "http://127.0.0.1:8788";
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   define: {
-    __CLINICAL_PROXY_TARGET__: JSON.stringify(process.env.VITE_PROXY_CLINICAL_TARGET || "https://ethos-clinical.onrender.com"),
-    __CONTROL_PROXY_TARGET__: JSON.stringify(process.env.VITE_PROXY_CONTROL_TARGET || "https://ethos-control.onrender.com"),
+    __CLINICAL_PROXY_TARGET__: JSON.stringify(defaultClinicalProxyTarget),
+    __CONTROL_PROXY_TARGET__: JSON.stringify(defaultControlProxyTarget),
   },
   css: {
     postcss: {
@@ -22,12 +27,12 @@ export default defineConfig(({ mode }) => ({
     port: 8080,
     proxy: {
       "/api/clinical": {
-        target: process.env.VITE_PROXY_CLINICAL_TARGET || "https://ethos-clinical.onrender.com",
+        target: defaultClinicalProxyTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/clinical/, ""),
       },
       "/api/control": {
-        target: process.env.VITE_PROXY_CONTROL_TARGET || "https://ethos-control.onrender.com",
+        target: defaultControlProxyTarget,
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api\/control/, ""),
       },

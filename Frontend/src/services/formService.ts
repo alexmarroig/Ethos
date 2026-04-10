@@ -2,9 +2,19 @@ import { api, ApiResult } from "./apiClient";
 
 export interface Form {
   id: string;
+  title?: string;
   name: string;
   description?: string;
-  fields?: unknown[];
+  audience?: "patient" | "professional";
+  active?: boolean;
+  fields?: Array<{
+    id: string;
+    label: string;
+    type: "text" | "textarea" | "date" | "select";
+    placeholder?: string;
+    required?: boolean;
+    options?: Array<{ label: string; value: string }>;
+  }>;
 }
 
 export interface FormEntry {
@@ -12,6 +22,7 @@ export interface FormEntry {
   form_id: string;
   patient_id: string;
   data: unknown;
+  submitted_by?: "patient" | "professional";
   created_at: string;
 }
 
@@ -21,6 +32,7 @@ type RawFormEntry = {
   patient_id: string;
   content?: unknown;
   data?: unknown;
+  submitted_by?: "patient" | "professional";
   created_at: string;
 };
 
@@ -31,11 +43,17 @@ type PaginatedResponse<T> = {
   total: number;
 };
 
+const mapForm = (form: Form): Form => ({
+  ...form,
+  name: form.name ?? form.title ?? "Formulário",
+});
+
 const mapFormEntry = (entry: RawFormEntry): FormEntry => ({
   id: entry.id,
   form_id: entry.form_id,
   patient_id: entry.patient_id,
   data: entry.data ?? entry.content ?? {},
+  submitted_by: entry.submitted_by,
   created_at: entry.created_at,
 });
 
@@ -45,7 +63,7 @@ export const formService = {
     if (!result.success) return result;
     return {
       ...result,
-      data: Array.isArray(result.data) ? result.data : result.data.items,
+      data: (Array.isArray(result.data) ? result.data : result.data.items).map(mapForm),
     };
   },
 
@@ -65,4 +83,20 @@ export const formService = {
     const items = Array.isArray(result.data) ? result.data : result.data.items;
     return { ...result, data: items.map(mapFormEntry) };
   },
+
+  createTemplate: async (data: Omit<Form, "id" | "name"> & { title: string; fields: NonNullable<Form["fields"]> }): Promise<ApiResult<Form>> => {
+    const result = await api.post<Form>("/forms", data);
+    if (!result.success) return result;
+    return { ...result, data: mapForm(result.data) };
+  },
+
+  updateTemplate: async (formId: string, data: Partial<Form>): Promise<ApiResult<Form>> =>
+    (async () => {
+      const result = await api.patch<Form>(`/forms/${formId}`, data);
+      if (!result.success) return result;
+      return { ...result, data: mapForm(result.data) };
+    })(),
+
+  deleteTemplate: async (formId: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/forms/${formId}`),
 };

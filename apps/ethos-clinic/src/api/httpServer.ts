@@ -24,6 +24,7 @@ import {
   createDocument,
   createFinancialEntry,
   createFormEntry,
+  createFormTemplate,
   createInvite,
   createPatient,
   createJob,
@@ -69,6 +70,7 @@ import {
   listPrivateComments,
   listFormsCatalog,
   listFormEntries,
+  deleteFormTemplate,
   listScales,
   listSessionClinicalNotes,
   listTemplates,
@@ -86,11 +88,14 @@ import {
   resolveLocalEntitlements,
   runJob,
   sendContract,
+  attachSignedContract,
   sendPatientAsyncMessage,
   syncLocalEntitlements,
   updateClinicalNote,
   updateFinancialEntry,
+  updateFormTemplate,
   updateReport,
+  updateContract,
   updatePatient,
   updateRetentionPolicy,
   updateTemplate,
@@ -825,6 +830,31 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 201, result.entry);
       }
 
+      if (method === "GET" && url.pathname === "/patient/forms") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, listFormsCatalog(access.owner_user_id, "patient"));
+      }
+
+      if (method === "POST" && url.pathname === "/patient/forms/entry") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const body = await readJson(req);
+        if (typeof body.form_id !== "string" || typeof body.content !== "object" || body.content === null) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "form_id and content are required");
+        }
+
+        return ok(
+          res,
+          requestId,
+          201,
+          createFormEntry(access.owner_user_id, access.patient_id, body.form_id, body.content as Record<string, unknown>, "patient"),
+        );
+      }
+
       const psychologistPatientDiary = url.pathname.match(/^\/psychologist\/patient\/([^/]+)\/diary$/);
       if (method === "GET" && psychologistPatientDiary) {
         if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
@@ -888,21 +918,61 @@ export const createEthosBackend = () =>
 
         const contract = createContract(auth.user.id, {
           patient_id: String(body.patient_id ?? ""),
+          template_id: typeof body.template_id === "string" ? body.template_id : undefined,
+          title: typeof body.title === "string" ? body.title : undefined,
+          content: typeof body.content === "string" ? body.content : undefined,
           psychologist: body.psychologist as { name: string; license: string; email: string; phone?: string },
-          patient: body.patient as { name: string; email: string; document: string },
+          patient: body.patient as { name: string; email: string; document: string; address?: string },
           terms: body.terms as { value: string; periodicity: string; absence_policy: string; payment_method: string },
         });
         return ok(res, requestId, 201, contract);
       }
 
+      const contractById = url.pathname.match(/^\/contracts\/([^/]+)$/);
+      if (method === "PATCH" && contractById) {
+        const body = await readJson(req);
+        const contract = updateContract(auth.user.id, contractById[1], {
+          template_id: typeof body.template_id === "string" ? body.template_id : undefined,
+          title: typeof body.title === "string" ? body.title : undefined,
+          content: typeof body.content === "string" ? body.content : undefined,
+          psychologist: typeof body.psychologist === "object" && body.psychologist ? body.psychologist as any : undefined,
+          patient: typeof body.patient === "object" && body.patient ? body.patient as any : undefined,
+          terms: typeof body.terms === "object" && body.terms ? body.terms as any : undefined,
+        });
+        if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        return ok(res, requestId, 200, contract);
+      }
+
       if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/send")) {
         const contractId = url.pathname.split("/")[2];
-        const contract = sendContract(auth.user.id, contractId);
+        const body = await readJson(req);
+        const channel = body.channel === "whatsapp" ? "whatsapp" : "email";
+        const recipient = typeof body.recipient === "string" ? body.recipient : undefined;
+        const contract = sendContract(auth.user.id, contractId, channel, recipient);
         if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        const portalUrl = contract.portal_token ? `/portal/contract?token=${contract.portal_token}` : null;
         return ok(res, requestId, 200, {
           contract,
-          portal_url: contract.portal_token ? `/portal/contract?token=${contract.portal_token}` : null,
+          portal_url: portalUrl,
+          whatsapp_url: channel === "whatsapp" && portalUrl
+            ? `https://wa.me/?text=${encodeURIComponent(`Olá! Segue o link do contrato para revisão e aceite: ${portalUrl}`)}`
+            : null,
         });
+      }
+
+      if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/signed-upload")) {
+        const contractId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        if (typeof body.file_name !== "string" || typeof body.mime_type !== "string" || typeof body.data_url !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "file_name, mime_type and data_url are required");
+        }
+        const contract = attachSignedContract(auth.user.id, contractId, {
+          file_name: body.file_name,
+          mime_type: body.mime_type,
+          data_url: body.data_url,
+        });
+        if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        return ok(res, requestId, 200, contract);
       }
 
       if (method === "GET" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/export")) {
@@ -1269,8 +1339,9 @@ export const createEthosBackend = () =>
         const report = createReport(
           auth.user.id,
           String(body.patient_id ?? ""),
-          String(body.purpose ?? "profissional") as "instituiÃ§Ã£o" | "profissional" | "paciente",
+          (body.purpose === "instituiÃ§Ã£o" ? "instituição" : String(body.purpose ?? "profissional")) as "instituição" | "profissional" | "paciente",
           String(body.content ?? ""),
+          body.kind === "longitudinal_record" ? "longitudinal_record" : "session_report",
         );
         if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note for the patient is required before creating reports");
         return ok(res, requestId, 201, report);
@@ -1297,9 +1368,10 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const report = updateReport(auth.user.id, reportById[1], {
           purpose:
-            body.purpose === "instituiÃ§Ã£o" || body.purpose === "profissional" || body.purpose === "paciente"
-              ? body.purpose
+            body.purpose === "instituiÃ§Ã£o" || body.purpose === "instituição" || body.purpose === "profissional" || body.purpose === "paciente"
+              ? (body.purpose === "instituiÃ§Ã£o" ? "instituição" : body.purpose)
               : undefined,
+          kind: body.kind === "longitudinal_record" || body.kind === "session_report" ? body.kind : undefined,
           content: typeof body.content === "string" ? body.content : undefined,
           status: body.status === "draft" || body.status === "final" ? body.status : undefined,
         });
@@ -1416,16 +1488,51 @@ export const createEthosBackend = () =>
       // Forms
       if (method === "POST" && url.pathname === "/forms/entry") {
         const body = await readJson(req);
-        return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}));
+        return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}, "professional"));
       }
 
       if (method === "GET" && url.pathname === "/forms") {
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = listFormsCatalog();
+        const items = listFormsCatalog(auth.user.id);
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "POST" && url.pathname === "/forms") {
+        const body = await readJson(req);
+        if (typeof body.title !== "string" || !Array.isArray(body.fields)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "title and fields are required");
+        }
+        const template = createFormTemplate(auth.user.id, {
+          title: body.title,
+          description: typeof body.description === "string" ? body.description : undefined,
+          audience: body.audience === "professional" ? "professional" : "patient",
+          active: body.active !== false,
+          fields: body.fields as any,
+        });
+        return ok(res, requestId, 201, template);
+      }
+
+      const formById = url.pathname.match(/^\/forms\/([^/]+)$/);
+      if (method === "PATCH" && formById) {
+        const body = await readJson(req);
+        const template = updateFormTemplate(auth.user.id, formById[1], {
+          title: typeof body.title === "string" ? body.title : undefined,
+          description: typeof body.description === "string" ? body.description : undefined,
+          audience: body.audience === "patient" || body.audience === "professional" ? body.audience : undefined,
+          active: typeof body.active === "boolean" ? body.active : undefined,
+          fields: Array.isArray(body.fields) ? body.fields as any : undefined,
+        });
+        if (!template) return error(res, requestId, 404, "NOT_FOUND", "Form not found");
+        return ok(res, requestId, 200, template);
+      }
+
+      if (method === "DELETE" && formById) {
+        const removed = deleteFormTemplate(auth.user.id, formById[1]);
+        if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Form not found");
+        return ok(res, requestId, 200, { deleted: true });
       }
 
       if (method === "GET" && url.pathname === "/forms/entries") {
@@ -1449,12 +1556,13 @@ export const createEthosBackend = () =>
         if (typeof body.title !== "string" || typeof body.html !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "title and html required");
         }
-        const template = createTemplate(auth.user.id, {
-          title: body.title,
-          description: typeof body.description === "string" ? body.description : undefined,
-          version: typeof body.version === "number" ? body.version : 1,
-          html: body.html,
-          fields: Array.isArray(body.fields) ? (body.fields as any) : [],
+          const template = createTemplate(auth.user.id, {
+            title: body.title,
+            description: typeof body.description === "string" ? body.description : undefined,
+            kind: body.kind === "contract" ? "contract" : "document",
+            version: typeof body.version === "number" ? body.version : 1,
+            html: body.html,
+            fields: Array.isArray(body.fields) ? (body.fields as any) : [],
         });
         return ok(res, requestId, 201, template);
       }
@@ -1468,12 +1576,13 @@ export const createEthosBackend = () =>
 
       if (method === "PUT" && templateById) {
         const body = await readJson(req);
-        const template = updateTemplate(auth.user.id, templateById[1], {
-          title: typeof body.title === "string" ? body.title : undefined,
-          description: typeof body.description === "string" ? body.description : undefined,
-          version: typeof body.version === "number" ? body.version : undefined,
-          html: typeof body.html === "string" ? body.html : undefined,
-          fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
+          const template = updateTemplate(auth.user.id, templateById[1], {
+            title: typeof body.title === "string" ? body.title : undefined,
+            description: typeof body.description === "string" ? body.description : undefined,
+            kind: body.kind === "contract" || body.kind === "document" ? body.kind : undefined,
+            version: typeof body.version === "number" ? body.version : undefined,
+            html: typeof body.html === "string" ? body.html : undefined,
+            fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
         });
         if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
         return ok(res, requestId, 200, template);

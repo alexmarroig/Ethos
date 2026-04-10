@@ -48,7 +48,7 @@ function deserializeContent(content: string): ClinicalNoteContent {
   const queixa = extractSection(content, /## 3\.[\s\S]*?QUEIXA PRINCIPAL\s*([\s\S]*?)## 4\./i);
   const contexto = extractSection(content, /## 4\.[\s\S]*?CONTEXTO\s*([\s\S]*?)## 5\./i);
   const plano = extractSection(content, /## 7\.[\s\S]*?PLANO TERAP[ÊE]UTICO\s*([\s\S]*?)## 8\./i);
-  const evolucao = extractSection(content, /## 8\.[\s\S]*?EVOLU[ÇC][ÃA]O DA SESS[ÃA]O[\s\S]*?SOAP\)\s*([\s\S]*?)(?:## 9\.|## OBSERVA)/i);
+  const evolucao = extractSection(content, /## 8\.[\s\S]*?EVOLU(?:ÇÃO|CAO|[ÇC][ÃA]O) DA SESS(?:ÃO|AO|[ÃA]O)[\s\S]*?SOAP\)\s*([\s\S]*?)(?:## 9\.|## OBSERVA)/i);
 
   if (!queixa && !contexto && !plano && !evolucao) {
     return {
