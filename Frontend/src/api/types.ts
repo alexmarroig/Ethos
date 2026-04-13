@@ -102,6 +102,7 @@ export interface DocumentVersion {
   version: number;
   content: string;
   created_at: string;
+  global_values?: Record<string, string>;
 }
 
 export interface Contract {

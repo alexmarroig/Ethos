@@ -92,6 +92,9 @@ export const documentsApi = {
   create: (data: Partial<Document>): Promise<ApiResult<Document>> =>
     api.post<Document>("/documents", data),
 
+  remove: (docId: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/documents/${docId}`),
+
   listTemplates: async (): Promise<ApiResult<DocumentTemplate[]>> => {
     const result = await api.get<DocumentTemplate[]>("/document-templates");
     if (!result.success) return result;

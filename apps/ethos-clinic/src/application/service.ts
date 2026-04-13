@@ -1094,6 +1094,19 @@ export const listDocumentsByCase = (owner: string, caseId: string) =>
 
 export const getDocument = (owner: string, documentId: string) => getByOwner(db.documents, owner, documentId);
 
+export const deleteDocument = (owner: string, documentId: string) => {
+  const document = getDocument(owner, documentId);
+  if (!document) return false;
+
+  db.documents.delete(documentId);
+  for (const version of listDocumentVersions(owner, documentId)) {
+    db.documentVersions.delete(version.id);
+  }
+
+  persistMutation();
+  return true;
+};
+
 export const getDocumentDetail = (owner: string, documentId: string) => {
   const document = getDocument(owner, documentId);
   if (!document) return null;

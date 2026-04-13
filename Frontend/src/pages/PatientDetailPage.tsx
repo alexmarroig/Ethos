@@ -1,6 +1,6 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, Save } from "lucide-react";
+import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -28,6 +28,8 @@ type PatientDetailPageProps = {
   onOpenSession: (sessionId: string) => void;
   onOpenProntuario: (sessionId: string) => void;
 };
+
+type DocumentFormValues = Record<string, string>;
 
 type PatientFormState = {
   name: string;
@@ -126,6 +128,21 @@ const formatCurrency = (value?: number) =>
 
 const toInputDate = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 const buildDocumentTitle = (patientName: string, label: string) => `${label} - ${patientName}`;
+const sessionStatusLabel = (status?: string) => {
+  switch (status) {
+    case "scheduled":
+      return "Agendado";
+    case "confirmed":
+      return "Confirmado";
+    case "completed":
+      return "Concluído";
+    case "missed":
+      return "Faltou";
+    default:
+      return status ?? "Não definido";
+  }
+};
+
 const documentTemplateLabel = (templateId?: string) => {
   switch (templateId) {
     case "payment-receipt":
@@ -140,6 +157,48 @@ const documentTemplateLabel = (templateId?: string) => {
       return "Relatório psicológico";
     default:
       return "Documento";
+  }
+};
+
+const supportsGuidedDocumentEditor = (templateId?: string) =>
+  templateId === "payment-receipt" ||
+  templateId === "attendance-declaration" ||
+  templateId === "psychological-certificate";
+
+const buildDefaultDocumentFormValues = (
+  templateId: string,
+  detail: PatientDetail,
+  profile: PatientFormState,
+) => {
+  const today = new Date().toLocaleDateString("pt-BR");
+
+  switch (templateId) {
+    case "payment-receipt":
+      return {
+        amount: profile.session_price || "",
+        payment_method: "",
+        service_type: "session",
+        attendance_date: today,
+        date_label: today,
+      };
+    case "attendance-declaration":
+      return {
+        attendance_date: today,
+        attendance_time: "",
+        date_label: today,
+      };
+    case "psychological-certificate":
+      return {
+        period_start: today,
+        period_end: today,
+        cid_code: "",
+        date_label: today,
+      };
+    default:
+      return {
+        patient_name: detail.patient.name,
+        date_label: today,
+      };
   }
 };
 
@@ -171,8 +230,11 @@ export default function PatientDetailPage({
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
+  const [documentFormValues, setDocumentFormValues] = useState<DocumentFormValues>({});
   const [documentDialogOpen, setDocumentDialogOpen] = useState(false);
   const [documentPreviewLoading, setDocumentPreviewLoading] = useState(false);
+  const [savingDocumentVersion, setSavingDocumentVersion] = useState(false);
+  const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
@@ -265,6 +327,57 @@ export default function PatientDetailPage({
   const updateForm = <K extends keyof PatientFormState>(key: K, value: PatientFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  const updateDocumentFormValue = (key: string, value: string) => {
+    setDocumentFormValues((current) => ({ ...current, [key]: value }));
+  };
+
+  const buildDocumentHtmlFromValues = (
+    templateId: string,
+    title: string,
+    values: DocumentFormValues,
+  ) =>
+    buildClinicalDocumentHtml(templateId, {
+      psychologist: {
+        name: user?.name ?? "Psicóloga responsável",
+        email: user?.email,
+        crp: user?.crp,
+      },
+      patient: {
+        name: detail?.patient.name ?? "",
+        email: detail?.patient.email,
+        cpf: detail?.patient.cpf,
+      },
+      documentTitle: title,
+      dateLabel: values.date_label || new Date().toLocaleDateString("pt-BR"),
+      priceLabel:
+        form.billing_mode === "per_session"
+          ? formatCurrency(Number(form.session_price || 0))
+          : formatCurrency(Number(form.package_total_price || 0)),
+      frequencyLabel: `${form.weekly_frequency || "1"}x por semana`,
+      attendanceDate: values.attendance_date,
+      attendanceTime: values.attendance_time,
+      periodStart: values.period_start,
+      periodEnd: values.period_end,
+      cidCode: values.cid_code,
+      amount: values.amount,
+      paymentMethod: values.payment_method,
+      serviceType: values.service_type,
+      specialty: user?.specialty,
+      clinicalApproach: user?.clinical_approach,
+      patientBirthDate: detail?.patient.birth_date,
+      patientProfession: detail?.patient.profession,
+      patientPhone: detail?.patient.phone,
+    });
+
+  const liveDocumentPreviewHtml = useMemo(() => {
+    const templateId = (selectedDocument as { template_id?: string } | null)?.template_id;
+    const title = (selectedDocument as { title?: string } | null)?.title;
+    if (!templateId || !title || !detail || !supportsGuidedDocumentEditor(templateId)) {
+      return selectedDocumentHtml;
+    }
+    return buildDocumentHtmlFromValues(templateId, title, documentFormValues);
+  }, [selectedDocument, detail, documentFormValues, selectedDocumentHtml, form, user]);
 
   const handleSave = async () => {
     if (!detail || !form.name.trim()) return;
@@ -373,35 +486,16 @@ export default function PatientDetailPage({
       return;
     }
 
-    const generatedHtml = buildClinicalDocumentHtml(templateId, {
-      psychologist: {
-        name: user?.name ?? "Psicóloga responsável",
-        email: user?.email,
-        crp: user?.crp,
-      },
-      patient: {
-        name: detail.patient.name,
-        email: detail.patient.email,
-        cpf: detail.patient.cpf,
-      },
-      documentTitle: title,
-      dateLabel: new Date().toLocaleDateString("pt-BR"),
-      priceLabel:
-        form.billing_mode === "per_session"
-          ? formatCurrency(Number(form.session_price || 0))
-          : formatCurrency(Number(form.package_total_price || 0)),
-      frequencyLabel: `${form.weekly_frequency || "1"}x por semana`,
-    });
+    const initialValues = buildDefaultDocumentFormValues(templateId, detail, form);
+    const generatedHtml = buildDocumentHtmlFromValues(templateId, title, initialValues);
 
     await documentsApi.createVersion(result.data.id, generatedHtml, {
-      psychologist_name: user?.name ?? "",
-      psychologist_crp: user?.crp ?? "",
-      patient_name: detail.patient.name,
-      date: new Date().toLocaleDateString("pt-BR"),
+      ...initialValues,
     });
 
     setSelectedDocument(result.data);
     setSelectedDocumentHtml(generatedHtml);
+    setDocumentFormValues(initialValues);
     setDocumentDialogOpen(true);
     toast({ title: `${title} criado com sucesso`, description: "O preview completo foi preparado abaixo." });
     await loadPatient();
@@ -415,9 +509,21 @@ export default function PatientDetailPage({
 
     const versions = await documentsApi.listVersions(document.id);
     if (versions.success && versions.data.length > 0) {
-      setSelectedDocumentHtml(versions.data[versions.data.length - 1].content);
+      const latestVersion = versions.data[versions.data.length - 1];
+      const latestContent = latestVersion.content;
+      setSelectedDocumentHtml(latestContent);
+      setDocumentFormValues(
+        latestVersion.global_values && Object.keys(latestVersion.global_values).length > 0
+          ? latestVersion.global_values
+          : detail && document.template_id
+            ? buildDefaultDocumentFormValues(document.template_id, detail, form)
+            : {},
+      );
     } else {
       setSelectedDocumentHtml("");
+      setDocumentFormValues(
+        detail && document.template_id ? buildDefaultDocumentFormValues(document.template_id, detail, form) : {},
+      );
       if (!versions.success) {
         toast({ title: "Nao foi possivel abrir o documento", description: versions.error.message, variant: "destructive" });
       }
@@ -430,7 +536,69 @@ export default function PatientDetailPage({
     setDocumentDialogOpen(false);
     setSelectedDocument(null);
     setSelectedDocumentHtml("");
+    setDocumentFormValues({});
     setDocumentPreviewLoading(false);
+    setSavingDocumentVersion(false);
+  };
+
+  const handleSaveDocumentVersion = async () => {
+    const templateId = (selectedDocument as { template_id?: string } | null)?.template_id;
+    const title = (selectedDocument as { title?: string } | null)?.title;
+    if (!selectedDocument || !templateId || !title) return;
+
+    setSavingDocumentVersion(true);
+    const nextHtml = supportsGuidedDocumentEditor(templateId)
+      ? buildDocumentHtmlFromValues(templateId, title, documentFormValues)
+      : selectedDocumentHtml;
+    const result = await documentsApi.createVersion(
+      (selectedDocument as { id: string }).id,
+      nextHtml,
+      documentFormValues,
+    );
+    setSavingDocumentVersion(false);
+
+    if (!result.success) {
+      toast({ title: "Erro ao salvar documento", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    setSelectedDocumentHtml(nextHtml);
+    toast({ title: "Nova versão salva" });
+    await loadPatient();
+  };
+
+  const handleOpenDocumentInNewTab = () => {
+    const html = liveDocumentPreviewHtml.trim();
+    if (!html) return;
+    const previewWindow = window.open("", "_blank", "noopener,noreferrer");
+    if (!previewWindow) {
+      toast({ title: "Janela bloqueada", description: "Permita pop-ups para abrir o documento em nova aba.", variant: "destructive" });
+      return;
+    }
+    previewWindow.document.open();
+    previewWindow.document.write(html);
+    previewWindow.document.close();
+  };
+
+  const handleDeleteDocument = async (document: { id: string; title?: string }) => {
+    const confirmed = window.confirm(`Excluir "${document.title ?? "Documento"}"? Essa ação não pode ser desfeita.`);
+    if (!confirmed) return;
+
+    setDeletingDocumentId(document.id);
+    const result = await documentsApi.remove(document.id);
+    setDeletingDocumentId(null);
+
+    if (!result.success) {
+      toast({ title: "Erro ao excluir documento", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    if (selectedDocument && (selectedDocument as { id?: string }).id === document.id) {
+      closeDocumentPreview();
+    }
+
+    toast({ title: "Documento excluído" });
+    await loadPatient();
   };
 
   const handleCreateContract = async () => {
@@ -855,7 +1023,7 @@ export default function PatientDetailPage({
                     <p className="font-medium text-foreground">{formatDateTime(session.scheduled_at)}</p>
                     <p className="text-sm text-muted-foreground">
                       {session.duration_minutes ? `${session.duration_minutes} min · ` : ""}
-                      {session.status === "scheduled" ? "agendado" : session.status}
+                      {sessionStatusLabel(session.status)}
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -908,11 +1076,9 @@ export default function PatientDetailPage({
           ) : (
             <div className="space-y-3">
               {detail.documents.map((document) => (
-                <button
+                <div
                   key={(document as { id: string }).id}
-                  type="button"
-                  className="w-full cursor-pointer rounded-xl border border-border bg-background/60 p-4 text-left transition hover:border-primary/40 hover:bg-background"
-                  onClick={() => void openDocumentPreview(document as { id: string; title?: string; template_id?: string; created_at?: string; status?: string })}
+                  className="rounded-xl border border-border bg-background/60 p-4 transition hover:border-primary/40 hover:bg-background"
                 >
                   <div className="flex items-start justify-between gap-4">
                     <div>
@@ -921,9 +1087,33 @@ export default function PatientDetailPage({
                         {documentTemplateLabel((document as { template_id?: string }).template_id)} · criado em {formatDate((document as { created_at?: string }).created_at)}
                       </p>
                     </div>
-                    <span className="rounded-full bg-secondary px-3 py-1 text-xs font-medium text-secondary-foreground">Abrir</span>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => void openDocumentPreview(document as { id: string; title?: string; template_id?: string; created_at?: string; status?: string })}
+                      >
+                        Abrir
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="gap-2 text-destructive hover:text-destructive"
+                        disabled={deletingDocumentId === (document as { id: string }).id}
+                        onClick={() => void handleDeleteDocument(document as { id: string; title?: string })}
+                      >
+                        {deletingDocumentId === (document as { id: string }).id ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                        Excluir
+                      </Button>
+                    </div>
                   </div>
-                </button>
+                </div>
               ))}
             </div>
           )}
@@ -1022,46 +1212,215 @@ export default function PatientDetailPage({
         </motion.section>
 
         <Dialog open={documentDialogOpen} onOpenChange={(open) => !open && closeDocumentPreview()}>
-          <DialogContent>
+          <DialogContent className="max-h-[92vh] max-w-[min(96vw,1200px)] overflow-hidden p-0">
             <DialogHeader>
-              <DialogTitle className="font-serif text-xl">
+              <DialogTitle className="px-6 pt-6 font-serif text-xl">
                 {(selectedDocument as { title?: string } | null)?.title ?? "Documento"}
               </DialogTitle>
             </DialogHeader>
             {selectedDocument ? (
-              <div className="space-y-3 text-sm text-muted-foreground">
-                <p>
-                  <span className="font-medium text-foreground">Template:</span>{" "}
-                  {documentTemplateLabel((selectedDocument as { template_id?: string }).template_id)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Criado em:</span>{" "}
-                  {formatDateTime((selectedDocument as { created_at?: string }).created_at)}
-                </p>
-                <p>
-                  <span className="font-medium text-foreground">Status:</span>{" "}
-                  {(selectedDocument as { status?: string }).status ?? "draft"}
-                </p>
+              <div className="flex h-[calc(92vh-84px)] flex-col overflow-hidden">
+                <div className="grid gap-3 border-b border-border px-6 pb-4 text-sm text-muted-foreground md:grid-cols-3">
+                  <p>
+                    <span className="font-medium text-foreground">Template:</span>{" "}
+                    {documentTemplateLabel((selectedDocument as { template_id?: string }).template_id)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Criado em:</span>{" "}
+                    {formatDateTime((selectedDocument as { created_at?: string }).created_at)}
+                  </p>
+                  <p>
+                    <span className="font-medium text-foreground">Status:</span>{" "}
+                    {(selectedDocument as { status?: string }).status ?? "draft"}
+                  </p>
+                </div>
+
                 {documentPreviewLoading ? (
-                  <div className="rounded-lg border border-border bg-muted/30 p-4">
+                  <div className="px-6 py-4 text-sm text-muted-foreground">
                     Carregando visualizacao do documento...
                   </div>
-                ) : selectedDocumentHtml ? (
-                  <div className="rounded-lg border border-border bg-background overflow-hidden">
-                    <iframe
-                      title="Preview do documento"
-                      srcDoc={selectedDocumentHtml}
-                      className="h-[480px] w-full bg-white"
-                    />
-                  </div>
                 ) : (
-                  <div className="rounded-lg border border-border bg-muted/30 p-4">
-                    Ainda nao ha visualizacao disponivel para este documento.
+                  <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
+                    <div className="flex min-h-0 flex-col border-b border-border lg:border-b-0 lg:border-r">
+                      <div className="flex items-center justify-between gap-3 px-6 py-4">
+                        <div>
+                          <p className="font-medium text-foreground">Visualização</p>
+                          <p className="text-sm text-muted-foreground">Prévia mais ampla do documento.</p>
+                        </div>
+                        <Button variant="outline" size="sm" onClick={handleOpenDocumentInNewTab}>
+                          Abrir em nova aba
+                        </Button>
+                      </div>
+                      <div className="min-h-0 flex-1 overflow-auto bg-muted/20 px-6 pb-6">
+                        {liveDocumentPreviewHtml ? (
+                          <div className="mx-auto min-h-full rounded-lg border border-border bg-background shadow-sm">
+                            <iframe
+                              title="Preview do documento"
+                              srcDoc={liveDocumentPreviewHtml}
+                              className="h-[72vh] min-h-[720px] w-full bg-white"
+                            />
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                            Ainda nao ha visualizacao disponivel para este documento.
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex min-h-0 flex-col">
+                      <div className="px-6 py-4">
+                        <p className="font-medium text-foreground">Editar conteúdo</p>
+                        <p className="text-sm text-muted-foreground">
+                          Preencha os campos do documento e o preview será atualizado automaticamente.
+                        </p>
+                      </div>
+                      <div className="min-h-0 flex-1 px-6 pb-6">
+                        {supportsGuidedDocumentEditor((selectedDocument as { template_id?: string } | null)?.template_id) ? (
+                          <div className="space-y-4 overflow-auto pr-1">
+                            {(selectedDocument as { template_id?: string } | null)?.template_id === "payment-receipt" ? (
+                              <>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium text-foreground">Valor</label>
+                                  <Input
+                                    value={documentFormValues.amount ?? ""}
+                                    onChange={(event) => updateDocumentFormValue("amount", event.target.value)}
+                                    placeholder="200,00"
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium text-foreground">Forma de pagamento</label>
+                                  <Input
+                                    value={documentFormValues.payment_method ?? ""}
+                                    onChange={(event) => updateDocumentFormValue("payment_method", event.target.value)}
+                                    placeholder="PIX, cartão, dinheiro..."
+                                  />
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium text-foreground">Tipo de serviço</label>
+                                  <select
+                                    value={documentFormValues.service_type ?? "session"}
+                                    onChange={(event) => updateDocumentFormValue("service_type", event.target.value)}
+                                    className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                                  >
+                                    <option value="session">Sessão de psicoterapia</option>
+                                    <option value="evaluation">Avaliação psicológica</option>
+                                    <option value="other">Outro</option>
+                                  </select>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Data do atendimento</label>
+                                    <Input
+                                      value={documentFormValues.attendance_date ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("attendance_date", event.target.value)}
+                                      placeholder="13/04/2026"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Data do documento</label>
+                                    <Input
+                                      value={documentFormValues.date_label ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
+                                      placeholder="13/04/2026"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            ) : null}
+
+                            {(selectedDocument as { template_id?: string } | null)?.template_id === "attendance-declaration" ? (
+                              <>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Data do atendimento</label>
+                                    <Input
+                                      value={documentFormValues.attendance_date ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("attendance_date", event.target.value)}
+                                      placeholder="13/04/2026"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Horário</label>
+                                    <Input
+                                      value={documentFormValues.attendance_time ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("attendance_time", event.target.value)}
+                                      placeholder="14:00"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="space-y-2">
+                                  <label className="text-sm font-medium text-foreground">Data do documento</label>
+                                  <Input
+                                    value={documentFormValues.date_label ?? ""}
+                                    onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
+                                    placeholder="13/04/2026"
+                                  />
+                                </div>
+                              </>
+                            ) : null}
+
+                            {(selectedDocument as { template_id?: string } | null)?.template_id === "psychological-certificate" ? (
+                              <>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Início do período</label>
+                                    <Input
+                                      value={documentFormValues.period_start ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("period_start", event.target.value)}
+                                      placeholder="13/04/2026"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Fim do período</label>
+                                    <Input
+                                      value={documentFormValues.period_end ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("period_end", event.target.value)}
+                                      placeholder="20/04/2026"
+                                    />
+                                  </div>
+                                </div>
+                                <div className="grid gap-4 md:grid-cols-2">
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">CID</label>
+                                    <Input
+                                      value={documentFormValues.cid_code ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("cid_code", event.target.value)}
+                                      placeholder="Opcional"
+                                    />
+                                  </div>
+                                  <div className="space-y-2">
+                                    <label className="text-sm font-medium text-foreground">Data do documento</label>
+                                    <Input
+                                      value={documentFormValues.date_label ?? ""}
+                                      onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
+                                      placeholder="13/04/2026"
+                                    />
+                                  </div>
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
+                            Este tipo de documento ainda não tem edição guiada. Por enquanto, ele fica disponível apenas para visualização.
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
             ) : null}
-            <DialogFooter>
+            <DialogFooter className="border-t border-border px-6 py-4">
+              <Button
+                onClick={() => void handleSaveDocumentVersion()}
+                disabled={savingDocumentVersion || !selectedDocument}
+                className="gap-2"
+              >
+                {savingDocumentVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Salvar nova versão
+              </Button>
               <Button variant="secondary" onClick={closeDocumentPreview}>
                 Fechar
               </Button>

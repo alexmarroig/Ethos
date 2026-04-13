@@ -22,6 +22,7 @@ import {
   createClinicalNoteDraft,
   createContract,
   createDocument,
+  deleteDocument,
   createFinancialEntry,
   createFormEntry,
   createFormTemplate,
@@ -1418,6 +1419,12 @@ export const createEthosBackend = () =>
       }
 
       const documentById = url.pathname.match(/^\/documents\/([^/]+)$/);
+      if (method === "DELETE" && documentById) {
+        const removed = deleteDocument(auth.user.id, documentById[1]);
+        if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
       if (method === "GET" && documentById) {
         const detail = getDocumentDetail(auth.user.id, documentById[1]);
         if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Document not found");

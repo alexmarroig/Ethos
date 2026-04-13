@@ -17,7 +17,6 @@ import AnamnesisPage from "@/pages/AnamnesisPage";
 import ReportsPage from "@/pages/ReportsPage";
 import FinancePage from "@/pages/FinancePage";
 import DocumentsPage from "@/pages/DocumentsPage";
-import AIPage from "@/pages/AIPage";
 import AccountPage from "@/pages/AccountPage";
 import BackupPage from "@/pages/BackupPage";
 import ContractsPage from "@/pages/ContractsPage";
@@ -35,7 +34,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 
 type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
-  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "ai" | "account" | "backup"
+  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "account" | "backup"
   | "contracts"
   | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
@@ -103,7 +102,7 @@ const Index = () => {
   const renderPage = () => {
     // Professional pages
     const professionalPages = ["home", "agenda", "patients", "patient-detail", "forms", "anamnesis",
-      "finance", "reports", "documents", "contracts", "ai", "backup", "ethics",
+      "finance", "reports", "documents", "contracts", "backup", "ethics",
       "session", "prontuario", "account", "settings"];
 
     if (professionalPages.includes(currentPage)) {
@@ -190,8 +189,6 @@ const Index = () => {
         return <DocumentsPage onNavigate={handleNavigate} />;
       case "contracts":
         return <ContractsPage />;
-      case "ai":
-        return <AIPage />;
       case "account":
         return <AccountPage />;
       case "backup":
