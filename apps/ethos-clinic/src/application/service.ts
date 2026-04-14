@@ -22,6 +22,7 @@ import {
 } from "./ai/clinicalNoteGenerator";
 import type {
   AnamnesisResponse,
+  AvailabilityBlock,
   ClinicalDocument,
   ClinicalNoteStructuredData,
   ClinicalDocumentVersion,
@@ -40,9 +41,11 @@ import type {
   ObservabilityAlert,
   Patient,
   PatientBilling,
+  PatientNotification,
   PatientTimelineItem,
   ScaleRecord,
   SessionStatus,
+  SlotRequest,
   TelemetryEvent,
   Transcript,
   User,
@@ -1239,6 +1242,225 @@ export const sendPatientAsyncMessage = (access: PatientAccess, message: string) 
     disclaimer: "Mensagens assíncronas não substituem atendimento de urgência.",
   };
 };
+
+// ── Patient portal: share/unshare ──────────────────────────────────────────
+export const toggleShareWithPatient = (
+  owner: string,
+  collection: "contracts" | "reports" | "documents" | "financial",
+  itemId: string,
+  share: boolean,
+) => {
+  const map = db[collection] as Map<string, Record<string, unknown>>;
+  const item = map.get(itemId);
+  if (!item || item.owner_user_id !== owner) return null;
+  item.shared_with_patient = share;
+  item.shared_at = share ? now() : undefined;
+  map.set(itemId, item);
+  persistMutation();
+  if (share) {
+    // Notify patient if they have access
+    const access = Array.from(db.patientAccess.values()).find(
+      (a) => (a as PatientAccess).owner_user_id === owner && (a as PatientAccess).patient_id === item.patient_id,
+    ) as PatientAccess | undefined;
+    if (access) {
+      notifyPatient(access, "document_shared", { title: String(item.title ?? item.kind ?? "Documento") });
+    }
+  }
+  return item;
+};
+
+export const getPatientSharedDocuments = (access: PatientAccess) => {
+  const results: Array<Record<string, unknown>> = [];
+
+  for (const [, c] of db.contracts) {
+    if (c.owner_user_id === access.owner_user_id && c.patient_id === access.patient_id && c.shared_with_patient) {
+      results.push({ ...c, type: "contract" });
+    }
+  }
+  for (const [, r] of db.reports) {
+    if (r.owner_user_id === access.owner_user_id && matchesPatientAccessReference(access, r.patient_id) && (r as unknown as ClinicalReport).shared_with_patient) {
+      results.push({ ...(r as unknown as Record<string, unknown>), type: "report" });
+    }
+  }
+  for (const [, d] of db.documents) {
+    if (d.owner_user_id === access.owner_user_id && matchesPatientAccessReference(access, d.patient_id) && d.shared_with_patient) {
+      results.push({ ...(d as unknown as Record<string, unknown>), type: "document" });
+    }
+  }
+
+  return results.sort(
+    (a, b) => Date.parse(String(b.shared_at ?? b.created_at)) - Date.parse(String(a.shared_at ?? a.created_at)),
+  );
+};
+
+export const getPatientFinancial = (access: PatientAccess) => {
+  const results: FinancialEntry[] = [];
+  for (const [, f] of db.financial) {
+    if (f.owner_user_id === access.owner_user_id && matchesPatientAccessReference(access, f.patient_id)) {
+      if (f.status === "open" || f.shared_with_patient) results.push(f);
+    }
+  }
+  return results.sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+};
+
+// ── Patient notifications ───────────────────────────────────────────────────
+export const notifyPatient = (access: PatientAccess, type: PatientNotification["type"], data: Record<string, string>) => {
+  const notification: PatientNotification = {
+    id: uid(),
+    patient_user_id: access.patient_user_id,
+    type,
+    data,
+    read: false,
+    created_at: now(),
+  };
+  db.patientNotifications.set(notification.id, notification);
+  persistMutation();
+  return notification;
+};
+
+export const listPatientNotifications = (patientUserId: string) =>
+  Array.from(db.patientNotifications.values())
+    .filter((n) => n.patient_user_id === patientUserId)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+export const markNotificationRead = (patientUserId: string, notificationId: string) => {
+  const n = db.patientNotifications.get(notificationId);
+  if (!n || n.patient_user_id !== patientUserId) return null;
+  n.read = true;
+  db.patientNotifications.set(notificationId, n);
+  persistMutation();
+  return n;
+};
+
+// ── Availability blocks (Calendly-style) ──────────────────────────────────
+export const createAvailabilityBlock = (owner: string, data: Omit<AvailabilityBlock, "id" | "owner_user_id" | "created_at">) => {
+  const block: AvailabilityBlock = { id: uid(), owner_user_id: owner, created_at: now(), ...data };
+  db.availabilityBlocks.set(block.id, block);
+  persistMutation();
+  return block;
+};
+
+export const listAvailabilityBlocks = (owner: string) =>
+  Array.from(db.availabilityBlocks.values()).filter((b) => b.owner_user_id === owner);
+
+export const updateAvailabilityBlock = (owner: string, blockId: string, patch: Partial<Omit<AvailabilityBlock, "id" | "owner_user_id" | "created_at">>) => {
+  const block = getByOwner(db.availabilityBlocks, owner, blockId);
+  if (!block) return null;
+  Object.assign(block, patch);
+  db.availabilityBlocks.set(blockId, block);
+  persistMutation();
+  return block;
+};
+
+export const deleteAvailabilityBlock = (owner: string, blockId: string) => {
+  const block = getByOwner(db.availabilityBlocks, owner, blockId);
+  if (!block) return false;
+  db.availabilityBlocks.delete(blockId);
+  persistMutation();
+  return true;
+};
+
+export const getAvailableSlots = (access: PatientAccess, startDate: string, endDate: string) => {
+  const blocks = Array.from(db.availabilityBlocks.values()).filter(
+    (b) => b.owner_user_id === access.owner_user_id && b.enabled,
+  );
+
+  const slots: Array<{ date: string; time: string; duration: number }> = [];
+  const start = new Date(startDate + "T00:00:00");
+  const end = new Date(endDate + "T23:59:59");
+
+  for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+    const dow = d.getDay() as AvailabilityBlock["day_of_week"];
+    const dateStr = d.toISOString().split("T")[0];
+
+    for (const block of blocks) {
+      if (block.day_of_week !== dow) continue;
+
+      const [startH, startM] = block.start_time.split(":").map(Number);
+      const [endH, endM] = block.end_time.split(":").map(Number);
+      const startMin = startH * 60 + startM;
+      const endMin = endH * 60 + endM;
+
+      for (let t = startMin; t + block.slot_duration_minutes <= endMin; t += block.slot_duration_minutes) {
+        const h = String(Math.floor(t / 60)).padStart(2, "0");
+        const m = String(t % 60).padStart(2, "0");
+        const time = `${h}:${m}`;
+
+        const booked = Array.from(db.sessions.values()).some(
+          (s) => s.owner_user_id === access.owner_user_id && s.scheduled_at?.startsWith(dateStr) && s.scheduled_at?.includes(`T${time}`),
+        );
+        const requested = Array.from(db.slotRequests.values()).some(
+          (sr) => sr.owner_user_id === access.owner_user_id && sr.requested_date === dateStr && sr.requested_time === time && sr.status === "pending",
+        );
+
+        if (!booked && !requested) {
+          slots.push({ date: dateStr, time, duration: block.slot_duration_minutes });
+        }
+      }
+    }
+  }
+
+  return slots;
+};
+
+export const requestSlot = (access: PatientAccess, date: string, time: string, duration: number) => {
+  const request: SlotRequest = {
+    id: uid(),
+    owner_user_id: access.owner_user_id,
+    patient_id: access.patient_id,
+    patient_user_id: access.patient_user_id,
+    requested_date: date,
+    requested_time: time,
+    duration_minutes: duration,
+    status: "pending",
+    created_at: now(),
+  };
+  db.slotRequests.set(request.id, request);
+  persistMutation();
+  return request;
+};
+
+export const listSlotRequests = (owner: string) =>
+  Array.from(db.slotRequests.values())
+    .filter((sr) => sr.owner_user_id === owner)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+export const listPatientSlotRequests = (access: PatientAccess) =>
+  Array.from(db.slotRequests.values())
+    .filter((sr) => sr.owner_user_id === access.owner_user_id && sr.patient_id === access.patient_id)
+    .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+
+export const respondSlotRequest = (owner: string, requestId: string, approved: boolean, reason?: string) => {
+  const request = getByOwner(db.slotRequests, owner, requestId);
+  if (!request) return null;
+
+  request.status = approved ? "confirmed" : "rejected";
+  request.responded_at = now();
+  if (!approved && reason) request.rejection_reason = reason;
+  db.slotRequests.set(requestId, request);
+
+  if (approved) {
+    const scheduledAt = `${request.requested_date}T${request.requested_time}:00`;
+    createSession(owner, request.patient_id, scheduledAt, request.duration_minutes);
+  }
+
+  // Notify patient
+  const access = Array.from(db.patientAccess.values()).find(
+    (a) => (a as PatientAccess).owner_user_id === owner && (a as PatientAccess).patient_id === request.patient_id,
+  ) as PatientAccess | undefined;
+  if (access) {
+    notifyPatient(access, "slot_response", {
+      date: request.requested_date,
+      time: request.requested_time,
+      status: approved ? "confirmed" : "rejected",
+    });
+  }
+
+  persistMutation();
+  return request;
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const createContract = (owner: string, input: Omit<Contract, "id" | "owner_user_id" | "status" | "created_at" | "updated_at">) => {
   const contract: Contract = {

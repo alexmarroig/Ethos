@@ -31,6 +31,9 @@ import type {
   ScaleRecord,
   ObservabilityAlert,
   DocumentTemplate,
+  PatientNotification,
+  AvailabilityBlock,
+  SlotRequest,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -98,6 +101,9 @@ export const db = {
   notificationConsents: new Map<string, NotificationConsent>(),
   notificationSchedules: new Map<string, NotificationSchedule>(),
   notificationLogs: new Map<string, NotificationLog>(),
+  patientNotifications: new Map<string, PatientNotification>(),
+  availabilityBlocks: new Map<string, AvailabilityBlock>(),
+  slotRequests: new Map<string, SlotRequest>(),
 
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
@@ -129,6 +135,9 @@ type PersistedDatabaseState = {
   patientAccess: Array<Record<string, unknown>>;
   patientDiaryEntries: EmotionalDiaryEntry[];
   localEntitlements: LocalEntitlementSnapshot[];
+  patientNotifications: PatientNotification[];
+  availabilityBlocks: AvailabilityBlock[];
+  slotRequests: SlotRequest[];
   telemetry: TelemetryEvent[];
   audit: AuditEvent[];
 };
@@ -176,6 +185,9 @@ const loadPersistedDatabase = () => {
     restoreMap(db.patientAccess, snapshot.patientAccess, (item) => String((item as { id?: string }).id ?? uid()));
     restoreMap(db.patientDiaryEntries, snapshot.patientDiaryEntries, (item) => item.id);
     restoreMap(db.localEntitlements, snapshot.localEntitlements, (item) => item.user_id);
+    restoreMap(db.patientNotifications, snapshot.patientNotifications, (item) => item.id);
+    restoreMap(db.availabilityBlocks, snapshot.availabilityBlocks, (item) => item.id);
+    restoreMap(db.slotRequests, snapshot.slotRequests, (item) => item.id);
     restoreMap(db.telemetry, snapshot.telemetry, (item) => item.id);
     restoreMap(db.audit, snapshot.audit, (item) => item.id);
   } catch (error) {
@@ -206,6 +218,9 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   patientAccess: Array.from(db.patientAccess.values()),
   patientDiaryEntries: Array.from(db.patientDiaryEntries.values()),
   localEntitlements: Array.from(db.localEntitlements.values()),
+  patientNotifications: Array.from(db.patientNotifications.values()),
+  availabilityBlocks: Array.from(db.availabilityBlocks.values()),
+  slotRequests: Array.from(db.slotRequests.values()),
   telemetry: Array.from(db.telemetry.values()),
   audit: Array.from(db.audit.values()),
 });

@@ -218,6 +218,8 @@ export type FinancialEntry = Owned & {
   payment_method?: string;
   paid_at?: string;
   notes?: string;
+  shared_with_patient?: boolean;
+  shared_at?: string;
 };
 
 export type PatientTimelineItem = {
@@ -273,6 +275,8 @@ export type ClinicalDocument = Owned & {
   case_id: string;
   template_id: UUID;
   title: string;
+  shared_with_patient?: boolean;
+  shared_at?: string;
 };
 
 export type ClinicalDocumentVersion = Owned & {
@@ -413,5 +417,33 @@ export type ApiEnvelope<T> = {
 export type ApiError = {
   request_id: string;
   error: { code: string; message: string };
+};
+
+export type PatientNotification = {
+  id: string;
+  patient_user_id: string;
+  type: "session_reminder" | "payment_due" | "document_shared" | "slot_response";
+  data: Record<string, string>;
+  read: boolean;
+  created_at: string;
+};
+
+export type AvailabilityBlock = Owned & {
+  day_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  start_time: string;
+  end_time: string;
+  slot_duration_minutes: number;
+  enabled: boolean;
+};
+
+export type SlotRequest = Owned & {
+  patient_id: string;
+  patient_user_id: string;
+  requested_date: string;
+  requested_time: string;
+  duration_minutes: number;
+  status: "pending" | "confirmed" | "rejected";
+  responded_at?: string;
+  rejection_reason?: string;
 };
 

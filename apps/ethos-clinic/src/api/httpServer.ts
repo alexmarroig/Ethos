@@ -107,6 +107,21 @@ import {
   updateRetentionPolicy,
   updateTemplate,
   validateClinicalNote,
+  toggleShareWithPatient,
+  getPatientSharedDocuments,
+  getPatientFinancial,
+  notifyPatient,
+  listPatientNotifications,
+  markNotificationRead,
+  createAvailabilityBlock,
+  listAvailabilityBlocks,
+  updateAvailabilityBlock,
+  deleteAvailabilityBlock,
+  getAvailableSlots,
+  requestSlot,
+  listSlotRequests,
+  listPatientSlotRequests,
+  respondSlotRequest,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -117,7 +132,7 @@ import {
   listNotificationTemplates,
   scheduleNotification,
 } from "../application/notifications";
-import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
+import type { ApiEnvelope, ApiError, AvailabilityBlock, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, uid, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
@@ -944,6 +959,136 @@ export const createEthosBackend = () =>
         });
       }
 
+      // Patient portal: shared documents
+      if (method === "GET" && url.pathname === "/patient/shared-documents") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, getPatientSharedDocuments(access));
+      }
+
+      // Patient portal: financial
+      if (method === "GET" && url.pathname === "/patient/financial") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, getPatientFinancial(access));
+      }
+
+      // Patient portal: sign contract
+      const patientSignContract = url.pathname.match(/^\/patient\/contracts\/([^/]+)\/sign$/);
+      if (method === "POST" && patientSignContract) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const contractId = patientSignContract[1];
+        const contract = db.contracts.get(contractId) as Record<string, unknown> | undefined;
+        if (!contract || contract.patient_id !== access.patient_id || !contract.shared_with_patient) {
+          return error(res, requestId, 404, "NOT_FOUND", "Contrato não encontrado");
+        }
+        contract.status = "signed";
+        contract.signed_at = new Date().toISOString();
+        contract.signed_by = auth.user.id;
+        db.contracts.set(contractId, contract);
+        return ok(res, requestId, 200, contract);
+      }
+
+      // Patient portal: notifications
+      if (method === "GET" && url.pathname === "/patient/notifications") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        return ok(res, requestId, 200, listPatientNotifications(auth.user.id));
+      }
+
+      const patientNotificationRead = url.pathname.match(/^\/patient\/notifications\/([^/]+)\/read$/);
+      if (method === "POST" && patientNotificationRead) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const n = markNotificationRead(auth.user.id, patientNotificationRead[1]);
+        if (!n) return error(res, requestId, 404, "NOT_FOUND", "Notificação não encontrada");
+        return ok(res, requestId, 200, n);
+      }
+
+      // Patient portal: available slots
+      if (method === "GET" && url.pathname === "/patient/available-slots") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const startDate = url.searchParams.get("start") ?? new Date().toISOString().split("T")[0];
+        const endDate = url.searchParams.get("end") ?? startDate;
+        return ok(res, requestId, 200, getAvailableSlots(access, startDate, endDate));
+      }
+
+      // Patient portal: request slot
+      if (method === "POST" && url.pathname === "/patient/slot-request") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const body = await readJson(req);
+        if (typeof body.date !== "string" || typeof body.time !== "string" || typeof body.duration !== "number") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "date, time, duration required");
+        }
+        return ok(res, requestId, 201, requestSlot(access, body.date, body.time, body.duration));
+      }
+
+      // Patient portal: list own slot requests
+      if (method === "GET" && url.pathname === "/patient/slot-requests") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, listPatientSlotRequests(access));
+      }
+
+      // Psychologist: availability blocks
+      if (method === "GET" && url.pathname === "/availability") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        return ok(res, requestId, 200, listAvailabilityBlocks(auth.user.id));
+      }
+
+      if (method === "POST" && url.pathname === "/availability") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        if (typeof body.day_of_week !== "number" || typeof body.start_time !== "string" || typeof body.end_time !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "day_of_week, start_time, end_time required");
+        }
+        return ok(res, requestId, 201, createAvailabilityBlock(auth.user.id, {
+          day_of_week: body.day_of_week as AvailabilityBlock["day_of_week"],
+          start_time: body.start_time,
+          end_time: body.end_time,
+          slot_duration_minutes: typeof body.slot_duration_minutes === "number" ? body.slot_duration_minutes : 50,
+          enabled: body.enabled !== false,
+        }));
+      }
+
+      const availabilityById = url.pathname.match(/^\/availability\/([^/]+)$/);
+      if (method === "PATCH" && availabilityById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        const block = updateAvailabilityBlock(auth.user.id, availabilityById[1], body as Partial<AvailabilityBlock>);
+        if (!block) return error(res, requestId, 404, "NOT_FOUND", "Bloco não encontrado");
+        return ok(res, requestId, 200, block);
+      }
+
+      if (method === "DELETE" && availabilityById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const ok2 = deleteAvailabilityBlock(auth.user.id, availabilityById[1]);
+        if (!ok2) return error(res, requestId, 404, "NOT_FOUND", "Bloco não encontrado");
+        return ok(res, requestId, 204, null);
+      }
+
+      // Psychologist: slot requests
+      if (method === "GET" && url.pathname === "/slot-requests") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        return ok(res, requestId, 200, listSlotRequests(auth.user.id));
+      }
+
+      const slotRequestById = url.pathname.match(/^\/slot-requests\/([^/]+)\/respond$/);
+      if (method === "POST" && slotRequestById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        const result = respondSlotRequest(auth.user.id, slotRequestById[1], body.approved !== false, typeof body.reason === "string" ? body.reason : undefined);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Solicitação não encontrada");
+        return ok(res, requestId, 200, result);
+      }
+
       // Local entitlements
       if (method === "POST" && url.pathname === "/local/entitlements/sync") {
         const body = await readJson(req);
@@ -1038,6 +1183,43 @@ export const createEthosBackend = () =>
         const contract = getContract(auth.user.id, contractId);
         if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
         return ok(res, requestId, 200, contract);
+      }
+
+      // Share with patient
+      if (method === "POST" && url.pathname.match(/^\/contracts\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "contracts", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Contrato não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/reports\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "reports", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Relatório não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/documents\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "documents", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Documento não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/financial\/entries\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[3];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "financial", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Lançamento não encontrado");
+        return ok(res, requestId, 200, result);
       }
 
       // Sessions (com idempotência)
