@@ -151,6 +151,8 @@ export type ClinicalReport = Owned & {
   kind?: "session_report" | "longitudinal_record";
   content: string;
   status?: "draft" | "final";
+  shared_with_patient?: boolean;
+  shared_at?: string;
 };
 
 export type AnamnesisResponse = Owned & {
