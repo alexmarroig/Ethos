@@ -8,6 +8,7 @@ import type { Document, DocumentTemplate } from "@/api/types";
 import { patientService, type Patient } from "@/services/patientService";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
+import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 import { downloadWordFromHtml, openDataUrlInNewTab, openHtmlInNewTab, exportService } from "@/services/exportService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
@@ -578,9 +579,18 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                 WhatsApp
               </Button>
             </div>
-            <Button variant="secondary" onClick={closePreview}>
-              Fechar
-            </Button>
+            <div className="flex gap-2">
+              {previewDoc && (
+                <ShareWithPatientButton
+                  type="documents"
+                  id={previewDoc.id}
+                  shared={(previewDoc as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false}
+                />
+              )}
+              <Button variant="secondary" onClick={closePreview}>
+                Fechar
+              </Button>
+            </div>
           </DialogFooter>
         </DialogContent>
       </Dialog>

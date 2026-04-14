@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { buildReportHtml, downloadReportDoc, openReportPrintPreview } from "@/lib/reportBuilders";
+import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 
 const purposes = [
   { id: "profissional", label: "Uso profissional" },
@@ -281,7 +282,33 @@ export default function ReportsPage() {
             <h2 className="font-serif text-lg font-medium text-foreground">Relatórios gerados</h2>
             <Button variant="secondary" size="sm" className="gap-2" onClick={openNew}><Plus className="h-4 w-4" strokeWidth={1.5} />Novo relatório</Button>
           </div>
-          {reports.length === 0 ? <div className="py-12 text-center"><FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" /><p className="text-sm text-muted-foreground">Nenhum relatório criado ainda.</p></div> : <div className="space-y-3">{reports.map((report) => <button key={report.id} type="button" onClick={() => openExisting(report)} className="session-card w-full text-left"><div className="flex flex-wrap items-start justify-between gap-3"><div><h3 className="font-serif text-lg font-medium text-foreground">{report.patient_name ?? patients.find((patient) => patient.id === report.patient_id)?.name ?? "Paciente"}</h3><p className="mt-1 text-sm text-muted-foreground">{reportKinds.find((kind) => kind.id === (report.kind ?? "session_report"))?.label} · {purposes.find((option) => option.id === report.purpose)?.label ?? report.purpose} · {formatDate(report.created_at)}</p></div><span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">{report.status === "final" ? "Final" : "Rascunho"}</span></div></button>)}</div>}
+          {reports.length === 0 ? (
+            <div className="py-12 text-center"><FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" /><p className="text-sm text-muted-foreground">Nenhum relatório criado ainda.</p></div>
+          ) : (
+            <div className="space-y-3">
+              {reports.map((report) => (
+                <div key={report.id} className="session-card">
+                  <button type="button" onClick={() => openExisting(report)} className="w-full text-left">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-serif text-lg font-medium text-foreground">{report.patient_name ?? patients.find((patient) => patient.id === report.patient_id)?.name ?? "Paciente"}</h3>
+                        <p className="mt-1 text-sm text-muted-foreground">{reportKinds.find((kind) => kind.id === (report.kind ?? "session_report"))?.label} · {purposes.find((option) => option.id === report.purpose)?.label ?? report.purpose} · {formatDate(report.created_at)}</p>
+                      </div>
+                      <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">{report.status === "final" ? "Final" : "Rascunho"}</span>
+                    </div>
+                  </button>
+                  <div className="mt-3 flex gap-2" onClick={(e) => e.stopPropagation()}>
+                    <ShareWithPatientButton
+                      type="reports"
+                      id={report.id}
+                      shared={(report as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false}
+                      onToggle={(shared) => setReports((prev) => prev.map((r) => r.id === report.id ? { ...r, shared_with_patient: shared } as unknown as typeof r : r))}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </motion.div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

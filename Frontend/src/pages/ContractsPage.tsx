@@ -13,6 +13,7 @@ import { patientService, type Patient } from "@/services/patientService";
 import { downloadWordFromHtml, openDataUrlInNewTab, openHtmlInNewTab, exportService } from "@/services/exportService";
 import { cn } from "@/lib/utils";
 import { buildContractHtml } from "@/lib/documentBuilders";
+import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 import {
   Dialog,
   DialogContent,
@@ -604,6 +605,12 @@ const ContractsPage = () => {
                     <ExternalLink className="w-3.5 h-3.5" />
                     Preview
                   </Button>
+                  <ShareWithPatientButton
+                    type="contracts"
+                    id={contract.id}
+                    shared={(contract as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false}
+                    onToggle={(shared) => setContracts((prev) => prev.map((c) => c.id === contract.id ? { ...c, shared_with_patient: shared } as unknown as typeof c : c))}
+                  />
                 </div>
               </div>
             ))

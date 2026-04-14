@@ -8,6 +8,7 @@ import { financeService, type FinancialEntry, type FinanceSummary } from "@/serv
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import { cn } from "@/lib/utils";
+import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FinanceCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
@@ -410,10 +411,13 @@ const FinancePage = () => {
             </div>
           ) : (
             filteredEntries.map((entry) => (
-              <button
+              <div
                 key={entry.id}
+                className="session-card"
+              >
+              <button
                 type="button"
-                className="session-card w-full text-left"
+                className="w-full text-left"
                 onClick={() => openEdit(entry)}
               >
                 <div className="flex items-start justify-between gap-4">
@@ -457,6 +461,15 @@ const FinancePage = () => {
                   </div>
                 </div>
               </button>
+              <div className="mt-3 flex gap-2">
+                <ShareWithPatientButton
+                  type="financial/entries"
+                  id={entry.id}
+                  shared={(entry as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false}
+                  onToggle={(shared) => setEntries((prev) => prev.map((e) => e.id === entry.id ? { ...e, shared_with_patient: shared } as unknown as typeof e : e))}
+                />
+              </div>
+              </div>
             ))
           )}
         </motion.div>

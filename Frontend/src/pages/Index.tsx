@@ -24,6 +24,10 @@ import PatientHomePage from "@/pages/patient/PatientHomePage";
 import PatientSessionsPage from "@/pages/patient/PatientSessionsPage";
 import PatientDiaryPage from "@/pages/patient/PatientDiaryPage";
 import PatientMessagesPage from "@/pages/patient/PatientMessagesPage";
+import PatientDocumentsPage from "@/pages/patient/PatientDocumentsPage";
+import PatientPaymentsPage from "@/pages/patient/PatientPaymentsPage";
+import PatientBookingPage from "@/pages/patient/PatientBookingPage";
+import AvailabilitySettingsPage from "@/pages/AvailabilitySettingsPage";
 import AdminDashboard from "@/pages/admin/AdminDashboard";
 import AdminUsersPage from "@/pages/admin/AdminUsersPage";
 import AdminTestLab from "@/pages/admin/AdminTestLab";
@@ -37,6 +41,8 @@ type Page =
   | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "account" | "backup"
   | "contracts"
   | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
+  | "patient-documents" | "patient-payments" | "patient-booking"
+  | "availability"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
   | "diagnostics";
 
@@ -203,6 +209,16 @@ const Index = () => {
         return <PatientDiaryPage />;
       case "patient-messages":
         return <PatientMessagesPage />;
+      case "patient-documents":
+        return <PatientDocumentsPage />;
+      case "patient-payments":
+        return <PatientPaymentsPage />;
+      case "patient-booking":
+        return <PatientBookingPage />;
+
+      // Psychologist availability
+      case "availability":
+        return <AvailabilitySettingsPage />;
 
       // Admin pages
       case "admin-dashboard":

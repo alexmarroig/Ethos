@@ -2,6 +2,9 @@ import { motion } from "framer-motion";
 import {
   BookOpen,
   Calendar,
+  CalendarPlus,
+  Clock,
+  CreditCard,
   DatabaseBackup,
   DollarSign,
   FileText,
@@ -48,12 +51,16 @@ const navigation: NavItem[] = [
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
   { id: "reports", label: "Relatórios", icon: FileText, roles: ["professional"] },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
-  { id: "contracts", label: "Contratos", icon: ScrollText, roles: ["professional"], separator: true },
+  { id: "contracts", label: "Contratos", icon: ScrollText, roles: ["professional"] },
+  { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
   { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },
 
   { id: "patient-home", label: "Início", icon: Home, roles: ["patient"] },
   { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
+  { id: "patient-documents", label: "Documentos", icon: FileText, roles: ["patient"] },
+  { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
+  { id: "patient-booking", label: "Agendar sessão", icon: CalendarPlus, roles: ["patient"] },
   { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
   { id: "patient-messages", label: "Mensagens", icon: MessageCircle, roles: ["patient"] },
 
