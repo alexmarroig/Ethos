@@ -14,7 +14,7 @@ import {
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { clinicalNoteService, ClinicalNote } from "@/services/clinicalNoteService";
-import { exportService } from "@/services/exportService";
+import { buildClinicalNoteExportHtml, downloadWordFromHtml, openDataUrlInNewTab, exportService } from "@/services/exportService";
 import { privateCommentsApi } from "@/api/clinical";
 import type { PrivateComment } from "@/api/types";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
@@ -124,13 +124,30 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
 
   const handleExport = async (format: "pdf" | "docx") => {
     if (!noteId) return;
-    const fn = format === "pdf" ? exportService.exportPdf : exportService.exportDocx;
-    const res = await fn({ document_type: "clinical_note", document_id: noteId });
-    if (res.success) {
-      toast({ title: "Exportando", description: `${format.toUpperCase()} gerado.` });
-    } else {
-      toast({ title: "Erro", description: res.error.message, variant: "destructive" });
+    const html = buildClinicalNoteExportHtml({
+      title: "Prontuário da sessão",
+      status,
+      content,
+    });
+
+    if (format === "pdf") {
+      const res = await exportService.exportPdf({ document_type: "clinical_note", document_id: noteId });
+      if (!res.success) {
+        toast({ title: "Erro", description: res.error.message, variant: "destructive" });
+        return;
+      }
+      const url = res.data.data_url ?? res.data.url;
+      if (!url) {
+        toast({ title: "Erro", description: "PDF não disponível.", variant: "destructive" });
+        return;
+      }
+      openDataUrlInNewTab(url);
+      toast({ title: "PDF aberto", description: "O arquivo foi gerado pelo backend local." });
+      return;
     }
+
+    downloadWordFromHtml(html, `prontuario-${noteId}.doc`);
+    toast({ title: "Word baixado", description: "O arquivo foi gerado em formato compatível com Word." });
   };
 
   const handleSendComment = async () => {

@@ -1,4 +1,4 @@
-import { ChangeEvent, useEffect, useMemo, useState } from "react";
+﻿import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Download, ExternalLink, Loader2, Plus, Save, ScrollText, Send, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type Patient } from "@/services/patientService";
+import { downloadWordFromHtml, openDataUrlInNewTab, openHtmlInNewTab, exportService } from "@/services/exportService";
 import { cn } from "@/lib/utils";
 import { buildContractHtml } from "@/lib/documentBuilders";
 import {
@@ -33,7 +34,8 @@ type ContractEditorState = {
 
 const defaultTerms = {
   periodicity: "Sessões semanais",
-  absencePolicy: "O cancelamento deve ser informado com antecedência mínima de 24 horas. Ausências sem aviso prévio serão cobradas integralmente.",
+  absencePolicy:
+    "O cancelamento deve ser informado com antecedência mínima de 24 horas. Ausências sem aviso prévio serão cobradas integralmente.",
   paymentMethod: "Pix, transferência ou outro meio combinado entre as partes.",
 };
 
@@ -77,8 +79,32 @@ const buildPatientAddress = (patient?: Patient) =>
     .filter(Boolean)
     .join(", ");
 
+const normalizeContractText = (value: string) =>
+  value
+    .replaceAll("ÃƒÆ’Ã‚Â£", "ã")
+    .replaceAll("ÃƒÂ£", "ã")
+    .replaceAll("Ã‡ÃƒO", "ÇÃO")
+    .replaceAll("ÃƒO", "ÃO")
+    .replaceAll("Ã?NCIA", "ÊNCIA")
+    .replaceAll("Ã§", "ç")
+    .replaceAll("Ã£", "ã")
+    .replaceAll("Ã¡", "á")
+    .replaceAll("Ã¢", "â")
+    .replaceAll("Ãª", "ê")
+    .replaceAll("Ã©", "é")
+    .replaceAll("Ã­", "í")
+    .replaceAll("Ã³", "ó")
+    .replaceAll("Ãº", "ú")
+    .replaceAll("Ãµ", "õ")
+    .replaceAll("Ã", "à")
+    .replaceAll("Â", "")
+    .replaceAll("Sess?o", "Sessão")
+    .replaceAll("Pr?xima", "Próxima");
+
 const renderContractTemplate = (template: string, values: Record<string, string>) =>
-  template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => values[key] ?? "");
+  normalizeContractText(
+    template.replace(/\{\{\s*([\w.-]+)\s*\}\}/g, (_, key: string) => values[key] ?? ""),
+  );
 
 const buildContractValues = (input: {
   psychologistName: string;
@@ -208,16 +234,23 @@ const ContractsPage = () => {
 
   const openTemplateManager = (template?: DocumentTemplate) => {
     setTemplateDraftId(template?.id ?? null);
-    setTemplateTitle(template?.name ?? template?.title ?? "");
-    setTemplateDescription(template?.description ?? "");
-    setTemplateBody(template?.template_body ?? template?.html ?? fallbackContractTemplate);
+    setTemplateTitle(normalizeContractText(template?.name ?? template?.title ?? ""));
+    setTemplateDescription(normalizeContractText(template?.description ?? ""));
+    setTemplateBody(normalizeContractText(template?.template_body ?? template?.html ?? fallbackContractTemplate));
     setTemplateManagerOpen(true);
   };
 
   const openNewContract = () => {
     const defaultTemplate = allTemplates[0];
     setSelectedContractId(null);
-    setEditor(createEmptyEditor(defaultTemplate?.id ?? "", defaultTemplate?.template_body ?? defaultTemplate?.html ?? fallbackContractTemplate));
+    setEditor(
+      createEmptyEditor(
+        defaultTemplate?.id ?? "",
+        normalizeContractText(
+          defaultTemplate?.template_body ?? defaultTemplate?.html ?? fallbackContractTemplate,
+        ),
+      ),
+    );
     setEditorOpen(true);
   };
 
@@ -226,12 +259,14 @@ const ContractsPage = () => {
     setEditor({
       patientId: contract.patient_id,
       templateId: contract.template_id ?? allTemplates[0]?.id ?? "",
-      title: contract.title ?? "",
-      value: contract.terms?.value ?? "",
-      periodicity: contract.terms?.periodicity ?? defaultTerms.periodicity,
-      absencePolicy: contract.terms?.absence_policy ?? defaultTerms.absencePolicy,
-      paymentMethod: contract.terms?.payment_method ?? defaultTerms.paymentMethod,
-      content: contract.content ?? selectedTemplate?.template_body ?? fallbackContractTemplate,
+      title: normalizeContractText(contract.title ?? ""),
+      value: normalizeContractText(contract.terms?.value ?? ""),
+      periodicity: normalizeContractText(contract.terms?.periodicity ?? defaultTerms.periodicity),
+      absencePolicy: normalizeContractText(contract.terms?.absence_policy ?? defaultTerms.absencePolicy),
+      paymentMethod: normalizeContractText(contract.terms?.payment_method ?? defaultTerms.paymentMethod),
+      content: normalizeContractText(
+        contract.content ?? selectedTemplate?.template_body ?? fallbackContractTemplate,
+      ),
     });
     setEditorOpen(true);
   };
@@ -249,7 +284,9 @@ const ContractsPage = () => {
     setEditor((current) => ({
       ...current,
       templateId,
-      content: template?.template_body ?? template?.html ?? fallbackContractTemplate,
+      content: normalizeContractText(
+        template?.template_body ?? template?.html ?? fallbackContractTemplate,
+      ),
     }));
   };
 
@@ -391,25 +428,12 @@ const ContractsPage = () => {
   const handleExport = (contract: Contract, format: "pdf" | "docx") => {
     const html = buildContractHtml(contract);
     if (format === "pdf") {
-      const win = window.open("", "_blank", "noopener,noreferrer,width=980,height=900");
-      if (!win) {
-        toast({ title: "Popup bloqueado", description: "Permita popups para abrir a visualização do PDF.", variant: "destructive" });
-        return;
-      }
-      win.document.write(html);
-      win.document.close();
-      win.focus();
-      win.print();
+      openHtmlInNewTab(html);
+      toast({ title: "Visualizao aberta", description: "Use Imprimir > Salvar como PDF no navegador." });
       return;
     }
 
-    const blob = new Blob([html], { type: "application/msword" });
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = `contrato-${contract.id}.doc`;
-    link.click();
-    URL.revokeObjectURL(href);
+    downloadWordFromHtml(html, `contrato-${contract.id}.doc`);
   };
 
   const statusLabel = (status: Contract["status"]) => {
@@ -522,7 +546,7 @@ const ContractsPage = () => {
                 <div className="flex flex-wrap items-start justify-between gap-3 mb-2">
                   <div>
                     <h3 className="font-serif text-lg font-medium text-foreground">
-                      {contract.title ?? "Contrato terapêutico"}
+                      {normalizeContractText(contract.title ?? "Contrato terapêutico")}
                     </h3>
                     <p className="text-sm text-muted-foreground">
                       {contract.patient?.name ?? patientMap.get(contract.patient_id)?.name ?? contract.patient_id}
@@ -534,10 +558,10 @@ const ContractsPage = () => {
                 </div>
 
                 <div className="space-y-1 text-sm text-muted-foreground">
-                  <p>Modelo: {allTemplates.find((template) => template.id === contract.template_id)?.name ?? "Padrão"}</p>
-                  <p>Valor: {contract.terms?.value ?? "Não informado"}</p>
-                  <p>Frequência: {contract.terms?.periodicity ?? "Não informada"}</p>
-                  <p>Pagamento: {contract.terms?.payment_method ?? "Não informado"}</p>
+                  <p>Modelo: {normalizeContractText(allTemplates.find((template) => template.id === contract.template_id)?.name ?? "Padrão")}</p>
+                  <p>Valor: {normalizeContractText(contract.terms?.value ?? "Não informado")}</p>
+                  <p>Frequência: {normalizeContractText(contract.terms?.periodicity ?? "Não informada")}</p>
+                  <p>Pagamento: {normalizeContractText(contract.terms?.payment_method ?? "Não informado")}</p>
                 </div>
 
                 {contract.signed_attachment ? (
@@ -731,3 +755,5 @@ const ContractsPage = () => {
 };
 
 export default ContractsPage;
+
+

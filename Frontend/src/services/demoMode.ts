@@ -1,4 +1,4 @@
-type DemoApiSuccess<T> = {
+﻿type DemoApiSuccess<T> = {
   success: true;
   data: T;
   request_id: string;
@@ -139,7 +139,7 @@ export function getDemoApiResponse<T>(
     if (!item) {
       return {
         success: false,
-        error: { code: "NOT_FOUND", message: "Sessao nao encontrada no modo demo." },
+        error: { code: "NOT_FOUND", message: "Sess?o n?o encontrada no modo demo." },
         request_id: "demo-local",
         status: 404,
       };
@@ -157,7 +157,7 @@ export function getDemoApiResponse<T>(
     if (!item) {
       return {
         success: false,
-        error: { code: "NOT_FOUND", message: "Paciente nao encontrado no modo demo." },
+        error: { code: "NOT_FOUND", message: "Paciente n?o encontrado no modo demo." },
         request_id: "demo-local",
         status: 404,
       };
@@ -169,3 +169,4 @@ export function getDemoApiResponse<T>(
 }
 import { ENABLE_DEMO_LOGIN } from "@/config/runtime";
 import { readStoredAuthUser } from "./authStorage";
+

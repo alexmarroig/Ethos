@@ -77,11 +77,16 @@ export type PatientBilling = {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
 };
+
+export type PatientCareStatus = "active" | "paused" | "transferred" | "inactive";
 
 export type Patient = Owned & {
   external_id: string;
   label: string;
+  care_status?: PatientCareStatus;
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -343,6 +348,10 @@ export type NotificationLog = Owned & {
   status: "sent" | "failed";
   dispatched_at: string;
   reason?: string;
+  subject?: string;
+  message?: string;
+  delivery_url?: string;
+  provider_response?: string;
 };
 
 export type NotificationPreview = {

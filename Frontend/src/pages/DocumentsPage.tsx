@@ -8,6 +8,7 @@ import type { Document, DocumentTemplate } from "@/api/types";
 import { patientService, type Patient } from "@/services/patientService";
 import { useAuth } from "@/contexts/AuthContext";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
+import { downloadWordFromHtml, openDataUrlInNewTab, openHtmlInNewTab, exportService } from "@/services/exportService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -236,29 +237,26 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
   };
 
   const handlePrint = () => {
-    if (!previewHtml) return;
-    const win = window.open("", "_blank", "noopener,noreferrer,width=980,height=900");
-    if (!win) {
-      toast({ title: "Popup bloqueado", description: "Permita popups para imprimir.", variant: "destructive" });
-      return;
-    }
-    win.document.write(previewHtml);
-    win.document.close();
-    win.focus();
-    win.print();
+    if (!previewDoc) return;
+    void (async () => {
+      const res = await exportService.exportPdf({ document_type: "document", document_id: previewDoc.id });
+      if (!res.success) {
+        toast({ title: "Erro ao gerar PDF", description: res.error.message, variant: "destructive" });
+        return;
+      }
+      const url = res.data.data_url ?? res.data.url;
+      if (!url) {
+        toast({ title: "Erro ao gerar PDF", description: "PDF não disponível.", variant: "destructive" });
+        return;
+      }
+      openDataUrlInNewTab(url);
+      toast({ title: "PDF aberto", description: "O arquivo foi gerado pelo backend local." });
+    })();
   };
 
   const handleDownloadDoc = () => {
     if (!previewHtml) return;
-    const blob = new Blob([previewHtml], { type: "application/msword" });
-    const href = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = href;
-    link.download = `${previewDoc?.title ?? "documento"}.doc`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(href);
+    downloadWordFromHtml(previewHtml, `${previewDoc?.title ?? "documento"}.doc`);
   };
 
   const renderTemplateFields = () => {
@@ -357,7 +355,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
   if (error) {
     return (
       <div className="content-container py-12">
-        <h1 className="font-serif text-3xl font-medium text-foreground mb-6">Documentos</h1>
+        <h1 className="mb-6 text-[2.4rem] font-semibold tracking-[-0.04em] text-foreground">Documentos</h1>
         <IntegrationUnavailable message={error.message} requestId={error.requestId} />
       </div>
     );
@@ -367,15 +365,16 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header
-          className="mb-8"
+          className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">
+          <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">ETHOS Web</p>
+          <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">
             Documentos
           </h1>
-          <p className="mt-2 text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">
             Modelos padronizados e documentos vinculados aos pacientes.
           </p>
         </motion.header>
@@ -387,7 +386,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
-          <h2 className="font-serif text-lg font-medium text-foreground mb-4">Modelos padronizados</h2>
+          <h2 className="mb-4 text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">Modelos padronizados</h2>
 
           {visibleTemplates.length === 0 ? (
             <div className="text-center py-12">
@@ -402,7 +401,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                   <div key={template.id} className="session-card">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <h3 className="font-serif text-lg font-medium text-foreground">
+                        <h3 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-foreground">
                           {template.name ?? template.title ?? "Template"}
                         </h3>
                         {template.description && (
@@ -443,7 +442,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
         >
-          <h2 className="font-serif text-lg font-medium text-foreground mb-4">Documentos criados</h2>
+          <h2 className="mb-4 text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">Documentos criados</h2>
 
           {visibleDocuments.length === 0 ? (
             <div className="text-center py-12">
@@ -455,12 +454,12 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
               {visibleDocuments.map((document) => (
                 <div
                   key={document.id}
-                  className="session-card cursor-pointer hover:border-primary/20 transition-colors"
+                  className="session-card cursor-pointer transition-colors hover:border-primary/20"
                   onClick={() => openDocumentPreview(document)}
                 >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <h3 className="font-serif text-lg font-medium text-foreground">
+                      <h3 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-foreground">
                         {document.title}
                       </h3>
                       <p className="mt-1 text-sm text-muted-foreground">

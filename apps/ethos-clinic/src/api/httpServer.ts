@@ -8,6 +8,7 @@ import {
   acceptContract,
   addAudit,
   addAudio,
+  storeUploadedAudio,
   addDocumentVersion,
   addTelemetry,
   adminOverviewMetrics,
@@ -32,6 +33,8 @@ import {
   createPatientAccess,
   createPrivateComment,
   registerClinician,
+  requestPasswordReset,
+  resetPasswordWithToken,
   createReport,
   getReport,
   createScaleRecord,
@@ -40,6 +43,7 @@ import {
   deleteTemplate,
   evaluateObservability,
   exportCase,
+  exportResourcePdf,
   exportContract,
   getByOwner,
   getClinicalNote,
@@ -190,7 +194,7 @@ const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: st
   return true;
 };
 
-// âœ… CorreÃ§Ã£o importante: â€œuserâ€ (psicÃ³logo) precisa ser clÃ­nico.
+// Correção importante: "user" (psicólogo) precisa ser clínico.
 const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
 
 const CLINICAL_PATHS = [
@@ -365,6 +369,7 @@ const normalizeWeeklyFrequency = (value: unknown): 1 | 2 | 3 | 4 | 5 | undefined
 
 type PatientPayload = {
   name?: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -396,6 +401,8 @@ type PatientPayload = {
     session_price?: number;
     package_total_price?: number;
     package_session_count?: number;
+    payment_timing?: "advance" | "after";
+    preferred_payment_day?: number;
   };
   notes?: string;
 };
@@ -413,11 +420,17 @@ const parsePatientBilling = (value: unknown): PatientPayload["billing"] => {
     session_price: normalizeOptionalNumber(billing.session_price),
     package_total_price: normalizeOptionalNumber(billing.package_total_price),
     package_session_count: normalizeOptionalNumber(billing.package_session_count),
+    payment_timing: billing.payment_timing === "advance" || billing.payment_timing === "after" ? billing.payment_timing : undefined,
+    preferred_payment_day: normalizeOptionalNumber(billing.preferred_payment_day),
   };
 };
 
 const parsePatientPayload = (body: Record<string, unknown>, options?: { includeName?: boolean }): PatientPayload => ({
   name: options?.includeName && typeof body.name === "string" ? body.name.trim() || undefined : undefined,
+  care_status:
+    body.care_status === "active" || body.care_status === "paused" || body.care_status === "transferred" || body.care_status === "inactive"
+      ? body.care_status
+      : undefined,
   email: normalizeOptionalText(body.email),
   phone: normalizeOptionalText(body.phone),
   whatsapp: normalizeOptionalText(body.whatsapp),
@@ -515,7 +528,7 @@ export const createEthosBackend = () =>
         return res.end(openApi);
       }
 
-      // Portal pÃºblico: obter contrato por portal token
+      // Portal público: obter contrato por portal token
       if (method === "GET" && url.pathname.startsWith("/portal/contracts/")) {
         const token = url.pathname.split("/")[3];
         if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
@@ -524,7 +537,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Portal pÃºblico: aceitar contrato
+      // Portal público: aceitar contrato
       if (method === "POST" && url.pathname.startsWith("/portal/contracts/") && url.pathname.endsWith("/accept")) {
         const parts = url.pathname.split("/");
         const token = parts[3];
@@ -601,6 +614,26 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 201, safeUser);
       }
 
+      if (method === "POST" && url.pathname === "/auth/request-password-reset") {
+        const body = await readJson(req);
+        const email = String(body.email ?? "").trim();
+        if (!email || !EMAIL_REGEX.test(email)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
+        }
+        return ok(res, requestId, 200, requestPasswordReset(email));
+      }
+
+      if (method === "POST" && url.pathname === "/auth/reset-password") {
+        const body = await readJson(req);
+        const token = String(body.token ?? "").trim();
+        const password = String(body.password ?? "");
+        if (!token) return error(res, requestId, 422, "VALIDATION_ERROR", "token is required");
+        if (password.length < 6) return error(res, requestId, 422, "VALIDATION_ERROR", "Password must have at least 6 characters");
+        const result = resetPasswordWithToken(token, password);
+        if (!result) return error(res, requestId, 422, "INVALID_RESET_TOKEN", "Token expirado ou invalido");
+        return ok(res, requestId, 200, result);
+      }
+
       if (method === "POST" && url.pathname === "/auth/logout") {
         const token = tokenFrom(req);
         if (token) logout(token);
@@ -647,7 +680,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Gate para rotas clÃ­nicas (corrigido)
+      // Gate para rotas clínicas (corrigido)
       const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
       if (isClinicalPath && !requireClinicalAccess(res, requestId, auth.user.role)) return;
 
@@ -682,7 +715,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Patient access management (apenas psicÃ³logo â€œuserâ€)
+      // Patient access management (apenas psicólogo "user")
       if (method === "POST" && url.pathname === "/patients/access") {
         if (!requireRole(res, requestId, "user", auth.user.role)) return;
 
@@ -906,7 +939,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
       }
 
-      // Contracts (clÃ­nico)
+      // Contracts (clínico)
       if (method === "GET" && url.pathname === "/contracts") {
         return ok(res, requestId, 200, listContracts(auth.user.id));
       }
@@ -991,7 +1024,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Sessions (com idempotÃªncia)
+      // Sessions (com idempotência)
       const idemKey = req.headers["idempotency-key"]?.toString();
 
       if (method === "POST" && url.pathname === "/sessions") {
@@ -1066,6 +1099,14 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         if (body.consent_confirmed !== true) return error(res, requestId, 422, "CONSENT_REQUIRED", "Explicit consent is required");
         if (!getByOwner(db.sessions, auth.user.id, sessionAudio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+        if (typeof body.audio_base64 === "string" && body.audio_base64.trim()) {
+          const uploaded = await storeUploadedAudio(auth.user.id, sessionAudio[1], {
+            fileName: typeof body.file_name === "string" ? body.file_name : undefined,
+            mimeType: typeof body.mime_type === "string" ? body.mime_type : undefined,
+            base64: body.audio_base64,
+          });
+          return ok(res, requestId, 201, uploaded);
+        }
         return ok(res, requestId, 201, addAudio(auth.user.id, sessionAudio[1], String(body.file_path ?? "vault://audio.enc")));
       }
 
@@ -1169,7 +1210,7 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        // Nota: vocÃª registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhor:
+        // Nota: você registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhorar:
         // ideal seria registrar por "session_id" explicitamente.
         recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
 
@@ -1340,7 +1381,7 @@ export const createEthosBackend = () =>
         const report = createReport(
           auth.user.id,
           String(body.patient_id ?? ""),
-          (body.purpose === "instituiÃ§Ã£o" ? "instituição" : String(body.purpose ?? "profissional")) as "instituição" | "profissional" | "paciente",
+          (body.purpose === "instituição" ? "instituição" : String(body.purpose ?? "profissional")) as "instituição" | "profissional" | "paciente",
           String(body.content ?? ""),
           body.kind === "longitudinal_record" ? "longitudinal_record" : "session_report",
         );
@@ -1369,8 +1410,8 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const report = updateReport(auth.user.id, reportById[1], {
           purpose:
-            body.purpose === "instituiÃ§Ã£o" || body.purpose === "instituição" || body.purpose === "profissional" || body.purpose === "paciente"
-              ? (body.purpose === "instituiÃ§Ã£o" ? "instituição" : body.purpose)
+            body.purpose === "instituição" || body.purpose === "profissional" || body.purpose === "paciente"
+              ? body.purpose
               : undefined,
           kind: body.kind === "longitudinal_record" || body.kind === "session_report" ? body.kind : undefined,
           content: typeof body.content === "string" ? body.content : undefined,
@@ -1379,7 +1420,7 @@ export const createEthosBackend = () =>
         if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
         return ok(res, requestId, 200, report);
       }
-      // Document templates (lista pÃºblica)
+      // Document templates (lista pública)
       if (method === "GET" && url.pathname === "/document-templates") {
         return ok(res, requestId, 200, listDocumentTemplates());
       }
@@ -1392,7 +1433,7 @@ export const createEthosBackend = () =>
           String(body.patient_id ?? ""),
           String(body.case_id ?? ""),
           String(body.template_id ?? ""),
-          String(body.title ?? "Documento clÃ­nico"),
+          String(body.title ?? "Documento clínico"),
         );
         if (!document) return error(res, requestId, 404, "TEMPLATE_NOT_FOUND", "Template not found");
         return ok(res, requestId, 201, document);
@@ -1665,7 +1706,18 @@ export const createEthosBackend = () =>
       }
 
       // Export
-      if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
+      if (method === "POST" && url.pathname === "/export/pdf") {
+        if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
+        const body = await readJson(req);
+        const documentType = String(body.document_type ?? "");
+        const documentId = String(body.document_id ?? "");
+        if (!documentType || !documentId) return error(res, requestId, 400, "INVALID_PAYLOAD", "document_type and document_id are required");
+        const result = await exportResourcePdf(auth.user.id, documentType, documentId);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Documento não encontrado para exportação");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname === "/export/docx") {
         if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
         const job = createJob(auth.user.id, "export");
         void runJob(job.id, {});
@@ -1890,4 +1942,5 @@ export const createEthosBackend = () =>
       );
     }
   });
+
 

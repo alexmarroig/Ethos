@@ -28,29 +28,61 @@ const formatDateLabel = (value?: string) => {
 
 const formatBirthdayLabel = (value?: string) => {
   if (!value) return "Sem data";
-  const [year, month, day] = value.split("-").map(Number);
+  const [year, month, day] = value.slice(0, 10).split("-").map(Number);
   if (!month || !day) return value;
   return new Date(2000, month - 1, day).toLocaleDateString("pt-BR", {
     day: "2-digit",
-    month: "long",
+    month: "2-digit",
   });
 };
 
 const getDaysUntilBirthday = (birthDate?: string) => {
   if (!birthDate) return Number.POSITIVE_INFINITY;
 
-  const [year, month, day] = birthDate.split("-").map(Number);
+  const [year, month, day] = birthDate.slice(0, 10).split("-").map(Number);
   if (!month || !day) return Number.POSITIVE_INFINITY;
 
   const now = new Date();
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-  let nextBirthday = new Date(today.getFullYear(), month - 1, day);
+  const currentYearBirthday = new Date(today.getFullYear(), month - 1, day);
 
-  if (nextBirthday < today) {
-    nextBirthday = new Date(today.getFullYear() + 1, month - 1, day);
+  if (currentYearBirthday.getMonth() === today.getMonth()) {
+    return Math.round((currentYearBirthday.getTime() - today.getTime()) / 86_400_000);
   }
 
+  let nextBirthday = currentYearBirthday;
+  if (nextBirthday < today) nextBirthday = new Date(today.getFullYear() + 1, month - 1, day);
   return Math.round((nextBirthday.getTime() - today.getTime()) / 86_400_000);
+};
+
+const getBirthdayAge = (birthDate?: string) => {
+  if (!birthDate) return null;
+  const [year, month, day] = birthDate.slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return null;
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  const birthdayThisYear = new Date(today.getFullYear(), month - 1, day);
+  if (birthdayThisYear < new Date(today.getFullYear(), today.getMonth(), today.getDate())) {
+    age += 1;
+  }
+  return age;
+};
+
+const getBirthdayDistanceLabel = (birthDate?: string) => {
+  const distance = getDaysUntilBirthday(birthDate);
+  if (!Number.isFinite(distance)) return "Data inválida";
+  if (distance === 0) return "É Hoje";
+  if (distance > 0) return `Faltam ${distance} dia(s)`;
+  return `Passou há ${Math.abs(distance)} dia(s)`;
+};
+
+const getBirthdayBadge = (birthDate?: string) => {
+  const distance = getDaysUntilBirthday(birthDate);
+  if (!Number.isFinite(distance)) return null;
+  if (distance === 0) return "Hoje";
+  if (distance === 1) return "Amanhã";
+  return null;
 };
 
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
@@ -69,8 +101,12 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       const todayDate = new Date();
       const today = todayDate.toISOString().slice(0, 10);
-      const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1).toISOString().slice(0, 10);
-      const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0).toISOString().slice(0, 10);
+      const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
+        .toISOString()
+        .slice(0, 10);
+      const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0)
+        .toISOString()
+        .slice(0, 10);
 
       const [todayRes, pendingRes, upcomingRes, financeRes, patientsRes] = await Promise.all([
         sessionService.list({ from: today, to: today }),
@@ -91,7 +127,12 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       if (pendingRes.success) {
         const pendingData = pendingRes.data
-          .filter((item) => item.date < today || item.clinical_note_status === "draft" || !item.has_clinical_note)
+          .filter(
+            (item) =>
+              item.date < today ||
+              item.clinical_note_status === "draft" ||
+              !item.has_clinical_note,
+          )
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
         setPendingSessions(pendingData);
       } else {
@@ -115,12 +156,16 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           return left.localeCompare(right);
         });
 
-        setPendingPayments(ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today));
+        setPendingPayments(
+          ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
+        );
         setUpcomingPayments(
-          ordered.filter((entry) => {
-            const dueDate = (entry.due_date ?? "").slice(0, 10);
-            return dueDate >= today && dueDate >= monthStart;
-          }).slice(0, 6),
+          ordered
+            .filter((entry) => {
+              const dueDate = (entry.due_date ?? "").slice(0, 10);
+              return dueDate >= today && dueDate >= monthStart;
+            })
+            .slice(0, 6),
         );
       } else {
         setPendingPayments([]);
@@ -134,7 +179,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
             const [, month] = patient.birth_date.split("-").map(Number);
             return month === todayDate.getMonth() + 1;
           })
-          .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
+          .sort(
+            (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+          )
           .slice(0, 8);
         setBirthdayPatients(birthdays);
       } else {
@@ -155,15 +202,17 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   };
 
   const mapStatusLabel = (session: Session) => {
-    if (session.clinical_note_status === "validated") return "Prontuario validado";
+    if (session.clinical_note_status === "validated") return "Prontuário validado";
     if (session.clinical_note_status === "draft") return "Rascunho pendente";
-    return "Prontuario pendente";
+    return "Prontuário pendente";
   };
 
   const getFabState = (): SessionState => {
     const all = [...todaySessions, ...pendingSessions];
     if (all.some((item) => !item.has_audio && !item.has_clinical_note)) return "no-record";
-    if (all.some((item) => item.clinical_note_status === "draft")) return "draft-prontuario";
+    if (all.some((item) => item.clinical_note_status === "draft")) {
+      return "draft-prontuario";
+    }
     return "no-session";
   };
 
@@ -237,13 +286,21 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           <SummaryCard
             title="Sessões de hoje"
             value={String(todaySessions.length)}
-            description={todaySessions.length ? "atendimentos confirmados para hoje" : "nenhuma sessão agendada hoje"}
+            description={
+              todaySessions.length
+                ? "Atendimentos confirmados para hoje"
+                : "Nenhuma sessão agendada hoje"
+            }
             icon={<Clock3 className="h-4 w-4" />}
           />
           <SummaryCard
             title="Próximas sessões"
             value={String(upcomingSessions.length)}
-            description={upcomingSessions.length ? "já previstas no restante do mês" : "sem novas sessões no mês"}
+            description={
+              upcomingSessions.length
+                ? "Já previstas no restante do mês"
+                : "Sem novas sessões no mês"
+            }
             icon={<CalendarPlus className="h-4 w-4" />}
           />
           <SummaryCard
@@ -252,14 +309,18 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
             description={
               pendingPayments.length
                 ? `${formatCurrency(pendingPayments.reduce((sum, entry) => sum + entry.amount, 0))} em aberto`
-                : "nenhum atraso financeiro"
+                : "Nenhum atraso financeiro"
             }
             icon={<AlertCircle className="h-4 w-4" />}
           />
           <SummaryCard
             title="Aniversariantes do mês"
             value={String(birthdayPatients.length)}
-            description={birthdayPatients.length ? "pacientes fazem aniversário neste mês" : "sem aniversários neste mês"}
+            description={
+              birthdayPatients.length
+                ? "Pacientes fazem aniversário neste mês"
+                : "Sem aniversários neste mês"
+            }
             icon={<Gift className="h-4 w-4" />}
           />
         </section>
@@ -304,7 +365,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={upcomingSessions.length ? () => onNavigate("agenda") : undefined}
             >
               {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhuma próxima sessão cadastrada para os próximos dias.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhuma próxima sessão cadastrada para os próximos dias.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {upcomingSessions.map((session) => (
@@ -326,7 +389,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={pendingSessions.length ? () => onNavigate("agenda") : undefined}
             >
               {pendingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum prontuário pendente no momento.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhum prontuário pendente no momento.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {pendingSessions.map((session, index) => (
@@ -353,7 +418,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={() => onNavigate("finance")}
             >
               {upcomingPayments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum próximo vencimento registrado.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhum próximo vencimento registrado.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {upcomingPayments.map((entry) => (
@@ -396,15 +463,19 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={birthdayPatients.length ? () => onNavigate("patients") : undefined}
             >
               {birthdayPatients.length === 0 ? (
-                <p className="text-sm text-muted-foreground">Nenhum aniversariante cadastrado neste mês.</p>
+                <p className="text-sm text-muted-foreground">
+                  Nenhum aniversariante cadastrado neste mês.
+                </p>
               ) : (
                 <div className="space-y-3">
                   {birthdayPatients.map((patient) => (
                     <CompactRow
                       key={patient.id}
                       title={patient.name}
-                      subtitle={formatBirthdayLabel(patient.birth_date)}
-                      meta={getDaysUntilBirthday(patient.birth_date) === 0 ? "Hoje" : `Em ${getDaysUntilBirthday(patient.birth_date)} dia(s)`}
+                      subtitle={`${formatBirthdayLabel(patient.birth_date)}${getBirthdayAge(patient.birth_date) ? ` · Faz ${getBirthdayAge(patient.birth_date)} anos` : ""}`}
+                      meta={getBirthdayDistanceLabel(patient.birth_date)}
+                      badge={getBirthdayBadge(patient.birth_date)}
+                      stackedMeta
                     />
                   ))}
                 </div>
@@ -441,10 +512,16 @@ function SummaryCard({
       transition={{ duration: 0.4 }}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">{title}</p>
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/[0.08] text-primary">{icon}</span>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-muted-foreground">
+          {title}
+        </p>
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/[0.08] text-primary">
+          {icon}
+        </span>
       </div>
-      <p className="mt-5 text-[2.2rem] font-semibold tracking-[-0.04em] text-foreground">{value}</p>
+      <p className="mt-5 text-[2.2rem] font-semibold tracking-[-0.04em] text-foreground">
+        {value}
+      </p>
       <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
     </motion.div>
   );
@@ -470,7 +547,9 @@ function SectionCard({
     >
       <div className="flex items-center justify-between gap-3">
         <div>
-          <h2 className="text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">{title}</h2>
+          <h2 className="text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">
+            {title}
+          </h2>
         </div>
         {actionLabel && onAction ? (
           <Button variant="ghost" size="sm" className="text-primary" onClick={onAction}>
@@ -487,12 +566,16 @@ function CompactRow({
   title,
   subtitle,
   meta,
+  badge,
+  stackedMeta = false,
   onClick,
   tone = "default",
 }: {
   title: string;
   subtitle: string;
   meta: string;
+  badge?: string | null;
+  stackedMeta?: boolean;
   onClick?: () => void;
   tone?: "default" | "warning";
 }) {
@@ -500,17 +583,26 @@ function CompactRow({
     <div
       className={`rounded-xl border px-4 py-3 transition-colors ${
         tone === "warning"
-          ? "border-status-pending/25 bg-[linear-gradient(180deg,rgba(255,255,255,0.92),rgba(255,248,235,1))]"
-          : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,250,252,0.82))]"
+          ? "border-status-pending/30 bg-[linear-gradient(180deg,rgba(255,255,255,0.94),rgba(255,248,235,1))] dark:border-status-pending/45 dark:bg-[linear-gradient(180deg,rgba(86,60,18,0.55),rgba(56,39,14,0.86))]"
+          : "border-border bg-[linear-gradient(180deg,rgba(255,255,255,1),rgba(248,250,252,0.82))] dark:border-border/90 dark:bg-[linear-gradient(180deg,rgba(40,46,54,0.92),rgba(26,31,37,0.98))]"
       }`}
     >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{subtitle}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="truncate text-[15px] font-semibold text-foreground">{title}</p>
+            {badge ? (
+              <span className="rounded-full bg-primary/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-primary dark:bg-primary/20">
+                {badge}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground dark:text-foreground/72">
+            {subtitle}
+          </p>
         </div>
-        <div className="shrink-0 text-right">
-          <p className="text-sm font-semibold text-foreground">{meta}</p>
+        <div className={`shrink-0 text-right ${stackedMeta ? "self-start pt-0.5" : ""}`}>
+          <p className="text-sm font-semibold text-foreground dark:text-foreground">{meta}</p>
         </div>
       </div>
     </div>

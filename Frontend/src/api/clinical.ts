@@ -176,8 +176,14 @@ export const casesApi = {
 /* ------------------------------------------------------------------ */
 
 export const privateCommentsApi = {
-  list: (noteId: string): Promise<ApiResult<PrivateComment[]>> =>
-    api.get<PrivateComment[]>(`/clinical-notes/${noteId}/private-comments`),
+  list: async (noteId: string): Promise<ApiResult<PrivateComment[]>> => {
+    const result = await api.get<PaginatedResponse<PrivateComment> | PrivateComment[]>(`/clinical-notes/${noteId}/private-comments`);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: unwrapList(result.data),
+    };
+  },
 
   create: (noteId: string, content: string): Promise<ApiResult<PrivateComment>> =>
     api.post<PrivateComment>(`/clinical-notes/${noteId}/private-comments`, { content }),

@@ -6,6 +6,8 @@ type RawPatientBilling = {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
 };
 
 type RawPatient = {
@@ -13,6 +15,7 @@ type RawPatient = {
   external_id?: string;
   label?: string;
   name?: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -82,6 +85,8 @@ export interface PatientBilling {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
 }
 
 export interface PatientSummarySession {
@@ -101,6 +106,7 @@ export interface Patient {
   id: string;
   external_id?: string;
   name: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -178,6 +184,7 @@ function mapPatient(raw: RawPatient): Patient {
     id: String(raw.id),
     external_id: raw.external_id,
     name: raw.name ?? raw.label ?? "Paciente sem nome",
+    care_status: raw.care_status,
     email: raw.email,
     phone: raw.phone,
     whatsapp: raw.whatsapp ?? raw.phone,

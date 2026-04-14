@@ -2,6 +2,44 @@ import type { ClinicalSession, NotificationChannel, NotificationConsent, Notific
 import { db, uid } from "../infra/database";
 
 const now = () => new Date().toISOString();
+const DEFAULT_DISPATCH_INTERVAL_MS = 60_000;
+
+const normalizePhone = (value: string) => value.replace(/\D/g, "");
+
+const renderTemplate = (template: NotificationTemplate, context: Record<string, string>) =>
+  template.content.replace(/\{([\w_]+)\}/g, (_, key: string) => context[key] ?? "");
+
+const buildWhatsAppUrl = (recipient: string, message: string) => {
+  const phone = normalizePhone(recipient);
+  if (!phone) return null;
+  return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
+};
+
+const buildNotificationContext = (session: ClinicalSession, recipient: string) => {
+  const patient = db.patients.get(session.patient_id);
+  const sessionDate = new Date(session.scheduled_at);
+  return {
+    patient_name: patient?.label || patient?.external_id || "Paciente",
+    session_date: sessionDate.toLocaleDateString("pt-BR"),
+    session_time: sessionDate.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    recipient,
+  };
+};
+
+const dispatchViaWebhook = async (url: string, payload: Record<string, unknown>) => {
+  const response = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+
+  const text = await response.text().catch(() => "");
+  return {
+    ok: response.ok,
+    status: response.status,
+    body: text,
+  };
+};
 
 type CreateTemplateInput = {
   name: string;
@@ -116,20 +154,114 @@ export const dispatchDueNotifications = async (ownerUserId: string, asOf: number
   const dispatched: NotificationLog[] = [];
 
   for (const schedule of dueSchedules) {
-    schedule.status = "sent";
-    schedule.sent_at = now();
+    const template = db.notificationTemplates.get(schedule.template_id);
+    const session = db.sessions.get(schedule.session_id);
+    const dispatchedAt = now();
+
+    if (!template || !session) {
+      schedule.status = "failed";
+      schedule.sent_at = dispatchedAt;
+      db.notificationSchedules.set(schedule.id, schedule);
+
+      const log: NotificationLog = {
+        id: uid(),
+        owner_user_id: ownerUserId,
+        created_at: dispatchedAt,
+        schedule_id: schedule.id,
+        template_id: schedule.template_id,
+        channel: schedule.channel,
+        recipient: schedule.recipient,
+        status: "failed",
+        dispatched_at: dispatchedAt,
+        reason: !template ? "TEMPLATE_NOT_FOUND" : "SESSION_NOT_FOUND",
+      };
+
+      db.notificationLogs.set(log.id, log);
+      dispatched.push(log);
+      continue;
+    }
+
+    const context = buildNotificationContext(session, schedule.recipient);
+    const message = renderTemplate(template, context);
+    const subject = template.subject
+      ? renderTemplate({ ...template, content: template.subject }, context)
+      : undefined;
+
+    let status: NotificationLog["status"] = "sent";
+    let reason: string | undefined;
+    let deliveryUrl: string | undefined;
+    let providerResponse: string | undefined;
+
+    try {
+      if (schedule.channel === "whatsapp") {
+        const webhookUrl = process.env.ETHOS_WHATSAPP_WEBHOOK_URL;
+        deliveryUrl = buildWhatsAppUrl(schedule.recipient, message) ?? undefined;
+
+        if (webhookUrl) {
+          const response = await dispatchViaWebhook(webhookUrl, {
+            owner_user_id: ownerUserId,
+            schedule_id: schedule.id,
+            template_id: schedule.template_id,
+            recipient: schedule.recipient,
+            channel: schedule.channel,
+            subject,
+            message,
+            delivery_url: deliveryUrl,
+          });
+
+          status = response.ok ? "sent" : "failed";
+          reason = response.ok ? undefined : `WHATSAPP_PROVIDER_${response.status}`;
+          providerResponse = response.body || undefined;
+        } else if (!deliveryUrl) {
+          status = "failed";
+          reason = "WHATSAPP_RECIPIENT_INVALID";
+        } else {
+          reason = "WHATSAPP_PROVIDER_NOT_CONFIGURED";
+        }
+      } else if (schedule.channel === "email") {
+        const webhookUrl = process.env.ETHOS_EMAIL_WEBHOOK_URL;
+        if (webhookUrl) {
+          const response = await dispatchViaWebhook(webhookUrl, {
+            owner_user_id: ownerUserId,
+            schedule_id: schedule.id,
+            template_id: schedule.template_id,
+            recipient: schedule.recipient,
+            channel: schedule.channel,
+            subject,
+            message,
+          });
+
+          status = response.ok ? "sent" : "failed";
+          reason = response.ok ? undefined : `EMAIL_PROVIDER_${response.status}`;
+          providerResponse = response.body || undefined;
+        } else {
+          reason = "EMAIL_PROVIDER_NOT_CONFIGURED";
+        }
+      }
+    } catch (error) {
+      status = "failed";
+      reason = error instanceof Error ? error.message : "DISPATCH_FAILED";
+    }
+
+    schedule.status = status;
+    schedule.sent_at = dispatchedAt;
     db.notificationSchedules.set(schedule.id, schedule);
 
     const log: NotificationLog = {
       id: uid(),
       owner_user_id: ownerUserId,
-      created_at: now(),
+      created_at: dispatchedAt,
       schedule_id: schedule.id,
       template_id: schedule.template_id,
       channel: schedule.channel,
       recipient: schedule.recipient,
-      status: "sent",
-      dispatched_at: now(),
+      status,
+      dispatched_at: dispatchedAt,
+      reason,
+      subject,
+      message,
+      delivery_url: deliveryUrl,
+      provider_response: providerResponse,
     };
 
     db.notificationLogs.set(log.id, log);
@@ -137,4 +269,29 @@ export const dispatchDueNotifications = async (ownerUserId: string, asOf: number
   }
 
   return dispatched;
+};
+
+export const dispatchAllDueNotifications = async (asOf: number): Promise<NotificationLog[]> => {
+  const owners = Array.from(
+    new Set(Array.from(db.notificationSchedules.values()).map((item) => item.owner_user_id)),
+  );
+
+  const logs: NotificationLog[] = [];
+  for (const ownerUserId of owners) {
+    logs.push(...(await dispatchDueNotifications(ownerUserId, asOf)));
+  }
+  return logs;
+};
+
+export const startNotificationDispatcher = (
+  intervalMs = Number(process.env.ETHOS_NOTIFICATION_DISPATCH_INTERVAL_MS ?? DEFAULT_DISPATCH_INTERVAL_MS),
+) => {
+  const timer = setInterval(() => {
+    void dispatchAllDueNotifications(Date.now()).catch((error) => {
+      process.stderr.write(`[notifications] dispatcher failed: ${String(error)}\n`);
+    });
+  }, intervalMs);
+
+  timer.unref?.();
+  return timer;
 };

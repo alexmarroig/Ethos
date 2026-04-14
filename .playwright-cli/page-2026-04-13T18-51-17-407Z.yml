@@ -1,0 +1,266 @@
+- generic [ref=e15]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: WS
+          - generic [ref=e22]:
+            - heading "ETHOS" [level=1] [ref=e23]
+            - generic [ref=e24]:
+              - paragraph [ref=e25]: Whisper Speech 447267
+              - generic [ref=e26]: Conta clínica
+        - button "Alternar tema" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+      - navigation [ref=e30]:
+        - list [ref=e31]:
+          - listitem [ref=e32]:
+            - button "Início" [ref=e33] [cursor=pointer]:
+              - img [ref=e34]
+              - generic [ref=e37]: Início
+          - listitem [ref=e38]:
+            - button "Agenda clínica" [ref=e39] [cursor=pointer]:
+              - img [ref=e40]
+              - generic [ref=e42]: Agenda clínica
+          - listitem [ref=e43]:
+            - button "Pacientes" [ref=e44] [cursor=pointer]:
+              - img [ref=e45]
+              - generic [ref=e50]: Pacientes
+          - listitem [ref=e51]:
+            - button "Diário e formulários" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+              - generic [ref=e56]: Diário e formulários
+          - listitem [ref=e57]:
+            - button "Anamnese" [ref=e58] [cursor=pointer]:
+              - img [ref=e59]
+              - generic [ref=e61]: Anamnese
+          - listitem [ref=e62]:
+            - button "Financeiro" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - generic [ref=e67]: Financeiro
+          - listitem [ref=e68]:
+            - button "Relatórios" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Relatórios
+          - listitem [ref=e74]:
+            - button "Documentos" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - generic [ref=e78]: Documentos
+          - listitem [ref=e79]:
+            - button "Contratos" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+              - generic [ref=e85]: Contratos
+          - listitem [ref=e86]:
+            - button "Backup e dados" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+              - generic [ref=e94]: Backup e dados
+          - listitem [ref=e95]:
+            - button "Ética e sigilo" [ref=e96] [cursor=pointer]:
+              - img [ref=e97]
+              - generic [ref=e99]: Ética e sigilo
+      - generic [ref=e100]:
+        - button "Conta" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+          - generic [ref=e105]: Conta
+        - button "Sair" [ref=e106] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Sair
+    - main [ref=e111]:
+      - generic [ref=e240]:
+        - generic [ref=e241]:
+          - button "Voltar para pacientes" [ref=e242] [cursor=pointer]:
+            - img
+            - text: Voltar para pacientes
+          - generic [ref=e243]:
+            - generic [ref=e244]:
+              - paragraph [ref=e245]: Paciente
+              - heading "Paciente Speech 447267" [level=1] [ref=e246]
+              - paragraph [ref=e247]: Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.
+            - generic [ref=e248]:
+              - button "Nova sessão" [ref=e249] [cursor=pointer]:
+                - img
+                - text: Nova sessão
+              - button "Nova nota clínica" [ref=e250] [cursor=pointer]:
+                - img
+                - text: Nova nota clínica
+              - button "Criar acesso" [ref=e251] [cursor=pointer]:
+                - img
+                - text: Criar acesso
+              - button "Salvar ficha" [ref=e252] [cursor=pointer]:
+                - img
+                - text: Salvar ficha
+        - generic [ref=e253]:
+          - generic [ref=e254]:
+            - paragraph [ref=e255]: Total de sessões
+            - paragraph [ref=e256]: "1"
+          - generic [ref=e257]:
+            - paragraph [ref=e258]: Próxima sessão
+            - paragraph [ref=e259]: Não definido
+          - generic [ref=e260]:
+            - paragraph [ref=e261]: Última sessão
+            - paragraph [ref=e262]: 13 de abr. de 2026, 15:37
+        - generic [ref=e263]:
+          - generic [ref=e264]:
+            - heading "Identificação" [level=2] [ref=e265]
+            - paragraph [ref=e266]: Dados de contato e identificação do paciente.
+          - generic [ref=e267]:
+            - generic [ref=e268]:
+              - text: Nome do paciente
+              - textbox [ref=e269]: Paciente Speech 447267
+            - generic [ref=e270]:
+              - text: WhatsApp
+              - textbox "(11) 99999-9999" [ref=e271]
+            - generic [ref=e272]:
+              - text: E-mail
+              - textbox "email@paciente.com" [ref=e273]
+            - generic [ref=e274]:
+              - text: Telefone legado
+              - textbox "Opcional" [ref=e275]
+            - generic [ref=e276]:
+              - text: Data de nascimento
+              - textbox [ref=e277]
+            - generic [ref=e278]:
+              - text: CPF
+              - textbox "000.000.000-00" [ref=e279]
+            - generic [ref=e280]:
+              - text: Profissão
+              - textbox "Profissão atual" [ref=e281]
+            - generic [ref=e282]:
+              - text: Interesse em
+              - textbox "Online, presencial ou ambos" [ref=e283]
+          - generic [ref=e284]:
+            - generic [ref=e285]:
+              - text: Rua
+              - textbox "Rua / Avenida" [ref=e286]
+            - generic [ref=e287]:
+              - text: Número
+              - textbox [ref=e288]
+            - generic [ref=e289]:
+              - text: Complemento
+              - textbox [ref=e290]
+            - generic [ref=e291]:
+              - text: Bairro
+              - textbox [ref=e292]
+            - generic [ref=e293]:
+              - text: CEP
+              - textbox "00000-000" [ref=e294]
+            - generic [ref=e295]:
+              - text: Cidade
+              - textbox [ref=e296]
+            - generic [ref=e297]:
+              - text: Estado
+              - textbox "SP" [ref=e298]
+          - generic [ref=e299]:
+            - text: Endereço livre / observações
+            - textbox [ref=e300]
+        - generic [ref=e301]:
+          - generic [ref=e302]:
+            - heading "Clínico" [level=2] [ref=e303]
+            - paragraph [ref=e304]: Contexto principal e observações clínicas permanentes.
+          - generic [ref=e305]:
+            - text: Como chegou até a clínica
+            - textbox "Site, Instagram, indicação, etc." [ref=e306]
+          - generic [ref=e307]:
+            - text: O que faz procurar por psicoterapia
+            - textbox [ref=e308]
+          - generic [ref=e309]:
+            - text: Queixa principal
+            - textbox [ref=e310]
+          - generic [ref=e311]:
+            - text: Remédios psiquiátricos
+            - textbox [ref=e312]
+          - generic [ref=e313]:
+            - text: Observações adicionais
+            - textbox [ref=e314]
+        - generic [ref=e315]:
+          - generic [ref=e316]:
+            - heading "Cobrança" [level=2] [ref=e317]
+            - paragraph [ref=e318]: Modelo de cobrança e frequência clínica de referência.
+          - generic [ref=e319]:
+            - generic [ref=e320]:
+              - text: Tipo de cobrança
+              - combobox [ref=e321]:
+                - option "Sessão avulsa" [selected]
+                - option "Pacote"
+            - generic [ref=e322]:
+              - text: Frequência semanal
+              - combobox [ref=e323]:
+                - option "1x por semana" [selected]
+                - option "2x por semana"
+                - option "3x por semana"
+                - option "4x por semana"
+                - option "5x por semana"
+            - generic [ref=e324]:
+              - text: Valor por sessão
+              - spinbutton [ref=e325]
+        - generic [ref=e326]:
+          - generic [ref=e327]:
+            - heading "Psiquiatria e emergência" [level=2] [ref=e328]
+            - paragraph [ref=e329]: Rede de cuidado e segurança do caso.
+          - generic [ref=e330]:
+            - checkbox "Em acompanhamento psiquiátrico" [ref=e331]
+            - text: Em acompanhamento psiquiátrico
+          - generic [ref=e332]:
+            - generic [ref=e333]:
+              - text: Nome do psiquiatra
+              - textbox [ref=e334]
+            - generic [ref=e335]:
+              - text: Contato do psiquiatra
+              - textbox [ref=e336]
+            - generic [ref=e337]:
+              - text: Contato de emergência
+              - textbox [ref=e338]
+            - generic [ref=e339]:
+              - text: Telefone de emergência
+              - textbox [ref=e340]
+        - generic [ref=e341]:
+          - generic [ref=e342]:
+            - generic [ref=e343]:
+              - heading "Histórico de sessões" [level=2] [ref=e344]
+              - paragraph [ref=e345]: Sessões registradas e acesso rápido ao prontuário.
+            - button "Abrir prontuário mais recente" [ref=e346] [cursor=pointer]
+          - generic [ref=e348]:
+            - generic [ref=e349]:
+              - paragraph [ref=e350]: 13 de abr. de 2026, 15:37
+              - paragraph [ref=e351]: 50 min · Agendado
+            - generic [ref=e352]:
+              - button "Abrir sessão" [ref=e353] [cursor=pointer]
+              - button "Nota clínica" [ref=e354] [cursor=pointer]
+        - generic [ref=e355]:
+          - generic [ref=e356]:
+            - heading "Documentos" [level=2] [ref=e357]
+            - paragraph [ref=e358]: Atalhos rápidos para os principais documentos do caso.
+          - generic [ref=e359]:
+            - button "Criar recibo" [ref=e360] [cursor=pointer]:
+              - img
+              - text: Criar recibo
+            - button "Criar declaração" [ref=e361] [cursor=pointer]:
+              - img
+              - text: Criar declaração
+            - button "Criar atestado" [ref=e362] [cursor=pointer]:
+              - img
+              - text: Criar atestado
+            - button "Criar contrato" [ref=e363] [cursor=pointer]:
+              - img
+              - text: Criar contrato
+            - button "Criar relatório" [ref=e364] [cursor=pointer]:
+              - img
+              - text: Criar relatório
+          - generic [ref=e365]: Nenhum documento clínico vinculado a este paciente ainda.
+        - generic [ref=e366]:
+          - generic [ref=e367]:
+            - heading "Contrato assinado" [level=2] [ref=e368]
+            - paragraph [ref=e369]: Visualização rápida do contrato assinado já vinculado ao paciente.
+          - generic [ref=e370]: Nenhum contrato assinado foi anexado ainda.
+        - generic [ref=e371]:
+          - generic [ref=e372]:
+            - heading "Diário emocional" [level=2] [ref=e373]
+            - paragraph [ref=e374]: Últimos registros do paciente para consulta rápida.
+          - generic [ref=e375]: Ainda não há registros emocionais vinculados.
+        - generic [ref=e376]:
+          - generic [ref=e377]:
+            - heading "Formulários respondidos" [level=2] [ref=e378]
+            - paragraph [ref=e379]: Respostas enviadas pelo paciente e registradas na ficha.
+          - generic [ref=e380]: Nenhum formulário foi respondido ainda.

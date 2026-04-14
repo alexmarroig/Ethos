@@ -1,5 +1,9 @@
 ﻿import crypto from "node:crypto";
 import { db, encrypt, hashInviteToken, hashPassword, schedulePersistDatabase, seeds, uid, verifyPassword } from "../infra/database";
+import { spawn } from "node:child_process";
+import { promises as fs } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import {
   detectAnomalousBehavior,
   detectBottlenecks,
@@ -47,6 +51,99 @@ import type {
 const now = seeds.now;
 const DAY_MS = 86_400_000;
 const persistMutation = () => schedulePersistDatabase();
+const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
+const decryptPath = (value: string) =>
+  value.startsWith("enc:") ? Buffer.from(value.slice(4), "base64").toString("utf8") : value;
+
+const resolvePythonPath = () => process.env.ETHOS_PYTHON_PATH ?? (process.platform === "win32" ? "python" : "python3");
+const resolveWhisperModelPath = () => {
+  const modelsRoot = process.env.ETHOS_MODELS_PATH ?? path.resolve(__dirname, "../../../ethos-transcriber/models");
+  const localModelPath = path.join(modelsRoot, "large-v3-ct2");
+  return localModelPath;
+};
+
+const runWhisperLocally = async (audioPath: string) => {
+  const pythonPath = resolvePythonPath();
+  const scriptPath = path.resolve(__dirname, "../../../ethos-transcriber/scripts/whisper_transcribe.py");
+  const outputPath = path.join(os.tmpdir(), `ethos-transcript-${crypto.randomUUID()}.json`);
+  const configuredModelPath = resolveWhisperModelPath();
+  const modelPath = await fs.stat(configuredModelPath).then(() => configuredModelPath).catch(() =>
+    process.env.ETHOS_WHISPER_MODEL || "small"
+  );
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(pythonPath, [
+      scriptPath,
+      "--audio", audioPath,
+      "--model", modelPath,
+      "--output", outputPath,
+    ]);
+
+    proc.stdout.on("data", (chunk) => {
+      process.stdout.write(`[whisper] ${chunk}`);
+    });
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => {
+      const message = chunk.toString();
+      stderr += message;
+      process.stderr.write(message);
+    });
+    proc.on("error", reject);
+    const timeout = setTimeout(() => {
+      proc.kill();
+      reject(new Error(`Whisper timeout after 300000ms (model=${modelPath})`));
+    }, 300_000);
+    proc.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code === 0) resolve();
+      else reject(new Error(stderr || `whisper failed with code ${code}`));
+    });
+  });
+
+  const raw = await fs.readFile(outputPath, "utf8");
+  await fs.unlink(outputPath).catch(() => {});
+  return JSON.parse(raw) as {
+    full_text?: string;
+    segments?: Array<{ start?: number; end?: number; text?: string }>;
+  };
+};
+
+const stripHtml = (value: string) =>
+  value
+    .replace(/<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<\/(p|div|h1|h2|h3|li|section|br)>/gi, "\n")
+    .replace(/<li>/gi, "• ")
+    .replace(/<[^>]+>/g, "")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+
+const runPdfGenerator = async (payload: { title: string; subtitle?: string; sections: Array<{ heading: string; paragraphs: string[] }> }) => {
+  const pythonPath = resolvePythonPath();
+  const scriptPath = path.resolve(__dirname, "../../scripts/generate_pdf.py");
+  const inputPath = path.join(os.tmpdir(), `ethos-pdf-input-${crypto.randomUUID()}.json`);
+  const outputPath = path.join(os.tmpdir(), `ethos-export-${crypto.randomUUID()}.pdf`);
+
+  await fs.writeFile(inputPath, JSON.stringify(payload, null, 2), "utf8");
+
+  await new Promise<void>((resolve, reject) => {
+    const proc = spawn(pythonPath, [scriptPath, "--input", inputPath, "--output", outputPath]);
+    let stderr = "";
+    proc.stderr.on("data", (chunk) => {
+      stderr += chunk.toString();
+    });
+    proc.on("error", reject);
+    proc.on("close", (code) => {
+      if (code === 0) resolve();
+      else reject(new Error(stderr || `pdf generator failed with code ${code}`));
+    });
+  });
+
+  const base64 = await fs.readFile(outputPath, { encoding: "base64" });
+  await fs.unlink(inputPath).catch(() => {});
+  await fs.unlink(outputPath).catch(() => {});
+  return `data:application/pdf;base64,${base64}`;
+};
 
 const grantClinicalEntitlements = (userId: string) => {
   db.localEntitlements.set(userId, {
@@ -186,7 +283,7 @@ export const evaluateObservability = () => {
     createdOrUpdated.push(upsertObservabilityAlert({
       source: "detectAnomalousBehavior",
       severity: "medium",
-      title: "Comportamento anÃ´malo",
+      title: "Comportamento anômalo",
       message: `${anomaly.probableCause}. ${anomaly.suggestedAction}`,
       fingerprint: `anomaly:${anomaly.timestamp}:${anomaly.probableCause}`,
       context: anomaly,
@@ -195,11 +292,11 @@ export const evaluateObservability = () => {
 
   if (logs.length > 0) {
     const suggestion = suggestRootCauseFromLogs(logs.slice(-20));
-    if (!suggestion.toLowerCase().includes("nÃ£o conclusiva")) {
+    if (!suggestion.toLowerCase().includes("não conclusiva")) {
       createdOrUpdated.push(upsertObservabilityAlert({
         source: "suggestRootCauseFromLogs",
         severity: "medium",
-        title: "HipÃ³tese de causa raiz",
+        title: "Hipótese de causa raiz",
         message: suggestion,
         fingerprint: `root-cause:${suggestion.toLowerCase()}`,
         context: { based_on_logs: logs.slice(-5) },
@@ -339,6 +436,38 @@ export const logout = (token: string) => {
   return removed;
 };
 
+export const requestPasswordReset = (email: string) => {
+  const user = Array.from(db.users.values()).find((entry) => entry.email.toLowerCase() === email.trim().toLowerCase());
+  const token = crypto.randomBytes(24).toString("hex");
+
+  if (user) {
+    passwordResetTokens.set(token, {
+      userId: user.id,
+      expiresAt: Date.now() + DAY_MS,
+    });
+  }
+
+  return {
+    message: "Se o email existir, enviaremos um link de recuperação.",
+    reset_token: token,
+    reset_url: `/reset-password?token=${token}`,
+  };
+};
+
+export const resetPasswordWithToken = (token: string, password: string) => {
+  const entry = passwordResetTokens.get(token);
+  if (!entry || entry.expiresAt < Date.now()) return null;
+
+  const user = db.users.get(entry.userId);
+  if (!user) return null;
+
+  user.password_hash = hashPassword(password);
+  user.last_seen_at = now();
+  passwordResetTokens.delete(token);
+  persistMutation();
+  return { message: "Senha redefinida com sucesso." };
+};
+
 export const getByOwner = <T extends { owner_user_id: string; id: string }>(map: Map<string, T>, owner: string, id: string) => {
   const item = map.get(id);
   return item?.owner_user_id === owner ? item : null;
@@ -387,6 +516,89 @@ type Contract = {
   updated_at: string;
 };
 
+const normalizeStoredText = (value?: string) =>
+  value
+    ? value
+        .replaceAll("ÃƒÆ’Ã‚Â£", "ã")
+        .replaceAll("ÃƒÂ£", "ã")
+        .replaceAll("Ã§", "ç")
+        .replaceAll("Ã£", "ã")
+        .replaceAll("Ã¡", "á")
+        .replaceAll("Ã¢", "â")
+        .replaceAll("Ãª", "ê")
+        .replaceAll("Ã©", "é")
+        .replaceAll("Ã­", "í")
+        .replaceAll("Ã³", "ó")
+        .replaceAll("Ãº", "ú")
+        .replaceAll("Ãµ", "õ")
+        .replaceAll("Ã", "à")
+        .replaceAll("Â", "")
+        .replaceAll("Sess?o", "Sessão")
+        .replaceAll("Pr?xima", "Próxima")
+        .replaceAll("dispon?vel", "disponível")
+    : value;
+
+const normalizeContractRecord = (contract: Contract) => {
+  let changed = false;
+  const apply = (next?: string) => {
+    const normalized = normalizeStoredText(next);
+    if (normalized !== next) changed = true;
+    return normalized;
+  };
+
+  contract.title = apply(contract.title) ?? contract.title;
+  contract.content = apply(contract.content) ?? contract.content;
+  contract.psychologist = {
+    ...contract.psychologist,
+    name: apply(contract.psychologist.name) ?? contract.psychologist.name,
+    license: apply(contract.psychologist.license) ?? contract.psychologist.license,
+    email: apply(contract.psychologist.email) ?? contract.psychologist.email,
+    phone: apply(contract.psychologist.phone),
+  };
+  contract.patient = {
+    ...contract.patient,
+    name: apply(contract.patient.name) ?? contract.patient.name,
+    email: apply(contract.patient.email) ?? contract.patient.email,
+    document: apply(contract.patient.document) ?? contract.patient.document,
+    address: apply(contract.patient.address),
+  };
+  contract.terms = {
+    ...contract.terms,
+    value: apply(contract.terms.value) ?? contract.terms.value,
+    periodicity: apply(contract.terms.periodicity) ?? contract.terms.periodicity,
+    absence_policy: apply(contract.terms.absence_policy) ?? contract.terms.absence_policy,
+    payment_method: apply(contract.terms.payment_method) ?? contract.terms.payment_method,
+  };
+
+  return changed;
+};
+
+const migrateLegacyContractText = () => {
+  let changed = false;
+  for (const contract of db.contracts.values() as Iterable<Contract>) {
+    if (normalizeContractRecord(contract)) changed = true;
+  }
+  for (const template of db.documentTemplates.values()) {
+    if (template.kind !== "contract") continue;
+    const nextTitle = normalizeStoredText(template.title);
+    const nextDescription = normalizeStoredText(template.description);
+    const nextHtml = normalizeStoredText(template.html);
+    if (nextTitle !== template.title) {
+      template.title = nextTitle ?? template.title;
+      changed = true;
+    }
+    if (nextDescription !== template.description) {
+      template.description = nextDescription;
+      changed = true;
+    }
+    if (nextHtml !== template.html) {
+      template.html = nextHtml ?? template.html;
+      changed = true;
+    }
+  }
+  if (changed) persistMutation();
+};
+
 type RetentionPolicy = {
   owner_user_id: string;
   clinical_record_days: number;
@@ -402,6 +614,7 @@ type PatientSummary = {
 
 type PatientUpsertInput = {
   name: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -484,6 +697,9 @@ const normalizePatientBilling = (value: PatientUpsertInput["billing"]) => {
     session_price: value.mode === "per_session" ? sessionPrice : undefined,
     package_total_price: value.mode === "package" ? packageTotalPrice : undefined,
     package_session_count: value.mode === "package" ? packageSessionCount : undefined,
+    payment_timing: value.payment_timing === "advance" || value.payment_timing === "after" ? value.payment_timing : undefined,
+    preferred_payment_day:
+      normalizeOptionalNumber((value as PatientBilling & { preferred_payment_day?: number }).preferred_payment_day),
   } satisfies PatientBilling;
 };
 
@@ -493,6 +709,10 @@ const normalizePatientInput = (input: Partial<PatientUpsertInput>) => {
 
   return {
     label: normalizeOptionalText(input.name),
+    care_status:
+      input.care_status === "active" || input.care_status === "paused" || input.care_status === "transferred" || input.care_status === "inactive"
+        ? input.care_status
+        : undefined,
     email: normalizeOptionalText(input.email),
     phone,
     whatsapp,
@@ -559,6 +779,7 @@ export const createPatient = (
     owner_user_id: owner,
     external_id: id,
     label: normalized.label,
+    care_status: normalized.care_status ?? "active",
     email: normalized.email,
     phone: normalized.phone,
     whatsapp: normalized.whatsapp,
@@ -646,6 +867,7 @@ export const updatePatient = (owner: string, patientId: string, input: Partial<P
 
   const normalized = normalizePatientInput(input);
   if (normalized.label !== undefined) patient.label = normalized.label;
+  if ("care_status" in normalized && normalized.care_status) patient.care_status = normalized.care_status;
   if ("email" in input) patient.email = normalized.email;
   if ("phone" in input) patient.phone = normalized.phone;
   if ("whatsapp" in input || ("phone" in input && !("whatsapp" in input))) patient.whatsapp = normalized.whatsapp;
@@ -741,7 +963,7 @@ export const buildPatientTimeline = (owner: string, patientId: string): PatientT
     patient_id: patient.id,
     kind: "session" as const,
     date: session.scheduled_at,
-    title: "SessÃƒÂ£o agendada",
+    title: "Sessão agendada",
     subtitle: session.status,
     related_id: session.id,
   }));
@@ -751,7 +973,7 @@ export const buildPatientTimeline = (owner: string, patientId: string): PatientT
     patient_id: patient.id,
     kind: "clinical_note" as const,
     date: note.validated_at ?? note.created_at,
-    title: "Nota clÃƒÂ­nica",
+    title: "Nota clínica",
     subtitle: note.status,
     related_id: note.id,
   }));
@@ -910,8 +1132,8 @@ export const buildPatientNotificationFeed = (access: PatientAccess): Notificatio
     .map((session) => ({
       id: `session-${session.id}`,
       type: "session" as const,
-      title: "Sessao agendada",
-      message: `Proxima atualizacao para ${new Date(session.scheduled_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
+      title: "Sessão agendada",
+      message: `Próxima atualização para ${new Date(session.scheduled_at).toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`,
       created_at: session.created_at,
       related_id: session.id,
       status: session.status,
@@ -922,7 +1144,7 @@ export const buildPatientNotificationFeed = (access: PatientAccess): Notificatio
     .map((document) => ({
       id: `document-${document.id}`,
       type: "document" as const,
-      title: "Novo documento disponivel",
+      title: "Novo documento disponível",
       message: document.title,
       created_at: document.created_at,
       related_id: document.id,
@@ -986,7 +1208,7 @@ export const sendPatientAsyncMessage = (access: PatientAccess, message: string) 
   return {
     payload,
     remaining: Math.max(0, access.permissions.async_messages_per_day - (todayCount + 1)),
-    disclaimer: "Mensagens assÃ­ncronas nÃ£o substituem atendimento de urgÃªncia.",
+    disclaimer: "Mensagens assíncronas não substituem atendimento de urgência.",
   };
 };
 
@@ -1032,10 +1254,114 @@ export const acceptContract = (portalToken: string, acceptedBy: string, accepted
   return contract;
 };
 
+migrateLegacyContractText();
+
 export const exportContract = (owner: string, id: string, format: "pdf" | "docx") => {
   const contract = getContract(owner, id);
   if (!contract) return null;
   return { contract_id: id, format, content: JSON.stringify(contract) };
+};
+
+export const exportResourcePdf = async (owner: string, documentType: string, documentId: string) => {
+  if (documentType === "clinical_note") {
+    const note = getByOwner(db.clinicalNotes, owner, documentId);
+    if (!note) return null;
+    const parsed = parseLegacyClinicalNoteContent(note.content);
+    const payload = {
+      title: "Prontuário da sessão",
+      subtitle: note.status === "validated" ? "Prontuário validado" : "Rascunho em revisão",
+      sections: [
+        { heading: "Queixa principal", paragraphs: [parsed.structuredData.complaint || "Não informado"] },
+        { heading: "Observações clínicas", paragraphs: [parsed.structuredData.context || parsed.additionalNotes || "Não informado"] },
+        { heading: "Evolução", paragraphs: [parsed.structuredData.soap?.subjective || "Não informado"] },
+        { heading: "Plano terapêutico", paragraphs: [parsed.structuredData.soap?.plan || "Não informado"] },
+      ],
+    };
+    return { filename: `prontuario-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  if (documentType === "contract") {
+    const contract = getContract(owner, documentId);
+    if (!contract) return null;
+    const payload = {
+      title: contract.title ?? "Contrato terapêutico",
+      subtitle: `Status: ${contract.status}`,
+      sections: [
+        { heading: "Paciente", paragraphs: [contract.patient?.name || "Não informado", contract.patient?.email || ""] },
+        { heading: "Profissional", paragraphs: [contract.psychologist?.name || "Não informado", contract.psychologist?.license || ""] },
+        { heading: "Condições", paragraphs: [contract.terms?.value || "", contract.terms?.periodicity || "", contract.terms?.payment_method || "", contract.terms?.absence_policy || ""] },
+        { heading: "Conteúdo", paragraphs: [contract.content || ""] },
+      ],
+    };
+    return { filename: `contrato-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  if (documentType === "document") {
+    const detail = getDocumentDetail(owner, documentId);
+    if (!detail) return null;
+    const latestVersion = [...detail.versions].sort(compareByNewestDate)[0];
+    const payload = {
+      title: detail.document.title || "Documento clínico",
+      subtitle: `Paciente: ${detail.patient?.label || "Não informado"}`,
+      sections: [
+        { heading: "Conteúdo", paragraphs: [latestVersion ? stripHtml(latestVersion.content) : "Sem versão disponível"] },
+      ],
+    };
+    return { filename: `documento-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  return null;
+};
+
+export const exportResourcePdf = async (owner: string, documentType: string, documentId: string) => {
+  if (documentType === "clinical_note") {
+    const note = getByOwner(db.clinicalNotes, owner, documentId);
+    if (!note) return null;
+    const parsed = parseLegacyClinicalNoteContent(note.content);
+    const payload = {
+      title: "Prontuário da sessão",
+      subtitle: note.status === "validated" ? "Prontuário validado" : "Rascunho em revisão",
+      sections: [
+        { heading: "Queixa principal", paragraphs: [parsed.structuredData.complaint || "Não informado"] },
+        { heading: "Observações clínicas", paragraphs: [parsed.structuredData.context || parsed.additionalNotes || "Não informado"] },
+        { heading: "Evolução", paragraphs: [parsed.structuredData.soap?.subjective || "Não informado"] },
+        { heading: "Plano terapêutico", paragraphs: [parsed.structuredData.soap?.plan || "Não informado"] },
+      ],
+    };
+    return { filename: `prontuario-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  if (documentType === "contract") {
+    const contract = getContract(owner, documentId);
+    if (!contract) return null;
+    const payload = {
+      title: contract.title ?? "Contrato terapêutico",
+      subtitle: `Status: ${contract.status}`,
+      sections: [
+        { heading: "Paciente", paragraphs: [contract.patient?.name || "Não informado", contract.patient?.email || ""] },
+        { heading: "Profissional", paragraphs: [contract.psychologist?.name || "Não informado", contract.psychologist?.license || ""] },
+        { heading: "Condições", paragraphs: [contract.terms?.value || "", contract.terms?.periodicity || "", contract.terms?.payment_method || "", contract.terms?.absence_policy || ""] },
+        { heading: "Conteúdo", paragraphs: [contract.content || ""] },
+      ],
+    };
+    return { filename: `contrato-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  if (documentType === "document") {
+    const detail = getDocumentDetail(owner, documentId);
+    if (!detail) return null;
+    const latestVersion = [...detail.versions].sort(compareByNewestDate)[0];
+    const payload = {
+      title: detail.document.title || "Documento clínico",
+      subtitle: `Paciente: ${detail.patient?.label || "Não informado"}`,
+      sections: [
+        { heading: "Conteúdo", paragraphs: [latestVersion ? stripHtml(latestVersion.content) : "Sem versão disponível"] },
+      ],
+    };
+    return { filename: `documento-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
+  }
+
+  return null;
 };
 
 const defaultDocumentTemplates: Array<{ id: string; title: string; description?: string; html: string; fields?: Array<{ key: string; label: string; required?: boolean }> }> = [
@@ -1274,6 +1600,22 @@ export const addAudio = (owner: string, sessionId: string, filePath: string) => 
   return item;
 };
 
+export const storeUploadedAudio = async (
+  owner: string,
+  sessionId: string,
+  input: { fileName?: string; mimeType?: string; base64: string },
+) => {
+  const uploadsRoot = path.resolve(__dirname, "../../data/uploads");
+  await fs.mkdir(uploadsRoot, { recursive: true });
+
+  const extension = input.fileName?.split(".").pop()?.trim() || (
+    input.mimeType?.includes("webm") ? "webm" : input.mimeType?.includes("mp4") ? "mp4" : "bin"
+  );
+  const filePath = path.join(uploadsRoot, `${owner}-${sessionId}-${crypto.randomUUID()}.${extension}`);
+  await fs.writeFile(filePath, Buffer.from(input.base64, "base64"));
+  return addAudio(owner, sessionId, filePath);
+};
+
 export const addTranscript = (owner: string, sessionId: string, rawText: string): Transcript => {
   const item = { id: uid(), owner_user_id: owner, session_id: sessionId, raw_text: rawText, segments: [{ start: 0, end: 1, text: rawText.slice(0, 120) }], created_at: now() };
   db.transcripts.set(item.id, item);
@@ -1446,18 +1788,18 @@ export const createScaleRecord = (owner: string, scaleId: string, patientId: str
 const defaultFormsCatalog = [
   {
     id: "emotion-diary",
-    name: "DiÃ¡rio emocional",
+    name: "Diário emocional",
     description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
   },
   {
     id: "initial-anamnesis",
     name: "Anamnese inicial",
-    description: "Coleta inicial de histÃ³rico pessoal, familiar e clÃ­nico.",
+    description: "Coleta inicial de histórico pessoal, familiar e clínico.",
   },
   {
     id: "weekly-checkin",
     name: "Check-in semanal",
-    description: "FormulÃ¡rio simples para acompanhar a semana entre sessÃµes.",
+    description: "Formulário simples para acompanhar a semana entre sessões.",
   },
 ] as const;
 
@@ -1596,11 +1938,12 @@ const createStructuredDraftForTranscript = async (job: Job, session: ClinicalSes
       session.id,
       formatClinicalNoteContent(
         {
+          context: rawText,
           soap: {
-            subjective: "Rascunho estruturado indisponÃ­vel no momento. Revisar a transcriÃ§Ã£o original.",
-            objective: "Sem extraÃ§Ã£o automÃ¡tica confiÃ¡vel de dados observÃ¡veis.",
-            assessment: "InterpretaÃ§Ã£o clÃ­nica nÃ£o automatizada. Completar manualmente.",
-            plan: "Definir prÃ³ximos passos apÃ³s revisÃ£o manual.",
+            subjective: "Rascunho estruturado indisponível no momento. Revisar a transcrição original.",
+            objective: "Sem extração automática confiável de dados observáveis.",
+            assessment: "Interpretação clínica não automatizada. Completar manualmente.",
+            plan: "Definir próximos passos após revisão manual.",
           },
         },
         {
@@ -1624,35 +1967,64 @@ export const runJob = async (jobId: string, options: { rawText?: string }) => {
   const job = db.jobs.get(jobId);
   if (!job) return;
 
-  job.status = "running";
-  job.progress = 0.5;
-  job.updated_at = now();
-  persistMutation();
-  await new Promise((resolve) => setTimeout(resolve, 20));
+  try {
+    job.status = "running";
+    job.progress = 0.5;
+    job.updated_at = now();
+    persistMutation();
+    await new Promise((resolve) => setTimeout(resolve, 20));
 
-  if (job.type === "transcription" && job.resource_id) {
-    const transcript = addTranscript(job.owner_user_id, job.resource_id, options.rawText ?? "");
-    const session = getByOwner(db.sessions, job.owner_user_id, job.resource_id);
-    if (session) {
-      const draftNote = await createStructuredDraftForTranscript(job, session, transcript.raw_text);
-      job.draft_note_id = draftNote.id;
+    if (job.type === "transcription" && job.resource_id) {
+      const latestAudio = byOwner(db.audioRecords.values(), job.owner_user_id)
+        .filter((item) => item.session_id === job.resource_id)
+        .sort(compareByNewestDate)[0];
+
+      let rawText = options.rawText ?? "";
+      let segments = [{ start: 0, end: 1, text: rawText.slice(0, 120) }];
+
+      if (!rawText && latestAudio) {
+        const audioPath = decryptPath(latestAudio.file_path_encrypted);
+        const transcription = await runWhisperLocally(audioPath);
+        rawText = transcription.full_text?.trim() || "";
+        segments = (transcription.segments ?? [])
+          .filter((segment) => typeof segment.text === "string" && segment.text.trim())
+          .map((segment) => ({
+            start: segment.start ?? 0,
+            end: segment.end ?? 0,
+            text: segment.text?.trim() ?? "",
+          }));
+        await fs.unlink(audioPath).catch(() => {});
+      }
+
+      const transcript = addTranscript(job.owner_user_id, job.resource_id, rawText || "");
+      transcript.segments = segments.length > 0 ? segments : transcript.segments;
+      const session = getByOwner(db.sessions, job.owner_user_id, job.resource_id);
+      if (session) {
+        const draftNote = await createStructuredDraftForTranscript(job, session, transcript.raw_text);
+        job.draft_note_id = draftNote.id;
+      }
+      job.result_uri = `transcript:${transcript.id}`;
+      addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60_000, rawText.length * 1_000) });
     }
-    job.result_uri = `transcript:${transcript.id}`;
-    addTelemetry({ user_id: job.owner_user_id, event_type: "TRANSCRIPTION_JOB_COMPLETED", duration_ms: Math.max(60_000, (options.rawText ?? "").length * 1_000) });
-  }
-  if (job.type === "export") {
-    job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
-    addTelemetry({ user_id: job.owner_user_id, event_type: "EXPORT_PDF" });
-  }
-  if (job.type === "backup") {
-    job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
-    addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
-  }
+    if (job.type === "export") {
+      job.result_uri = `vault://exports/${job.owner_user_id}.enc`;
+      addTelemetry({ user_id: job.owner_user_id, event_type: "EXPORT_PDF" });
+    }
+    if (job.type === "backup") {
+      job.result_uri = `vault://backup/${job.owner_user_id}.enc`;
+      addTelemetry({ user_id: job.owner_user_id, event_type: "BACKUP_CREATED" });
+    }
 
-  job.status = "completed";
-  job.progress = 1;
-  job.updated_at = now();
-  persistMutation();
+    job.status = "completed";
+    job.progress = 1;
+    job.updated_at = now();
+    persistMutation();
+  } catch (error) {
+    job.status = "failed";
+    job.error_code = error instanceof Error ? error.message : "TRANSCRIPTION_FAILED";
+    job.updated_at = now();
+    persistMutation();
+  }
 };
 
 export const handleTranscriberWebhook = (jobId: string, status: JobStatus, errorCode?: string) => {
@@ -1828,4 +2200,6 @@ export const getClinicalNote = (owner: string, noteId: string) => {
 };
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
+
+
 

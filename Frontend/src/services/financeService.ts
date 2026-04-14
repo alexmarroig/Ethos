@@ -46,7 +46,10 @@ export interface FinanceSummary {
 }
 
 function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
-  const patient = patients.find((item) => item.id === raw.patient_id || item.external_id === raw.patient_id);
+  const patient = patients.find(
+    (item) => item.id === raw.patient_id || item.external_id === raw.patient_id,
+  );
+
   return {
     id: raw.id,
     patient_id: raw.patient_id,
@@ -89,7 +92,7 @@ export const financeService = {
         due_date: data.due_date ?? new Date().toISOString(),
         type: "receivable",
         notes: data.notes,
-        description: data.description ?? "Sessao de psicoterapia",
+        description: data.description ?? "Sessão de psicoterapia",
       }),
       loadPatientsIndex(),
     ]);
@@ -127,7 +130,10 @@ export const financeService = {
     };
   },
 
-  listEntries: async (filters?: { patient_id?: string; status?: string }): Promise<ApiResult<FinancialEntry[]>> => {
+  listEntries: async (filters?: {
+    patient_id?: string;
+    status?: string;
+  }): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
     params.set("page", "1");
     params.set("page_size", "100");

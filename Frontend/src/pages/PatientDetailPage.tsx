@@ -1,10 +1,11 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, Save, Trash2 } from "lucide-react";
+import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, MessageCircle, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/services/paymentReminderSettings";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
@@ -33,6 +34,7 @@ type DocumentFormValues = Record<string, string>;
 
 type PatientFormState = {
   name: string;
+  care_status: "active" | "paused" | "transferred" | "inactive";
   email: string;
   phone: string;
   whatsapp: string;
@@ -64,10 +66,13 @@ type PatientFormState = {
   session_price: string;
   package_total_price: string;
   package_session_count: string;
+  payment_timing: "advance" | "after";
+  preferred_payment_day: string;
 };
 
 const emptyForm: PatientFormState = {
   name: "",
+  care_status: "active",
   email: "",
   phone: "",
   whatsapp: "",
@@ -99,6 +104,8 @@ const emptyForm: PatientFormState = {
   session_price: "",
   package_total_price: "",
   package_session_count: "",
+  payment_timing: "after",
+  preferred_payment_day: "",
 };
 
 const formatDate = (value?: string | null) =>
@@ -126,7 +133,57 @@ const formatCurrency = (value?: number) =>
     ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
     : "Não definido";
 
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/i;
+const CEP_REGEX = /^\d{5}-?\d{3}$/;
+const CPF_REGEX = /^\d{11}$|^\d{3}\.\d{3}\.\d{3}-\d{2}$/;
+const PHONE_REGEX = /^\d{10,11}$/;
+
 const toInputDate = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : "");
+const onlyDigits = (value: string) => value.replace(/\D/g, "");
+const formatPhoneInput = (value: string) => {
+  const digits = onlyDigits(value).slice(0, 11);
+  if (digits.length <= 10) {
+    return digits
+      .replace(/^(\d{2})(\d)/g, "($1) $2")
+      .replace(/(\d{4})(\d)/, "$1-$2");
+  }
+  return digits
+    .replace(/^(\d{2})(\d)/g, "($1) $2")
+    .replace(/(\d{5})(\d)/, "$1-$2");
+};
+const formatCpfInput = (value: string) => {
+  const digits = onlyDigits(value).slice(0, 11);
+  return digits
+    .replace(/^(\d{3})(\d)/, "$1.$2")
+    .replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3")
+    .replace(/\.(\d{3})(\d)/, ".$1-$2");
+};
+const formatCepInput = (value: string) => {
+  const digits = onlyDigits(value).slice(0, 8);
+  return digits.replace(/^(\d{5})(\d)/, "$1-$2");
+};
+
+const isValidCpf = (value: string) => {
+  const cpf = onlyDigits(value);
+  if (cpf.length !== 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+
+  let sum = 0;
+  for (let index = 0; index < 9; index += 1) {
+    sum += Number(cpf[index]) * (10 - index);
+  }
+  let remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  if (remainder !== Number(cpf[9])) return false;
+
+  sum = 0;
+  for (let index = 0; index < 10; index += 1) {
+    sum += Number(cpf[index]) * (11 - index);
+  }
+  remainder = (sum * 10) % 11;
+  if (remainder === 10) remainder = 0;
+  return remainder === Number(cpf[10]);
+};
+
 const buildDocumentTitle = (patientName: string, label: string) => `${label} - ${patientName}`;
 const sessionStatusLabel = (status?: string) => {
   switch (status) {
@@ -227,6 +284,8 @@ export default function PatientDetailPage({
   const [portalPassword, setPortalPassword] = useState("");
   const [accessCredentials, setAccessCredentials] = useState<string | null>(null);
   const [shortcutLoading, setShortcutLoading] = useState<string | null>(null);
+  const [paymentReminderOpen, setPaymentReminderOpen] = useState(false);
+  const [paymentReminderMessage, setPaymentReminderMessage] = useState("");
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
@@ -235,6 +294,8 @@ export default function PatientDetailPage({
   const [documentPreviewLoading, setDocumentPreviewLoading] = useState(false);
   const [savingDocumentVersion, setSavingDocumentVersion] = useState(false);
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
+  const [lookingUpCep, setLookingUpCep] = useState(false);
+  const [lastCepLookup, setLastCepLookup] = useState("");
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
@@ -270,6 +331,7 @@ export default function PatientDetailPage({
 
     setForm({
       name: detail.patient.name,
+      care_status: detail.patient.care_status ?? "active",
       email: detail.patient.email ?? "",
       phone: detail.patient.phone ?? "",
       whatsapp: detail.patient.whatsapp ?? detail.patient.phone ?? "",
@@ -301,6 +363,8 @@ export default function PatientDetailPage({
       session_price: detail.patient.billing?.session_price?.toString() ?? "",
       package_total_price: detail.patient.billing?.package_total_price?.toString() ?? "",
       package_session_count: detail.patient.billing?.package_session_count?.toString() ?? "",
+      payment_timing: detail.patient.billing?.payment_timing ?? "after",
+      preferred_payment_day: detail.patient.billing?.preferred_payment_day?.toString() ?? "",
     });
 
     setPortalEmail(detail.patient.email ?? "");
@@ -327,6 +391,47 @@ export default function PatientDetailPage({
   const updateForm = <K extends keyof PatientFormState>(key: K, value: PatientFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
   };
+
+  const handleCepLookup = async () => {
+    const cepDigits = onlyDigits(form.address_zip);
+    if (cepDigits.length !== 8 || cepDigits === lastCepLookup) return;
+
+    setLookingUpCep(true);
+    setLastCepLookup(cepDigits);
+    try {
+      const response = await fetch(`https://viacep.com.br/ws/${cepDigits}/json/`);
+      const payload = await response.json() as {
+        erro?: boolean;
+        logradouro?: string;
+        bairro?: string;
+        localidade?: string;
+        uf?: string;
+      };
+
+      if (payload.erro) {
+        toast({ title: "CEP não encontrado", description: "Revise o CEP informado.", variant: "destructive" });
+        return;
+      }
+
+      setForm((current) => ({
+        ...current,
+        address_street: payload.logradouro ?? current.address_street,
+        address_neighborhood: payload.bairro ?? current.address_neighborhood,
+        address_city: payload.localidade ?? current.address_city,
+        address_state: payload.uf ?? current.address_state,
+      }));
+    } catch {
+      toast({ title: "Falha ao buscar CEP", description: "Não foi possível consultar o endereço agora.", variant: "destructive" });
+    } finally {
+      setLookingUpCep(false);
+    }
+  };
+
+  useEffect(() => {
+    if (onlyDigits(form.address_zip).length === 8) {
+      void handleCepLookup();
+    }
+  }, [form.address_zip]);
 
   const updateDocumentFormValue = (key: string, value: string) => {
     setDocumentFormValues((current) => ({ ...current, [key]: value }));
@@ -382,14 +487,35 @@ export default function PatientDetailPage({
   const handleSave = async () => {
     if (!detail || !form.name.trim()) return;
 
+    if (form.email.trim() && !EMAIL_REGEX.test(form.email.trim())) {
+      toast({ title: "E-mail inválido", description: "Revise o e-mail informado.", variant: "destructive" });
+      return;
+    }
+    if (form.address_zip.trim() && !CEP_REGEX.test(form.address_zip.trim())) {
+      toast({ title: "CEP inválido", description: "Use o formato 00000-000.", variant: "destructive" });
+      return;
+    }
+    if (form.cpf.trim() && !CPF_REGEX.test(form.cpf.trim())) {
+      toast({ title: "CPF inválido", description: "Use 11 dígitos ou 000.000.000-00.", variant: "destructive" });
+      return;
+    }
+    if (form.cpf.trim() && !isValidCpf(form.cpf.trim())) {
+      toast({ title: "CPF inválido", description: "O número do CPF informado não é válido.", variant: "destructive" });
+      return;
+    }
+    if (form.whatsapp.trim() && !PHONE_REGEX.test(onlyDigits(form.whatsapp))) {
+      toast({ title: "WhatsApp inválido", description: "Informe DDD + número com 10 ou 11 dígitos.", variant: "destructive" });
+      return;
+    }
+
     setSaving(true);
     const result = await patientService.update(detail.patient.id, {
       name: form.name.trim(),
+      care_status: form.care_status,
       email: form.email.trim() || undefined,
       phone: form.phone.trim() || undefined,
       whatsapp: form.whatsapp.trim() || undefined,
       birth_date: form.birth_date || undefined,
-      address: form.address.trim() || undefined,
       address_street: form.address_street.trim() || undefined,
       address_number: form.address_number.trim() || undefined,
       address_complement: form.address_complement.trim() || undefined,
@@ -416,6 +542,8 @@ export default function PatientDetailPage({
         session_price: form.billing_mode === "per_session" && form.session_price ? Number(form.session_price) : undefined,
         package_total_price: form.billing_mode === "package" && form.package_total_price ? Number(form.package_total_price) : undefined,
         package_session_count: form.billing_mode === "package" && form.package_session_count ? Number(form.package_session_count) : undefined,
+        payment_timing: form.payment_timing,
+        preferred_payment_day: form.preferred_payment_day ? Number(form.preferred_payment_day) : undefined,
       },
       notes: form.notes.trim() || undefined,
     });
@@ -525,7 +653,7 @@ export default function PatientDetailPage({
         detail && document.template_id ? buildDefaultDocumentFormValues(document.template_id, detail, form) : {},
       );
       if (!versions.success) {
-        toast({ title: "Nao foi possivel abrir o documento", description: versions.error.message, variant: "destructive" });
+        toast({ title: "N?o foi poss?vel abrir o documento", description: versions.error.message, variant: "destructive" });
       }
     }
 
@@ -570,14 +698,17 @@ export default function PatientDetailPage({
   const handleOpenDocumentInNewTab = () => {
     const html = liveDocumentPreviewHtml.trim();
     if (!html) return;
-    const previewWindow = window.open("", "_blank", "noopener,noreferrer");
-    if (!previewWindow) {
-      toast({ title: "Janela bloqueada", description: "Permita pop-ups para abrir o documento em nova aba.", variant: "destructive" });
-      return;
-    }
-    previewWindow.document.open();
-    previewWindow.document.write(html);
-    previewWindow.document.close();
+
+    const blob = new Blob([html], { type: "text/html;charset=utf-8" });
+    const objectUrl = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = objectUrl;
+    anchor.target = "_blank";
+    anchor.rel = "noopener noreferrer";
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 30_000);
   };
 
   const handleDeleteDocument = async (document: { id: string; title?: string }) => {
@@ -696,6 +827,32 @@ export default function PatientDetailPage({
     toast({ title: "Acesso do paciente criado" });
   };
 
+  const openPaymentReminder = () => {
+    const settings = readPaymentReminderSettings();
+    const amount =
+      form.billing_mode === "package"
+        ? formatCurrency(Number(form.package_total_price || 0))
+        : formatCurrency(Number(form.session_price || 0));
+    const message = buildPaymentReminderMessage(settings.defaultTemplate, {
+      patient_name: form.name || detail?.patient.name || "Paciente",
+      amount,
+      payment_method: settings.paymentMethodLabel || "Forma de pagamento",
+      payment_destination: settings.paymentDestination ? `Dados para pagamento: ${settings.paymentDestination}` : "",
+      preferred_day: form.preferred_payment_day || "não definido",
+    });
+    setPaymentReminderMessage(message);
+    setPaymentReminderOpen(true);
+  };
+
+  const handleSendPaymentReminder = () => {
+    const phone = onlyDigits(form.whatsapp || detail?.patient.whatsapp || "");
+    if (!phone) {
+      toast({ title: "WhatsApp indisponível", description: "Cadastre o WhatsApp do paciente para enviar o lembrete.", variant: "destructive" });
+      return;
+    }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(paymentReminderMessage)}`, "_blank", "noopener,noreferrer");
+  };
+
   if (loading) {
     return (
       <div className="content-container py-12">
@@ -726,10 +883,11 @@ export default function PatientDetailPage({
             <ArrowLeft className="w-4 h-4" />
             Voltar para pacientes
           </Button>
-          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="flex flex-col gap-4 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:flex-row md:items-start md:justify-between md:px-10 md:py-10">
             <div>
-              <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">{detail.patient.name}</h1>
-              <p className="mt-2 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">Paciente</p>
+              <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">{detail.patient.name}</h1>
+              <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -822,34 +980,43 @@ export default function PatientDetailPage({
               <Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} />
             </div>
             <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Status do acompanhamento</label>
+              <select
+                value={form.care_status}
+                onChange={(event) => updateForm("care_status", event.target.value as PatientFormState["care_status"])}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="active">Ativo</option>
+                <option value="paused">Pausa</option>
+                <option value="transferred">Transferido</option>
+                <option value="inactive">Desativado</option>
+              </select>
+            </div>
+            <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">WhatsApp</label>
-              <Input value={form.whatsapp} onChange={(event) => updateForm("whatsapp", event.target.value)} placeholder="(11) 99999-9999" />
+              <Input value={form.whatsapp} onChange={(event) => updateForm("whatsapp", formatPhoneInput(event.target.value))} placeholder="(11) 99999-9999" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">E-mail</label>
               <Input value={form.email} onChange={(event) => updateForm("email", event.target.value)} placeholder="email@paciente.com" />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Telefone legado</label>
-              <Input value={form.phone} onChange={(event) => updateForm("phone", event.target.value)} placeholder="Opcional" />
+              <label className="text-sm font-medium text-foreground">Data de nascimento</label>
+              <Input type="date" value={form.birth_date} onChange={(event) => updateForm("birth_date", event.target.value)} />
             </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Data de nascimento</label>
-            <Input type="date" value={form.birth_date} onChange={(event) => updateForm("birth_date", event.target.value)} />
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">CPF</label>
+              <Input value={form.cpf} onChange={(event) => updateForm("cpf", formatCpfInput(event.target.value))} placeholder="000.000.000-00" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Profissão</label>
+              <Input value={form.profession} onChange={(event) => updateForm("profession", event.target.value)} placeholder="Profissão atual" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Interesse em</label>
+              <Input value={form.care_interest} onChange={(event) => updateForm("care_interest", event.target.value)} placeholder="Online, presencial ou ambos" />
+            </div>
           </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">CPF</label>
-            <Input value={form.cpf} onChange={(event) => updateForm("cpf", event.target.value)} placeholder="000.000.000-00" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Profissão</label>
-            <Input value={form.profession} onChange={(event) => updateForm("profession", event.target.value)} placeholder="Profissão atual" />
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Interesse em</label>
-            <Input value={form.care_interest} onChange={(event) => updateForm("care_interest", event.target.value)} placeholder="Online, presencial ou ambos" />
-          </div>
-        </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2 md:col-span-2">
               <label className="text-sm font-medium text-foreground">Rua</label>
@@ -869,7 +1036,12 @@ export default function PatientDetailPage({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">CEP</label>
-              <Input value={form.address_zip} onChange={(event) => updateForm("address_zip", event.target.value)} placeholder="00000-000" />
+              <Input
+                value={form.address_zip}
+                onChange={(event) => updateForm("address_zip", formatCepInput(event.target.value))}
+                placeholder="00000-000"
+              />
+              <p className="text-xs text-muted-foreground">{lookingUpCep ? "Buscando endereço..." : "Ao preencher o CEP, rua, bairro, cidade e estado podem ser completados automaticamente."}</p>
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Cidade</label>
@@ -879,10 +1051,6 @@ export default function PatientDetailPage({
               <label className="text-sm font-medium text-foreground">Estado</label>
               <Input value={form.address_state} onChange={(event) => updateForm("address_state", event.target.value)} placeholder="SP" />
             </div>
-          </div>
-          <div className="space-y-2">
-            <label className="text-sm font-medium text-foreground">Endereço livre / observações</label>
-            <Textarea value={form.address} onChange={(event) => updateForm("address", event.target.value)} className="min-h-[100px]" />
           </div>
         </motion.section>
 
@@ -962,6 +1130,34 @@ export default function PatientDetailPage({
                 </div>
               </>
             )}
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Pagamento</label>
+              <select
+                value={form.payment_timing}
+                onChange={(event) => updateForm("payment_timing", event.target.value as "advance" | "after")}
+                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+              >
+                <option value="advance">Antecipado</option>
+                <option value="after">Pós atendimento</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Dia preferido de pagamento</label>
+              <Input
+                type="number"
+                min="1"
+                max="31"
+                value={form.preferred_payment_day}
+                onChange={(event) => updateForm("preferred_payment_day", event.target.value)}
+                placeholder="Ex.: 10"
+              />
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="outline" className="gap-2" onClick={openPaymentReminder}>
+              <MessageCircle className="w-4 h-4" />
+              Lembrete de cobrança no WhatsApp
+            </Button>
           </div>
         </motion.section>
 
@@ -990,6 +1186,10 @@ export default function PatientDetailPage({
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Contato de emergência</label>
               <Input value={form.emergency_contact_name} onChange={(event) => updateForm("emergency_contact_name", event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Relação com o paciente</label>
+              <Input value={form.emergency_contact_relationship} onChange={(event) => updateForm("emergency_contact_relationship", event.target.value)} placeholder="Mãe, pai, irmã, parceiro..." />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Telefone de emergência</label>
@@ -1237,7 +1437,7 @@ export default function PatientDetailPage({
 
                 {documentPreviewLoading ? (
                   <div className="px-6 py-4 text-sm text-muted-foreground">
-                    Carregando visualizacao do documento...
+                    Carregando visualiza??o do documento...
                   </div>
                 ) : (
                   <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
@@ -1262,7 +1462,7 @@ export default function PatientDetailPage({
                           </div>
                         ) : (
                           <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                            Ainda nao ha visualizacao disponivel para este documento.
+                            Ainda n?o h? visualiza??o dispon?vel para este documento.
                           </div>
                         )}
                       </div>
@@ -1427,10 +1627,27 @@ export default function PatientDetailPage({
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <Dialog open={paymentReminderOpen} onOpenChange={setPaymentReminderOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Lembrete de cobrança</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Edite a mensagem antes de enviar ao paciente.</p>
+              <Textarea value={paymentReminderMessage} onChange={(event) => setPaymentReminderMessage(event.target.value)} className="min-h-[220px]" />
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setPaymentReminderOpen(false)}>Fechar</Button>
+              <Button onClick={handleSendPaymentReminder}>Enviar no WhatsApp</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
 }
+
 
 
 

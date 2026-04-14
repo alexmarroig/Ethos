@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { User, CreditCard, Shield, Loader2, ExternalLink, Camera } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { useEntitlements } from "@/contexts/EntitlementsContext";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
 import { templatesApi } from "@/api/clinical";
+import { defaultPaymentReminderSettings, readPaymentReminderSettings, savePaymentReminderSettings } from "@/services/paymentReminderSettings";
 import type { DocumentTemplate } from "@/api/types";
 import {
   Dialog,
@@ -31,7 +32,7 @@ const readAvatarDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("Nao foi possivel ler a imagem."));
+    reader.onerror = () => reject(new Error("N?o foi poss?vel ler a imagem."));
     reader.readAsDataURL(file);
   });
 
@@ -48,6 +49,7 @@ const AccountPage = () => {
   const [templateDescription, setTemplateDescription] = useState("");
   const [templateBody, setTemplateBody] = useState("");
   const [templateSaving, setTemplateSaving] = useState(false);
+  const [paymentSettings, setPaymentSettings] = useState(defaultPaymentReminderSettings);
   const [profile, setProfile] = useState({
     name: user?.name ?? "",
     email: user?.email ?? "",
@@ -85,6 +87,10 @@ const AccountPage = () => {
     });
   }, [user]);
 
+  useEffect(() => {
+    setPaymentSettings(readPaymentReminderSettings());
+  }, []);
+
   const roleName =
     user?.role === "admin" ? "Administrador" : user?.role === "patient" ? "Paciente" : "Profissional";
 
@@ -98,7 +104,7 @@ const AccountPage = () => {
     if (res.success && res.data.url) {
       window.open(res.data.url, "_blank");
     } else {
-      toast({ title: "Erro", description: "Nao foi possivel iniciar o checkout.", variant: "destructive" });
+      toast({ title: "Erro", description: "N?o foi poss?vel iniciar o checkout.", variant: "destructive" });
     }
   };
 
@@ -106,7 +112,7 @@ const AccountPage = () => {
     if (subscription?.portal_url) {
       window.open(subscription.portal_url, "_blank");
     } else {
-      toast({ title: "Indisponivel", description: "Portal de assinatura nao disponivel." });
+      toast({ title: "Indispon?vel", description: "Portal de assinatura n?o dispon?vel." });
     }
   };
 
@@ -119,7 +125,7 @@ const AccountPage = () => {
     } catch (error: any) {
       toast({
         title: "Foto indisponivel",
-        description: error?.message ?? "Nao foi possivel carregar a foto.",
+        description: error?.message ?? "N?o foi poss?vel carregar a foto.",
         variant: "destructive",
       });
     } finally {
@@ -152,7 +158,7 @@ const AccountPage = () => {
       toast({ title: "Perfil salvo", description: "Seus dados foram atualizados." });
     } else {
       toast({
-        title: "Nao foi possivel salvar",
+        title: "N?o foi poss?vel salvar",
         description: "Revise o email informado ou tente novamente em instantes.",
         variant: "destructive",
       });
@@ -211,6 +217,11 @@ const AccountPage = () => {
     }
     setContractTemplates((current) => current.filter((item) => item.id !== templateId));
     toast({ title: "Modelo removido" });
+  };
+
+  const handleSavePaymentSettings = () => {
+    savePaymentReminderSettings(paymentSettings);
+    toast({ title: "ConfiguraÃ§Ã£o salva", description: "Os lembretes de pagamento foram atualizados neste navegador." });
   };
 
   return (
@@ -355,6 +366,45 @@ const AccountPage = () => {
             </div>
           )}
         </motion.section>
+
+        <motion.section
+          className="mt-6 p-6 rounded-xl border border-border bg-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="font-serif text-lg font-medium text-foreground">CobranÃ§a e lembretes</h2>
+            <Button onClick={handleSavePaymentSettings}>Salvar configuraÃ§Ã£o</Button>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Forma padrÃ£o de pagamento</label>
+              <Input
+                value={paymentSettings.paymentMethodLabel}
+                onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
+                placeholder="PIX, transferÃªncia..."
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Chave PIX / dados bancÃ¡rios</label>
+              <Input
+                value={paymentSettings.paymentDestination}
+                onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
+                placeholder="pix@email.com ou dados bancÃ¡rios"
+              />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-foreground">Mensagem padrÃ£o do lembrete</label>
+              <Textarea
+                value={paymentSettings.defaultTemplate}
+                onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
+                className="min-h-[180px]"
+              />
+              <p className="text-xs text-muted-foreground">Use as variÃ¡veis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
+            </div>
+          </div>
+        </motion.section>
       </div>
 
       <Dialog open={templateManagerOpen} onOpenChange={setTemplateManagerOpen}>
@@ -363,8 +413,8 @@ const AccountPage = () => {
             <DialogTitle className="font-serif text-xl">{templateDraftId ? "Editar modelo" : "Novo modelo de contrato"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Input placeholder="Título do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
-            <Input placeholder="Descrição" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
+            <Input placeholder="TÃ­tulo do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
+            <Input placeholder="DescriÃ§Ã£o" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
             <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} className="min-h-[320px]" />
           </div>
           <DialogFooter>
@@ -381,3 +431,4 @@ const AccountPage = () => {
 };
 
 export default AccountPage;
+

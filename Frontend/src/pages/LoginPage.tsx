@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -169,7 +169,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     } else {
       toast({
         title: "Erro",
-        description: result.error?.message ?? "Nao foi possivel enviar o email de recuperacao.",
+        description: result.error?.message ?? "N?o foi poss?vel enviar o email de recupera??o.",
         variant: "destructive",
       });
     }
@@ -188,7 +188,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       return "A senha precisa ter pelo menos 8 caracteres.";
     }
     if (signup.password !== signup.confirmPassword) {
-      return "As senhas nao conferem.";
+      return "As senhas n?o conferem.";
     }
     if (!CRP_REGEX.test(normalizedCrp)) {
       return "Informe o CRP no formato 00/0000 a 00/000000.";
@@ -211,7 +211,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     const validationError = validateSignup();
     if (validationError) {
       toast({
-        title: "Cadastro nao concluido",
+        title: "Cadastro n?o conclu?do",
         description: validationError,
         variant: "destructive",
       });
@@ -231,11 +231,11 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 
     if (!result.success) {
       toast({
-        title: "Cadastro nao concluido",
+        title: "Cadastro n?o conclu?do",
         description:
           result.error?.code === "EMAIL_IN_USE"
             ? "Este email ja esta cadastrado. Entre com ele ou use recuperar acesso."
-            : result.error?.message ?? "Nao foi possivel criar sua conta agora.",
+            : result.error?.message ?? "N?o foi poss?vel criar sua conta agora.",
         variant: "destructive",
       });
       setIsSigningUp(false);
@@ -609,7 +609,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                   </button>
                 </p>
                 <p>
-                  Nao tem conta?{" "}
+                  N?o tem conta?{" "}
                   <button
                     type="button"
                     className="text-primary hover:underline"
@@ -631,3 +631,4 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 };
 
 export default LoginPage;
+

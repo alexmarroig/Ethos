@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+﻿import crypto from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type {
@@ -307,7 +307,7 @@ const seedBaseData = () => {
     role: "admin",
   });
 
-  db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "DepressÃƒÂ£o" });
+  db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
   db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
 };
 
@@ -366,10 +366,11 @@ export const seeds = {
   now,
 };
 
-db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "DepressÃ£o" });
+db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
 db.scaleTemplates.set("gad7", { id: "gad7", name: "GAD-7", description: "Ansiedade" });
 
 if (persistenceEnabled) {
   process.once("beforeExit", persistDatabaseNow);
   process.once("exit", persistDatabaseNow);
 }
+

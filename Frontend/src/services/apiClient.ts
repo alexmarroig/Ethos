@@ -1,4 +1,4 @@
-import {
+﻿import {
   CLINICAL_BASE_URL,
   DEFAULT_TIMEOUT,
   LONG_TIMEOUT,
@@ -109,7 +109,7 @@ export async function apiRequest<T = unknown>(
 
         return {
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Sessao expirada. Faca login novamente." },
+          error: { code: "UNAUTHORIZED", message: "Sess?o expirada. Fa?a login novamente." },
           request_id: "local",
           status: 401,
         };
@@ -181,7 +181,7 @@ function getHumanError(status: number, body: any): string {
     case 403:
       return "Sem permissao para esta acao.";
     case 404:
-      return "Recurso nao encontrado.";
+      return "Recurso n?o encontrado.";
     case 409:
       return "Conflito. Tente novamente.";
     case 500:
@@ -204,3 +204,4 @@ export const api = {
   delete: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "DELETE" }),
 };
+
