@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { Download, ExternalLink, FilePlus2, FileText, FolderOpen, Loader2, Printer } from "lucide-react";
+import { Download, ExternalLink, FilePlus2, FileText, FolderOpen, Loader2, Printer, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { documentsApi } from "@/api/clinical";
@@ -546,15 +546,38 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
               <p className="text-muted-foreground text-sm">Nenhuma versão disponível para este documento.</p>
             </div>
           )}
-          <DialogFooter className="gap-2">
-            <Button variant="outline" className="gap-2" onClick={handlePrint} disabled={!previewHtml}>
-              <Printer className="w-4 h-4" />
-              Imprimir / PDF
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={handleDownloadDoc} disabled={!previewHtml}>
-              <Download className="w-4 h-4" />
-              DOCX
-            </Button>
+          <DialogFooter className="flex flex-wrap justify-between gap-2">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={handlePrint} disabled={!previewHtml}>
+                <Printer className="w-4 h-4" />
+                PDF
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={handleDownloadDoc} disabled={!previewHtml}>
+                <Download className="w-4 h-4" />
+                DOC
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={() => {
+                if (!previewHtml) return;
+                openHtmlInNewTab(previewHtml);
+              }} disabled={!previewHtml}>
+                <ExternalLink className="w-4 h-4" />
+                Abrir em nova aba
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={() => {
+                const patient = patients.find((p) => p.id === previewDoc?.patient_id);
+                const patientPhone = patient?.whatsapp || patient?.phone;
+                const msg = encodeURIComponent(
+                  `Olá ${patient?.name || ""}! Segue seu documento clínico. Qualquer dúvida, estou à disposição.`
+                );
+                const url = patientPhone
+                  ? `https://wa.me/55${patientPhone.replace(/\D/g, "")}?text=${msg}`
+                  : `https://wa.me/?text=${msg}`;
+                window.open(url, "_blank", "noopener,noreferrer");
+              }} disabled={!previewDoc}>
+                <Send className="w-4 h-4" />
+                WhatsApp
+              </Button>
+            </div>
             <Button variant="secondary" onClick={closePreview}>
               Fechar
             </Button>

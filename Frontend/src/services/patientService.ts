@@ -286,9 +286,10 @@ export const patientService = {
     return ok(result, (data) => ({
       access_id: data.access.id,
       patient_user: data.patient_user,
-      credentials: data.temporary_password
-        ? `Email: ${data.patient_user.email} | Senha temporaria: ${data.temporary_password}`
-        : `Email: ${data.patient_user.email}`,
+      credentials:
+        data.temporary_password || input.patient_password
+          ? `Email: ${data.patient_user.email} | Senha: ${data.temporary_password ?? input.patient_password}`
+          : `Email: ${data.patient_user.email}`,
     }));
   },
 };

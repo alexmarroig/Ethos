@@ -134,13 +134,13 @@ export const buildReportHtml = ({ report, patient, psychologistName, crp }: Repo
           <span class="value">${purposeLabel(report.purpose)}</span>
         </div>
       </section>
-      ${patient?.birth_date || patient?.cpf ? \`
+      ${(patient?.birth_date || patient?.cpf) ? `
       <section class="meta">
-        \${patient.birth_date ? \`<div class="meta-card"><span class="label">Data de nascimento</span><span class="value">\${patient.birth_date}</span></div>\` : ""}
-        \${patient.cpf ? \`<div class="meta-card"><span class="label">CPF</span><span class="value">\${patient.cpf}</span></div>\` : ""}
-      </section>\` : ""}
+        ${patient?.birth_date ? '<div class="meta-card"><span class="label">Data de nascimento</span><span class="value">' + new Date(patient.birth_date).toLocaleDateString("pt-BR") + '</span></div>' : ""}
+        ${patient?.cpf ? '<div class="meta-card"><span class="label">CPF</span><span class="value">' + patient.cpf + '</span></div>' : ""}
+      </section>` : ""}
       <h2>Conteúdo</h2>
-      <div class="content">${report.content || "Sem conteúdo."}</div>
+      <div class="content" style="white-space:pre-wrap">${report.content || "Sem conteúdo."}</div>
       <div class="signature">
         <p style="text-align:center;margin-bottom:8px">____________________________________</p>
         <p style="text-align:center"><strong>${psychologistName}</strong></p>

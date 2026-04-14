@@ -429,7 +429,7 @@ const ContractsPage = () => {
     const html = buildContractHtml(contract);
     if (format === "pdf") {
       openHtmlInNewTab(html);
-      toast({ title: "Visualizao aberta", description: "Use Imprimir > Salvar como PDF no navegador." });
+      toast({ title: "Visualização aberta", description: "Use Imprimir > Salvar como PDF no navegador." });
       return;
     }
 
@@ -611,11 +611,11 @@ const ContractsPage = () => {
         </motion.section>
 
         <Dialog open={editorOpen} onOpenChange={setEditorOpen}>
-          <DialogContent className="max-w-6xl">
+          <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
             <DialogHeader>
               <DialogTitle className="font-serif text-xl">{selectedContractId ? "Revisar contrato" : "Novo contrato"}</DialogTitle>
             </DialogHeader>
-            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+            <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] flex-1 overflow-y-auto px-6 py-4">
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <select
@@ -702,12 +702,53 @@ const ContractsPage = () => {
                 </div>
               </div>
             </div>
-            <DialogFooter>
-              <Button variant="secondary" onClick={() => setEditorOpen(false)}>Fechar</Button>
-              <Button onClick={() => void handleSaveContract()} disabled={saving || !editor.patientId}>
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Salvar contrato
-              </Button>
+            <DialogFooter className="flex flex-wrap justify-between gap-2 shrink-0">
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                  const html = buildContractHtml({
+                    content: computedContractContent,
+                    psychologist: { name: user?.name ?? "", license: user?.crp ?? "", email: user?.email ?? "" },
+                    patient: { name: selectedPatient?.name ?? "", document: selectedPatient?.cpf ?? "", email: selectedPatient?.email ?? "" },
+                    terms: { value: editor.value, periodicity: editor.periodicity, absence_policy: editor.absencePolicy, payment_method: editor.paymentMethod },
+                  });
+                  openHtmlInNewTab(html);
+                }}>
+                  <Download className="w-3.5 h-3.5" />
+                  PDF
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                  const html = buildContractHtml({
+                    content: computedContractContent,
+                    psychologist: { name: user?.name ?? "", license: user?.crp ?? "", email: user?.email ?? "" },
+                    patient: { name: selectedPatient?.name ?? "", document: selectedPatient?.cpf ?? "", email: selectedPatient?.email ?? "" },
+                    terms: { value: editor.value, periodicity: editor.periodicity, absence_policy: editor.absencePolicy, payment_method: editor.paymentMethod },
+                  });
+                  downloadWordFromHtml(html, `contrato-${selectedContractId ?? "novo"}.doc`);
+                }}>
+                  <Download className="w-3.5 h-3.5" />
+                  DOC
+                </Button>
+                <Button variant="outline" size="sm" className="gap-1.5" onClick={() => {
+                  const patientPhone = selectedPatient?.whatsapp || selectedPatient?.phone;
+                  const msg = encodeURIComponent(
+                    `Olá ${selectedPatient?.name || ""}! Segue seu contrato terapêutico para revisão. Qualquer dúvida, estou à disposição.`
+                  );
+                  const url = patientPhone
+                    ? `https://wa.me/55${patientPhone.replace(/\D/g, "")}?text=${msg}`
+                    : `https://wa.me/?text=${msg}`;
+                  window.open(url, "_blank", "noopener,noreferrer");
+                }} disabled={!selectedPatient}>
+                  <Send className="w-3.5 h-3.5" />
+                  WhatsApp
+                </Button>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => setEditorOpen(false)}>Fechar</Button>
+                <Button onClick={() => void handleSaveContract()} disabled={saving || !editor.patientId}>
+                  {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Salvar contrato
+                </Button>
+              </div>
             </DialogFooter>
           </DialogContent>
         </Dialog>

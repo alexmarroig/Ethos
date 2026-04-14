@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { FileDown, FileText, Loader2, Plus, Sparkles } from "lucide-react";
+import { FileDown, FileText, Loader2, Plus, Send, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -488,8 +488,8 @@ const ReportsPage = () => {
         </motion.div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className="max-w-[1180px] overflow-hidden border-border/70 bg-background/95 p-0 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
-            <DialogHeader className="border-b border-border/70 bg-muted/20 px-6 py-5">
+          <DialogContent className="max-w-[1180px] max-h-[90vh] flex flex-col overflow-y-auto border-border/70 bg-background/95 p-0 shadow-[0_28px_90px_-34px_rgba(15,23,42,0.45)] backdrop-blur">
+            <DialogHeader className="border-b border-border/70 bg-muted/20 px-6 py-5 shrink-0">
               <DialogTitle className="font-serif text-xl">
                 {selectedReportId ? "Editar relatório" : "Novo relatório"}
               </DialogTitle>
@@ -516,7 +516,7 @@ const ReportsPage = () => {
               </div>
             </DialogHeader>
 
-            <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr]">
+            <div className="grid gap-0 lg:grid-cols-[1.08fr_0.92fr] flex-1 overflow-y-auto">
               <div className="space-y-5 px-6 py-6">
                 <div className="rounded-[1.4rem] border border-border/70 bg-card p-5 shadow-[0_16px_40px_-32px_rgba(15,23,42,0.3)]">
                   <div className="mb-4">
@@ -715,7 +715,7 @@ const ReportsPage = () => {
               </div>
             </div>
 
-            <DialogFooter className="flex flex-wrap justify-between gap-2 border-t border-border/70 px-6 py-5">
+            <DialogFooter className="flex flex-wrap justify-between gap-2 border-t border-border/70 px-6 py-5 shrink-0">
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" className="gap-2" onClick={handlePrintPdf}>
                   <FileDown className="h-4 w-4" />
@@ -729,6 +729,25 @@ const ReportsPage = () => {
                 >
                   <FileDown className="h-4 w-4" />
                   DOC
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="gap-2"
+                  onClick={() => {
+                    const patientPhone = selectedPatient?.whatsapp || selectedPatient?.phone;
+                    const msg = encodeURIComponent(
+                      `Olá ${selectedPatient?.name || ""}! Segue seu relatório psicológico. Por favor, entre em contato caso tenha dúvidas.`
+                    );
+                    const url = patientPhone
+                      ? `https://wa.me/55${patientPhone.replace(/\D/g, "")}?text=${msg}`
+                      : `https://wa.me/?text=${msg}`;
+                    window.open(url, "_blank", "noopener,noreferrer");
+                  }}
+                  disabled={!selectedPatient}
+                >
+                  <Send className="h-4 w-4" />
+                  Enviar via WhatsApp
                 </Button>
               </div>
               <div className="flex flex-wrap gap-2">
