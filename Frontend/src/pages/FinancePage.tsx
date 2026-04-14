@@ -36,7 +36,7 @@ const emptyEntryForm: EntryFormState = {
   due_date: "",
   status: "open",
   notes: "",
-  description: "Sess?o de psicoterapia",
+  description: "Sessão de psicoterapia",
 };
 
 const formatCurrency = (value: number) =>
@@ -184,7 +184,7 @@ const FinancePage = () => {
     setCreateOpen(false);
     setNewPatientId("");
     setNewEntry(emptyEntryForm);
-    toast({ title: "CobranÃ§a criada" });
+    toast({ title: "Cobrança criada" });
     setCreating(false);
   };
 
@@ -196,7 +196,7 @@ const FinancePage = () => {
       due_date: toInputDate(entry.due_date),
       status: entry.status,
       notes: entry.notes ?? "",
-      description: entry.description ?? "Sess?o de psicoterapia",
+      description: entry.description ?? "Sessão de psicoterapia",
     });
     setEditOpen(true);
   };
@@ -224,7 +224,7 @@ const FinancePage = () => {
     updateLocalEntry(result.data);
     setEditOpen(false);
     setSelectedEntry(null);
-    toast({ title: "LanÃ§amento atualizado" });
+    toast({ title: "Lançamento atualizado" });
     setSavingEntry(false);
   };
 
@@ -279,14 +279,14 @@ const FinancePage = () => {
         <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">ETHOS Web</p>
           <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">Financeiro</h1>
-          <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">CobranÃ§as, pagamentos e acompanhamento rÃ¡pido do que estÃ¡ pendente.</p>
+          <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Cobranças, pagamentos e acompanhamento rápido do que está pendente.</p>
         </motion.header>
 
         <motion.div className="grid gap-4 lg:grid-cols-[1.4fr_1fr] mb-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
           <div className="rounded-[2rem] border border-border bg-card p-7 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.2)]">
             <div className="flex items-center justify-between gap-4">
               <div>
-                <p className="text-sm text-muted-foreground">Panorama do m?s</p>
+                <p className="text-sm text-muted-foreground">Panorama do mês</p>
                 <h2 className="mt-2 text-[1.55rem] font-semibold tracking-[-0.03em] text-foreground">Fluxo de recebimentos</h2>
               </div>
               <div className="text-right">
@@ -306,7 +306,7 @@ const FinancePage = () => {
                 <div key={segment.key} className="rounded-2xl border border-border/70 bg-background/70 p-4">
                   <div className="flex items-center justify-between gap-3">
                     <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", segment.chip)}>{segment.label}</span>
-                    <span className="text-xs text-muted-foreground">{segment.count} lanÃ§amentos</span>
+                    <span className="text-xs text-muted-foreground">{segment.count} lançamentos</span>
                   </div>
                   <p className="mt-3 text-2xl font-serif text-foreground">{formatCurrency(segment.amount)}</p>
                 </div>
@@ -316,15 +316,15 @@ const FinancePage = () => {
 
           <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
-              <p className="text-sm text-muted-foreground">Recebido no m?s</p>
+              <p className="text-sm text-muted-foreground">Recebido no mês</p>
               <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">{formatCurrency(summary?.total_per_month ?? 0)}</p>
             </div>
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
-              <p className="text-sm text-muted-foreground">SessÃµes pagas</p>
+              <p className="text-sm text-muted-foreground">Sessões pagas</p>
               <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">{summary?.paid_sessions ?? 0}</p>
             </div>
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
-              <p className="text-sm text-muted-foreground">Pend?ncias</p>
+              <p className="text-sm text-muted-foreground">Pendências</p>
               <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">{summary?.pending_sessions ?? 0}</p>
             </div>
           </div>
@@ -335,12 +335,12 @@ const FinancePage = () => {
             <DialogTrigger asChild>
               <Button variant="secondary" size="sm" className="gap-2">
                 <Plus className="w-4 h-4" strokeWidth={1.5} />
-                LanÃ§ar cobranÃ§a
+                Lançar cobrança
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="font-serif text-xl">Nova cobranÃ§a</DialogTitle>
+                <DialogTitle className="font-serif text-xl">Nova cobrança</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="space-y-2">
@@ -373,9 +373,9 @@ const FinancePage = () => {
                     <option value="paid">Pago</option>
                   </select>
                 </div>
-                <Input placeholder="DescriÃ§Ã£o da cobranÃ§a" value={newEntry.description} onChange={(event) => setNewEntry((current) => ({ ...current, description: event.target.value }))} />
-                <Textarea placeholder="ObservaÃ§Ãµes internas" value={newEntry.notes} onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
-                {patients.length === 0 && <p className="text-sm text-muted-foreground">Cadastre um paciente antes de lanÃ§ar a cobranÃ§a.</p>}
+                <Input placeholder="Descrição da cobrança" value={newEntry.description} onChange={(event) => setNewEntry((current) => ({ ...current, description: event.target.value }))} />
+                <Textarea placeholder="Observações internas" value={newEntry.notes} onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
+                {patients.length === 0 && <p className="text-sm text-muted-foreground">Cadastre um paciente antes de lançar a cobrança.</p>}
               </div>
               <DialogFooter>
                 <Button onClick={handleCreate} disabled={creating || patients.length === 0 || !newPatientId || !newEntry.amount} className="gap-2">
@@ -406,7 +406,7 @@ const FinancePage = () => {
           {filteredEntries.length === 0 ? (
             <div className="text-center py-12">
               <DollarSign className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">Nenhum lanÃ§amento financeiro ainda.</p>
+              <p className="text-muted-foreground text-sm">Nenhum lançamento financeiro ainda.</p>
             </div>
           ) : (
             filteredEntries.map((entry) => (
@@ -424,11 +424,11 @@ const FinancePage = () => {
                     </div>
                     <p className="text-base font-medium text-foreground">{formatCurrency(entry.amount)}</p>
                     <p className="text-sm text-muted-foreground">
-                      {entry.description || "SessÃ£o de psicoterapia"}
-                      {entry.payment_method ? ` Â· ${entry.payment_method}` : ""}
+                      {entry.description || "Sessão de psicoterapia"}
+                      {entry.payment_method ? ` · ${entry.payment_method}` : ""}
                     </p>
                     <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      <span>Vencimento: {entry.due_date ? new Date(entry.due_date).toLocaleDateString("pt-BR") : "NÃ£o definido"}</span>
+                      <span>Vencimento: {entry.due_date ? new Date(entry.due_date).toLocaleDateString("pt-BR") : "Não definido"}</span>
                       {entry.paid_at ? <span>Pago em {new Date(entry.paid_at).toLocaleDateString("pt-BR")}</span> : null}
                     </div>
                     {entry.notes ? <p className="text-sm text-muted-foreground">{entry.notes}</p> : null}
@@ -443,7 +443,7 @@ const FinancePage = () => {
                       <div onClick={(event) => event.stopPropagation()}>
                         <WhatsAppButton
                           phone=""
-                          message={`OlÃ¡! Passando para lembrar do pagamento pendente de ${formatCurrency(entry.amount)}.`}
+                          message={`Olá! Passando para lembrar do pagamento pendente de ${formatCurrency(entry.amount)}.`}
                           label="Enviar lembrete"
                           size="sm"
                         />
@@ -464,7 +464,7 @@ const FinancePage = () => {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-serif text-xl">Gerenciar cobranÃ§a</DialogTitle>
+              <DialogTitle className="font-serif text-xl">Gerenciar cobrança</DialogTitle>
             </DialogHeader>
             {selectedEntry ? (
               <div className="space-y-4">
@@ -487,8 +487,8 @@ const FinancePage = () => {
                     <option value="paid">Pago</option>
                   </select>
                 </div>
-                <Input placeholder="DescriÃ§Ã£o da cobranÃ§a" value={editEntry.description} onChange={(event) => setEditEntry((current) => ({ ...current, description: event.target.value }))} />
-                <Textarea placeholder="ObservaÃ§Ãµes internas" value={editEntry.notes} onChange={(event) => setEditEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
+                <Input placeholder="Descrição da cobrança" value={editEntry.description} onChange={(event) => setEditEntry((current) => ({ ...current, description: event.target.value }))} />
+                <Textarea placeholder="Observações internas" value={editEntry.notes} onChange={(event) => setEditEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
               </div>
             ) : null}
             <DialogFooter>

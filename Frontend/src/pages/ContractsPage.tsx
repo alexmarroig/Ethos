@@ -662,7 +662,7 @@ const ContractsPage = () => {
                 <Textarea
                   value={editor.content}
                   onChange={(event) => setEditor((current) => ({ ...current, content: event.target.value }))}
-                  className="min-h-[260px]"
+                  className="min-h-[260px] resize-both"
                 />
               </div>
 
@@ -697,7 +697,7 @@ const ContractsPage = () => {
                       status: "draft",
                       created_at: new Date().toISOString(),
                     })}
-                    className="h-[520px] w-full bg-white"
+                    className="h-[520px] min-h-[300px] w-full bg-white resize-y"
                   />
                 </div>
               </div>

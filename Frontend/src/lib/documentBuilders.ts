@@ -494,13 +494,14 @@ export const buildClinicalDocumentHtml = (
 
 export const buildContractHtml = (contract: {
   psychologist?: { name?: string; email?: string; license?: string };
-  patient?: { name?: string; email?: string; document?: string };
+  patient?: { name?: string; email?: string; document?: string; address?: string };
   terms?: {
     value?: string;
     periodicity?: string;
     absence_policy?: string;
     payment_method?: string;
   };
+  content?: string;
 }) =>
   wrap(
     "Contrato terap\u00eautico",
@@ -524,6 +525,7 @@ export const buildContractHtml = (contract: {
           <span class="value">${contract.patient?.document || "N\u00e3o informado"}</span>
         </div>
       </section>
+      ${contract.content ? `<div style="white-space:pre-wrap;margin-bottom:28px;">${contract.content}</div><hr class="section-divider" />` : ""}
       <h2>Condi\u00e7\u00f5es do atendimento</h2>
       <p><strong>Valor:</strong> ${contract.terms?.value || "N\u00e3o informado"}</p>
       <p><strong>Periodicidade:</strong> ${contract.terms?.periodicity || "N\u00e3o informada"}</p>
@@ -531,9 +533,14 @@ export const buildContractHtml = (contract: {
       <p><strong>Forma de pagamento:</strong> ${contract.terms?.payment_method || "N\u00e3o informada"}</p>
       <p>As partes reconhecem este documento como base do acordo terap\u00eautico, respeitando o c\u00f3digo de \u00e9tica profissional e o sigilo cl\u00ednico.</p>
       <div class="signature">
-        <strong>${contract.psychologist?.name || "Psic\u00f3logo(a) respons\u00e1vel"}</strong>
-        <p>CRP ${contract.psychologist?.license || "n\u00e3o informado"}</p>
-        <p>${contract.psychologist?.email || "Email n\u00e3o informado"}</p>
+        <p style="text-align:center; margin-bottom:8px;">________________________</p>
+        <strong style="text-align:center; display:block;">${contract.psychologist?.name || "Psic\u00f3logo(a) respons\u00e1vel"}</strong>
+        <p style="text-align:center;">CRP ${contract.psychologist?.license || "n\u00e3o informado"}</p>
+        <p style="text-align:center;">${contract.psychologist?.email || ""}</p>
+        <br/>
+        <p style="text-align:center; margin-bottom:8px;">________________________</p>
+        <strong style="text-align:center; display:block;">${contract.patient?.name || "Contratante"}</strong>
+        <p style="text-align:center;">${contract.patient?.document || ""}</p>
       </div>
     `
   );

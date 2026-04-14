@@ -1747,8 +1747,8 @@ export const validateClinicalNote = (owner: string, noteId: string) => {
   return hydrateClinicalNote(owner, note);
 };
 
-export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string) => {
-  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, status: "draft" as const, created_at: now() };
+export const createReport = (owner: string, patientId: string, purpose: ClinicalReport["purpose"], content: string, kind?: ClinicalReport["kind"]) => {
+  const report = { id: uid(), owner_user_id: owner, patient_id: patientId, purpose, content, kind: kind || "session_report" as const, status: "draft" as const, created_at: now() };
   db.reports.set(report.id, report);
   persistMutation();
   return report;
@@ -1757,7 +1757,7 @@ export const createReport = (owner: string, patientId: string, purpose: Clinical
 export const updateReport = (
   owner: string,
   reportId: string,
-  input: Partial<Pick<ClinicalReport, "purpose" | "content" | "status">>,
+  input: Partial<Pick<ClinicalReport, "purpose" | "content" | "status" | "kind">>,
 ) => {
   const report = getByOwner(db.reports, owner, reportId);
   if (!report) return null;
@@ -1765,6 +1765,7 @@ export const updateReport = (
   if (typeof input.purpose === "string") report.purpose = input.purpose;
   if (typeof input.content === "string") report.content = input.content;
   if (input.status === "draft" || input.status === "final") report.status = input.status;
+  if (input.kind === "session_report" || input.kind === "longitudinal_record") report.kind = input.kind;
 
   db.reports.set(report.id, report);
   persistMutation();

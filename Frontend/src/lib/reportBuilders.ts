@@ -94,22 +94,31 @@ const purposeLabel = (purpose?: string) => {
   }
 };
 
+const kindTitle = (kind?: string) => {
+  switch (kind) {
+    case "longitudinal_record":
+      return "Prontuário psicológico";
+    default:
+      return "Relatório psicológico";
+  }
+};
+
 export const buildReportHtml = ({ report, patient, psychologistName, crp }: ReportHtmlContext) => `
 <!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Relatório psicológico</title>
+    <title>${kindTitle(report.kind)}</title>
     <style>${baseStyles}</style>
   </head>
   <body>
     <main class="sheet">
-      <div class="eyebrow">ETHOS · Relatório psicológico</div>
-      <h1>Relatório psicológico</h1>
+      <div class="eyebrow">ETHOS · ${kindTitle(report.kind).toUpperCase()}</div>
+      <h1>${kindTitle(report.kind)}</h1>
       <section class="meta">
         <div class="meta-card">
-          <span class="label">Psicóloga</span>
+          <span class="label">Psicólogo(a)</span>
           <span class="value">${psychologistName}</span>
         </div>
         <div class="meta-card">
@@ -125,11 +134,18 @@ export const buildReportHtml = ({ report, patient, psychologistName, crp }: Repo
           <span class="value">${purposeLabel(report.purpose)}</span>
         </div>
       </section>
+      ${patient?.birth_date || patient?.cpf ? \`
+      <section class="meta">
+        \${patient.birth_date ? \`<div class="meta-card"><span class="label">Data de nascimento</span><span class="value">\${patient.birth_date}</span></div>\` : ""}
+        \${patient.cpf ? \`<div class="meta-card"><span class="label">CPF</span><span class="value">\${patient.cpf}</span></div>\` : ""}
+      </section>\` : ""}
       <h2>Conteúdo</h2>
       <div class="content">${report.content || "Sem conteúdo."}</div>
       <div class="signature">
-        <strong>${psychologistName}</strong>
-        <p>CRP ${crp || "não informado"}</p>
+        <p style="text-align:center;margin-bottom:8px">____________________________________</p>
+        <p style="text-align:center"><strong>${psychologistName}</strong></p>
+        <p style="text-align:center">Psicólogo(a) — CRP ${crp || "não informado"}</p>
+        <p style="text-align:center;font-size:12px;color:#74604c;margin-top:12px">Documento elaborado conforme Resolução CFP nº 06/2019</p>
       </div>
     </main>
   </body>

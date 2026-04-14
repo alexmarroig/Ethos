@@ -303,10 +303,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
             >
               <button className="flex-1 text-left" onClick={() => onOpenPatient(patient.id)}>
                 <h3 className="font-serif text-lg font-medium text-foreground">{patient.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {patient.email || "Sem email"}
-                  {patient.whatsapp ? ` · ${patient.whatsapp}` : patient.phone ? ` · ${patient.phone}` : ""}
-                </p>
+                {/* Email/phone shown only in patient detail, not in list cards */}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", careStatusTone(patient.care_status))}>
                     {careStatusLabel(patient.care_status)}

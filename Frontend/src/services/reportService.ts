@@ -5,6 +5,7 @@ export interface Report {
   patient_id: string;
   patient_name?: string;
   purpose: string;
+  kind?: "session_report" | "longitudinal_record";
   content?: string;
   status?: "draft" | "final";
   created_at?: string;
