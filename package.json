@@ -26,6 +26,7 @@
     "build:transcriber": "npm --workspace apps/ethos-transcriber run build",
     "build:backend": "npm run build:clinic",
     "build:control-plane": "npm --workspace apps/ethos-control-plane run build",
+    "check:encoding": "node scripts/check-mojibake.js",
     "test": "npm run test:apps",
     "test:apps": "npm --workspace ethos-clinic run test && npm --workspace ethos-control-plane run test",
     "lint": "echo \"lint placeholder\"",

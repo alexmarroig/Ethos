@@ -395,6 +395,13 @@ type PatientPayload = {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: {
     mode: "per_session" | "package";
     weekly_frequency?: 1 | 2 | 3 | 4 | 5;
@@ -456,6 +463,13 @@ const parsePatientPayload = (body: Record<string, unknown>, options?: { includeN
   emergency_contact_name: normalizeOptionalText(body.emergency_contact_name),
   emergency_contact_relationship: normalizeOptionalText(body.emergency_contact_relationship),
   emergency_contact_phone: normalizeOptionalText(body.emergency_contact_phone),
+  education_level: normalizeOptionalText(body.education_level),
+  marital_status: normalizeOptionalText(body.marital_status),
+  legal_guardian_name: normalizeOptionalText(body.legal_guardian_name),
+  legal_guardian_relationship: normalizeOptionalText(body.legal_guardian_relationship),
+  report_indication: normalizeOptionalText(body.report_indication),
+  recurring_techniques: normalizeOptionalText(body.recurring_techniques),
+  report_notes: normalizeOptionalText(body.report_notes),
   billing: parsePatientBilling(body.billing),
   notes: normalizeOptionalText(body.notes),
 });

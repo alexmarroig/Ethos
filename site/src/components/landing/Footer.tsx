@@ -1,4 +1,4 @@
-import EthosLogo from "./EthosLogo";
+﻿import EthosLogo from "./EthosLogo";
 
 const Footer = () => {
   return (
@@ -19,3 +19,5 @@ const Footer = () => {
 };
 
 export default Footer;
+
+

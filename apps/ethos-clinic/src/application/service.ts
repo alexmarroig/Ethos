@@ -640,6 +640,13 @@ type PatientUpsertInput = {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: PatientBilling;
   notes?: string;
 };
@@ -733,11 +740,18 @@ const normalizePatientInput = (input: Partial<PatientUpsertInput>) => {
     main_complaint: normalizeOptionalText(input.main_complaint),
     psychiatric_medications: normalizeOptionalText(input.psychiatric_medications),
     has_psychiatric_followup: normalizeOptionalBoolean(input.has_psychiatric_followup),
-      psychiatrist_name: normalizeOptionalText(input.psychiatrist_name),
-      psychiatrist_contact: normalizeOptionalText(input.psychiatrist_contact),
-      emergency_contact_name: normalizeOptionalText(input.emergency_contact_name),
-      emergency_contact_relationship: normalizeOptionalText(input.emergency_contact_relationship),
-      emergency_contact_phone: normalizeOptionalText(input.emergency_contact_phone),
+    psychiatrist_name: normalizeOptionalText(input.psychiatrist_name),
+    psychiatrist_contact: normalizeOptionalText(input.psychiatrist_contact),
+    emergency_contact_name: normalizeOptionalText(input.emergency_contact_name),
+    emergency_contact_relationship: normalizeOptionalText(input.emergency_contact_relationship),
+    emergency_contact_phone: normalizeOptionalText(input.emergency_contact_phone),
+    education_level: normalizeOptionalText(input.education_level),
+    marital_status: normalizeOptionalText(input.marital_status),
+    legal_guardian_name: normalizeOptionalText(input.legal_guardian_name),
+    legal_guardian_relationship: normalizeOptionalText(input.legal_guardian_relationship),
+    report_indication: normalizeOptionalText(input.report_indication),
+    recurring_techniques: normalizeOptionalText(input.recurring_techniques),
+    report_notes: normalizeOptionalText(input.report_notes),
     billing: normalizePatientBilling(input.billing),
     notes: normalizeOptionalText(input.notes),
   };
@@ -800,11 +814,18 @@ export const createPatient = (
     main_complaint: normalized.main_complaint,
     psychiatric_medications: normalized.psychiatric_medications,
     has_psychiatric_followup: normalized.has_psychiatric_followup,
-      psychiatrist_name: normalized.psychiatrist_name,
-      psychiatrist_contact: normalized.psychiatrist_contact,
-      emergency_contact_name: normalized.emergency_contact_name,
-      emergency_contact_relationship: normalized.emergency_contact_relationship,
-      emergency_contact_phone: normalized.emergency_contact_phone,
+    psychiatrist_name: normalized.psychiatrist_name,
+    psychiatrist_contact: normalized.psychiatrist_contact,
+    emergency_contact_name: normalized.emergency_contact_name,
+    emergency_contact_relationship: normalized.emergency_contact_relationship,
+    emergency_contact_phone: normalized.emergency_contact_phone,
+    education_level: normalized.education_level,
+    marital_status: normalized.marital_status,
+    legal_guardian_name: normalized.legal_guardian_name,
+    legal_guardian_relationship: normalized.legal_guardian_relationship,
+    report_indication: normalized.report_indication,
+    recurring_techniques: normalized.recurring_techniques,
+    report_notes: normalized.report_notes,
     billing: normalized.billing,
     notes: normalized.notes,
     created_at: now(),
@@ -890,9 +911,16 @@ export const updatePatient = (owner: string, patientId: string, input: Partial<P
   if ("has_psychiatric_followup" in input) patient.has_psychiatric_followup = normalized.has_psychiatric_followup;
     if ("psychiatrist_name" in input) patient.psychiatrist_name = normalized.psychiatrist_name;
     if ("psychiatrist_contact" in input) patient.psychiatrist_contact = normalized.psychiatrist_contact;
-    if ("emergency_contact_name" in input) patient.emergency_contact_name = normalized.emergency_contact_name;
-    if ("emergency_contact_relationship" in input) patient.emergency_contact_relationship = normalized.emergency_contact_relationship;
-    if ("emergency_contact_phone" in input) patient.emergency_contact_phone = normalized.emergency_contact_phone;
+  if ("emergency_contact_name" in input) patient.emergency_contact_name = normalized.emergency_contact_name;
+  if ("emergency_contact_relationship" in input) patient.emergency_contact_relationship = normalized.emergency_contact_relationship;
+  if ("emergency_contact_phone" in input) patient.emergency_contact_phone = normalized.emergency_contact_phone;
+  if ("education_level" in input) patient.education_level = normalized.education_level;
+  if ("marital_status" in input) patient.marital_status = normalized.marital_status;
+  if ("legal_guardian_name" in input) patient.legal_guardian_name = normalized.legal_guardian_name;
+  if ("legal_guardian_relationship" in input) patient.legal_guardian_relationship = normalized.legal_guardian_relationship;
+  if ("report_indication" in input) patient.report_indication = normalized.report_indication;
+  if ("recurring_techniques" in input) patient.recurring_techniques = normalized.recurring_techniques;
+  if ("report_notes" in input) patient.report_notes = normalized.report_notes;
   if ("billing" in input) patient.billing = normalized.billing;
   if ("notes" in input) patient.notes = normalized.notes;
 

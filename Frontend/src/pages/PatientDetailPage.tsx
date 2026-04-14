@@ -60,6 +60,13 @@ type PatientFormState = {
   emergency_contact_name: string;
   emergency_contact_relationship: string;
   emergency_contact_phone: string;
+  education_level: string;
+  marital_status: string;
+  legal_guardian_name: string;
+  legal_guardian_relationship: string;
+  report_indication: string;
+  recurring_techniques: string;
+  report_notes: string;
   notes: string;
   billing_mode: "per_session" | "package";
   weekly_frequency: string;
@@ -98,6 +105,13 @@ const emptyForm: PatientFormState = {
   emergency_contact_name: "",
   emergency_contact_relationship: "",
   emergency_contact_phone: "",
+  education_level: "",
+  marital_status: "",
+  legal_guardian_name: "",
+  legal_guardian_relationship: "",
+  report_indication: "",
+  recurring_techniques: "",
+  report_notes: "",
   notes: "",
   billing_mode: "per_session",
   weekly_frequency: "1",
@@ -357,6 +371,13 @@ export default function PatientDetailPage({
       emergency_contact_name: detail.patient.emergency_contact_name ?? "",
       emergency_contact_relationship: detail.patient.emergency_contact_relationship ?? "",
       emergency_contact_phone: detail.patient.emergency_contact_phone ?? "",
+      education_level: detail.patient.education_level ?? "",
+      marital_status: detail.patient.marital_status ?? "",
+      legal_guardian_name: detail.patient.legal_guardian_name ?? "",
+      legal_guardian_relationship: detail.patient.legal_guardian_relationship ?? "",
+      report_indication: detail.patient.report_indication ?? "",
+      recurring_techniques: detail.patient.recurring_techniques ?? "",
+      report_notes: detail.patient.report_notes ?? "",
       notes: detail.patient.notes ?? "",
       billing_mode: detail.patient.billing?.mode ?? "per_session",
       weekly_frequency: detail.patient.billing?.weekly_frequency?.toString() ?? "1",
@@ -536,6 +557,13 @@ export default function PatientDetailPage({
       emergency_contact_name: form.emergency_contact_name.trim() || undefined,
       emergency_contact_relationship: form.emergency_contact_relationship.trim() || undefined,
       emergency_contact_phone: form.emergency_contact_phone.trim() || undefined,
+      education_level: form.education_level.trim() || undefined,
+      marital_status: form.marital_status.trim() || undefined,
+      legal_guardian_name: form.legal_guardian_name.trim() || undefined,
+      legal_guardian_relationship: form.legal_guardian_relationship.trim() || undefined,
+      report_indication: form.report_indication.trim() || undefined,
+      recurring_techniques: form.recurring_techniques.trim() || undefined,
+      report_notes: form.report_notes.trim() || undefined,
       billing: {
         mode: form.billing_mode,
         weekly_frequency: form.weekly_frequency ? Number(form.weekly_frequency) as 1 | 2 | 3 | 4 | 5 : undefined,
@@ -1194,6 +1222,43 @@ export default function PatientDetailPage({
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Telefone de emergência</label>
               <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", event.target.value)} />
+            </div>
+          </div>
+        </motion.section>
+
+        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
+          <div>
+            <h2 className="font-serif text-2xl text-foreground">Dados para documentos e relatórios</h2>
+            <p className="text-sm text-muted-foreground mt-1">Informações de apoio para relatórios, declarações e documentos clínicos.</p>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Escolaridade</label>
+              <Input value={form.education_level} onChange={(event) => updateForm("education_level", event.target.value)} placeholder="Ex.: Ensino superior completo" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Estado civil</label>
+              <Input value={form.marital_status} onChange={(event) => updateForm("marital_status", event.target.value)} placeholder="Ex.: Solteiro(a), casado(a)" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Responsável legal</label>
+              <Input value={form.legal_guardian_name} onChange={(event) => updateForm("legal_guardian_name", event.target.value)} placeholder="Nome do responsável legal, se houver" />
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-foreground">Vínculo do responsável</label>
+              <Input value={form.legal_guardian_relationship} onChange={(event) => updateForm("legal_guardian_relationship", event.target.value)} placeholder="Ex.: Mãe, pai, tutor" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-foreground">Indicação ou finalidade documental</label>
+              <Textarea value={form.report_indication} onChange={(event) => updateForm("report_indication", event.target.value)} className="min-h-[90px]" placeholder="Para que tipo de relatório ou documento essas informações costumam ser usadas?" />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-foreground">Técnicas e abordagens recorrentes</label>
+              <Textarea value={form.recurring_techniques} onChange={(event) => updateForm("recurring_techniques", event.target.value)} className="min-h-[110px]" placeholder="Ex.: escuta clínica, psicoeducação, TCC, regulação emocional..." />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <label className="text-sm font-medium text-foreground">Observações para documentos e relatórios</label>
+              <Textarea value={form.report_notes} onChange={(event) => updateForm("report_notes", event.target.value)} className="min-h-[120px]" placeholder="Observações que ajudam na redação de relatórios, sem misturar com o núcleo do prontuário." />
             </div>
           </div>
         </motion.section>

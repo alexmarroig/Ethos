@@ -41,6 +41,13 @@ type RawPatient = {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: RawPatientBilling;
   notes?: string;
   created_at?: string;
@@ -132,6 +139,13 @@ export interface Patient {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: PatientBilling;
   notes?: string;
   last_session?: string;
@@ -210,6 +224,13 @@ function mapPatient(raw: RawPatient): Patient {
     emergency_contact_name: raw.emergency_contact_name,
     emergency_contact_relationship: raw.emergency_contact_relationship,
     emergency_contact_phone: raw.emergency_contact_phone,
+    education_level: raw.education_level,
+    marital_status: raw.marital_status,
+    legal_guardian_name: raw.legal_guardian_name,
+    legal_guardian_relationship: raw.legal_guardian_relationship,
+    report_indication: raw.report_indication,
+    recurring_techniques: raw.recurring_techniques,
+    report_notes: raw.report_notes,
     billing: raw.billing,
     notes: raw.notes,
     last_session: raw.last_session,

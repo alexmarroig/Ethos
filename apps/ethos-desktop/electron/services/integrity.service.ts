@@ -1,4 +1,4 @@
-import { getDb } from './db';
+import { getDb } from '../db';
 import fs from 'node:fs';
 import path from 'node:path';
 import { app } from 'electron';

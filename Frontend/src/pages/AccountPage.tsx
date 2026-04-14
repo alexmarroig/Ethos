@@ -221,7 +221,7 @@ const AccountPage = () => {
 
   const handleSavePaymentSettings = () => {
     savePaymentReminderSettings(paymentSettings);
-    toast({ title: "ConfiguraÃ§Ã£o salva", description: "Os lembretes de pagamento foram atualizados neste navegador." });
+    toast({ title: "Configuração salva", description: "Os lembretes de pagamento foram atualizados neste navegador." });
   };
 
   return (
@@ -374,34 +374,34 @@ const AccountPage = () => {
           transition={{ delay: 0.35 }}
         >
           <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="font-serif text-lg font-medium text-foreground">CobranÃ§a e lembretes</h2>
-            <Button onClick={handleSavePaymentSettings}>Salvar configuraÃ§Ã£o</Button>
+            <h2 className="font-serif text-lg font-medium text-foreground">Cobrança e lembretes</h2>
+            <Button onClick={handleSavePaymentSettings}>Salvar configuração</Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Forma padrÃ£o de pagamento</label>
+              <label className="text-sm font-medium text-foreground">Forma padrão de pagamento</label>
               <Input
                 value={paymentSettings.paymentMethodLabel}
                 onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
-                placeholder="PIX, transferÃªncia..."
+                placeholder="PIX, transferência..."
               />
             </div>
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Chave PIX / dados bancÃ¡rios</label>
+              <label className="text-sm font-medium text-foreground">Chave PIX / dados bancários</label>
               <Input
                 value={paymentSettings.paymentDestination}
                 onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
-                placeholder="pix@email.com ou dados bancÃ¡rios"
+                placeholder="pix@email.com ou dados bancários"
               />
             </div>
             <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-foreground">Mensagem padrÃ£o do lembrete</label>
+              <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete</label>
               <Textarea
                 value={paymentSettings.defaultTemplate}
                 onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
                 className="min-h-[180px]"
               />
-              <p className="text-xs text-muted-foreground">Use as variÃ¡veis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
+              <p className="text-xs text-muted-foreground">Use as variáveis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
             </div>
           </div>
         </motion.section>
@@ -413,8 +413,8 @@ const AccountPage = () => {
             <DialogTitle className="font-serif text-xl">{templateDraftId ? "Editar modelo" : "Novo modelo de contrato"}</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <Input placeholder="TÃ­tulo do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
-            <Input placeholder="DescriÃ§Ã£o" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
+            <Input placeholder="Título do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
+            <Input placeholder="Descrição" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
             <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} className="min-h-[320px]" />
           </div>
           <DialogFooter>

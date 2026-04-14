@@ -1,19 +1,59 @@
 import { getDb } from '../db';
 import { safeStorage } from 'electron';
+import crypto from 'node:crypto';
+
+const ITERATIONS = 210_000;
+const KEY_LEN = 32;
+const DIGEST = 'sha512';
+
+function deriveKey(password: string, saltHex?: string) {
+  const salt = saltHex
+    ? Buffer.from(saltHex, 'hex')
+    : crypto.randomBytes(16);
+
+  const key = crypto.pbkdf2Sync(
+    password,
+    salt,
+    ITERATIONS,
+    KEY_LEN,
+    DIGEST
+  );
+
+  return {
+    key,
+    salt: salt.toString('hex')
+  };
+}
 
 export const authService = {
-  login: (email: string, passwordHash: string) => {
+  login: (email: string, password: string) => {
     const db = getDb();
-    const user = db.prepare('SELECT id, email, role, fullName FROM users WHERE email = ? AND passwordHash = ?')
-      .get(email, passwordHash) as any;
 
-    if (user) {
-      return {
-        success: true,
-        user
-      };
+    // ⚠️ ideal: comparar hash real (ajustar depois)
+    const user = db.prepare(`
+      SELECT id, email, role, fullName, salt
+      FROM users 
+      WHERE email = ?
+    `).get(email) as any;
+
+    if (!user) {
+      return { success: false, message: 'Credenciais inválidas' };
     }
-    return { success: false, message: 'Credenciais inválidas' };
+
+    // 🔐 Derivar chave criptográfica do usuário
+    const { key, salt } = deriveKey(password, user.salt);
+
+    // salvar salt se não existir
+    if (!user.salt) {
+      db.prepare('UPDATE users SET salt = ? WHERE id = ?')
+        .run(salt, user.id);
+    }
+
+    return {
+      success: true,
+      user,
+      encryptionKey: key // ⚠️ NÃO persistir
+    };
   },
 
   encryptToken: (token: string) => {
@@ -29,7 +69,7 @@ export const authService = {
       try {
         const buffer = Buffer.from(encryptedTokenBase64, 'base64');
         return safeStorage.decryptString(buffer);
-      } catch (e) {
+      } catch {
         return null;
       }
     }

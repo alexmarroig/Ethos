@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
+import BrandWordmark from "@/components/BrandWordmark";
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -274,7 +275,9 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <h1 className="font-serif text-4xl font-medium text-foreground tracking-tight">ETHOS</h1>
+          <div className="mx-auto flex justify-center">
+            <BrandWordmark textClassName="text-4xl font-medium tracking-tight" />
+          </div>
           <p className="mt-2 text-muted-foreground text-sm">Plataforma clinica para atendimento real</p>
         </motion.div>
 

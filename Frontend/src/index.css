@@ -40,6 +40,7 @@
     /* Accent: copper gold */
     --accent: 206 100% 45%;
     --accent-foreground: 0 0% 100%;
+    --brand-blue: 191 55% 62%;
 
     /* Status colors */
     --status-pending: 38 90% 54%;
@@ -103,6 +104,7 @@
 
     --accent: 28 62% 55%;
     --accent-foreground: 210 22% 10%;
+    --brand-blue: 191 55% 62%;
 
     --status-pending: 45 80% 50%;
     --status-validated: 155 40% 45%;

@@ -8,85 +8,26 @@ type ReportHtmlContext = {
   crp?: string;
 };
 
-const baseStyles = `
-  body {
-    font-family: Inter, Arial, sans-serif;
-    color: #17313a;
-    background: #f7f2ea;
-    margin: 0;
-    padding: 32px;
-  }
-  .sheet {
-    max-width: 860px;
-    margin: 0 auto;
-    background: #fffdfa;
-    border: 1px solid #e8ddd1;
-    border-radius: 24px;
-    padding: 40px;
-    box-shadow: 0 18px 40px rgba(23, 49, 58, 0.08);
-  }
-  .eyebrow {
-    text-transform: uppercase;
-    letter-spacing: 0.18em;
-    font-size: 12px;
-    color: #8b6f58;
-    margin-bottom: 10px;
-  }
-  h1, h2 {
-    font-family: Lora, Georgia, serif;
-    color: #17313a;
-  }
-  h1 {
-    font-size: 34px;
-    margin: 0 0 24px;
-  }
-  h2 {
-    font-size: 18px;
-    margin: 24px 0 10px;
-  }
-  p, li {
-    font-size: 15px;
-    line-height: 1.7;
-    margin: 0 0 10px;
-  }
-  .meta {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 14px;
-    margin-bottom: 28px;
-  }
-  .meta-card {
-    background: #f3ede5;
-    border-radius: 16px;
-    padding: 14px 16px;
-  }
-  .label {
-    display: block;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: 0.1em;
-    color: #74604c;
-    margin-bottom: 6px;
-  }
-  .value {
-    font-size: 15px;
-    color: #17313a;
-    font-weight: 600;
-  }
-  .content {
-    white-space: pre-wrap;
-  }
-  .signature {
-    margin-top: 42px;
-    padding-top: 18px;
-    border-top: 1px solid #d9cbbb;
-  }
-`;
+const escapeHtml = (value?: string) =>
+  (value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;");
+
+const withParagraphs = (value?: string) =>
+  escapeHtml(value)
+    .split(/\n{2,}/)
+    .map((paragraph) => paragraph.trim())
+    .filter(Boolean)
+    .map((paragraph) => `<p>${paragraph.replaceAll("\n", "<br />")}</p>`)
+    .join("");
 
 const purposeLabel = (purpose?: string) => {
   switch (purpose) {
     case "paciente":
       return "Entrega ao paciente";
+    case "instituicao":
     case "instituição":
       return "Instituição / terceiro";
     default:
@@ -97,55 +38,162 @@ const purposeLabel = (purpose?: string) => {
 const kindTitle = (kind?: string) => {
   switch (kind) {
     case "longitudinal_record":
-      return "Prontuário psicológico";
+      return "Prontuário Psicológico";
     default:
-      return "Relatório psicológico";
+      return "Relatório Psicológico";
   }
 };
 
-export const buildReportHtml = ({ report, patient, psychologistName, crp }: ReportHtmlContext) => `
+const optionalMeta = (label: string, value?: string) =>
+  value?.trim()
+    ? `<div class="meta-card"><span class="label">${label}</span><span class="value">${escapeHtml(value)}</span></div>`
+    : "";
+
+export const buildReportHtml = ({
+  report,
+  patient,
+  psychologistName,
+  crp,
+}: ReportHtmlContext) => `
 <!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>${kindTitle(report.kind)}</title>
-    <style>${baseStyles}</style>
+    <style>
+      body {
+        font-family: "Inter", "Helvetica Neue", Arial, sans-serif;
+        color: #17313a;
+        background: #f7f2ea;
+        margin: 0;
+        padding: 32px;
+      }
+      .sheet {
+        max-width: 980px;
+        margin: 0 auto;
+        background: #fffdfa;
+        border: 1px solid #e8ddd1;
+        border-radius: 24px;
+        padding: 44px;
+        box-shadow: 0 18px 40px rgba(23, 49, 58, 0.08);
+      }
+      .eyebrow {
+        text-transform: uppercase;
+        letter-spacing: 0.22em;
+        font-size: 12px;
+        color: #8b6f58;
+        margin-bottom: 12px;
+      }
+      h1, h2, h3 {
+        font-family: "Lora", Georgia, serif;
+        color: #17313a;
+      }
+      h1 {
+        font-size: 42px;
+        line-height: 1.05;
+        margin: 0 0 24px;
+      }
+      h2 {
+        font-size: 22px;
+        margin: 32px 0 12px;
+      }
+      p, li {
+        font-size: 16px;
+        line-height: 1.75;
+        margin: 0 0 12px;
+      }
+      .meta {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+        margin-bottom: 24px;
+      }
+      .meta-card {
+        background: #f3ede5;
+        border-radius: 16px;
+        padding: 16px;
+      }
+      .label {
+        display: block;
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 0.12em;
+        color: #74604c;
+        margin-bottom: 6px;
+      }
+      .value {
+        font-size: 15px;
+        color: #17313a;
+        font-weight: 600;
+      }
+      .content {
+        white-space: normal;
+      }
+      .signature {
+        margin-top: 48px;
+        padding-top: 20px;
+        border-top: 1px solid #d9cbbb;
+        text-align: center;
+      }
+      .signature p {
+        margin: 6px 0;
+      }
+      @media print {
+        body {
+          background: #fff;
+          padding: 0;
+        }
+        .sheet {
+          box-shadow: none;
+          border: none;
+          border-radius: 0;
+          padding: 20px;
+        }
+      }
+    </style>
   </head>
   <body>
     <main class="sheet">
       <div class="eyebrow">ETHOS · ${kindTitle(report.kind).toUpperCase()}</div>
       <h1>${kindTitle(report.kind)}</h1>
+
       <section class="meta">
         <div class="meta-card">
-          <span class="label">Psicólogo(a)</span>
-          <span class="value">${psychologistName}</span>
+          <span class="label">Psicóloga Responsável</span>
+          <span class="value">${escapeHtml(psychologistName)}</span>
         </div>
         <div class="meta-card">
           <span class="label">CRP</span>
-          <span class="value">${crp || "Não informado"}</span>
+          <span class="value">${escapeHtml(crp || "Não informado")}</span>
         </div>
         <div class="meta-card">
           <span class="label">Paciente</span>
-          <span class="value">${patient?.name || report.patient_name || "Paciente"}</span>
+          <span class="value">${escapeHtml(patient?.name || report.patient_name || "Paciente")}</span>
         </div>
         <div class="meta-card">
           <span class="label">Finalidade</span>
-          <span class="value">${purposeLabel(report.purpose)}</span>
+          <span class="value">${escapeHtml(purposeLabel(report.purpose))}</span>
         </div>
+        ${optionalMeta("Data de Nascimento", patient?.birth_date ? new Date(patient.birth_date).toLocaleDateString("pt-BR") : undefined)}
+        ${optionalMeta("CPF", patient?.cpf)}
+        ${optionalMeta("Profissão", patient?.profession)}
+        ${optionalMeta("Escolaridade", patient?.education_level)}
       </section>
-      ${(patient?.birth_date || patient?.cpf) ? `
-      <section class="meta">
-        ${patient?.birth_date ? '<div class="meta-card"><span class="label">Data de nascimento</span><span class="value">' + new Date(patient.birth_date).toLocaleDateString("pt-BR") + '</span></div>' : ""}
-        ${patient?.cpf ? '<div class="meta-card"><span class="label">CPF</span><span class="value">' + patient.cpf + '</span></div>' : ""}
-      </section>` : ""}
+
+      ${patient?.main_complaint ? `<h2>Queixa principal</h2>${withParagraphs(patient.main_complaint)}` : ""}
+      ${patient?.therapy_goals ? `<h2>Objetivos terapêuticos</h2>${withParagraphs(patient.therapy_goals)}` : ""}
+
       <h2>Conteúdo</h2>
-      <div class="content" style="white-space:pre-wrap">${report.content || "Sem conteúdo."}</div>
+      <div class="content">
+        ${withParagraphs(report.content || "Sem conteúdo.")}
+      </div>
+
       <div class="signature">
-        <p style="text-align:center;margin-bottom:8px">____________________________________</p>
-        <p style="text-align:center"><strong>${psychologistName}</strong></p>
-        <p style="text-align:center">Psicólogo(a) — CRP ${crp || "não informado"}</p>
-        <p style="text-align:center;font-size:12px;color:#74604c;margin-top:12px">Documento elaborado conforme Resolução CFP nº 06/2019</p>
+        <p>____________________________________</p>
+        <p><strong>${escapeHtml(psychologistName)}</strong></p>
+        <p>Psicóloga responsável · CRP ${escapeHtml(crp || "não informado")}</p>
+        <p style="font-size:12px;color:#74604c;">Documento elaborado conforme Resolução CFP nº 06/2019</p>
       </div>
     </main>
   </body>

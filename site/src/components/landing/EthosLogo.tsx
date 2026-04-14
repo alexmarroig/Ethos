@@ -1,7 +1,7 @@
 const EthosLogo = () => (
-  <span className="font-display font-bold text-xl tracking-tight">
-    <span style={{ color: "#2563EB" }}>E</span>
-    <span className="text-foreground">THOS</span>
+  <span className="font-display text-xl font-bold tracking-tight">
+    <span style={{ color: "hsl(191 55% 62%)" }}>E</span>
+    <span className="text-black">THOS</span>
   </span>
 );
 

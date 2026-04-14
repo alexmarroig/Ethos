@@ -1,29 +1,30 @@
 import { motion } from "framer-motion";
 import {
-  Calendar,
-  Users,
-  Shield,
-  LogOut,
-  FileText,
-  ClipboardList,
-  DollarSign,
-  FolderOpen,
-  User,
-  FlaskConical,
-  UserCog,
-  TicketCheck,
   BookOpen,
-  Stethoscope,
-  Home,
-  MessageCircle,
+  Calendar,
   DatabaseBackup,
-  ScrollText,
+  DollarSign,
+  FileText,
+  FlaskConical,
+  FolderOpen,
+  Home,
+  LogOut,
+  MessageCircle,
   Moon,
+  ScrollText,
+  Shield,
+  Stethoscope,
   Sun,
+  TicketCheck,
+  User,
+  UserCog,
+  Users,
+  ClipboardList,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
+import BrandWordmark from "@/components/BrandWordmark";
 
 interface SidebarProps {
   currentPage: string;
@@ -63,18 +64,25 @@ const navigation: NavItem[] = [
   { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
-const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
+export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { user, logout, hasRole } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
 
   const visibleItems = navigation.filter((item) => item.roles.some((role) => hasRole(role)));
+
+  const isLikelyFemaleName = (value?: string) => {
+    const firstName = value?.trim().split(/\s+/)[0]?.toLowerCase() ?? "";
+    return firstName.endsWith("a");
+  };
 
   const roleBadge =
     user?.role === "admin"
       ? "Conta admin"
       : user?.role === "patient"
         ? "Conta paciente"
-        : "Conta clínica";
+        : isLikelyFemaleName(user?.name)
+          ? "Psicóloga"
+          : "Psicólogo";
 
   const initials = user?.name
     ? user.name
@@ -87,14 +95,14 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
 
   return (
     <motion.aside
-      className="fixed left-0 top-0 bottom-0 z-40 hidden w-72 flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
+      className="fixed bottom-0 left-0 top-0 z-40 hidden w-72 flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
     >
       <div className="border-b border-sidebar-border/80 px-6 py-6">
         <div className="flex items-start justify-between gap-3">
-          <div className="flex items-start gap-3 min-w-0 flex-1">
+          <div className="flex min-w-0 flex-1 items-start gap-3">
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
@@ -102,15 +110,18 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
                 className="h-12 w-12 rounded-2xl object-cover ring-1 ring-sidebar-border/80"
               />
             ) : (
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sidebar-primary/[0.08] text-sidebar-primary font-semibold">
+              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sidebar-primary/[0.08] font-semibold text-sidebar-primary">
                 {initials}
               </div>
             )}
+
             <div className="min-w-0 flex-1">
-              <h1 className="text-[1.75rem] font-semibold tracking-[-0.04em] text-sidebar-primary">ETHOS</h1>
+              <BrandWordmark />
               {user ? (
                 <div className="mt-1 space-y-2 min-w-0">
-                  <p className="break-words text-sm leading-snug text-muted-foreground">{user.name}</p>
+                  <p className="break-words text-sm leading-snug text-muted-foreground">
+                    {user.name}
+                  </p>
                   <span className="inline-flex rounded-full bg-primary/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-primary">
                     {roleBadge}
                   </span>
@@ -125,7 +136,11 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
             className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
             aria-label="Alternar tema"
           >
-            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            {resolvedTheme === "dark" ? (
+              <Sun className="h-4 w-4" />
+            ) : (
+              <Moon className="h-4 w-4" />
+            )}
           </button>
         </div>
       </div>
@@ -142,11 +157,11 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
                 <button
                   onClick={() => onNavigate(item.id)}
                   className={cn(
-                    "w-full rounded-2xl px-4 py-3 text-left transition-all duration-200",
-                    "flex items-center gap-3 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                    "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",
+                    "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     "active:translate-y-[1px]",
                     isActive
-                      ? "bg-sidebar-accent text-sidebar-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.06)] font-medium"
+                      ? "bg-sidebar-accent font-medium text-sidebar-primary shadow-[inset_0_0_0_1px_hsl(var(--primary)/0.06)]"
                       : "text-sidebar-foreground",
                   )}
                 >
@@ -169,10 +184,11 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
         <button
           onClick={() => onNavigate("account")}
           className={cn(
-            "w-full rounded-2xl px-4 py-3 text-left transition-all duration-200",
-            "flex items-center gap-3",
+            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",
             "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            currentPage === "account" ? "bg-sidebar-accent text-sidebar-primary font-medium" : "text-sidebar-foreground",
+            currentPage === "account"
+              ? "bg-sidebar-accent font-medium text-sidebar-primary"
+              : "text-sidebar-foreground",
           )}
         >
           <User
@@ -190,13 +206,11 @@ const Sidebar = ({ currentPage, onNavigate }: SidebarProps) => {
             onClick={logout}
             className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
           >
-            <LogOut className="w-[18px] h-[18px]" strokeWidth={1.5} />
+            <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
             <span className="text-[15px]">Sair</span>
           </button>
         ) : null}
       </div>
     </motion.aside>
   );
-};
-
-export default Sidebar;
+}

@@ -2,21 +2,22 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
-    "module": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "CommonJS",
+    "moduleResolution": "Node",
     "jsx": "react-jsx",
-    "moduleResolution": "Bundler",
-    "noEmit": true,
-
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-
     "baseUrl": ".",
-    "paths": {
-      "@ethos/shared": ["../../packages/shared/src"]
-    }
+    "ignoreDeprecations": "6.0"
   },
-  "include": ["src", "vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "include": [
+    "src",
+    "electron"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron"
+  ]
 }

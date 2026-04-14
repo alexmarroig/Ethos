@@ -1,15 +1,5 @@
 import type { TranscriptionJob } from "@ethos/shared";
 
-declare global {
-  interface Window {
-    ethos?: {
-      openAudioDialog: () => Promise<string | null>;
-      enqueueTranscription: (payload: { sessionId: string; audioPath: string; model: "ptbr-fast" | "ptbr-accurate" }) => Promise<string>;
-      onTranscriptionMessage: (handler: (message: string) => void) => void;
-      onTranscriptionError: (handler: (message: string) => void) => void;
-    };
-  }
-}
 
 export class TranscriptionService {
   private listeners: Array<(job: TranscriptionJob) => void> = [];
