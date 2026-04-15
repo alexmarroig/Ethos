@@ -12,7 +12,6 @@ import {
   FolderOpen,
   Home,
   LogOut,
-  MessageCircle,
   Moon,
   ScrollText,
   Shield,
@@ -62,7 +61,6 @@ const navigation: NavItem[] = [
   { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
   { id: "patient-booking", label: "Agendar sessão", icon: CalendarPlus, roles: ["patient"] },
   { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
-  { id: "patient-messages", label: "Mensagens", icon: MessageCircle, roles: ["patient"] },
 
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },
   { id: "admin-users", label: "Usuários", icon: Users, roles: ["admin"] },
