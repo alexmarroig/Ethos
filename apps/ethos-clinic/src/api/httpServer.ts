@@ -212,7 +212,8 @@ const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: st
 };
 
 // Correção importante: "user" (psicólogo) precisa ser clínico.
-const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
+// "admin" também é incluído pois o admin local é o próprio psicólogo na conta principal.
+const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor", "admin"];
 
 const CLINICAL_PATHS = [
   /^\/(sessions|cases)/,
@@ -277,6 +278,55 @@ const getRemoteIp = (req: IncomingMessage) => {
   const forwarded = req.headers["x-forwarded-for"]?.toString();
   if (forwarded) return forwarded.split(",")[0]?.trim() ?? "unknown";
   return req.socket.remoteAddress ?? "unknown";
+};
+
+const sendPatientAccessEmail = async (input: {
+  to: string;
+  patientName: string;
+  password: string;
+  clinicianName: string;
+}) => {
+  const webhookUrl =
+    process.env.ETHOS_PATIENT_ACCESS_EMAIL_WEBHOOK_URL ??
+    process.env.ETHOS_EMAIL_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return { status: "skipped" as const, detail: "EMAIL_WEBHOOK_NOT_CONFIGURED" };
+  }
+
+  const subject = "Seu acesso ao portal do paciente ETHOS";
+  const text = [
+    `Olá, ${input.patientName}.`,
+    "",
+    `${input.clinicianName} criou seu acesso ao portal do paciente ETHOS.`,
+    "",
+    `Email: ${input.to}`,
+    `Senha: ${input.password}`,
+    "",
+    "Você já pode acessar o portal para acompanhar seus documentos, formulários e sessões.",
+  ].join("\n");
+
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: input.to,
+      subject,
+      text,
+      html: text.replace(/\n/g, "<br />"),
+      kind: "patient_access",
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    return {
+      status: "failed" as const,
+      detail: detail || `EMAIL_PROVIDER_${response.status}`,
+    };
+  }
+
+  return { status: "sent" as const };
 };
 
 const readJson = async (req: IncomingMessage) => {
@@ -746,9 +796,9 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Patient access management (apenas psicólogo "user")
+      // Patient access management (psicólogo ou admin)
       if (method === "POST" && url.pathname === "/patients/access") {
-        if (!requireRole(res, requestId, "user", auth.user.role)) return;
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
 
         const body = await readJson(req);
         if (
@@ -777,10 +827,21 @@ export const createEthosBackend = () =>
 
         if ("error" in result) return error(res, requestId, 409, "EMAIL_IN_USE", "Email already in use by a non-patient");
 
+        const emailDelivery = await sendPatientAccessEmail({
+          to: result.patientUser.email,
+          patientName: result.patientUser.name,
+          password: result.temporaryPassword ?? String(body.patient_password ?? ""),
+          clinicianName: auth.user.name,
+        }).catch((error) => ({
+          status: "failed" as const,
+          detail: error instanceof Error ? error.message : "EMAIL_SEND_FAILED",
+        }));
+
         return ok(res, requestId, 201, {
           access: result.access,
           patient_user: { id: result.patientUser.id, email: result.patientUser.email, name: result.patientUser.name },
           temporary_password: result.temporaryPassword ?? null,
+          email_delivery: emailDelivery,
         });
       }
 

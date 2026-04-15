@@ -852,7 +852,13 @@ export default function PatientDetailPage({
     }
 
     setAccessCredentials(result.data.credentials);
-    toast({ title: "Acesso do paciente criado" });
+    toast({
+      title: "Acesso do paciente criado",
+      description:
+        result.data.email_delivery?.status === "sent"
+          ? "As credenciais também foram enviadas por email."
+          : "Copie as credenciais exibidas abaixo para compartilhar com o paciente.",
+    });
   };
 
   const openPaymentReminder = () => {
@@ -949,7 +955,13 @@ export default function PatientDetailPage({
                 Nova nota clínica
               </Button>
 
-              <Dialog open={accessOpen} onOpenChange={setAccessOpen}>
+              <Dialog open={accessOpen} onOpenChange={(open) => {
+                if (open && detail) {
+                  setPortalName((prev) => prev || detail.patient.name || "");
+                  setPortalEmail((prev) => prev || detail.patient.email || "");
+                }
+                setAccessOpen(open);
+              }}>
                 <DialogTrigger asChild>
                   <Button variant="outline" className="gap-2">
                     <KeyRound className="w-4 h-4" />
