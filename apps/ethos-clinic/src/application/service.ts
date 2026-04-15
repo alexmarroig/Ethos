@@ -23,6 +23,7 @@ import {
 import type {
   AnamnesisResponse,
   AvailabilityBlock,
+  FormTemplate,
   ClinicalDocument,
   ClinicalNoteStructuredData,
   ClinicalDocumentVersion,
@@ -2036,46 +2037,113 @@ export const createScaleRecord = (owner: string, scaleId: string, patientId: str
   return record;
 };
 
-const defaultFormsCatalog = [
+const DEFAULT_FORM_TEMPLATES: Omit<FormTemplate, "owner_user_id" | "created_at">[] = [
   {
     id: "emotion-diary",
-    name: "Diário emocional",
+    title: "Diário emocional",
     description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
+    audience: "patient",
+    active: true,
     fields: [
-      { id: "mood", label: "Como você está se sentindo hoje? (1 = muito mal, 10 = muito bem)", type: "text" as const, placeholder: "Ex: 7" },
-      { id: "emotions", label: "Quais emoções você sentiu com mais força hoje?", type: "textarea" as const, placeholder: "Descreva as emoções..." },
-      { id: "trigger", label: "Houve algum gatilho ou situação que marcou o dia?", type: "textarea" as const, placeholder: "Descreva o que aconteceu..." },
-      { id: "body", label: "Como seu corpo está? (tensão, cansaço, dor...)", type: "textarea" as const, placeholder: "Ex: sinto tensão nos ombros..." },
-      { id: "gratitude", label: "Algo pelo qual você é grato(a) hoje?", type: "textarea" as const, placeholder: "Opcional..." },
+      { id: "mood", label: "Como você está se sentindo hoje? (1 = muito mal, 10 = muito bem)", type: "text", placeholder: "Ex: 7" },
+      { id: "emotions", label: "Quais emoções você sentiu com mais força hoje?", type: "textarea", placeholder: "Descreva as emoções..." },
+      { id: "trigger", label: "Houve algum gatilho ou situação que marcou o dia?", type: "textarea", placeholder: "Descreva o que aconteceu..." },
+      { id: "body", label: "Como seu corpo está? (tensão, cansaço, dor...)", type: "textarea", placeholder: "Ex: sinto tensão nos ombros..." },
+      { id: "gratitude", label: "Algo pelo qual você é grato(a) hoje?", type: "textarea", placeholder: "Opcional..." },
     ],
   },
   {
     id: "initial-anamnesis",
-    name: "Anamnese inicial",
+    title: "Anamnese inicial",
     description: "Coleta inicial de histórico pessoal, familiar e clínico.",
+    audience: "patient",
+    active: true,
     fields: [
-      { id: "reason", label: "Qual é o principal motivo que te trouxe à terapia?", type: "textarea" as const, placeholder: "Descreva com suas palavras..." },
-      { id: "history", label: "Você já fez terapia antes? Como foi?", type: "textarea" as const, placeholder: "Se sim, conte um pouco..." },
-      { id: "family", label: "Como você descreveria seu ambiente familiar atual?", type: "textarea" as const, placeholder: "Com quem você mora, como é a relação..." },
-      { id: "health", label: "Você tem alguma condição de saúde física relevante?", type: "textarea" as const, placeholder: "Medicamentos, diagnósticos..." },
-      { id: "goals", label: "O que você espera alcançar com a terapia?", type: "textarea" as const, placeholder: "Seus objetivos..." },
+      { id: "reason", label: "Qual é o principal motivo que te trouxe à terapia?", type: "textarea", placeholder: "Descreva com suas palavras..." },
+      { id: "history", label: "Você já fez terapia antes? Como foi?", type: "textarea", placeholder: "Se sim, conte um pouco..." },
+      { id: "family", label: "Como você descreveria seu ambiente familiar atual?", type: "textarea", placeholder: "Com quem você mora, como é a relação..." },
+      { id: "health", label: "Você tem alguma condição de saúde física relevante?", type: "textarea", placeholder: "Medicamentos, diagnósticos..." },
+      { id: "goals", label: "O que você espera alcançar com a terapia?", type: "textarea", placeholder: "Seus objetivos..." },
     ],
   },
   {
     id: "weekly-checkin",
-    name: "Check-in semanal",
+    title: "Check-in semanal",
     description: "Formulário simples para acompanhar a semana entre sessões.",
+    audience: "patient",
+    active: true,
     fields: [
-      { id: "week_mood", label: "De modo geral, como foi sua semana? (1 a 10)", type: "text" as const, placeholder: "Ex: 6" },
-      { id: "highlights", label: "O que de mais significativo aconteceu esta semana?", type: "textarea" as const, placeholder: "Algo positivo ou desafiador..." },
-      { id: "challenges", label: "Quais foram os maiores desafios?", type: "textarea" as const, placeholder: "Situações, pensamentos, emoções..." },
-      { id: "self_care", label: "Você conseguiu se cuidar esta semana? (sono, alimentação, exercício)", type: "textarea" as const, placeholder: "Como você se saiu..." },
-      { id: "next_focus", label: "O que gostaria de focar na próxima sessão?", type: "textarea" as const, placeholder: "Temas ou questões que quer trazer..." },
+      { id: "week_mood", label: "De modo geral, como foi sua semana? (1 a 10)", type: "text", placeholder: "Ex: 6" },
+      { id: "highlights", label: "O que de mais significativo aconteceu esta semana?", type: "textarea", placeholder: "Algo positivo ou desafiador..." },
+      { id: "challenges", label: "Quais foram os maiores desafios?", type: "textarea", placeholder: "Situações, pensamentos, emoções..." },
+      { id: "self_care", label: "Você conseguiu se cuidar esta semana? (sono, alimentação, exercício)", type: "textarea", placeholder: "Como você se saiu..." },
+      { id: "next_focus", label: "O que gostaria de focar na próxima sessão?", type: "textarea", placeholder: "Temas ou questões que quer trazer..." },
     ],
   },
 ];
 
-export const listFormsCatalog = (_ownerId?: string, _audience?: string) => [...defaultFormsCatalog];
+/** Ensure system defaults are seeded into db.formTemplates under a given owner. */
+const seedDefaultTemplates = (owner: string) => {
+  for (const tpl of DEFAULT_FORM_TEMPLATES) {
+    const key = `${owner}:${tpl.id}`;
+    if (!db.formTemplates.has(key)) {
+      db.formTemplates.set(key, { ...tpl, id: key, owner_user_id: owner, created_at: now() });
+    }
+  }
+};
+
+export const listFormsCatalog = (ownerId?: string, _audience?: string): Array<{ id: string; name: string; title: string; description?: string; fields?: unknown[] }> => {
+  if (ownerId) {
+    seedDefaultTemplates(ownerId);
+    return Array.from(db.formTemplates.values())
+      .filter((t) => t.owner_user_id === ownerId)
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .map((t) => ({ ...t, name: t.title }));
+  }
+  return DEFAULT_FORM_TEMPLATES.map((t) => ({ ...t, name: t.title }));
+};
+
+export const createFormTemplate = (owner: string, data: { title: string; description?: string; audience?: "patient" | "professional"; active?: boolean; fields: FormTemplate["fields"] }): FormTemplate => {
+  const id = uid();
+  const item: FormTemplate = {
+    id,
+    owner_user_id: owner,
+    title: data.title,
+    description: data.description,
+    audience: data.audience ?? "patient",
+    active: data.active ?? true,
+    fields: data.fields ?? [],
+    created_at: now(),
+  };
+  db.formTemplates.set(id, item);
+  persistMutation();
+  return item;
+};
+
+export const updateFormTemplate = (owner: string, id: string, data: Partial<Pick<FormTemplate, "title" | "description" | "audience" | "active" | "fields">>): FormTemplate | null => {
+  // Also try owner-prefixed key for seeded templates
+  const item = db.formTemplates.get(id) ?? db.formTemplates.get(`${owner}:${id.replace(`${owner}:`, "")}`);
+  if (!item || item.owner_user_id !== owner) return null;
+  const updated: FormTemplate = {
+    ...item,
+    ...(data.title !== undefined && { title: data.title }),
+    ...(data.description !== undefined && { description: data.description }),
+    ...(data.audience !== undefined && { audience: data.audience }),
+    ...(data.active !== undefined && { active: data.active }),
+    ...(data.fields !== undefined && { fields: data.fields }),
+  };
+  db.formTemplates.set(item.id, updated);
+  persistMutation();
+  return updated;
+};
+
+export const deleteFormTemplate = (owner: string, id: string): boolean => {
+  const item = db.formTemplates.get(id);
+  if (!item || item.owner_user_id !== owner) return false;
+  db.formTemplates.delete(id);
+  persistMutation();
+  return true;
+};
 
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>, _submittedBy?: string): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
