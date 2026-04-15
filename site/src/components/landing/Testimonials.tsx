@@ -1,29 +1,5 @@
 import { motion } from "framer-motion";
-import { Star } from "lucide-react";
-
-const testimonials = [
-  {
-    quote: "Antes eu gastava 1h30 por dia só em prontuários. Com o ETHOS, são 10 minutos. Parece impossível até você usar.",
-    name: "Dra. Fernanda Leal",
-    role: "Psicóloga clínica · CRP 06/142387",
-    stars: 5,
-    highlight: "1h30 → 10 minutos",
-  },
-  {
-    quote: "A segurança me convenceu logo de cara. Meus pacientes são pessoas públicas — não posso ter dados em nuvem. O ETHOS foi a única solução real que encontrei.",
-    name: "Dr. Rodrigo Maia",
-    role: "Neuropsicólogo · CRP 08/15234",
-    stars: 5,
-    highlight: "Privacidade total",
-  },
-  {
-    quote: "A facilidade de gerir toda clínica surpreendeu  até a minha supervisora. Ela não acreditou tanta facilidade em um único lugar.",
-    name: "Camila Freitas",
-    role: "Psicóloga em consultório particular · CRP 06/201444",
-    stars: 5,
-    highlight: "Qualidade profissional",
-  },
-];
+import { MessageSquare } from "lucide-react";
 
 const Testimonials = () => {
   return (
@@ -31,91 +7,73 @@ const Testimonials = () => {
       <div className="max-w-7xl mx-auto px-6">
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="mb-6 text-center">
           <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}>
-            Depoimentos
+            Em desenvolvimento
           </span>
         </motion.div>
 
         <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-16">
           <h2 className="text-4xl md:text-6xl font-bold text-[#EDF2F7]" style={{ fontFamily: "'DM Serif Display', serif" }}>
-            Psicólogos que{" "}
-            <span style={{ color: "#2F6F73" }}>recuperaram seu tempo.</span>
+            Seja um dos primeiros
+            <br />
+            <span style={{ color: "#2F6F73" }}>a experimentar.</span>
           </h2>
+          <p className="text-lg text-[#6B8FA8] max-w-xl mx-auto mt-6" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            O ETHOS está em fase beta. Psicólogos que entrarem agora terão acesso gratuito durante o período de testes e voz ativa no desenvolvimento do produto.
+          </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {testimonials.map((t, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-16">
+          {[
+            {
+              icon: "🔒",
+              title: "Acesso beta gratuito",
+              desc: "Sem cobrança enquanto o produto está em fase de testes. Você ajuda a moldar o ETHOS.",
+            },
+            {
+              icon: "💬",
+              title: "Canal direto com o time",
+              desc: "Reporte bugs, sugira funcionalidades e veja suas ideias implementadas em dias.",
+            },
+            {
+              icon: "⭐",
+              title: "Preço especial para fundadores",
+              desc: "Quem entrar agora garante desconto permanente quando o produto for lançado oficialmente.",
+            },
+          ].map((item, i) => (
             <motion.div
-              key={t.name}
+              key={item.title}
               initial={{ opacity: 0, y: 32 }}
               whileInView={{ opacity: 1, y: 0 }}
               viewport={{ once: true }}
               transition={{ duration: 0.5, delay: i * 0.12 }}
-              className="relative p-8 rounded-2xl flex flex-col"
+              className="p-8 rounded-2xl flex flex-col gap-4"
               style={{ background: "rgba(13,27,46,0.6)", border: "1px solid rgba(26,45,66,0.9)" }}
             >
-              {/* Stars */}
-              <div className="flex gap-0.5 mb-5">
-                {Array.from({ length: t.stars }).map((_, si) => (
-                  <Star key={si} size={14} fill="#2F6F73" style={{ color: "#2F6F73" }} />
-                ))}
-              </div>
-
-              {/* Highlight */}
-              <span
-                className="text-xs font-bold tracking-wider uppercase px-3 py-1 rounded-full self-start mb-5"
-                style={{
-                  background: "rgba(47,111,115,0.12)",
-                  border: "1px solid rgba(47,111,115,0.25)",
-                  color: "#4ECDC4",
-                  fontFamily: "'DM Sans', sans-serif",
-                }}
-              >
-                {t.highlight}
-              </span>
-
-              <blockquote
-                className="text-[#EDF2F7] leading-relaxed flex-1 mb-6 text-[15px]"
-                style={{ fontFamily: "'DM Sans', sans-serif" }}
-              >
-                "{t.quote}"
-              </blockquote>
-
-              <div className="flex items-center gap-3">
-                <div
-                  className="w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold"
-                  style={{ background: "rgba(47,111,115,0.2)", color: "#4ECDC4", fontFamily: "'DM Serif Display', serif" }}
-                >
-                  {t.name.split(" ").map(n => n[0]).join("").slice(0, 2)}
-                </div>
-                <div>
-                  <p className="text-sm font-semibold text-[#EDF2F7]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{t.name}</p>
-                  <p className="text-xs text-[#6B8FA8]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{t.role}</p>
-                </div>
-              </div>
+              <span className="text-3xl">{item.icon}</span>
+              <h3 className="text-lg font-bold text-[#EDF2F7]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{item.title}</h3>
+              <p className="text-sm text-[#6B8FA8] leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>{item.desc}</p>
             </motion.div>
           ))}
         </div>
 
-        {/* Social proof bar */}
+        {/* CTA beta */}
         <motion.div
-          initial={{ opacity: 0 }}
-          whileInView={{ opacity: 1 }}
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
-          transition={{ delay: 0.3 }}
-          className="mt-14 flex flex-wrap justify-center gap-12 py-8 border-t border-b"
-          style={{ borderColor: "rgba(26,45,66,0.6)" }}
+          className="text-center"
         >
-          {[
-            { num: "2.400+", label: "Prontuários gerados" },
-            { num: "98%", label: "Satisfação dos usuários" },
-            { num: "3h+", label: "Economizadas por semana" },
-            { num: "0", label: "Vazamentos de dados" },
-          ].map((stat) => (
-            <div key={stat.label} className="text-center">
-              <p className="text-3xl font-bold mb-1" style={{ color: "#2F6F73", fontFamily: "'DM Serif Display', serif" }}>{stat.num}</p>
-              <p className="text-sm text-[#6B8FA8]" style={{ fontFamily: "'DM Sans', sans-serif" }}>{stat.label}</p>
-            </div>
-          ))}
+          <a
+            href="https://ethos-frontend-rho.vercel.app/login"
+            className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
+            style={{ background: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}
+          >
+            <MessageSquare size={18} />
+            Quero participar do beta
+          </a>
+          <p className="mt-4 text-xs text-[#6B8FA8]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            Sem cartão de crédito · Acesso imediato · Cancele quando quiser
+          </p>
         </motion.div>
       </div>
     </section>

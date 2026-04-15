@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { ArrowRight, Shield, Wifi, Zap } from "lucide-react";
-import dashboardImg from "@/assets/ethos-dashboard.jpg";
+import dashboardImg from "@/assets/screen-inicio.png";
 
 const badges = [
   { icon: Shield, label: "100% local" },
