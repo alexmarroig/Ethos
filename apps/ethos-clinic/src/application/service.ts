@@ -2203,7 +2203,7 @@ export const updateFinancialEntry = (
 export const buildFinanceSummary = (owner: string, referenceDate = new Date()) => {
   const monthKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
   const entries = byOwner(db.financial.values(), owner)
-    .filter((entry) => entry.due_date.startsWith(monthKey))
+    .filter((entry) => entry.due_date?.startsWith(monthKey))
     .sort(compareByNewestDate);
 
   const receivables = entries.filter((entry) => entry.type === "receivable");

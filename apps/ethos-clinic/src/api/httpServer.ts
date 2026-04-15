@@ -771,6 +771,10 @@ export const createEthosBackend = () =>
       const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
       if (isClinicalPath && !requireClinicalAccess(res, requestId, auth.user.role)) return;
 
+      if (method === "GET" && url.pathname === "/patients") {
+        return ok(res, requestId, 200, listPatients(auth.user.id));
+      }
+
       if (method === "POST" && url.pathname === "/patients") {
         const body = await readJson(req);
         if (typeof body.name !== "string" || !body.name.trim()) {
