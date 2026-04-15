@@ -3,11 +3,12 @@ import { motion } from "framer-motion";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import EthosLogo from "@/components/landing/EthosLogo";
 
 const BACKEND_URL = import.meta.env.VITE_API_URL || "http://localhost:8787";
 const APP_URL = import.meta.env.VITE_APP_URL || "http://localhost:5173";
 
-const Login = () => {
+export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,21 +49,20 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center px-6">
+    <div className="flex min-h-screen items-center justify-center bg-background px-6">
       <motion.div
         className="w-full max-w-md"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6 }}
       >
-        <div className="text-center mb-10">
-          <a href="/" className="inline-block mb-4">
-            <span className="font-display font-bold text-4xl tracking-tight">
-              <span style={{ color: "#2563EB" }}>E</span>
-              <span className="text-foreground">THOS</span>
-            </span>
+        <div className="mb-10 text-center">
+          <a href="/" className="mb-4 inline-flex justify-center">
+            <EthosLogo />
           </a>
-          <p className="text-muted-foreground text-sm">Plataforma clínica para atendimento real</p>
+          <p className="text-sm text-muted-foreground">
+            Plataforma clínica para atendimento real
+          </p>
         </div>
 
         <motion.form
@@ -73,7 +73,9 @@ const Login = () => {
           transition={{ delay: 0.2 }}
         >
           <div className="space-y-2">
-            <label htmlFor="email" className="text-sm font-medium text-foreground">Email</label>
+            <label htmlFor="email" className="text-sm font-medium text-foreground">
+              Email
+            </label>
             <Input
               id="email"
               type="email"
@@ -87,7 +89,9 @@ const Login = () => {
           </div>
 
           <div className="space-y-2">
-            <label htmlFor="password" className="text-sm font-medium text-foreground">Senha</label>
+            <label htmlFor="password" className="text-sm font-medium text-foreground">
+              Senha
+            </label>
             <div className="relative">
               <Input
                 id="password"
@@ -105,18 +109,23 @@ const Login = () => {
                 className="absolute right-4 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                 tabIndex={-1}
               >
-                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                {showPassword ? (
+                  <EyeOff className="h-4 w-4" />
+                ) : (
+                  <Eye className="h-4 w-4" />
+                )}
               </button>
             </div>
           </div>
 
-          {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
-          )}
+          {error ? <p className="text-center text-sm text-destructive">{error}</p> : null}
 
-          <Button type="submit" className="w-full h-12 text-base" disabled={isLoading}>
+          <Button type="submit" className="h-12 w-full text-base" disabled={isLoading}>
             {isLoading ? (
-              <><Loader2 className="w-4 h-4 animate-spin mr-2" />Entrando...</>
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Entrando...
+              </>
             ) : (
               "Entrar"
             )}
@@ -132,6 +141,4 @@ const Login = () => {
       </motion.div>
     </div>
   );
-};
-
-export default Login;
+}
