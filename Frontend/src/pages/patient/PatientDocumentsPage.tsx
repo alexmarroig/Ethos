@@ -85,6 +85,18 @@ const PatientDocumentsPage = () => {
     }
   };
 
+  const openPreview = async (doc: SharedDocument) => {
+    if (doc.kind && doc.type === "document") {
+      const detail = await patientPortalService.getSharedDocumentById(doc.id);
+      if (detail.success && detail.data.versions && detail.data.versions.length > 0) {
+        const latest = detail.data.versions[detail.data.versions.length - 1];
+        setPreviewDoc({ ...doc, content: latest.content });
+        return;
+      }
+    }
+    setPreviewDoc(doc);
+  };
+
   if (loading) {
     return (
       <div className="content-container py-12 flex items-center justify-center">
@@ -123,7 +135,7 @@ const PatientDocumentsPage = () => {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap justify-end">
-          <Button variant="outline" size="sm" onClick={() => setPreviewDoc(doc)}>
+          <Button variant="outline" size="sm" onClick={() => void openPreview(doc)}>
             Ver
           </Button>
           <Button

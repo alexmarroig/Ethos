@@ -1,20 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, ChevronDown, Loader2, Send, CheckCircle2, Clock } from "lucide-react";
+import { BookOpen, ChevronDown, Clock, Loader2, Send, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { patientPortalService } from "@/services/patientPortalService";
-import type { Form } from "@/services/formService";
+import type { Form, FormEntry } from "@/services/formService";
 import { useToast } from "@/hooks/use-toast";
-
-// FormEntry from backend returns `content`, not `data`
-interface RawEntry {
-  id: string;
-  form_id: string;
-  content: Record<string, string>;
-  created_at: string;
-}
 
 const formatDatetime = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", {
@@ -30,7 +22,7 @@ export default function PatientDiaryPage() {
   const [forms, setForms] = useState<Form[]>([]);
   const [selectedFormId, setSelectedFormId] = useState("");
   const [responses, setResponses] = useState<Record<string, string>>({});
-  const [entries, setEntries] = useState<RawEntry[]>([]);
+  const [entries, setEntries] = useState<FormEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [submitted, setSubmitted] = useState(false);
@@ -49,20 +41,31 @@ export default function PatientDiaryPage() {
   }, []);
 
   const selectedForm = useMemo(
-    () => forms.find((f) => f.id === selectedFormId),
+    () => forms.find((form) => form.id === selectedFormId),
     [forms, selectedFormId],
   );
 
-  // Reset responses when form changes
   useEffect(() => {
     setResponses(
-      Object.fromEntries((selectedForm?.fields ?? []).map((f) => [f.id, ""])),
+      Object.fromEntries((selectedForm?.fields ?? []).map((field) => [field.id, ""])),
     );
     setSubmitted(false);
   }, [selectedForm]);
 
+  useEffect(() => {
+    if (!selectedFormId) {
+      setEntries([]);
+      return;
+    }
+    const loadEntries = async () => {
+      const result = await patientPortalService.getFormEntries(selectedFormId);
+      if (result.success) setEntries(result.data);
+    };
+    void loadEntries();
+  }, [selectedFormId]);
+
   const canSubmit = (selectedForm?.fields ?? []).every(
-    (f) => !f.required || (responses[f.id] ?? "").trim().length > 0,
+    (field) => !field.required || (responses[field.id] ?? "").trim().length > 0,
   );
 
   const handleSubmit = async () => {
@@ -75,21 +78,27 @@ export default function PatientDiaryPage() {
     setSaving(false);
 
     if (!result.success) {
-      toast({ title: "Erro ao enviar", description: (result as { error: { message: string } }).error.message, variant: "destructive" });
+      toast({
+        title: "Erro ao enviar",
+        description: result.error.message,
+        variant: "destructive",
+      });
       return;
     }
 
-    // The API returns the raw entry with `content` field
-    const raw = result.data as unknown as RawEntry;
-    setEntries((prev) => [{ ...raw, content: responses }, ...prev]);
+    setEntries((current) => [{ ...result.data, data: responses }, ...current]);
     setSubmitted(true);
-    toast({ title: "Resposta enviada ✓", description: "Sua psicóloga poderá visualizar o que você escreveu." });
+    toast({
+      title: "Resposta enviada",
+      description: "Sua psicóloga já poderá visualizar o que você preencheu.",
+    });
 
-    // Reset after 1.5s
     setTimeout(() => {
-      setResponses(Object.fromEntries((selectedForm?.fields ?? []).map((f) => [f.id, ""])));
+      setResponses(
+        Object.fromEntries((selectedForm?.fields ?? []).map((field) => [field.id, ""])),
+      );
       setSubmitted(false);
-    }, 1500);
+    }, 1200);
   };
 
   if (loading) {
@@ -103,11 +112,15 @@ export default function PatientDiaryPage() {
   if (forms.length === 0) {
     return (
       <div className="content-container py-12">
-        <h1 className="mb-3 font-serif text-3xl font-medium text-foreground">Diário e formulários</h1>
+        <h1 className="mb-3 font-serif text-3xl font-medium text-foreground">
+          Diário e formulários
+        </h1>
         <p className="text-muted-foreground">Nenhum formulário disponível ainda.</p>
         <div className="mt-12 flex flex-col items-center py-16 text-center">
           <BookOpen className="mb-4 h-12 w-12 text-muted-foreground/25" />
-          <p className="text-sm text-muted-foreground">Sua psicóloga irá disponibilizar formulários em breve.</p>
+          <p className="text-sm text-muted-foreground">
+            Sua psicóloga irá disponibilizar formulários em breve.
+          </p>
         </div>
       </div>
     );
@@ -119,63 +132,71 @@ export default function PatientDiaryPage() {
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Diário e formulários</h1>
-          <p className="mt-2 text-muted-foreground">Preencha e envie para sua psicóloga.</p>
+          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">
+            Diário e formulários
+          </h1>
+          <p className="mt-2 text-muted-foreground">
+            Preencha seus registros e envie para sua psicóloga acompanhar.
+          </p>
         </motion.header>
 
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
-          {/* Form selector */}
-          {forms.length > 1 && (
+          {forms.length > 1 ? (
             <div className="relative mb-6">
               <button
-                onClick={() => setSelectOpen(!selectOpen)}
-                className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:border-primary/40 transition-colors"
+                onClick={() => setSelectOpen((current) => !current)}
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground transition-colors hover:border-primary/40"
               >
                 <span>{selectedForm?.name ?? "Selecione um formulário"}</span>
                 <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${selectOpen ? "rotate-180" : ""}`} />
               </button>
               <AnimatePresence>
-                {selectOpen && (
+                {selectOpen ? (
                   <motion.div
                     initial={{ opacity: 0, y: -8 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -8 }}
-                    className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+                    className="absolute z-10 mt-1 w-full overflow-hidden rounded-xl border border-border bg-card shadow-xl"
                   >
                     {forms.map((form) => (
                       <button
                         key={form.id}
-                        onClick={() => { setSelectedFormId(form.id); setSelectOpen(false); }}
-                        className={`w-full px-4 py-3 text-left text-sm transition-colors hover:bg-muted ${form.id === selectedFormId ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                        onClick={() => {
+                          setSelectedFormId(form.id);
+                          setSelectOpen(false);
+                        }}
+                        className={`w-full px-4 py-3 text-left text-sm transition-colors hover:bg-muted ${form.id === selectedFormId ? "font-medium text-foreground" : "text-muted-foreground"}`}
                       >
                         {form.name}
-                        {form.id === selectedFormId && <CheckCircle2 className="ml-2 inline h-3.5 w-3.5 text-primary" />}
                       </button>
                     ))}
                   </motion.div>
-                )}
+                ) : null}
               </AnimatePresence>
             </div>
-          )}
+          ) : null}
 
-          {/* Form card */}
           <div className="rounded-[28px] border border-border bg-card shadow-[0_18px_40px_rgba(23,49,58,0.08)]">
-            {/* Form header */}
             <div className="border-b border-border px-7 py-6">
-              <h2 className="font-serif text-2xl font-medium text-foreground">{selectedForm?.name}</h2>
-              {selectedForm?.description && (
-                <p className="mt-1.5 text-sm text-muted-foreground">{selectedForm.description}</p>
-              )}
+              <h2 className="font-serif text-2xl font-medium text-foreground">
+                {selectedForm?.name}
+              </h2>
+              {selectedForm?.description ? (
+                <p className="mt-1.5 text-sm text-muted-foreground">
+                  {selectedForm.description}
+                </p>
+              ) : null}
             </div>
 
-            {/* Fields */}
             {!hasFields ? (
               <div className="flex flex-col items-center py-16 text-center">
                 <BookOpen className="mb-3 h-10 w-10 text-muted-foreground/25" />
-                <p className="text-sm text-muted-foreground">Este formulário não possui campos configurados.</p>
+                <p className="text-sm text-muted-foreground">
+                  Este formulário ainda não possui campos configurados.
+                </p>
               </div>
             ) : (
-              <div className="space-y-0 divide-y divide-border">
+              <div className="divide-y divide-border">
                 {(selectedForm?.fields ?? []).map((field, index) => (
                   <motion.div
                     key={field.id}
@@ -190,7 +211,7 @@ export default function PatientDiaryPage() {
                       </span>
                       <span className="mt-1.5 block text-[15px] font-medium text-foreground">
                         {field.label}
-                        {field.required && <span className="ml-1 text-red-400">*</span>}
+                        {field.required ? <span className="ml-1 text-red-400">*</span> : null}
                       </span>
                     </label>
 
@@ -218,8 +239,10 @@ export default function PatientDiaryPage() {
                         disabled={submitted}
                       >
                         <option value="">Selecione...</option>
-                        {field.options?.map((opt) => (
-                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        {field.options?.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
                         ))}
                       </select>
                     ) : (
@@ -236,11 +259,10 @@ export default function PatientDiaryPage() {
               </div>
             )}
 
-            {/* Submit */}
-            {hasFields && (
+            {hasFields ? (
               <div className="flex items-center justify-between border-t border-border px-7 py-5">
                 <p className="text-xs text-muted-foreground">
-                  Sua resposta ficará disponível para sua psicóloga.
+                  Sua resposta ficará registrada para acompanhamento clínico.
                 </p>
                 <AnimatePresence mode="wait">
                   {submitted ? (
@@ -268,49 +290,46 @@ export default function PatientDiaryPage() {
                   )}
                 </AnimatePresence>
               </div>
-            )}
+            ) : null}
           </div>
         </motion.div>
 
-        {/* Previous entries */}
-        {entries.length > 0 && (
-          <motion.div
-            className="mt-10 space-y-4"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.2 }}
-          >
-            <h2 className="font-serif text-xl font-medium text-foreground">Respostas enviadas</h2>
+        {entries.length > 0 ? (
+          <motion.div className="mt-10 space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+            <h2 className="font-serif text-xl font-medium text-foreground">
+              Respostas enviadas
+            </h2>
             {entries.map((entry) => {
-              const form = forms.find((f) => f.id === entry.form_id);
+              const form = forms.find((item) => item.id === entry.form_id);
+              const data = ((entry as unknown as { data?: Record<string, unknown>; content?: Record<string, unknown> }).data
+                ?? (entry as unknown as { content?: Record<string, unknown> }).content
+                ?? {}) as Record<string, unknown>;
+
               return (
                 <div key={entry.id} className="rounded-2xl border border-border bg-card/60 p-5">
                   <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
                     <Clock className="h-3.5 w-3.5" />
                     <span>{formatDatetime(entry.created_at)}</span>
-                    {form && <span className="ml-1 rounded-full bg-muted px-2 py-0.5">{form.name}</span>}
+                    {form ? <span className="ml-1 rounded-full bg-muted px-2 py-0.5">{form.name}</span> : null}
                   </div>
                   <div className="space-y-3">
-                    {entry.content && typeof entry.content === "object"
-                      ? Object.entries(entry.content).map(([key, val]) => {
-                          const fieldDef = form?.fields?.find((f) => f.id === key);
-                          return (
-                            <div key={key} className="rounded-xl bg-muted/40 px-4 py-3">
-                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
-                                {fieldDef?.label ?? key}
-                              </p>
-                              <p className="text-sm text-foreground">{String(val) || <span className="italic text-muted-foreground">Não respondido</span>}</p>
-                            </div>
-                          );
-                        })
-                      : <p className="text-sm text-muted-foreground italic">Resposta vazia</p>
-                    }
+                    {Object.entries(data).map(([key, val]) => {
+                      const fieldDef = form?.fields?.find((field) => field.id === key);
+                      return (
+                        <div key={key} className="rounded-xl bg-muted/40 px-4 py-3">
+                          <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                            {fieldDef?.label ?? key}
+                          </p>
+                          <p className="text-sm text-foreground">{String(val || "Não respondido")}</p>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               );
             })}
           </motion.div>
-        )}
+        ) : null}
       </div>
     </div>
   );

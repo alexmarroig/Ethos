@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Share2, CheckCircle2, Loader2 } from "lucide-react";
+import { Eye, CheckCircle2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { shareApi } from "@/services/patientPortalService";
 import { useToast } from "@/hooks/use-toast";
@@ -50,7 +50,7 @@ export const ShareWithPatientButton = ({ type, id, shared, onToggle, size = "sm"
       ) : isShared ? (
         <CheckCircle2 className="w-3.5 h-3.5" />
       ) : (
-        <Share2 className="w-3.5 h-3.5" />
+        <Eye className="w-3.5 h-3.5" />
       )}
       {isShared ? "Compartilhado" : "Disponibilizar"}
     </Button>

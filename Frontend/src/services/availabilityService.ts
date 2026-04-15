@@ -7,6 +7,7 @@ export interface AvailabilityBlock {
   end_time: string;
   slot_duration_minutes: number;
   enabled: boolean;
+  patient_ids: string[];
   created_at: string;
 }
 

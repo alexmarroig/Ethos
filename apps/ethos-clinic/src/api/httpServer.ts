@@ -986,6 +986,23 @@ export const createEthosBackend = () =>
         );
       }
 
+      if (method === "GET" && url.pathname === "/patient/forms/entries") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const formId = url.searchParams.get("form_id") ?? undefined;
+        return ok(
+          res,
+          requestId,
+          200,
+          listFormEntries(access.owner_user_id, {
+            patient_id: access.patient_id,
+            form_id: formId,
+          }),
+        );
+      }
+
       const psychologistPatientDiary = url.pathname.match(/^\/psychologist\/patient\/([^/]+)\/diary$/);
       if (method === "GET" && psychologistPatientDiary) {
         if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
@@ -1121,6 +1138,7 @@ export const createEthosBackend = () =>
           end_time: body.end_time,
           slot_duration_minutes: typeof body.slot_duration_minutes === "number" ? body.slot_duration_minutes : 50,
           enabled: body.enabled !== false,
+          patient_ids: Array.isArray(body.patient_ids) ? body.patient_ids : [],
         }));
       }
 

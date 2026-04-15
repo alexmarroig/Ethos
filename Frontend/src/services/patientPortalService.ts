@@ -19,7 +19,7 @@ export interface PatientSession {
 
 export interface DiaryEntry {
   id: string;
-  content: string;
+  content: Record<string, unknown>;
   created_at: string;
 }
 
@@ -42,6 +42,10 @@ export interface SharedDocument {
   patient_id?: string;
   terms?: { value?: string; periodicity?: string; absence_policy?: string; payment_method?: string };
   psychologist?: { name?: string; license?: string; email?: string };
+}
+
+export interface SharedDocumentDetail extends SharedDocument {
+  versions?: Array<{ id: string; content: string; created_at?: string }>;
 }
 
 export interface PatientFinancialEntry {
@@ -77,6 +81,81 @@ export interface SlotRequest {
   rejection_reason?: string;
   created_at: string;
 }
+
+const builtInFormFields: Record<string, NonNullable<Form["fields"]>> = {
+  "emotion-diary": [
+    {
+      id: "mood",
+      label: "Como você se sentiu hoje?",
+      type: "select",
+      required: true,
+      options: [
+        { label: "Muito mal", value: "muito_mal" },
+        { label: "Mal", value: "mal" },
+        { label: "Neutro", value: "neutro" },
+        { label: "Bem", value: "bem" },
+        { label: "Muito bem", value: "muito_bem" },
+      ],
+    },
+    {
+      id: "trigger",
+      label: "O que aconteceu de importante hoje?",
+      type: "textarea",
+      required: true,
+      placeholder: "Descreva brevemente o que aconteceu.",
+    },
+    {
+      id: "body_reaction",
+      label: "Como seu corpo reagiu?",
+      type: "textarea",
+      placeholder: "Ex.: aperto no peito, cansaço, agitação...",
+    },
+  ],
+  "initial-anamnesis": [
+    {
+      id: "main_reason",
+      label: "Qual o principal motivo para buscar atendimento agora?",
+      type: "textarea",
+      required: true,
+    },
+    {
+      id: "history",
+      label: "Há algum histórico importante que queira compartilhar?",
+      type: "textarea",
+    },
+    {
+      id: "expectation",
+      label: "O que você espera do processo terapêutico?",
+      type: "textarea",
+    },
+  ],
+  "weekly-checkin": [
+    {
+      id: "week_summary",
+      label: "Como foi sua semana?",
+      type: "textarea",
+      required: true,
+    },
+    {
+      id: "main_difficulty",
+      label: "Qual foi a maior dificuldade da semana?",
+      type: "textarea",
+    },
+    {
+      id: "highlight",
+      label: "Houve algo positivo que gostaria de registrar?",
+      type: "textarea",
+    },
+  ],
+};
+
+const withFallbackFields = (form: Form): Form => ({
+  ...form,
+  fields:
+    form.fields && form.fields.length > 0
+      ? form.fields
+      : builtInFormFields[form.id] ?? [],
+});
 
 function ok<TInput, TOutput>(
   result: ApiResult<TInput>,
@@ -147,10 +226,26 @@ export const patientPortalService = {
     }));
   },
 
-  listForms: () => api.get<Form[]>("/patient/forms"),
+  listForms: async (): Promise<ApiResult<Form[]>> => {
+    const result = await api.get<Form[]>("/patient/forms");
+    return ok(result, (forms) => forms.map(withFallbackFields));
+  },
 
   createFormEntry: (data: { form_id: string; content: Record<string, unknown> }) =>
     api.post<FormEntry>("/patient/forms/entry", data),
+
+  getFormEntries: async (formId?: string): Promise<ApiResult<FormEntry[]>> => {
+    const suffix = formId ? `?form_id=${encodeURIComponent(formId)}` : "";
+    const result = await api.get<FormEntry[]>(`/patient/forms/entries${suffix}`);
+    return ok(result, (entries) =>
+      entries.map((entry) => ({
+        ...entry,
+        data: (entry as unknown as { data?: unknown; content?: unknown }).data
+          ?? (entry as unknown as { content?: unknown }).content
+          ?? {},
+      })),
+    );
+  },
 
   getSharedDocuments: async (): Promise<ApiResult<SharedDocument[]>> => {
     const shared = await api.get<SharedDocument[]>("/patient/shared-documents");
@@ -171,6 +266,21 @@ export const patientPortalService = {
       );
     }
     return shared;
+  },
+
+  getSharedDocumentById: async (id: string): Promise<ApiResult<SharedDocumentDetail>> => {
+    const result = await api.get<any>(`/patient/documents/${id}`);
+    return ok(result, (payload) => ({
+      id: payload.document?.id ?? id,
+      type: payload.document?.template_id === "therapy-contract" ? "contract" : "document",
+      title: payload.document?.title,
+      kind: payload.document?.template_id,
+      status: payload.document?.status,
+      created_at: payload.document?.created_at,
+      shared_at: payload.document?.shared_at ?? payload.document?.created_at,
+      patient_id: payload.document?.patient_id,
+      versions: payload.versions ?? [],
+    }));
   },
 
   getFinancial: async (): Promise<ApiResult<PatientFinancialEntry[]>> => {
