@@ -2077,7 +2077,7 @@ const defaultFormsCatalog = [
 
 export const listFormsCatalog = (_ownerId?: string, _audience?: string) => [...defaultFormsCatalog];
 
-export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
+export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>, _submittedBy?: string): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
   db.forms.set(item.id, item);
   persistMutation();

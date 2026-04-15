@@ -17,7 +17,7 @@ export default function BrandWordmark({
           textClassName,
         )}
       >
-        <span className="text-[hsl(var(--brand-blue))]">E</span>
+        <span style={{ color: "#2F6F73" }}>E</span>
         <span className="text-foreground dark:text-foreground">THOS</span>
       </div>
     </div>

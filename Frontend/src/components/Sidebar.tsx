@@ -91,8 +91,10 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   const initials = user?.name
     ? user.name
+        .replace(/\(.*?\)/g, "")   // remove (Teste) etc.
         .trim()
         .split(/\s+/)
+        .filter((p) => /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(p))  // only words starting with a letter
         .slice(0, 2)
         .map((part) => part.charAt(0).toUpperCase())
         .join("")

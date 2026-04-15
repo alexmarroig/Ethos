@@ -1,26 +1,45 @@
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
-import { BookOpen, Loader2 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { BookOpen, ChevronDown, Loader2, Send, CheckCircle2, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { patientPortalService } from "@/services/patientPortalService";
-import type { Form, FormEntry } from "@/services/formService";
+import type { Form } from "@/services/formService";
 import { useToast } from "@/hooks/use-toast";
+
+// FormEntry from backend returns `content`, not `data`
+interface RawEntry {
+  id: string;
+  form_id: string;
+  content: Record<string, string>;
+  created_at: string;
+}
+
+const formatDatetime = (iso: string) =>
+  new Date(iso).toLocaleDateString("pt-BR", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 
 export default function PatientDiaryPage() {
   const { toast } = useToast();
   const [forms, setForms] = useState<Form[]>([]);
   const [selectedFormId, setSelectedFormId] = useState("");
   const [responses, setResponses] = useState<Record<string, string>>({});
-  const [entries, setEntries] = useState<FormEntry[]>([]);
+  const [entries, setEntries] = useState<RawEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [selectOpen, setSelectOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
       const formsRes = await patientPortalService.listForms();
-      if (formsRes.success) {
+      if (formsRes.success && formsRes.data.length > 0) {
         setForms(formsRes.data);
         setSelectedFormId(formsRes.data[0]?.id ?? "");
       }
@@ -30,16 +49,24 @@ export default function PatientDiaryPage() {
   }, []);
 
   const selectedForm = useMemo(
-    () => forms.find((form) => form.id === selectedFormId),
+    () => forms.find((f) => f.id === selectedFormId),
     [forms, selectedFormId],
   );
 
+  // Reset responses when form changes
   useEffect(() => {
-    setResponses(Object.fromEntries((selectedForm?.fields ?? []).map((field) => [field.id, ""])));
+    setResponses(
+      Object.fromEntries((selectedForm?.fields ?? []).map((f) => [f.id, ""])),
+    );
+    setSubmitted(false);
   }, [selectedForm]);
 
+  const canSubmit = (selectedForm?.fields ?? []).every(
+    (f) => !f.required || (responses[f.id] ?? "").trim().length > 0,
+  );
+
   const handleSubmit = async () => {
-    if (!selectedFormId) return;
+    if (!selectedFormId || saving) return;
     setSaving(true);
     const result = await patientPortalService.createFormEntry({
       form_id: selectedFormId,
@@ -48,102 +75,242 @@ export default function PatientDiaryPage() {
     setSaving(false);
 
     if (!result.success) {
-      toast({ title: "Erro", description: result.error.message, variant: "destructive" });
+      toast({ title: "Erro ao enviar", description: (result as { error: { message: string } }).error.message, variant: "destructive" });
       return;
     }
 
-    setEntries((current) => [result.data, ...current]);
-    toast({ title: "Formulário enviado", description: "Sua psicóloga já poderá visualizar essa resposta." });
+    // The API returns the raw entry with `content` field
+    const raw = result.data as unknown as RawEntry;
+    setEntries((prev) => [{ ...raw, content: responses }, ...prev]);
+    setSubmitted(true);
+    toast({ title: "Resposta enviada ✓", description: "Sua psicóloga poderá visualizar o que você escreveu." });
+
+    // Reset after 1.5s
+    setTimeout(() => {
+      setResponses(Object.fromEntries((selectedForm?.fields ?? []).map((f) => [f.id, ""])));
+      setSubmitted(false);
+    }, 1500);
   };
 
   if (loading) {
     return (
-      <div className="content-container py-12">
-        <p className="loading-text">Carregando formulários...</p>
+      <div className="content-container flex items-center justify-center py-20">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
+
+  if (forms.length === 0) {
+    return (
+      <div className="content-container py-12">
+        <h1 className="mb-3 font-serif text-3xl font-medium text-foreground">Diário e formulários</h1>
+        <p className="text-muted-foreground">Nenhum formulário disponível ainda.</p>
+        <div className="mt-12 flex flex-col items-center py-16 text-center">
+          <BookOpen className="mb-4 h-12 w-12 text-muted-foreground/25" />
+          <p className="text-sm text-muted-foreground">Sua psicóloga irá disponibilizar formulários em breve.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const hasFields = (selectedForm?.fields ?? []).length > 0;
 
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Diário e formulários</h1>
-          <p className="mt-2 text-muted-foreground">Preencha os formulários que sua psicóloga deixou disponíveis.</p>
+          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Diário e formulários</h1>
+          <p className="mt-2 text-muted-foreground">Preencha e envie para sua psicóloga.</p>
         </motion.header>
 
-        <div className="rounded-[28px] border border-border bg-card p-6 md:p-8 shadow-[0_18px_40px_rgba(23,49,58,0.08)]">
-          <select value={selectedFormId} onChange={(event) => setSelectedFormId(event.target.value)} className="flex h-12 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm">
-            {forms.map((form) => (
-              <option key={form.id} value={form.id}>{form.name}</option>
-            ))}
-          </select>
-
-          {selectedForm ? (
-            <div className="mt-6 space-y-5">
-              <div className="rounded-2xl bg-muted/40 px-5 py-5">
-                <h2 className="font-serif text-2xl text-foreground">{selectedForm.name}</h2>
-                {selectedForm.description ? <p className="mt-2 text-sm text-muted-foreground">{selectedForm.description}</p> : null}
-              </div>
-
-              {(selectedForm.fields ?? []).map((field, index) => (
-                <div key={field.id} className="rounded-2xl border border-border bg-background px-5 py-5 space-y-3">
-                  <div>
-                    <p className="text-xs uppercase tracking-[0.18em] text-muted-foreground">Pergunta {index + 1}</p>
-                    <label className="mt-2 block font-medium text-foreground">{field.label}</label>
-                  </div>
-
-                  {field.type === "textarea" ? (
-                    <Textarea value={responses[field.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} />
-                  ) : field.type === "date" ? (
-                    <Input type="date" value={responses[field.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [field.id]: event.target.value }))} />
-                  ) : field.type === "select" ? (
-                    <select value={responses[field.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [field.id]: event.target.value }))} className="flex h-12 w-full rounded-xl border border-input bg-background px-4 py-2 text-sm">
-                      <option value="">Selecione</option>
-                      {field.options?.map((option) => (
-                        <option key={option.value} value={option.value}>{option.label}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <Input value={responses[field.id] ?? ""} onChange={(event) => setResponses((current) => ({ ...current, [field.id]: event.target.value }))} placeholder={field.placeholder} />
-                  )}
-                </div>
-              ))}
-
-              <Button onClick={() => void handleSubmit()} disabled={saving} className="w-full md:w-auto">
-                {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                Submeter
-              </Button>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <BookOpen className="w-10 h-10 text-muted-foreground/30 mx-auto mb-3" />
-              <p className="text-muted-foreground text-sm">Nenhum formulário disponível.</p>
+        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          {/* Form selector */}
+          {forms.length > 1 && (
+            <div className="relative mb-6">
+              <button
+                onClick={() => setSelectOpen(!selectOpen)}
+                className="flex w-full items-center justify-between rounded-xl border border-border bg-card px-4 py-3 text-sm font-medium text-foreground hover:border-primary/40 transition-colors"
+              >
+                <span>{selectedForm?.name ?? "Selecione um formulário"}</span>
+                <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform ${selectOpen ? "rotate-180" : ""}`} />
+              </button>
+              <AnimatePresence>
+                {selectOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -8 }}
+                    className="absolute z-10 mt-1 w-full rounded-xl border border-border bg-card shadow-xl overflow-hidden"
+                  >
+                    {forms.map((form) => (
+                      <button
+                        key={form.id}
+                        onClick={() => { setSelectedFormId(form.id); setSelectOpen(false); }}
+                        className={`w-full px-4 py-3 text-left text-sm transition-colors hover:bg-muted ${form.id === selectedFormId ? "text-foreground font-medium" : "text-muted-foreground"}`}
+                      >
+                        {form.name}
+                        {form.id === selectedFormId && <CheckCircle2 className="ml-2 inline h-3.5 w-3.5 text-primary" />}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           )}
-        </div>
 
-        {entries.length > 0 ? (
-          <div className="mt-8 space-y-3">
-            <h2 className="font-serif text-lg font-medium text-foreground">Respostas enviadas</h2>
-            {entries.map((entry) => (
-              <div key={entry.id} className="session-card space-y-2">
-                <p className="text-xs text-muted-foreground">
-                  {new Date(entry.created_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
-                </p>
-                {entry.data && typeof entry.data === "object"
-                  ? Object.entries(entry.data as Record<string, string>).map(([key, val]) => (
-                      <div key={key}>
-                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{key}</p>
-                        <p className="text-sm text-foreground">{String(val) || "—"}</p>
-                      </div>
-                    ))
-                  : <p className="text-sm text-foreground/70">{String(entry.data)}</p>
-                }
+          {/* Form card */}
+          <div className="rounded-[28px] border border-border bg-card shadow-[0_18px_40px_rgba(23,49,58,0.08)]">
+            {/* Form header */}
+            <div className="border-b border-border px-7 py-6">
+              <h2 className="font-serif text-2xl font-medium text-foreground">{selectedForm?.name}</h2>
+              {selectedForm?.description && (
+                <p className="mt-1.5 text-sm text-muted-foreground">{selectedForm.description}</p>
+              )}
+            </div>
+
+            {/* Fields */}
+            {!hasFields ? (
+              <div className="flex flex-col items-center py-16 text-center">
+                <BookOpen className="mb-3 h-10 w-10 text-muted-foreground/25" />
+                <p className="text-sm text-muted-foreground">Este formulário não possui campos configurados.</p>
               </div>
-            ))}
+            ) : (
+              <div className="space-y-0 divide-y divide-border">
+                {(selectedForm?.fields ?? []).map((field, index) => (
+                  <motion.div
+                    key={field.id}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: index * 0.04 }}
+                    className="px-7 py-5"
+                  >
+                    <label className="mb-3 block">
+                      <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        {index + 1} / {selectedForm?.fields?.length}
+                      </span>
+                      <span className="mt-1.5 block text-[15px] font-medium text-foreground">
+                        {field.label}
+                        {field.required && <span className="ml-1 text-red-400">*</span>}
+                      </span>
+                    </label>
+
+                    {field.type === "textarea" ? (
+                      <Textarea
+                        value={responses[field.id] ?? ""}
+                        onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                        placeholder={field.placeholder ?? "Escreva aqui..."}
+                        className="min-h-[100px] resize-none rounded-xl"
+                        disabled={submitted}
+                      />
+                    ) : field.type === "date" ? (
+                      <Input
+                        type="date"
+                        value={responses[field.id] ?? ""}
+                        onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                        className="rounded-xl"
+                        disabled={submitted}
+                      />
+                    ) : field.type === "select" ? (
+                      <select
+                        value={responses[field.id] ?? ""}
+                        onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                        className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
+                        disabled={submitted}
+                      >
+                        <option value="">Selecione...</option>
+                        {field.options?.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <Input
+                        value={responses[field.id] ?? ""}
+                        onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
+                        placeholder={field.placeholder ?? ""}
+                        className="rounded-xl"
+                        disabled={submitted}
+                      />
+                    )}
+                  </motion.div>
+                ))}
+              </div>
+            )}
+
+            {/* Submit */}
+            {hasFields && (
+              <div className="flex items-center justify-between border-t border-border px-7 py-5">
+                <p className="text-xs text-muted-foreground">
+                  Sua resposta ficará disponível para sua psicóloga.
+                </p>
+                <AnimatePresence mode="wait">
+                  {submitted ? (
+                    <motion.div
+                      key="done"
+                      initial={{ opacity: 0, scale: 0.8 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0 }}
+                      className="flex items-center gap-2 text-sm font-medium text-emerald-600"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Enviado!
+                    </motion.div>
+                  ) : (
+                    <motion.div key="btn" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                      <Button
+                        onClick={() => void handleSubmit()}
+                        disabled={saving || !canSubmit}
+                        className="gap-2"
+                      >
+                        {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
+                        {saving ? "Enviando..." : "Enviar resposta"}
+                      </Button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            )}
           </div>
-        ) : null}
+        </motion.div>
+
+        {/* Previous entries */}
+        {entries.length > 0 && (
+          <motion.div
+            className="mt-10 space-y-4"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2 }}
+          >
+            <h2 className="font-serif text-xl font-medium text-foreground">Respostas enviadas</h2>
+            {entries.map((entry) => {
+              const form = forms.find((f) => f.id === entry.form_id);
+              return (
+                <div key={entry.id} className="rounded-2xl border border-border bg-card/60 p-5">
+                  <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />
+                    <span>{formatDatetime(entry.created_at)}</span>
+                    {form && <span className="ml-1 rounded-full bg-muted px-2 py-0.5">{form.name}</span>}
+                  </div>
+                  <div className="space-y-3">
+                    {entry.content && typeof entry.content === "object"
+                      ? Object.entries(entry.content).map(([key, val]) => {
+                          const fieldDef = form?.fields?.find((f) => f.id === key);
+                          return (
+                            <div key={key} className="rounded-xl bg-muted/40 px-4 py-3">
+                              <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                                {fieldDef?.label ?? key}
+                              </p>
+                              <p className="text-sm text-foreground">{String(val) || <span className="italic text-muted-foreground">Não respondido</span>}</p>
+                            </div>
+                          );
+                        })
+                      : <p className="text-sm text-muted-foreground italic">Resposta vazia</p>
+                    }
+                  </div>
+                </div>
+              );
+            })}
+          </motion.div>
+        )}
       </div>
     </div>
   );
