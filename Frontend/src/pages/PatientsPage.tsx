@@ -157,7 +157,13 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
     }
 
     setAccessCredentials(result.data.credentials);
-    toast({ title: "Acesso criado" });
+    toast({
+      title: "Acesso criado",
+      description:
+        result.data.email_delivery?.status === "sent"
+          ? "As credenciais também foram enviadas por email."
+          : "Copie as credenciais exibidas abaixo para compartilhar com o paciente.",
+    });
     setGranting(false);
   };
 

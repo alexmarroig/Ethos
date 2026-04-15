@@ -114,6 +114,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const restore = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get("token");
+
+      if (tokenFromUrl) {
+        localStorage.setItem(
+          WEB_AUTH_STORAGE_KEY,
+          JSON.stringify({ token: tokenFromUrl }),
+        );
+        localStorage.setItem(WEB_AUTH_EXPIRY_KEY, String(Date.now() + EXPIRY_MS));
+        localStorage.setItem(WEB_CLOUD_AUTH_KEY, "false");
+
+        const me = await authService.me();
+        if (me.success) {
+          persistUser(
+            normalizeUser({
+              ...me.data,
+              token: tokenFromUrl,
+            }),
+            false,
+          );
+          const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+          window.history.replaceState({}, document.title, cleanUrl);
+          setIsLoading(false);
+          return;
+        }
+
+        localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
+        localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
+        localStorage.removeItem(WEB_CLOUD_AUTH_KEY);
+      }
+
       const stored = localStorage.getItem(WEB_AUTH_STORAGE_KEY);
       const expiry = localStorage.getItem(WEB_AUTH_EXPIRY_KEY);
 

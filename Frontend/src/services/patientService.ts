@@ -84,6 +84,10 @@ type RawPatientAccessResponse = {
   access: { id: string; patient_id: string };
   patient_user: { id: string; email: string; name: string };
   temporary_password?: string | null;
+  email_delivery?: {
+    status: "sent" | "skipped" | "failed";
+    detail?: string;
+  } | null;
 };
 
 export interface PatientBilling {
@@ -169,6 +173,7 @@ export interface PatientAccessResult {
   credentials: string;
   patient_user: RawPatientAccessResponse["patient_user"];
   access_id: string;
+  email_delivery?: RawPatientAccessResponse["email_delivery"];
 }
 
 export interface CreatePatientInput {
@@ -311,6 +316,7 @@ export const patientService = {
         data.temporary_password || input.patient_password
           ? `Email: ${data.patient_user.email} | Senha: ${data.temporary_password ?? input.patient_password}`
           : `Email: ${data.patient_user.email}`,
+      email_delivery: data.email_delivery ?? undefined,
     }));
   },
 };

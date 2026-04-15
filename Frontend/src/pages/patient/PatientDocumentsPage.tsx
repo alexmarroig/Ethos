@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { CheckCircle2, Download, FileText, Loader2, PenLine } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -126,6 +126,15 @@ const PatientDocumentsPage = () => {
           <Button variant="outline" size="sm" onClick={() => setPreviewDoc(doc)}>
             Ver
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => downloadWordFromHtml(buildDocumentHtml(doc), `${doc.title ?? "documento"}.doc`)}
+          >
+            <Download className="w-3.5 h-3.5" />
+            Baixar
+          </Button>
           {doc.type === "contract" && doc.status !== "signed" && (
             <Button size="sm" className="gap-1.5" onClick={() => void handleSign(doc)} disabled={signing === doc.id}>
               {signing === doc.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PenLine className="w-3.5 h-3.5" />}
@@ -150,7 +159,7 @@ const PatientDocumentsPage = () => {
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Seus documentos</h1>
-          <p className="mt-2 text-muted-foreground">Documentos compartilhados pelo seu psicólogo.</p>
+          <p className="mt-2 text-muted-foreground">Documentos compartilhados pela sua psicóloga.</p>
         </motion.header>
 
         {docs.length === 0 ? (
@@ -205,3 +214,4 @@ const PatientDocumentsPage = () => {
 };
 
 export default PatientDocumentsPage;
+
