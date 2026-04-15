@@ -23,6 +23,8 @@ function applySnapshot(raw: Record<string, [string, unknown][]>): void {
   for (const [key, entries] of Object.entries(raw)) {
     const map = (db as Record<string, unknown>)[key];
     if (map instanceof Map && Array.isArray(entries)) {
+      // Clear first so seed data doesn't cause duplicate-email conflicts
+      map.clear();
       for (const [k, v] of entries) map.set(k, v);
     }
   }
