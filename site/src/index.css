@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,300&family=JetBrains+Mono:wght@400;500&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,72 +6,164 @@
 
 @layer base {
   :root {
-    --background: 40 20% 98%;
-    --foreground: 220 20% 10%;
+    /* Site dark theme */
+    --background: 216 50% 5%;
+    --foreground: 210 40% 96%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
+    --card: 216 42% 8%;
+    --card-foreground: 210 40% 96%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
+    --popover: 216 42% 8%;
+    --popover-foreground: 210 40% 96%;
 
-    --primary: 220 70% 45%;
-    --primary-foreground: 40 20% 98%;
+    --primary: 183 43% 32%;
+    --primary-foreground: 0 0% 100%;
 
-    --secondary: 40 15% 94%;
-    --secondary-foreground: 220 20% 10%;
+    --secondary: 216 38% 12%;
+    --secondary-foreground: 210 40% 96%;
 
-    --muted: 40 10% 93%;
-    --muted-foreground: 220 10% 46%;
+    --muted: 216 30% 15%;
+    --muted-foreground: 210 20% 55%;
 
-    --accent: 160 50% 42%;
+    --accent: 183 43% 40%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
 
-    --border: 40 10% 90%;
-    --input: 40 10% 90%;
-    --ring: 220 60% 20%;
+    --border: 216 30% 14%;
+    --input: 216 30% 14%;
+    --ring: 183 43% 32%;
 
-    --radius: 0.625rem;
+    --radius: 0.75rem;
 
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 240 5.9% 10%;
-    --sidebar-primary-foreground: 0 0% 98%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 217.2 91.2% 59.8%;
-
-    --font-display: 'Plus Jakarta Sans', sans-serif;
-    --font-body: 'Inter', sans-serif;
-
-    --gradient-hero: linear-gradient(135deg, hsl(40 20% 98%) 0%, hsl(40 15% 94%) 100%);
-    --shadow-card: 0 1px 3px 0 hsl(220 20% 10% / 0.04), 0 1px 2px -1px hsl(220 20% 10% / 0.04);
-    --shadow-card-hover: 0 4px 12px 0 hsl(220 20% 10% / 0.08);
-    --shadow-hero: 0 20px 60px -12px hsl(220 20% 10% / 0.12);
+    /* Custom brand tokens */
+    --ethos-teal: #2F6F73;
+    --ethos-teal-light: #4ECDC4;
+    --ethos-navy: #060F1E;
+    --ethos-navy-mid: #0D1B2E;
+    --ethos-surface: #0F2035;
+    --ethos-text: #EDF2F7;
+    --ethos-muted: #6B8FA8;
+    --ethos-border: #1A2D42;
+    --ethos-glow: rgba(47, 111, 115, 0.18);
   }
 }
 
 @layer base {
-  * {
-    @apply border-border;
-  }
+  * { @apply border-border; }
+  html { scroll-behavior: smooth; }
 
   body {
     @apply bg-background text-foreground;
-    font-family: var(--font-body);
+    font-family: 'DM Sans', sans-serif;
+    background-color: #060F1E;
+    color: #EDF2F7;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
   }
 
-  h1, h2, h3, h4, h5, h6 {
-    font-family: var(--font-display);
+  h1, h2, h3, h4 {
+    font-family: 'DM Serif Display', serif;
+    letter-spacing: -0.02em;
   }
 }
 
 @layer utilities {
-  .text-balance {
-    text-wrap: balance;
+  .font-display { font-family: 'DM Serif Display', serif; }
+  .font-sans { font-family: 'DM Sans', sans-serif; }
+  .font-mono { font-family: 'JetBrains Mono', monospace; }
+
+  /* Grain overlay texture */
+  .grain::after {
+    content: '';
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 999;
+    opacity: 0.025;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='1'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 180px;
   }
+
+  /* Grid background */
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(47, 111, 115, 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(47, 111, 115, 0.06) 1px, transparent 1px);
+    background-size: 72px 72px;
+  }
+
+  /* Teal glow */
+  .glow-teal {
+    box-shadow: 0 0 60px rgba(47, 111, 115, 0.25), 0 0 120px rgba(47, 111, 115, 0.08);
+  }
+
+  /* Text gradient */
+  .text-gradient {
+    background: linear-gradient(135deg, #4ECDC4 0%, #2F6F73 60%, #1E3A5F 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Surface card */
+  .surface {
+    background: rgba(13, 27, 46, 0.6);
+    border: 1px solid var(--ethos-border);
+    backdrop-filter: blur(12px);
+  }
+
+  /* Ethos E color */
+  .ethos-e { color: #2F6F73; }
 }
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #060F1E; }
+::-webkit-scrollbar-thumb { background: #1A2D42; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #2F6F73; }
+
+/* Animated underline for nav */
+.nav-link {
+  position: relative;
+}
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0; bottom: -2px;
+  width: 0; height: 1px;
+  background: #2F6F73;
+  transition: width 0.3s ease;
+}
+.nav-link:hover::after { width: 100%; }
+
+/* Pulse animation for live indicator */
+@keyframes pulse-teal {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+.pulse-teal { animation: pulse-teal 2s ease-in-out infinite; }
+
+/* Shimmer for AI card */
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(47,111,115,0.15) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2.5s ease-in-out infinite;
+}
+
+/* Typing cursor blink */
+@keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+.cursor-blink { animation: blink 1s step-end infinite; }
+
+/* Float animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+.float { animation: float 4s ease-in-out infinite; }

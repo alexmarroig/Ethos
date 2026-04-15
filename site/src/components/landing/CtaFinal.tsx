@@ -1,31 +1,76 @@
 import { motion } from "framer-motion";
-import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
 
 const CtaFinal = () => {
   return (
-    <section className="py-16 md:py-24 bg-primary">
-      <div className="container">
+    <section className="py-28 md:py-40 relative overflow-hidden" style={{ background: "#07111F" }}>
+      {/* Background glow */}
+      <div
+        className="absolute inset-0 pointer-events-none"
+        style={{
+          background: "radial-gradient(ellipse 80% 60% at 50% 100%, rgba(47,111,115,0.12), transparent 70%)",
+        }}
+      />
+      <div className="absolute inset-0 bg-grid opacity-20" />
+
+      <div className="relative z-10 max-w-4xl mx-auto px-6 text-center">
         <motion.div
-          className="text-center max-w-2xl mx-auto"
           initial={{ opacity: 0, scale: 0.95 }}
           whileInView={{ opacity: 1, scale: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.6, type: "spring", stiffness: 80 }}
+          transition={{ duration: 0.7 }}
         >
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-primary-foreground mb-4">
-            Comece agora e simplifique sua rotina clínica
+          <span
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-semibold tracking-widest uppercase mb-8"
+            style={{
+              background: "rgba(47,111,115,0.1)",
+              border: "1px solid rgba(47,111,115,0.25)",
+              color: "#4ECDC4",
+              fontFamily: "'DM Sans', sans-serif",
+            }}
+          >
+            <span className="pulse-teal w-1.5 h-1.5 rounded-full bg-[#4ECDC4] inline-block" />
+            Comece hoje
+          </span>
+
+          <h2
+            className="text-5xl md:text-7xl font-bold text-[#EDF2F7] leading-tight mb-6"
+            style={{ fontFamily: "'DM Serif Display', serif" }}
+          >
+            Sua clínica mais leve.
+            <br />
+            <span style={{ color: "#2F6F73" }}>A partir de agora.</span>
           </h2>
-          <p className="text-primary-foreground/70 text-lg mb-8">
-            Junte-se a psicólogos que já economizam horas toda semana.
+
+          <p
+            className="text-xl text-[#6B8FA8] max-w-xl mx-auto mb-12 leading-relaxed"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            7 dias para experimentar tudo. Sem cartão. Sem comprometimento. Só você e sua clínica funcionando melhor.
           </p>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.97 }}>
-            <a href="/login">
-              <Button size="lg" variant="secondary" className="gap-2 text-base px-8">
-                Testar grátis por 7 dias <ArrowRight size={16} />
-              </Button>
-            </a>
-          </motion.div>
+
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+            <motion.a
+              href="/login"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.97 }}
+              className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-semibold text-white text-base"
+              style={{
+                background: "#2F6F73",
+                boxShadow: "0 0 60px rgba(47,111,115,0.4)",
+                fontFamily: "'DM Sans', sans-serif",
+              }}
+            >
+              Testar grátis por 7 dias <ArrowRight size={16} />
+            </motion.a>
+          </div>
+
+          <p
+            className="mt-6 text-sm text-[#6B8FA8]"
+            style={{ fontFamily: "'DM Sans', sans-serif" }}
+          >
+            Sem cartão de crédito · Cancele quando quiser · Seus dados ficam com você
+          </p>
         </motion.div>
       </div>
     </section>

@@ -1,67 +1,83 @@
 import { motion } from "framer-motion";
-import { Clock, DollarSign, FileX, Users } from "lucide-react";
+import { Brain, Clock, FileX, HeartOff } from "lucide-react";
 
 const pains = [
-  { icon: Clock, title: "Horas escrevendo prontuários", desc: "Tempo que poderia ser dedicado aos seus pacientes é gasto com burocracia." },
-  { icon: DollarSign, title: "Controle financeiro confuso", desc: "Pagamentos esquecidos, planilhas perdidas e sem visão clara do financeiro." },
-  { icon: FileX, title: "Sistemas desorganizados", desc: "Word, papel, WhatsApp… suas informações estão espalhadas em vários lugares." },
-  { icon: Users, title: "Pacientes sem organização", desc: "Histórico difícil de acessar, dados desatualizados e falta de acompanhamento." },
+  {
+    icon: Clock,
+    stat: "3h+",
+    title: "Perdidas por semana",
+    desc: "Em cada prontuário escrito à mão após cada sessão. Tempo que poderia ir para mais pacientes — ou para você.",
+  },
+  {
+    icon: Brain,
+    stat: "87%",
+    title: "Dos psicólogos relatam burnout",
+    desc: "A burocracia clínica é apontada como principal causa de esgotamento na profissão.",
+  },
+  {
+    icon: FileX,
+    stat: "40%",
+    title: "Do tempo em documentação",
+    desc: "Quase metade da sua jornada vai para preenchimento de formulários, relatórios e prontuários.",
+  },
+  {
+    icon: HeartOff,
+    stat: "1 em 3",
+    title: "Psicólogos abandonam a clínica",
+    desc: "Nos primeiros 5 anos de carreira, por sobrecarga administrativa e falta de suporte tecnológico.",
+  },
 ];
-
-const containerVariants = {
-  hidden: {},
-  visible: { transition: { staggerChildren: 0.12 } },
-};
-
-const cardVariants = {
-  hidden: { opacity: 0, x: -20, scale: 0.95 },
-  visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.5, type: "spring", stiffness: 100 } },
-};
 
 const PainPoints = () => {
   return (
-    <section className="py-16 md:py-24 bg-secondary">
-      <div className="container">
-        <motion.div
-          className="text-center mb-12"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="text-3xl md:text-4xl font-display font-bold text-foreground mb-4">
-            Você se identifica?
+    <section id="problema" className="py-28 md:py-36 relative overflow-hidden" style={{ background: "#060F1E" }}>
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-px h-24" style={{ background: "linear-gradient(transparent, rgba(47,111,115,0.3), transparent)" }} />
+      <div className="max-w-7xl mx-auto px-6">
+        <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="mb-6">
+          <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}>
+            O Problema
+          </span>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.7 }} className="max-w-3xl mb-20">
+          <h2 className="text-4xl md:text-6xl font-bold text-[#EDF2F7] leading-tight mb-6" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            Você se formou para{" "}
+            <em style={{ color: "#2F6F73" }}>cuidar de pessoas.</em>
+            <br />Não para lidar com burocracia.
           </h2>
-          <p className="text-muted-foreground text-lg max-w-xl mx-auto">
-            A rotina clínica não precisa ser tão trabalhosa.
+          <p className="text-lg text-[#6B8FA8] leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            Anos de estudo, supervisão, aprimoramento — e boa parte da sua energia vai para prontuários,
+            agendamentos, cobranças e documentação que poderiam ser automatizados.
           </p>
         </motion.div>
 
-        <motion.div
-          className="grid md:grid-cols-2 gap-6 max-w-4xl mx-auto"
-          variants={containerVariants}
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true }}
-        >
-          {pains.map((pain) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          {pains.map((pain, i) => (
             <motion.div
               key={pain.title}
-              className="flex gap-4 p-6 rounded-xl bg-card border border-border"
-              style={{ boxShadow: 'var(--shadow-card)' }}
-              variants={cardVariants}
-              whileHover={{ y: -3, boxShadow: 'var(--shadow-card-hover)' }}
+              initial={{ opacity: 0, y: 32 }}
+              whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true }}
+              transition={{ duration: 0.5, delay: i * 0.1 }}
+              className="group relative p-6 rounded-2xl transition-all duration-300"
+              style={{ background: "rgba(13,27,46,0.5)", border: "1px solid rgba(26,45,66,0.8)" }}
             >
-              <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-destructive/10 flex items-center justify-center">
-                <pain.icon size={20} className="text-destructive" />
-              </div>
-              <div>
-                <h3 className="font-display font-semibold text-foreground mb-1">{pain.title}</h3>
-                <p className="text-sm text-muted-foreground leading-relaxed">{pain.desc}</p>
-              </div>
+              <pain.icon size={20} className="mb-5 opacity-50 group-hover:opacity-80 transition-opacity" style={{ color: "#2F6F73" }} />
+              <p className="text-5xl font-bold mb-2 leading-none" style={{ color: "#2F6F73", fontFamily: "'DM Serif Display', serif" }}>{pain.stat}</p>
+              <p className="text-sm font-semibold text-[#EDF2F7] mb-3" style={{ fontFamily: "'DM Sans', sans-serif" }}>{pain.title}</p>
+              <p className="text-sm text-[#6B8FA8] leading-relaxed" style={{ fontFamily: "'DM Sans', sans-serif" }}>{pain.desc}</p>
             </motion.div>
           ))}
-        </motion.div>
+        </div>
+
+        <motion.blockquote initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ delay: 0.3 }} className="mt-16 max-w-2xl mx-auto text-center">
+          <p className="text-2xl md:text-3xl font-bold text-[#EDF2F7] leading-snug" style={{ fontFamily: "'DM Serif Display', serif", fontStyle: "italic" }}>
+            "O maior inimigo do psicólogo clínico não é a falta de pacientes. É o tempo perdido depois de cada sessão."
+          </p>
+          <footer className="mt-4 text-sm text-[#6B8FA8]" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            — Reflexão comum entre psicólogos com mais de 5 anos de clínica
+          </footer>
+        </motion.blockquote>
       </div>
     </section>
   );

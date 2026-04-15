@@ -1,89 +1,81 @@
 import { motion } from "framer-motion";
-import { Play } from "lucide-react";
 import ethosDashboard from "@/assets/ethos-dashboard.jpg";
 
-const DEMO_VIDEO_URL = "";
-
 export default function Demo() {
-  const hasVideo = DEMO_VIDEO_URL.trim().length > 0;
-
   return (
-    <section className="bg-secondary py-16 md:py-24">
-      <div className="container">
-        <motion.div
-          className="mb-10 text-center"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
-          viewport={{ once: true }}
-          transition={{ duration: 0.5 }}
-        >
-          <h2 className="mb-4 text-3xl font-bold text-foreground md:text-4xl">
-            Veja um pouco do{" "}
-            <span className="font-display tracking-tight">
-              <span style={{ color: "hsl(191 55% 62%)" }}>E</span>
-              <span>THOS</span>
-            </span>
+    <section id="demo" className="py-28 md:py-36" style={{ background: "#060F1E" }}>
+      <div className="max-w-7xl mx-auto px-6">
+        <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="mb-6 text-center">
+          <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}>
+            Veja em ação
+          </span>
+        </motion.div>
+
+        <motion.div initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} className="text-center mb-14">
+          <h2 className="text-4xl md:text-6xl font-bold text-[#EDF2F7] mb-4" style={{ fontFamily: "'DM Serif Display', serif" }}>
+            Interface projetada
+            <br />
+            <span style={{ color: "#2F6F73" }}>para o clínico.</span>
           </h2>
-          <p className="text-lg text-muted-foreground">
-            {hasVideo
-              ? "Assista a uma demonstração rápida da plataforma."
-              : "Visualize a interface real do produto enquanto o vídeo ainda não foi publicado."}
+          <p className="text-lg text-[#6B8FA8] max-w-xl mx-auto" style={{ fontFamily: "'DM Sans', sans-serif" }}>
+            Limpa, rápida e focada no que importa. Sem excesso. Sem distração.
           </p>
         </motion.div>
 
         <motion.div
-          className="mx-auto max-w-5xl"
-          initial={{ opacity: 0, y: 20 }}
-          whileInView={{ opacity: 1, y: 0 }}
+          initial={{ opacity: 0, y: 40, scale: 0.97 }}
+          whileInView={{ opacity: 1, y: 0, scale: 1 }}
           viewport={{ once: true }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: 0.8 }}
+          className="max-w-6xl mx-auto"
         >
           <div
-            className="overflow-hidden rounded-[28px] border border-border bg-card"
-            style={{ boxShadow: "var(--shadow-card)" }}
+            className="rounded-2xl overflow-hidden"
+            style={{
+              border: "1px solid rgba(47,111,115,0.2)",
+              boxShadow: "0 40px 100px -20px rgba(0,0,0,0.7), 0 0 60px rgba(47,111,115,0.08)",
+            }}
           >
-            {hasVideo ? (
-              <div className="relative aspect-video bg-black">
-                <iframe
-                  src={DEMO_VIDEO_URL}
-                  title="Demonstração do ETHOS"
-                  className="h-full w-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
+            <div
+              className="flex items-center gap-2 px-5 py-3.5"
+              style={{ background: "rgba(13,27,46,0.95)", borderBottom: "1px solid rgba(47,111,115,0.12)" }}
+            >
+              <span className="w-3 h-3 rounded-full bg-red-500/50" />
+              <span className="w-3 h-3 rounded-full bg-yellow-500/50" />
+              <span className="w-3 h-3 rounded-full bg-green-500/50" />
+              <div
+                className="mx-auto flex items-center gap-2 text-xs px-16 py-1.5 rounded-md"
+                style={{ background: "rgba(6,15,30,0.9)", color: "#6B8FA8", fontFamily: "'JetBrains Mono', monospace" }}
+              >
+                <span className="w-2 h-2 rounded-full bg-[#2F6F73] pulse-teal" />
+                ethos.local — Funcionando offline
               </div>
-            ) : (
-              <div className="group relative aspect-video overflow-hidden bg-[#f7f4ef]">
-                <img
-                  src={ethosDashboard}
-                  alt="Tela real do ETHOS Web"
-                  className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.01]"
-                />
-                <div className="absolute inset-0 bg-gradient-to-t from-[#0f1720]/18 via-transparent to-transparent" />
-                <div className="absolute bottom-5 left-5 right-5 flex items-center justify-between gap-4 rounded-2xl border border-white/50 bg-white/70 px-4 py-3 backdrop-blur">
-                  <div>
-                    <p className="text-sm font-semibold text-foreground">ETHOS Web em uso real</p>
-                    <p className="text-xs text-muted-foreground">
-                      Você pode substituir esta imagem por um vídeo quando quiser.
-                    </p>
-                  </div>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm">
-                    <Play size={18} className="ml-0.5" />
-                  </div>
-                </div>
-              </div>
-            )}
+            </div>
+            <img
+              src={ethosDashboard}
+              alt="Interface do ETHOS — gestão clínica completa"
+              className="w-full h-auto block"
+            />
           </div>
+        </motion.div>
 
-          <div className="mt-4 rounded-2xl border border-border/70 bg-background/80 px-4 py-3 text-sm text-muted-foreground">
-            Para trocar por vídeo depois:
-            {` `}
-            edite `DEMO_VIDEO_URL` em
-            {` `}
-            <span className="font-medium text-foreground">`Site/src/components/landing/Demo.tsx`</span>
-            {` `}
-            e cole a URL de embed do vídeo.
-          </div>
+        <motion.div
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ delay: 0.3 }}
+          className="mt-10 flex flex-wrap justify-center gap-6"
+        >
+          {["Dados locais", "Funciona offline", "CRP compatível", "IA integrada"].map((feat) => (
+            <span
+              key={feat}
+              className="flex items-center gap-2 text-sm"
+              style={{ color: "#6B8FA8", fontFamily: "'DM Sans', sans-serif" }}
+            >
+              <span className="w-1.5 h-1.5 rounded-full" style={{ background: "#2F6F73" }} />
+              {feat}
+            </span>
+          ))}
         </motion.div>
       </div>
     </section>
