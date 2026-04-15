@@ -319,7 +319,7 @@ const seedBaseData = () => {
     email: LEGACY_LOCAL_CLINICIAN_EMAIL,
     name: "Camila",
     password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,
-    role: "admin",
+    role: "user",
   });
 
   db.scaleTemplates.set("phq9", { id: "phq9", name: "PHQ-9", description: "Depressão" });
@@ -333,6 +333,7 @@ const ensurePreferredLocalClinician = () => {
 
   if (preferred) {
     preferred.status = "active";
+    preferred.role = "user";
     preferred.password_hash = hashPassword(PREFERRED_LOCAL_CLINICIAN_PASSWORD);
     if (!preferred.name?.trim()) preferred.name = "Camila Veloso de Freitas";
     ensureClinicalEntitlements(preferred.id);
@@ -358,7 +359,7 @@ const ensurePreferredLocalClinician = () => {
     email: PREFERRED_LOCAL_CLINICIAN_EMAIL,
     name: "Camila Veloso de Freitas",
     password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,
-    role: "admin",
+    role: "user",
   });
   ensureClinicalEntitlements(camilaId);
 };
