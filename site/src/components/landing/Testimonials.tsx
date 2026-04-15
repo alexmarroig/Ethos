@@ -17,9 +17,9 @@ const testimonials = [
     highlight: "Privacidade total",
   },
   {
-    quote: "A qualidade dos prontuários gerados pela IA surpreendeu minha supervisora. Ela não acreditou que eram gerados automaticamente.",
+    quote: "A facilidade de gerir toda clínica surpreendeu  até a minha supervisora. Ela não acreditou tanta facilidade em um único lugar.",
     name: "Camila Freitas",
-    role: "Psicóloga em consultório particular · CRP 06/178902",
+    role: "Psicóloga em consultório particular · CRP 06/201444",
     stars: 5,
     highlight: "Qualidade profissional",
   },

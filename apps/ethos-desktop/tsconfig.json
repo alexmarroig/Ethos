@@ -1,15 +1,22 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
     "module": "CommonJS",
-    "moduleResolution": "Node",
+
+    "moduleResolution": "node",
     "jsx": "react-jsx",
+
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "baseUrl": ".",
-    "ignoreDeprecations": "6.0"
+
+    "types": ["node"],
+
+    "rootDir": ".",
+    "outDir": "dist",
+
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": [
     "src",
@@ -18,6 +25,7 @@
   "exclude": [
     "node_modules",
     "dist",
-    "dist-electron"
+    "dist-electron",
+    "../../apps/ethos-mobile"
   ]
 }

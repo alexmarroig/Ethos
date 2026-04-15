@@ -15,9 +15,9 @@ Substituir o mapa `DEV_USERS` e a senha:
 | Admin email | `admin@ethos.app` | `admin@admin` |
 | Admin nome | Administrador | Administrador |
 | Psico email | `demo.psico@ethos.app` | `camila@admin` |
-| Psico nome | Dra. Marina Santos | Camila (Psicologa) |
+| Psico nome | Dra. Camila Freitas | Camila (Psicologa) |
 | Paciente email | `demo.paciente@ethos.app` | `paciente@admin` |
-| Paciente nome | Ana Carolina Silva | Paciente Teste |
+| Paciente nome | Camila Freitas Paciente | Paciente Teste |
 | `DEV_PASSWORD` | `ethos2026` | `bianco256` |
 
 ### 2. `src/pages/LoginPage.tsx`

@@ -5,14 +5,16 @@
     "module": "commonjs",
     "target": "ESNext",
     "lib": ["ESNext"],
-    "moduleResolution": "Node",
+    "moduleResolution": "node",
+
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+
     "types": ["node"],
-    "baseUrl": ".",
+
     "paths": {
-      "@ethos/shared": ["../../packages/shared/src"]
+      "@ethos/shared": ["../../packages/shared/dist"]
     }
   },
   "include": ["electron"]
