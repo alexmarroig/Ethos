@@ -125,12 +125,21 @@ export default function PatientDiaryPage() {
 
         {entries.length > 0 ? (
           <div className="mt-8 space-y-3">
-            <h2 className="font-serif text-lg font-medium text-foreground">Envios recentes</h2>
+            <h2 className="font-serif text-lg font-medium text-foreground">Respostas enviadas</h2>
             {entries.map((entry) => (
-              <div key={entry.id} className="session-card">
-                <pre className="text-xs whitespace-pre-wrap text-foreground/70 bg-muted/50 rounded-lg p-3 overflow-auto">
-                  {JSON.stringify(entry.data, null, 2)}
-                </pre>
+              <div key={entry.id} className="session-card space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  {new Date(entry.created_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+                </p>
+                {entry.data && typeof entry.data === "object"
+                  ? Object.entries(entry.data as Record<string, string>).map(([key, val]) => (
+                      <div key={key}>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{key}</p>
+                        <p className="text-sm text-foreground">{String(val) || "—"}</p>
+                      </div>
+                    ))
+                  : <p className="text-sm text-foreground/70">{String(entry.data)}</p>
+                }
               </div>
             ))}
           </div>

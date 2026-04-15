@@ -2041,20 +2041,41 @@ const defaultFormsCatalog = [
     id: "emotion-diary",
     name: "Diário emocional",
     description: "Registro breve de humor, gatilhos e acontecimentos do dia.",
+    fields: [
+      { id: "mood", label: "Como você está se sentindo hoje? (1 = muito mal, 10 = muito bem)", type: "text" as const, placeholder: "Ex: 7" },
+      { id: "emotions", label: "Quais emoções você sentiu com mais força hoje?", type: "textarea" as const, placeholder: "Descreva as emoções..." },
+      { id: "trigger", label: "Houve algum gatilho ou situação que marcou o dia?", type: "textarea" as const, placeholder: "Descreva o que aconteceu..." },
+      { id: "body", label: "Como seu corpo está? (tensão, cansaço, dor...)", type: "textarea" as const, placeholder: "Ex: sinto tensão nos ombros..." },
+      { id: "gratitude", label: "Algo pelo qual você é grato(a) hoje?", type: "textarea" as const, placeholder: "Opcional..." },
+    ],
   },
   {
     id: "initial-anamnesis",
     name: "Anamnese inicial",
     description: "Coleta inicial de histórico pessoal, familiar e clínico.",
+    fields: [
+      { id: "reason", label: "Qual é o principal motivo que te trouxe à terapia?", type: "textarea" as const, placeholder: "Descreva com suas palavras..." },
+      { id: "history", label: "Você já fez terapia antes? Como foi?", type: "textarea" as const, placeholder: "Se sim, conte um pouco..." },
+      { id: "family", label: "Como você descreveria seu ambiente familiar atual?", type: "textarea" as const, placeholder: "Com quem você mora, como é a relação..." },
+      { id: "health", label: "Você tem alguma condição de saúde física relevante?", type: "textarea" as const, placeholder: "Medicamentos, diagnósticos..." },
+      { id: "goals", label: "O que você espera alcançar com a terapia?", type: "textarea" as const, placeholder: "Seus objetivos..." },
+    ],
   },
   {
     id: "weekly-checkin",
     name: "Check-in semanal",
     description: "Formulário simples para acompanhar a semana entre sessões.",
+    fields: [
+      { id: "week_mood", label: "De modo geral, como foi sua semana? (1 a 10)", type: "text" as const, placeholder: "Ex: 6" },
+      { id: "highlights", label: "O que de mais significativo aconteceu esta semana?", type: "textarea" as const, placeholder: "Algo positivo ou desafiador..." },
+      { id: "challenges", label: "Quais foram os maiores desafios?", type: "textarea" as const, placeholder: "Situações, pensamentos, emoções..." },
+      { id: "self_care", label: "Você conseguiu se cuidar esta semana? (sono, alimentação, exercício)", type: "textarea" as const, placeholder: "Como você se saiu..." },
+      { id: "next_focus", label: "O que gostaria de focar na próxima sessão?", type: "textarea" as const, placeholder: "Temas ou questões que quer trazer..." },
+    ],
   },
-] as const;
+];
 
-export const listFormsCatalog = () => [...defaultFormsCatalog];
+export const listFormsCatalog = (_ownerId?: string, _audience?: string) => [...defaultFormsCatalog];
 
 export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>): FormEntry => {
   const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };

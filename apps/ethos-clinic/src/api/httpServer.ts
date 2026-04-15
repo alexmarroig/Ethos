@@ -246,7 +246,7 @@ class BadRequestError extends Error {
 }
 
 const jsonHeaders = (res: ServerResponse, requestId: string) => {
-  res.setHeader("content-type", "application/json");
+  res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("x-request-id", requestId);
   res.setHeader("cache-control", "no-store");
 };
