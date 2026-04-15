@@ -251,18 +251,23 @@ const jsonHeaders = (res: ServerResponse, requestId: string) => {
   res.setHeader("cache-control", "no-store");
 };
 
+// Escape non-ASCII characters so the JSON is pure ASCII.
+// This prevents encoding issues regardless of Content-Type charset.
+const safeStringify = (value: unknown): string =>
+  JSON.stringify(value).replace(/[\u0080-\uFFFF]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
+
 const error = (res: ServerResponse, requestId: string, status: number, code: string, message: string) => {
   const payload: ApiError = { request_id: requestId, error: { code, message } };
   res.statusCode = status;
   jsonHeaders(res, requestId);
-  res.end(JSON.stringify(payload));
+  res.end(safeStringify(payload));
 };
 
 const ok = <T>(res: ServerResponse, requestId: string, status: number, data: T) => {
   const payload: ApiEnvelope<T> = { request_id: requestId, data };
   res.statusCode = status;
   jsonHeaders(res, requestId);
-  res.end(JSON.stringify(payload));
+  res.end(safeStringify(payload));
 };
 
 const tokenFrom = (req: IncomingMessage) =>
