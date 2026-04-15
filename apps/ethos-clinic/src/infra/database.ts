@@ -370,13 +370,33 @@ ensurePreferredLocalClinician();
 // Populates rich mock data so the app looks great for screenshots/demos.
 // Runs only once per process (idempotent: checks patients Map size).
 
+const DEMO_PSI_EMAIL = "psicologo.teste@gmail.com";
+const DEMO_PSI_PASSWORD = "psicologo256";
+const DEMO_PATIENT_EMAIL = "paciente.teste@gmail.com";
+const DEMO_PATIENT_PASSWORD = "paciente256";
+
 const seedDemoData = () => {
-  if (!camilaId) return;
-  // Skip if already seeded (patients exist for this owner)
-  const alreadySeeded = Array.from(db.patients.values()).some(
-    (p) => p.owner_user_id === camilaId,
+  // Skip if demo user already exists
+  const alreadySeeded = Array.from(db.users.values()).some(
+    (u) => u.email === DEMO_PSI_EMAIL,
   );
   if (alreadySeeded) return;
+
+  // Create a completely separate demo clinician — never touches camilaId
+  const demoId = uid();
+  const demoPsi: User = {
+    id: demoId,
+    email: DEMO_PSI_EMAIL,
+    name: "Psicólogo(a) Teste",
+    role: "user",
+    status: "active",
+    password_hash: hashPassword(DEMO_PSI_PASSWORD),
+    accepted_ethics: true,
+    created_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+    updated_at: new Date(Date.now() - 90 * 86400000).toISOString(),
+  } as unknown as User;
+  db.users.set(demoId, demoPsi);
+  ensureClinicalEntitlements(demoId);
 
   const daysAgo = (d: number) => {
     const dt = new Date();
@@ -389,7 +409,7 @@ const seedDemoData = () => {
     return dt.toISOString();
   };
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // ── Helpers (all data owned by demoId, never camilaId) ───────────────────
   const mkPatient = (
     name: string,
     email: string,
@@ -400,7 +420,7 @@ const seedDemoData = () => {
   ): Patient => {
     const p = {
       id: uid(),
-      owner_user_id: camilaId,
+      owner_user_id: demoId,
       name,
       label: name,
       external_id: uid(),
@@ -423,7 +443,7 @@ const seedDemoData = () => {
   ): ClinicalSession => {
     const s: ClinicalSession = {
       id: uid(),
-      owner_user_id: camilaId,
+      owner_user_id: demoId,
       patient_id: patientId,
       scheduled_at: scheduledAt,
       status,
@@ -437,7 +457,7 @@ const seedDemoData = () => {
   const mkNote = (sessionId: string, content: string) => {
     const n: ClinicalNote = {
       id: uid(),
-      owner_user_id: camilaId,
+      owner_user_id: demoId,
       session_id: sessionId,
       content,
       status: "final",
@@ -457,7 +477,7 @@ const seedDemoData = () => {
   ) => {
     const f: FinancialEntry = {
       id: uid(),
-      owner_user_id: camilaId,
+      owner_user_id: demoId,
       patient_id: patientId,
       description,
       amount,
@@ -609,22 +629,21 @@ const seedDemoData = () => {
   mkFinancial("", "Supervisão clínica mensal", 350, "expense", "paid", daysAgo(15));
   mkFinancial("", "Assinatura Ethos", 89, "expense", "paid", daysAgo(5));
 
-  // ── Patient portal user for Ana ───────────────────────────────────────────
-  // Creates ana.beatriz@email.com as a patient portal user (password: paciente123)
+  // ── Patient portal user (demo patient) ───────────────────────────────────
   const patientPortalUser: User = {
     id: uid(),
-    email: "ana.beatriz@email.com",
-    name: "Ana Beatriz Souza",
+    email: DEMO_PATIENT_EMAIL,
+    name: "Paciente Teste",
     role: "patient",
     status: "active",
-    password_hash: hashPassword("paciente123"),
+    password_hash: hashPassword(DEMO_PATIENT_PASSWORD),
     accepted_ethics: true,
     created_at: daysAgo(60),
     updated_at: daysAgo(60),
   } as unknown as User;
   db.users.set(patientPortalUser.id, patientPortalUser);
 
-  // Link patient record to portal user
+  // Link first patient record to the demo portal user
   const anaRecord = db.patients.get(ana.id);
   if (anaRecord) {
     (anaRecord as Patient & { portal_user_id?: string }).portal_user_id = patientPortalUser.id;
@@ -635,7 +654,7 @@ const seedDemoData = () => {
   // PatientAccess record linking portal user ↔ patient
   const patientAccessRecord = {
     id: uid(),
-    owner_user_id: camilaId,
+    owner_user_id: demoId,
     patient_id: ana.id,
     patient_user_id: patientPortalUser.id,
     created_at: daysAgo(60),
@@ -645,7 +664,7 @@ const seedDemoData = () => {
   // ── Form templates ────────────────────────────────────────────────────────
   const diaryTemplate: FormTemplate = {
     id: uid(),
-    owner_user_id: camilaId,
+    owner_user_id: demoId,
     name: "Diário emocional semanal",
     description: "Registro semanal de humor, emoções e situações significativas.",
     audience: "patient",
@@ -662,10 +681,10 @@ const seedDemoData = () => {
   } as unknown as FormTemplate;
   db.formTemplates.set(diaryTemplate.id, diaryTemplate);
 
-  // ── Form entries (Ana filled the diary twice) ─────────────────────────────
+  // ── Form entries (demo patient filled the diary twice) ───────────────────
   const diaryEntry1: FormEntry = {
     id: uid(),
-    owner_user_id: camilaId,
+    owner_user_id: demoId,
     patient_id: ana.id,
     form_id: diaryTemplate.id,
     content: {
@@ -682,7 +701,7 @@ const seedDemoData = () => {
 
   const diaryEntry2: FormEntry = {
     id: uid(),
-    owner_user_id: camilaId,
+    owner_user_id: demoId,
     patient_id: ana.id,
     form_id: diaryTemplate.id,
     content: {
