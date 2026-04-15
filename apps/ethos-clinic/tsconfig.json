@@ -7,7 +7,4 @@
       "node"
     ]
   },
-  "include": [
-    "src"
-, "../ethos-desktop/src/security"  ]
 }
