@@ -1,4 +1,10 @@
 {
-  "compilerOptions": {},
-  "extends": "expo/tsconfig.base"
+  "files": [],
+  "references": [
+    { "path": "apps/ethos-clinic" },
+    { "path": "apps/ethos-control-plane" },
+    { "path": "packages/shared" },
+    { "path": "packages/ethos-sdk" }
+  ]
 }
+
