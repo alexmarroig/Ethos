@@ -508,38 +508,48 @@ type Contract = {
   id: string;
   owner_user_id: string;
   patient_id: string;
+  template_id?: string;
+  title?: string;
+  content?: string;
   psychologist: { name: string; license: string; email: string; phone?: string };
-  patient: { name: string; email: string; document: string };
+  patient: { name: string; email: string; document: string; address?: string };
   terms: { value: string; periodicity: string; absence_policy: string; payment_method: string };
   status: "draft" | "sent" | "accepted";
   portal_token?: string;
   accepted_by?: string;
   accepted_at?: string;
   accepted_ip?: string;
+  signed_file?: {
+    file_name: string;
+    mime_type: string;
+    data_url: string;
+    uploaded_at: string;
+  };
   created_at: string;
   updated_at: string;
 };
 
 const normalizeStoredText = (value?: string) =>
   value
-    ? value
-        .replaceAll("ÃƒÆ’Ã‚Â£", "ã")
-        .replaceAll("ÃƒÂ£", "ã")
-        .replaceAll("Ã§", "ç")
-        .replaceAll("Ã£", "ã")
-        .replaceAll("Ã¡", "á")
-        .replaceAll("Ã¢", "â")
-        .replaceAll("Ãª", "ê")
-        .replaceAll("Ã©", "é")
-        .replaceAll("Ã­", "í")
-        .replaceAll("Ã³", "ó")
-        .replaceAll("Ãº", "ú")
-        .replaceAll("Ãµ", "õ")
-        .replaceAll("Ã", "à")
-        .replaceAll("Â", "")
-        .replaceAll("Sess?o", "Sessão")
-        .replaceAll("Pr?xima", "Próxima")
-        .replaceAll("dispon?vel", "disponível")
+    ? [
+        ["ÃƒÆ’Ã‚Â£", "ã"],
+        ["ÃƒÂ£", "ã"],
+        ["Ã§", "ç"],
+        ["Ã£", "ã"],
+        ["Ã¡", "á"],
+        ["Ã¢", "â"],
+        ["Ãª", "ê"],
+        ["Ã©", "é"],
+        ["Ã­", "í"],
+        ["Ã³", "ó"],
+        ["Ãº", "ú"],
+        ["Ãµ", "õ"],
+        ["Ã", "à"],
+        ["Â", ""],
+        ["Sess?o", "Sessão"],
+        ["Pr?xima", "Próxima"],
+        ["dispon?vel", "disponível"],
+      ].reduce((acc, [from, to]) => acc.split(from).join(to), value)
     : value;
 
 const normalizeContractRecord = (contract: Contract) => {
@@ -1477,10 +1487,34 @@ export const createContract = (owner: string, input: Omit<Contract, "id" | "owne
   return contract;
 };
 
+export const updateContract = (
+  owner: string,
+  id: string,
+  input: Partial<Omit<Contract, "id" | "owner_user_id" | "status" | "created_at" | "updated_at">>,
+) => {
+  const contract = getContract(owner, id);
+  if (!contract) return null;
+
+  if ("template_id" in input) contract.template_id = input.template_id;
+  if ("title" in input) contract.title = input.title;
+  if ("content" in input) contract.content = input.content;
+  if ("psychologist" in input && input.psychologist) contract.psychologist = { ...contract.psychologist, ...input.psychologist };
+  if ("patient" in input && input.patient) contract.patient = { ...contract.patient, ...input.patient };
+  if ("terms" in input && input.terms) contract.terms = { ...contract.terms, ...input.terms };
+  contract.updated_at = now();
+  persistMutation();
+  return contract;
+};
+
 export const listContracts = (owner: string) => byOwner(db.contracts.values() as Iterable<Contract>, owner);
 export const getContract = (owner: string, id: string) => getByOwner(db.contracts as Map<string, Contract>, owner, id);
 
-export const sendContract = (owner: string, id: string) => {
+export const sendContract = (
+  owner: string,
+  id: string,
+  _channel?: "email" | "whatsapp",
+  _recipient?: string,
+) => {
   const contract = getContract(owner, id);
   if (!contract) return null;
   contract.status = "sent";
@@ -1505,63 +1539,30 @@ export const acceptContract = (portalToken: string, acceptedBy: string, accepted
   return contract;
 };
 
+export const attachSignedContract = (
+  owner: string,
+  id: string,
+  input: { file_name: string; mime_type: string; data_url: string },
+) => {
+  const contract = getContract(owner, id);
+  if (!contract) return null;
+  contract.signed_file = {
+    file_name: input.file_name,
+    mime_type: input.mime_type,
+    data_url: input.data_url,
+    uploaded_at: now(),
+  };
+  contract.updated_at = now();
+  persistMutation();
+  return contract;
+};
+
 migrateLegacyContractText();
 
 export const exportContract = (owner: string, id: string, format: "pdf" | "docx") => {
   const contract = getContract(owner, id);
   if (!contract) return null;
   return { contract_id: id, format, content: JSON.stringify(contract) };
-};
-
-export const exportResourcePdf = async (owner: string, documentType: string, documentId: string) => {
-  if (documentType === "clinical_note") {
-    const note = getByOwner(db.clinicalNotes, owner, documentId);
-    if (!note) return null;
-    const parsed = parseLegacyClinicalNoteContent(note.content);
-    const payload = {
-      title: "Prontuário da sessão",
-      subtitle: note.status === "validated" ? "Prontuário validado" : "Rascunho em revisão",
-      sections: [
-        { heading: "Queixa principal", paragraphs: [parsed.structuredData.complaint || "Não informado"] },
-        { heading: "Observações clínicas", paragraphs: [parsed.structuredData.context || parsed.additionalNotes || "Não informado"] },
-        { heading: "Evolução", paragraphs: [parsed.structuredData.soap?.subjective || "Não informado"] },
-        { heading: "Plano terapêutico", paragraphs: [parsed.structuredData.soap?.plan || "Não informado"] },
-      ],
-    };
-    return { filename: `prontuario-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
-  }
-
-  if (documentType === "contract") {
-    const contract = getContract(owner, documentId);
-    if (!contract) return null;
-    const payload = {
-      title: contract.title ?? "Contrato terapêutico",
-      subtitle: `Status: ${contract.status}`,
-      sections: [
-        { heading: "Paciente", paragraphs: [contract.patient?.name || "Não informado", contract.patient?.email || ""] },
-        { heading: "Profissional", paragraphs: [contract.psychologist?.name || "Não informado", contract.psychologist?.license || ""] },
-        { heading: "Condições", paragraphs: [contract.terms?.value || "", contract.terms?.periodicity || "", contract.terms?.payment_method || "", contract.terms?.absence_policy || ""] },
-        { heading: "Conteúdo", paragraphs: [contract.content || ""] },
-      ],
-    };
-    return { filename: `contrato-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
-  }
-
-  if (documentType === "document") {
-    const detail = getDocumentDetail(owner, documentId);
-    if (!detail) return null;
-    const latestVersion = [...detail.versions].sort(compareByNewestDate)[0];
-    const payload = {
-      title: detail.document.title || "Documento clínico",
-      subtitle: `Paciente: ${detail.patient?.label || "Não informado"}`,
-      sections: [
-        { heading: "Conteúdo", paragraphs: [latestVersion ? stripHtml(latestVersion.content) : "Sem versão disponível"] },
-      ],
-    };
-    return { filename: `documento-${documentId}.pdf`, data_url: await runPdfGenerator(payload) };
-  }
-
-  return null;
 };
 
 export const exportResourcePdf = async (owner: string, documentType: string, documentId: string) => {
@@ -1718,6 +1719,7 @@ export const listDocumentVersions = (owner: string, documentId: string) =>
 type TemplateInput = {
   title: string;
   description?: string;
+  kind?: "document" | "contract";
   version: number;
   html: string;
   fields: Array<{ key: string; label: string; required?: boolean }>;
@@ -2540,40 +2542,3 @@ export const getClinicalNote = (owner: string, noteId: string) => {
 };
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
-
-export const createPatient = (
-  ownerUserId: string,
-  data: { label: string; external_id?: string; phone?: string; email?: string; cpf?: string; birth_date?: string; notes?: string }
-): Patient => {
-  const patient: Patient = {
-    id: uid(),
-    owner_user_id: ownerUserId,
-    external_id: data.external_id ?? uid(),
-    label: data.label,
-    phone: data.phone,
-    email: data.email,
-    cpf: data.cpf,
-    birth_date: data.birth_date,
-    notes: data.notes,
-    created_at: now(),
-  };
-  db.patients.set(patient.id, patient);
-  return patient;
-};
-
-export const updatePatient = (
-  id: string,
-  ownerUserId: string,
-  data: Partial<{ label: string; phone: string; email: string; cpf: string; birth_date: string; notes: string }>
-): Patient | null => {
-  const patient = db.patients.get(id);
-  if (!patient || patient.owner_user_id !== ownerUserId) return null;
-  if (data.label !== undefined) patient.label = data.label;
-  if (data.phone !== undefined) patient.phone = data.phone;
-  if (data.email !== undefined) patient.email = data.email;
-  if (data.cpf !== undefined) patient.cpf = data.cpf;
-  if (data.birth_date !== undefined) patient.birth_date = data.birth_date;
-  if (data.notes !== undefined) patient.notes = data.notes;
-  db.patients.set(id, patient);
-  return patient;
-};
