@@ -104,7 +104,7 @@ const Pricing = () => {
               </ul>
 
               <motion.a
-                href="/login"
+                href="https://ethos-frontend-rho.vercel.app/login"
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-semibold text-sm transition-all"

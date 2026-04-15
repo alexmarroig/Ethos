@@ -81,7 +81,7 @@ const Hero = () => {
           className="flex flex-col sm:flex-row items-center gap-4 mb-6"
         >
           <motion.a
-            href="/login"
+            href="https://ethos-frontend-rho.vercel.app/login"
             whileHover={{ scale: 1.04 }}
             whileTap={{ scale: 0.97 }}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-white text-base transition-all"
