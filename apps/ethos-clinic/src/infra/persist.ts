@@ -6,7 +6,7 @@ const DATA_FILE = process.env.DATA_FILE ?? path.join(process.cwd(), "data", "eth
 const DATABASE_URL = process.env.DATABASE_URL;
 
 // ---------------------------------------------------------------------------
-// Snapshot helpers (work for both file and Neon)
+// Snapshot helpers
 // ---------------------------------------------------------------------------
 
 function buildSnapshot(): Record<string, unknown[][]> {
@@ -29,16 +29,16 @@ function applySnapshot(raw: Record<string, [string, unknown][]>): void {
 }
 
 // ---------------------------------------------------------------------------
-// File-based persistence (local dev fallback)
+// File-based persistence (local dev / fallback)
 // ---------------------------------------------------------------------------
 
-function saveToFile(): void {
+function writeToFile(): void {
   const dir = path.dirname(DATA_FILE);
   if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   writeFileSync(DATA_FILE, JSON.stringify(buildSnapshot(), null, 2), "utf8");
 }
 
-function loadFromFileSync(): void {
+function readFromFile(): void {
   if (!existsSync(DATA_FILE)) {
     process.stdout.write(`[persist] No data file found at ${DATA_FILE}, starting fresh.\n`);
     return;
@@ -56,71 +56,70 @@ function loadFromFileSync(): void {
 // Neon PostgreSQL persistence
 // ---------------------------------------------------------------------------
 
-async function ensureNeonTable(sql: ReturnType<typeof import("@neondatabase/serverless")["neon"]>): Promise<void> {
+type NeonSql = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<Array<Record<string, unknown>>>;
+
+async function ensureTable(sql: NeonSql): Promise<void> {
   await sql`
     CREATE TABLE IF NOT EXISTS ethos_snapshot (
-      id   TEXT PRIMARY KEY,
-      data JSONB NOT NULL,
+      id         TEXT PRIMARY KEY,
+      data       JSONB NOT NULL,
       updated_at TIMESTAMPTZ DEFAULT NOW()
     )
   `;
 }
 
-async function loadFromNeon(sql: ReturnType<typeof import("@neondatabase/serverless")["neon"]>): Promise<boolean> {
-  await ensureNeonTable(sql);
-  const rows = await sql`SELECT data FROM ethos_snapshot WHERE id = 'main'`;
+async function readFromNeon(sql: NeonSql): Promise<void> {
+  await ensureTable(sql);
+  const rows = (await sql`SELECT data FROM ethos_snapshot WHERE id = 'main'`) as Array<{ data: Record<string, [string, unknown][]> }>;
   if (rows.length === 0) {
     process.stdout.write("[persist] No Neon snapshot found — starting fresh.\n");
-    return false;
+    return;
   }
-  applySnapshot(rows[0].data as Record<string, [string, unknown][]>);
+  applySnapshot(rows[0].data);
   process.stdout.write("[persist] Loaded snapshot from Neon PostgreSQL.\n");
-  return true;
 }
 
-async function saveToNeon(sql: ReturnType<typeof import("@neondatabase/serverless")["neon"]>): Promise<void> {
+async function writeToNeon(sql: NeonSql): Promise<void> {
   const snapshot = buildSnapshot();
   await sql`
     INSERT INTO ethos_snapshot (id, data, updated_at)
-    VALUES ('main', ${JSON.stringify(snapshot) as unknown as object}, NOW())
+    VALUES ('main', ${JSON.stringify(snapshot) as unknown as string}, NOW())
     ON CONFLICT (id) DO UPDATE
-      SET data = EXCLUDED.data,
+      SET data       = EXCLUDED.data,
           updated_at = NOW()
   `;
 }
 
 // ---------------------------------------------------------------------------
-// Public API (called from index.ts)
+// Public API
 // ---------------------------------------------------------------------------
 
-let _sql: ReturnType<typeof import("@neondatabase/serverless")["neon"]> | null = null;
+let _sql: NeonSql | null = null;
 
 export async function loadFromFile(): Promise<void> {
   if (DATABASE_URL) {
     try {
       const { neon } = await import("@neondatabase/serverless");
-      _sql = neon(DATABASE_URL);
-      await loadFromNeon(_sql);
+      _sql = neon(DATABASE_URL) as unknown as NeonSql;
+      await readFromNeon(_sql);
     } catch (err) {
       process.stderr.write(`[persist] Neon load failed, falling back to file: ${String(err)}\n`);
-      loadFromFileSync();
+      readFromFile();
     }
   } else {
-    loadFromFileSync();
+    readFromFile();
   }
 }
 
 export function saveToFile(): void {
   if (_sql) {
-    // async fire-and-forget
-    saveToNeon(_sql).catch((err) =>
+    const sqlRef = _sql;
+    writeToNeon(sqlRef).catch((err) =>
       process.stderr.write(`[persist] Neon save error: ${String(err)}\n`)
     );
   } else {
     try {
-      const dir = path.dirname(DATA_FILE);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-      writeFileSync(DATA_FILE, JSON.stringify(buildSnapshot(), null, 2), "utf8");
+      writeToFile();
     } catch (e) {
       process.stderr.write(`[persist] File save failed: ${(e as Error).message}\n`);
     }
