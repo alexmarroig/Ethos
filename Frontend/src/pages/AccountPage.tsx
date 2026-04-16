@@ -9,6 +9,7 @@ import { useEntitlements } from "@/contexts/EntitlementsContext";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
 import { templatesApi } from "@/api/clinical";
+import { DEFAULT_CONTRACT_TEMPLATE } from "@/lib/defaultContractTemplate";
 import { defaultPaymentReminderSettings, readPaymentReminderSettings, savePaymentReminderSettings } from "@/services/paymentReminderSettings";
 import type { DocumentTemplate } from "@/api/types";
 import {
@@ -47,7 +48,7 @@ const AccountPage = () => {
   const [templateDraftId, setTemplateDraftId] = useState<string | null>(null);
   const [templateTitle, setTemplateTitle] = useState("");
   const [templateDescription, setTemplateDescription] = useState("");
-  const [templateBody, setTemplateBody] = useState("");
+  const [templateBody, setTemplateBody] = useState(DEFAULT_CONTRACT_TEMPLATE);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState(defaultPaymentReminderSettings);
   const [profile, setProfile] = useState({
@@ -178,7 +179,8 @@ const AccountPage = () => {
     setTemplateDraftId(template?.id ?? null);
     setTemplateTitle(template?.name ?? template?.title ?? "");
     setTemplateDescription(template?.description ?? "");
-    setTemplateBody(template?.template_body ?? template?.html ?? "");
+    // When creating new, pre-fill with the default ETHOS template so user can edit it
+    setTemplateBody(template?.template_body ?? template?.html ?? DEFAULT_CONTRACT_TEMPLATE);
     setTemplateManagerOpen(true);
   };
 
@@ -214,7 +216,7 @@ const AccountPage = () => {
     setTemplateDraftId(null);
     setTemplateTitle("");
     setTemplateDescription("");
-    setTemplateBody("");
+    setTemplateBody(DEFAULT_CONTRACT_TEMPLATE);
     toast({ title: "Modelo salvo" });
   };
 
@@ -439,8 +441,11 @@ const AccountPage = () => {
           </DialogHeader>
           <div className="space-y-4">
             <Input placeholder="Título do modelo" value={templateTitle} onChange={(event) => setTemplateTitle(event.target.value)} />
-            <Input placeholder="Descrição" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
-            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} className="min-h-[320px]" />
+            <Input placeholder="Descrição (opcional)" value={templateDescription} onChange={(event) => setTemplateDescription(event.target.value)} />
+            <p className="text-xs text-muted-foreground">
+              As variáveis <code className="bg-muted px-1 rounded">{"{{psychologist_name}}"}</code>, <code className="bg-muted px-1 rounded">{"{{patient_name}}"}</code>, <code className="bg-muted px-1 rounded">{"{{contract_value}}"}</code> e outras serão preenchidas automaticamente ao gerar um contrato.
+            </p>
+            <Textarea value={templateBody} onChange={(event) => setTemplateBody(event.target.value)} className="min-h-[400px] font-mono text-xs" />
           </div>
           <DialogFooter>
             <Button variant="secondary" onClick={() => setTemplateManagerOpen(false)}>Fechar</Button>
