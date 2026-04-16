@@ -55,6 +55,9 @@ const AccountPage = () => {
     email: user?.email ?? "",
     avatar_url: user?.avatar_url ?? "",
     crp: user?.crp ?? "",
+    rg: user?.rg ?? "",
+    cpf: user?.cpf ?? "",
+    gender: user?.gender ?? ("" as "F" | "M" | ""),
     specialty: user?.specialty ?? "",
     clinical_approach: user?.clinical_approach ?? "",
   });
@@ -82,6 +85,9 @@ const AccountPage = () => {
       email: user?.email ?? "",
       avatar_url: user?.avatar_url ?? "",
       crp: user?.crp ?? "",
+      rg: user?.rg ?? "",
+      cpf: user?.cpf ?? "",
+      gender: user?.gender ?? ("" as "F" | "M" | ""),
       specialty: user?.specialty ?? "",
       clinical_approach: user?.clinical_approach ?? "",
     });
@@ -149,6 +155,9 @@ const AccountPage = () => {
       email: profile.email.trim().toLowerCase(),
       avatar_url: profile.avatar_url || undefined,
       crp: profile.crp.trim() || undefined,
+      rg: profile.rg.trim() || undefined,
+      cpf: profile.cpf.trim() || undefined,
+      gender: (profile.gender as "F" | "M") || undefined,
       specialty: profile.specialty.trim() || undefined,
       clinical_approach: profile.clinical_approach.trim() || undefined,
     });
@@ -272,15 +281,31 @@ const AccountPage = () => {
                 <Input value={profile.crp} onChange={(e) => setProfile((c) => ({ ...c, crp: e.target.value }))} placeholder="06/211111" />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Perfil</label>
-                <Input value={roleName} disabled />
+                <label className="text-sm font-medium text-foreground">Gênero</label>
+                <select
+                  value={profile.gender}
+                  onChange={(e) => setProfile((c) => ({ ...c, gender: e.target.value as "F" | "M" | "" }))}
+                  className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="">Não informado</option>
+                  <option value="F">Feminino</option>
+                  <option value="M">Masculino</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">RG</label>
+                <Input value={profile.rg} onChange={(e) => setProfile((c) => ({ ...c, rg: e.target.value }))} placeholder="00.000.000-0" />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">CPF</label>
+                <Input value={profile.cpf} onChange={(e) => setProfile((c) => ({ ...c, cpf: e.target.value }))} placeholder="000.000.000-00" />
               </div>
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Especialidade</label>
                 <Input value={profile.specialty} onChange={(e) => setProfile((c) => ({ ...c, specialty: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Abordagem clinica</label>
+                <label className="text-sm font-medium text-foreground">Abordagem clínica</label>
                 <Input value={profile.clinical_approach} onChange={(e) => setProfile((c) => ({ ...c, clinical_approach: e.target.value }))} />
               </div>
             </div>

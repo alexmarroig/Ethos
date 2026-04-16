@@ -753,6 +753,9 @@ export const createEthosBackend = () =>
             email,
             avatar_url: typeof body.avatar_url === "string" ? body.avatar_url : undefined,
             crp,
+            rg: typeof body.rg === "string" ? body.rg.trim() || undefined : undefined,
+            cpf: typeof body.cpf === "string" ? body.cpf.trim() || undefined : undefined,
+            gender: body.gender === "F" || body.gender === "M" ? body.gender : undefined,
             specialty: typeof body.specialty === "string" ? body.specialty : undefined,
             clinical_approach:
               typeof body.clinical_approach === "string" ? body.clinical_approach : undefined,

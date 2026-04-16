@@ -27,6 +27,8 @@ type ContractEditorState = {
   templateId: string;
   title: string;
   value: string;
+  valueText: string;
+  paymentType: string;
   periodicity: string;
   absencePolicy: string;
   paymentMethod: string;
@@ -40,26 +42,42 @@ const defaultTerms = {
   paymentMethod: "Pix, transferência ou outro meio combinado entre as partes.",
 };
 
-const fallbackContractTemplate = `CONTRATO DE PRESTAÇÃO DE SERVIÇO PROFISSIONAL PARA
-REALIZAÇÃO DO ATENDIMENTO PSICOLÓGICO
+const fallbackContractTemplate = `CONTRATO DE PRESTAÇÃO DE SERVIÇO PROFISSIONAL PARA REALIZAÇÃO DO ATENDIMENTO PSICOLÓGICO
 
-Psicóloga: {{psychologist_name}}
-São partes no presente instrumento particular de Contrato de Prestação de Serviço Profissional, de um lado como CONTRATADA: {{psychologist_name}}, psicóloga CRP {{psychologist_license}}, e como CONTRATANTE: {{patient_name}}, CPF {{patient_document}}, residente e domiciliada em {{patient_address}}.
+{{psychologist_title}}: {{psychologist_name}}
 
-Pelos serviços de Atendimento Psicológico prestados pela profissional {{psychologist_name}}, a CONTRATANTE se compromete a pagar à CONTRATADA a importância de {{contract_value}}.
+São partes no presente instrumento particular de Contrato de Prestação de Serviço Profissional, de um lado como CONTRATAD{{psychologist_suffix}}: {{psychologist_article}} {{psychologist_name}}, psicólog{{psychologist_gender_o}} CRP: {{psychologist_crp}}{{psychologist_rg_text}}{{psychologist_cpf_text}}, e como CONTRATANTE: {{patient_name}}, CPF {{patient_cpf}}, residente e domiciliad{{patient_gender_a}} na cidade de {{patient_address}}.
 
-TIPO DE ATENDIMENTO E FREQUÊNCIA
-- Frequência: {{contract_periodicity}}
-- Forma de pagamento: {{contract_payment_method}}
+Pelos serviços de Atendimento Psicológico prestados pela profissional {{psychologist_name}}, {{patient_article}} CONTRATANTE se compromete a pagar à CONTRATAD{{psychologist_suffix}} a importância de {{contract_value}} ({{contract_value_text}}) por {{payment_type}}.
 
-PROCEDIMENTOS E POLÍTICAS DE CONSULTA
-{{contract_absence_policy}}
+NORMAS DE FUNCIONAMENTO:
+Temos por finalidade o esclarecimento de alguns critérios básicos que englobam o bom funcionamento do tratamento, a fim de estabelecer com esses procedimentos a igualdade de direitos e deveres que norteiam nossos interesses comuns.
 
-Observação:
-- O valor poderá ser reajustado mediante comunicação prévia e acordo entre as partes.
-- Sessões em feriados poderão ser repostas ou descontadas, conforme combinado.
+PROCEDIMENTOS E POLÍTICAS DE CONSULTA - PAGAMENTO E CONDUTAS:
+1. O pagamento deve ser efetuado até o dia 10 do mês seguinte aos atendimentos, cobrindo o valor mensal dado pela quantidade total de sessões realizadas no mês.
+2. O não comparecimento deve ser informado com antecedência de no mínimo 24 horas para que não seja cobrada a consulta. Caso não seja informado dentro deste prazo, a consulta será cobrada integralmente.
+3. Cada sessão tem a duração de 50 a 60 minutos, com horário de término fixo, independentemente de atrasos d{{patient_gender_o}} paciente.
+4. Duas faltas consecutivas sem justificativa podem resultar na concessão do horário para outr{{patient_gender_o}} paciente.
+5. Se o não comparecimento for do profissional, a sessão não será cobrada ou será oferecida a possibilidade de reposição.
+
+REAJUSTE CONTRATUAL:
+Fica estipulado que o valor acordado pelo serviço de Atendimento Psicológico poderá ser reajustado mediante acordo mútuo entre a CONTRATAD{{psychologist_suffix}} e a CONTRATANTE. Tal reajuste será aplicado de forma a refletir eventuais mudanças nos custos de prestação do serviço e outros fatores pertinentes, com o objetivo de manter a equidade e a sustentabilidade do contrato ao longo do tempo.
+Qualquer alteração no valor acordado será comunicada por escrito com antecedência mínima de 30 (trinta) dias antes da data de entrada em vigor do novo valor. Ambas as partes concordam em discutir de boa fé e de forma razoável quaisquer ajustes necessários, levando em consideração as condições econômicas vigentes e a qualidade dos serviços prestados.
+
+OBSERVAÇÕES:
+1. As sessões que incidirem em feriados serão descontadas na mensalidade ou poderão ser repostas de acordo com a disponibilidade de horários de ambas as partes.
+2. É de extrema importância que se priorize o dia e horário do atendimento, para que outras atividades não venham a interferir na terapia.
 
 Estou ciente e concordo com os termos estabelecidos neste contrato.
+
+DATA: ____/____/________
+
+____________________________________________
+{{patient_name}} - Contratante
+
+___________________________________________
+{{psychologist_name}} - Contratad{{psychologist_suffix}}
+CRP {{psychologist_crp}}
 `;
 
 const formatCurrencyLabel = (value: string) => {
@@ -109,34 +127,75 @@ const renderContractTemplate = (template: string, values: Record<string, string>
 
 const buildContractValues = (input: {
   psychologistName: string;
-  license: string;
+  psychologistCrp: string;
+  psychologistRg?: string;
+  psychologistCpf?: string;
+  psychologistGender?: "F" | "M";
   email: string;
   patient?: Patient;
   value: string;
+  valueText: string;
+  paymentType: string;
   periodicity: string;
   paymentMethod: string;
   absencePolicy: string;
-}) => ({
-  psychologist_name: input.psychologistName,
-  psychologist_license: input.license,
-  psychologist_email: input.email,
-  patient_name: input.patient?.name ?? "",
-  patient_document: input.patient?.cpf ?? "",
-  patient_email: input.patient?.email ?? "",
-  patient_address: buildPatientAddress(input.patient) || input.patient?.address || "",
-  patient_birth_date: input.patient?.birth_date ?? "",
-  contract_value: formatCurrencyLabel(input.value),
-  contract_periodicity: input.periodicity,
-  contract_payment_method: input.paymentMethod,
-  contract_absence_policy: input.absencePolicy,
-  weekly_frequency: input.patient?.billing?.weekly_frequency ? `${input.patient.billing.weekly_frequency}x por semana` : "",
-});
+}) => {
+  // Psychologist gender-aware terms
+  const psiF = !input.psychologistGender || input.psychologistGender === "F";
+  const psychologistSuffix = psiF ? "a" : "o";
+  const psychologistArticle = psiF ? "a Sra." : "o Sr.";
+  const psychologistTitle = psiF ? "Psicóloga" : "Psicólogo";
+
+  // Patient gender-aware terms
+  const patF = !input.patient?.gender || input.patient?.gender === "F";
+  const patientGenderA = patF ? "a" : "o";
+  const patientGenderO = patF ? "a" : "o";
+  const patientArticle = patF ? "a" : "o";
+
+  // Billing auto-fill
+  const billing = input.patient?.billing;
+  const sessionPrice = billing?.session_price;
+  const packageTotal = billing?.package_total_price;
+  const autoValue = input.value || (sessionPrice ? String(sessionPrice) : packageTotal ? String(packageTotal) : "");
+  const autoPaymentType = input.paymentType || (billing?.mode === "package" ? "pacote mensal" : "cada sessão realizada");
+
+  return {
+    psychologist_name: input.psychologistName,
+    psychologist_crp: input.psychologistCrp,
+    psychologist_license: input.psychologistCrp, // legacy alias
+    psychologist_email: input.email,
+    psychologist_suffix: psychologistSuffix,
+    psychologist_article: psychologistArticle,
+    psychologist_title: psychologistTitle,
+    psychologist_gender_o: psychologistSuffix,
+    psychologist_rg_text: input.psychologistRg ? `, portador${psiF ? "a" : ""} do RG ${input.psychologistRg}` : "",
+    psychologist_cpf_text: input.psychologistCpf ? `, CPF ${input.psychologistCpf}` : "",
+    patient_name: input.patient?.name ?? "",
+    patient_cpf: input.patient?.cpf ?? "",
+    patient_document: input.patient?.cpf ?? "", // legacy alias
+    patient_email: input.patient?.email ?? "",
+    patient_address: buildPatientAddress(input.patient) || input.patient?.address || "",
+    patient_birth_date: input.patient?.birth_date ?? "",
+    patient_gender_a: patientGenderA,
+    patient_gender_o: patientGenderO,
+    patient_article: patientArticle,
+    contract_value: autoValue ? formatCurrencyLabel(autoValue) : "R$ ___",
+    contract_value_text: input.valueText || "valor a preencher por extenso",
+    payment_type: autoPaymentType,
+    contract_periodicity: input.periodicity,
+    contract_payment_method: input.paymentMethod,
+    contract_absence_policy: input.absencePolicy,
+    weekly_frequency: billing?.weekly_frequency ? `${billing.weekly_frequency}x por semana` : "",
+  };
+};
 
 const createEmptyEditor = (templateId = "", templateBody = fallbackContractTemplate): ContractEditorState => ({
   patientId: "",
   templateId,
   title: "",
   value: "",
+  valueText: "",
+  paymentType: "",
   periodicity: defaultTerms.periodicity,
   absencePolicy: defaultTerms.absencePolicy,
   paymentMethod: defaultTerms.paymentMethod,
@@ -214,17 +273,22 @@ const ContractsPage = () => {
 
   const computedContractContent = useMemo(() => {
     const values = buildContractValues({
-      psychologistName: user?.name || "Psicóloga responsável",
-      license: user?.crp || "CRP não informado",
+      psychologistName: user?.name || "Psicólog(a) responsável",
+      psychologistCrp: user?.crp || "CRP não informado",
+      psychologistRg: user?.rg,
+      psychologistCpf: user?.cpf,
+      psychologistGender: user?.gender,
       email: user?.email || "",
       patient: selectedPatient,
       value: editor.value,
+      valueText: editor.valueText,
+      paymentType: editor.paymentType,
       periodicity: editor.periodicity,
       paymentMethod: editor.paymentMethod,
       absencePolicy: editor.absencePolicy,
     });
     return renderContractTemplate(selectedTemplate?.template_body ?? selectedTemplate?.html ?? editor.content ?? fallbackContractTemplate, values);
-  }, [editor.value, editor.periodicity, editor.paymentMethod, editor.absencePolicy, editor.content, selectedPatient, selectedTemplate, user?.name, user?.crp, user?.email]);
+  }, [editor.value, editor.valueText, editor.paymentType, editor.periodicity, editor.paymentMethod, editor.absencePolicy, editor.content, selectedPatient, selectedTemplate, user?.name, user?.crp, user?.rg, user?.cpf, user?.gender, user?.email]);
 
   const resetTemplateDraft = () => {
     setTemplateDraftId(null);
@@ -262,6 +326,8 @@ const ContractsPage = () => {
       templateId: contract.template_id ?? allTemplates[0]?.id ?? "",
       title: normalizeContractText(contract.title ?? ""),
       value: normalizeContractText(contract.terms?.value ?? ""),
+      valueText: "",
+      paymentType: "",
       periodicity: normalizeContractText(contract.terms?.periodicity ?? defaultTerms.periodicity),
       absencePolicy: normalizeContractText(contract.terms?.absence_policy ?? defaultTerms.absencePolicy),
       paymentMethod: normalizeContractText(contract.terms?.payment_method ?? defaultTerms.paymentMethod),
@@ -622,12 +688,33 @@ const ContractsPage = () => {
             <DialogHeader>
               <DialogTitle className="font-serif text-xl">{selectedContractId ? "Revisar contrato" : "Novo contrato"}</DialogTitle>
             </DialogHeader>
+            {(!user?.rg || !user?.cpf) && (
+              <div className="mx-6 mt-2 px-4 py-2 rounded-lg text-xs bg-amber-500/10 text-amber-700 border border-amber-500/20">
+                ⚠️ Para um contrato completo, informe seu <strong>RG</strong> e <strong>CPF</strong> na página{" "}
+                <a href="/conta" className="underline font-medium">Conta → Perfil</a>.
+              </div>
+            )}
             <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr] flex-1 overflow-y-auto px-6 py-4">
               <div className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-2">
                   <select
                     value={editor.patientId}
-                    onChange={(event) => setEditor((current) => ({ ...current, patientId: event.target.value }))}
+                    onChange={(event) => {
+                      const pid = event.target.value;
+                      const p = patients.find((pt) => pt.id === pid);
+                      const autoValue = p?.billing?.session_price
+                        ? String(p.billing.session_price)
+                        : p?.billing?.package_total_price
+                          ? String(p.billing.package_total_price)
+                          : "";
+                      const autoType = p?.billing?.mode === "package" ? "pacote mensal" : "cada sessão realizada";
+                      setEditor((current) => ({
+                        ...current,
+                        patientId: pid,
+                        value: current.value || autoValue,
+                        paymentType: current.paymentType || (p?.billing ? autoType : ""),
+                      }));
+                    }}
                     className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                   >
                     <option value="">Selecione o paciente</option>
@@ -654,7 +741,21 @@ const ContractsPage = () => {
 
                 <div className="grid gap-4 md:grid-cols-2">
                   <Input placeholder="Título do contrato" value={editor.title} onChange={(event) => setEditor((current) => ({ ...current, title: event.target.value }))} />
-                  <Input placeholder="Valor" value={editor.value} onChange={(event) => setEditor((current) => ({ ...current, value: event.target.value }))} />
+                  <Input
+                    placeholder={selectedPatient?.billing?.session_price ? `Valor (auto: R$ ${selectedPatient.billing.session_price})` : "Valor (ex: 200)"}
+                    value={editor.value}
+                    onChange={(event) => setEditor((current) => ({ ...current, value: event.target.value }))}
+                  />
+                  <Input
+                    placeholder="Valor por extenso (ex: duzentos reais)"
+                    value={editor.valueText}
+                    onChange={(event) => setEditor((current) => ({ ...current, valueText: event.target.value }))}
+                  />
+                  <Input
+                    placeholder={selectedPatient?.billing?.mode === "package" ? "Tipo de pagamento (auto: pacote mensal)" : "Tipo de pagamento (ex: cada sessão realizada)"}
+                    value={editor.paymentType}
+                    onChange={(event) => setEditor((current) => ({ ...current, paymentType: event.target.value }))}
+                  />
                   <Input placeholder="Frequência" value={editor.periodicity} onChange={(event) => setEditor((current) => ({ ...current, periodicity: event.target.value }))} />
                   <Input placeholder="Forma de pagamento" value={editor.paymentMethod} onChange={(event) => setEditor((current) => ({ ...current, paymentMethod: event.target.value }))} />
                 </div>

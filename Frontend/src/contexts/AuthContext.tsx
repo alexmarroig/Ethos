@@ -20,6 +20,9 @@ export interface User {
   name: string;
   avatar_url?: string;
   crp?: string;
+  rg?: string;
+  cpf?: string;
+  gender?: "F" | "M";
   specialty?: string;
   clinical_approach?: string;
   role: UserRole;
@@ -60,6 +63,9 @@ function normalizeUser(
   raw: Pick<User, "id" | "email" | "name"> & {
     avatar_url?: string;
     crp?: string;
+    rg?: string;
+    cpf?: string;
+    gender?: "F" | "M";
     specialty?: string;
     clinical_approach?: string;
     role?: IncomingRole | string;
@@ -72,6 +78,9 @@ function normalizeUser(
     name: raw.name,
     avatar_url: raw.avatar_url,
     crp: raw.crp,
+    rg: raw.rg,
+    cpf: raw.cpf,
+    gender: raw.gender,
     specialty: raw.specialty,
     clinical_approach: raw.clinical_approach,
     role: normalizeRole(raw.role),
@@ -247,6 +256,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email: payload.email,
       avatar_url: payload.avatar_url,
       crp: payload.crp,
+      rg: payload.rg,
+      cpf: payload.cpf,
+      gender: payload.gender,
       specialty: payload.specialty,
       clinical_approach: payload.clinical_approach,
     });

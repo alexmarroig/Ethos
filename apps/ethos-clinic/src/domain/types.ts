@@ -44,6 +44,9 @@ export type User = {
   password_hash?: string;
   avatar_url?: string;
   crp?: string;
+  rg?: string;
+  cpf?: string;
+  gender?: "F" | "M";
   specialty?: string;
   clinical_approach?: string;
   accepted_ethics_at?: string;
@@ -87,6 +90,7 @@ export type Patient = Owned & {
   external_id: string;
   label: string;
   care_status?: PatientCareStatus;
+  gender?: "M" | "F";
   email?: string;
   phone?: string;
   whatsapp?: string;

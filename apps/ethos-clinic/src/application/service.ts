@@ -394,6 +394,9 @@ export const updateOwnProfile = (
     email: string;
     avatar_url?: string;
     crp?: string;
+    rg?: string;
+    cpf?: string;
+    gender?: "F" | "M";
     specialty?: string;
     clinical_approach?: string;
   }>
@@ -414,6 +417,9 @@ export const updateOwnProfile = (
   }
   if ("avatar_url" in input) user.avatar_url = input.avatar_url?.trim() || undefined;
   if ("crp" in input) user.crp = input.crp?.trim() || undefined;
+  if ("rg" in input) user.rg = input.rg?.trim() || undefined;
+  if ("cpf" in input) user.cpf = input.cpf?.trim() || undefined;
+  if ("gender" in input) user.gender = input.gender || undefined;
   if ("specialty" in input) user.specialty = input.specialty?.trim() || undefined;
   if ("clinical_approach" in input) user.clinical_approach = input.clinical_approach?.trim() || undefined;
 
