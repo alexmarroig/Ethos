@@ -728,6 +728,36 @@ export const resetDatabaseForTests = () => {
   seedBaseData();
 };
 
+/**
+ * Remove duplicate users sharing the same email (keeping the one with more
+ * profile data), then re-runs ensurePreferredLocalClinician so Camila's
+ * account is always valid. Call this AFTER loading the Neon snapshot.
+ */
+export const deduplicateAndRepairSeeds = () => {
+  // Deduplicate users by email — keep the entry with the most fields filled
+  const byEmail = new Map<string, User>();
+  for (const user of Array.from(db.users.values())) {
+    const key = user.email.toLowerCase();
+    const existing = byEmail.get(key);
+    if (!existing) {
+      byEmail.set(key, user);
+    } else {
+      // Keep whichever has more non-null profile fields
+      const score = (u: User) =>
+        [u.name, u.crp, u.specialty, u.clinical_approach, u.avatar_url].filter(Boolean).length;
+      if (score(user) >= score(existing)) {
+        db.users.delete(existing.id);
+        byEmail.set(key, user);
+      } else {
+        db.users.delete(user.id);
+      }
+    }
+  }
+
+  // Re-run seed repair so Camila's account is always usable
+  ensurePreferredLocalClinician();
+};
+
 export const seeds = {
   get camilaId() {
     return camilaId;

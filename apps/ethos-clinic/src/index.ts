@@ -1,9 +1,11 @@
 import { createEthosBackend } from "./server";
 import { startNotificationDispatcher } from "./application/notifications";
 import { loadFromFile, saveToFile, startAutosave } from "./infra/persist";
+import { deduplicateAndRepairSeeds } from "./infra/database";
 
 async function main() {
   await loadFromFile();
+  deduplicateAndRepairSeeds(); // remove email duplicates left by old persist bug
   startAutosave(30_000);
 
   const port = Number(process.env.PORT ?? 8787);
