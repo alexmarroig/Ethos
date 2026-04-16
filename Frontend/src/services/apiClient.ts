@@ -109,7 +109,7 @@ export async function apiRequest<T = unknown>(
 
         return {
           success: false,
-          error: { code: "UNAUTHORIZED", message: "Sess?o expirada. Fa?a login novamente." },
+          error: { code: "UNAUTHORIZED", message: "Sessão expirada. Faça login novamente." },
           request_id: "local",
           status: 401,
         };
@@ -151,7 +151,7 @@ export async function apiRequest<T = unknown>(
           code: isAbort ? "TIMEOUT" : "NETWORK_ERROR",
           message: isAbort
             ? "Tempo limite excedido. Tente novamente."
-            : "Integracao indisponivel. Verifique sua conexao.",
+            : "Integração indisponível. Verifique sua conexão.",
         },
         request_id: "local",
       };
@@ -177,9 +177,9 @@ function getHumanError(status: number, body: any): string {
 
   switch (status) {
     case 400:
-      return "Dados invalidos. Verifique os campos e tente novamente.";
+      return "Dados inválidos. Verifique os campos e tente novamente.";
     case 403:
-      return "Sem permissao para esta acao.";
+      return "Sem permissão para esta ação.";
     case 404:
       return "Recurso não encontrado.";
     case 409:

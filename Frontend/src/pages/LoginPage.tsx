@@ -142,7 +142,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       onLoginSuccess();
     } else {
       toast({
-        title: "Credenciais invalidas",
+        title: "Credenciais inválidas",
         description: "Verifique seu email e senha.",
         variant: "destructive",
       });
@@ -155,8 +155,8 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     e.preventDefault();
     if (!EMAIL_REGEX.test(recoveryEmail.trim())) {
       toast({
-        title: "Email invalido",
-        description: "Digite um email valido para recuperar o acesso.",
+        title: "Email inválido",
+        description: "Digite um email válido para recuperar o acesso.",
         variant: "destructive",
       });
       return;
@@ -183,13 +183,13 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       return "Informe o nome completo.";
     }
     if (!EMAIL_REGEX.test(signup.email.trim())) {
-      return "Informe um email valido.";
+      return "Informe um email válido.";
     }
     if (signup.password.length < 8) {
       return "A senha precisa ter pelo menos 8 caracteres.";
     }
     if (signup.password !== signup.confirmPassword) {
-      return "As senhas n?o conferem.";
+      return "As senhas não conferem.";
     }
     if (!CRP_REGEX.test(normalizedCrp)) {
       return "Informe o CRP no formato 00/0000 a 00/000000.";
@@ -198,10 +198,10 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       return "Selecione uma especialidade.";
     }
     if (!selectedApproach) {
-      return "Selecione uma abordagem clinica.";
+      return "Selecione uma abordagem clínica.";
     }
     if (!signup.accepted_ethics) {
-      return "Voce precisa aceitar o codigo de etica para criar sua conta.";
+      return "Você precisa aceitar o código de ética para criar sua conta.";
     }
     return null;
   };
@@ -212,7 +212,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     const validationError = validateSignup();
     if (validationError) {
       toast({
-        title: "Cadastro n?o conclu?do",
+        title: "Cadastro não concluído",
         description: validationError,
         variant: "destructive",
       });
@@ -340,7 +340,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                         Enviando...
                       </>
                     ) : (
-                      "Enviar link de recuperacao"
+                      "Enviar link de recuperação"
                     )}
                   </Button>
 

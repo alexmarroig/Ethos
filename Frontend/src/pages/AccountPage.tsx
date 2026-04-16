@@ -124,7 +124,7 @@ const AccountPage = () => {
       setProfile((current) => ({ ...current, avatar_url: avatarUrl }));
     } catch (error: any) {
       toast({
-        title: "Foto indisponivel",
+        title: "Foto indisponível",
         description: error?.message ?? "Não foi possível carregar a foto.",
         variant: "destructive",
       });
@@ -139,7 +139,7 @@ const AccountPage = () => {
       return;
     }
     if (!EMAIL_REGEX.test(profile.email.trim())) {
-      toast({ title: "Email invalido", description: "Informe um email valido.", variant: "destructive" });
+      toast({ title: "Email inválido", description: "Informe um email válido.", variant: "destructive" });
       return;
     }
 

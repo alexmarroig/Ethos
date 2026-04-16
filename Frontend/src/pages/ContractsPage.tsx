@@ -99,8 +99,8 @@ const normalizeContractText = (value: string) =>
     .replaceAll("Ãµ", "õ")
     .replaceAll("Ã", "à")
     .replaceAll("Â", "")
-    .replaceAll("Sess?o", "Sessão")
-    .replaceAll("Pr?xima", "Próxima");
+    .replaceAll("Sess\u00e3o", "Sessão")
+    .replaceAll("Pr\u00f3xima", "Próxima");
 
 const renderContractTemplate = (template: string, values: Record<string, string>) =>
   normalizeContractText(
