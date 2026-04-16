@@ -426,7 +426,7 @@ const AccountPage = () => {
               <Textarea
                 value={paymentSettings.defaultTemplate}
                 onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
-                className="min-h-[180px]"
+                className="min-h-[100px] max-h-[160px] resize-none text-sm"
               />
               <p className="text-xs text-muted-foreground">Use as variáveis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
             </div>
