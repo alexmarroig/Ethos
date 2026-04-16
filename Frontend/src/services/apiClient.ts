@@ -181,7 +181,7 @@ function getHumanError(status: number, body: any): string {
     case 403:
       return "Sem permissao para esta acao.";
     case 404:
-      return "Recurso n?o encontrado.";
+      return "Recurso não encontrado.";
     case 409:
       return "Conflito. Tente novamente.";
     case 500:

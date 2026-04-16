@@ -170,7 +170,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     } else {
       toast({
         title: "Erro",
-        description: result.error?.message ?? "N?o foi poss?vel enviar o email de recupera??o.",
+        description: result.error?.message ?? "Não foi possível enviar o email de recuperação.",
         variant: "destructive",
       });
     }
@@ -232,11 +232,11 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 
     if (!result.success) {
       toast({
-        title: "Cadastro n?o conclu?do",
+        title: "Cadastro não concluído",
         description:
           result.error?.code === "EMAIL_IN_USE"
-            ? "Este email ja esta cadastrado. Entre com ele ou use recuperar acesso."
-            : result.error?.message ?? "N?o foi poss?vel criar sua conta agora.",
+            ? "Este email já está cadastrado. Entre com ele ou use recuperar acesso."
+            : result.error?.message ?? "Não foi possível criar sua conta agora.",
         variant: "destructive",
       });
       setIsSigningUp(false);
@@ -612,7 +612,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                   </button>
                 </p>
                 <p>
-                  N?o tem conta?{" "}
+                  Não tem conta?{" "}
                   <button
                     type="button"
                     className="text-primary hover:underline"

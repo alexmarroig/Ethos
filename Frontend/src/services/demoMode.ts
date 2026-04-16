@@ -139,7 +139,7 @@ export function getDemoApiResponse<T>(
     if (!item) {
       return {
         success: false,
-        error: { code: "NOT_FOUND", message: "Sess?o n?o encontrada no modo demo." },
+        error: { code: "NOT_FOUND", message: "Sessão não encontrada no modo demo." },
         request_id: "demo-local",
         status: 404,
       };
@@ -157,7 +157,7 @@ export function getDemoApiResponse<T>(
     if (!item) {
       return {
         success: false,
-        error: { code: "NOT_FOUND", message: "Paciente n?o encontrado no modo demo." },
+        error: { code: "NOT_FOUND", message: "Paciente não encontrado no modo demo." },
         request_id: "demo-local",
         status: 404,
       };

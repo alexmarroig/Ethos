@@ -32,7 +32,7 @@ const readAvatarDataUrl = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(new Error("N?o foi poss?vel ler a imagem."));
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
     reader.readAsDataURL(file);
   });
 
@@ -104,7 +104,7 @@ const AccountPage = () => {
     if (res.success && res.data.url) {
       window.open(res.data.url, "_blank");
     } else {
-      toast({ title: "Erro", description: "N?o foi poss?vel iniciar o checkout.", variant: "destructive" });
+      toast({ title: "Erro", description: "Não foi possível iniciar o checkout.", variant: "destructive" });
     }
   };
 
@@ -112,7 +112,7 @@ const AccountPage = () => {
     if (subscription?.portal_url) {
       window.open(subscription.portal_url, "_blank");
     } else {
-      toast({ title: "Indispon?vel", description: "Portal de assinatura n?o dispon?vel." });
+      toast({ title: "Indisponível", description: "Portal de assinatura não disponível." });
     }
   };
 
@@ -125,7 +125,7 @@ const AccountPage = () => {
     } catch (error: any) {
       toast({
         title: "Foto indisponivel",
-        description: error?.message ?? "N?o foi poss?vel carregar a foto.",
+        description: error?.message ?? "Não foi possível carregar a foto.",
         variant: "destructive",
       });
     } finally {
@@ -135,7 +135,7 @@ const AccountPage = () => {
 
   const handleSaveProfile = async () => {
     if (!profile.name.trim()) {
-      toast({ title: "Nome obrigatorio", description: "Informe seu nome profissional.", variant: "destructive" });
+      toast({ title: "Nome obrigatório", description: "Informe seu nome profissional.", variant: "destructive" });
       return;
     }
     if (!EMAIL_REGEX.test(profile.email.trim())) {
@@ -158,7 +158,7 @@ const AccountPage = () => {
       toast({ title: "Perfil salvo", description: "Seus dados foram atualizados." });
     } else {
       toast({
-        title: "N?o foi poss?vel salvar",
+        title: "Não foi possível salvar",
         description: "Revise o email informado ou tente novamente em instantes.",
         variant: "destructive",
       });

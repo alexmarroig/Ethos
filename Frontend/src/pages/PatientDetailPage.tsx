@@ -681,7 +681,7 @@ export default function PatientDetailPage({
         detail && document.template_id ? buildDefaultDocumentFormValues(document.template_id, detail, form) : {},
       );
       if (!versions.success) {
-        toast({ title: "N?o foi poss?vel abrir o documento", description: versions.error.message, variant: "destructive" });
+        toast({ title: "Não foi possível abrir o documento", description: versions.error.message, variant: "destructive" });
       }
     }
 
@@ -1514,7 +1514,7 @@ export default function PatientDetailPage({
 
                 {documentPreviewLoading ? (
                   <div className="px-6 py-4 text-sm text-muted-foreground">
-                    Carregando visualiza??o do documento...
+                    Carregando visualização do documento...
                   </div>
                 ) : (
                   <div className="grid flex-1 gap-0 overflow-hidden lg:grid-cols-[1.05fr_0.95fr]">
@@ -1539,7 +1539,7 @@ export default function PatientDetailPage({
                           </div>
                         ) : (
                           <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm text-muted-foreground">
-                            Ainda n?o h? visualiza??o dispon?vel para este documento.
+                            Ainda não há visualização disponível para este documento.
                           </div>
                         )}
                       </div>
