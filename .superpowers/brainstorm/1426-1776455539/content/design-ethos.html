@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda Inteligente — Ethos Design</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  /* Ethos design tokens */
+  :root {
+    --bg: hsl(210, 14%, 97%);
+    --card: #ffffff;
+    --foreground: hsl(213, 29%, 12%);
+    --primary: hsl(193, 52%, 23%);
+    --primary-light: hsl(193, 52%, 95%);
+    --primary-mid: hsl(193, 52%, 88%);
+    --muted: hsl(210, 18%, 95%);
+    --muted-fg: hsl(214, 10%, 42%);
+    --border: hsl(220, 14%, 89%);
+    --green: hsl(157, 46%, 37%);
+    --green-bg: hsl(157, 46%, 95%);
+    --yellow: hsl(38, 90%, 54%);
+    --yellow-bg: hsl(38, 90%, 95%);
+    --red: hsl(2, 71%, 54%);
+    --red-bg: hsl(2, 71%, 96%);
+    --accent: hsl(206, 100%, 45%);
+    --radius: 1rem;
+    --shadow-subtle: 0 1px 2px rgba(15,23,42,0.04), 0 8px 24px -20px rgba(15,23,42,0.08);
+    --shadow-soft: 0 10px 30px -18px rgba(15,23,42,0.16);
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, sans-serif;
+    background: var(--bg);
+    color: var(--foreground);
+    padding: 24px;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  h1 { font-family: Georgia, serif; font-size: 22px; margin-bottom: 4px; color: var(--foreground); letter-spacing: -0.03em; }
+  .subtitle { color: var(--muted-fg); font-size: 13px; margin-bottom: 24px; }
+
+  .section-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted-fg);
+    margin-bottom: 12px;
+    margin-top: 28px;
+  }
+
+  /* Card container */
+  .ethos-card {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-subtle);
+    overflow: hidden;
+  }
+
+  /* Agenda layout */
+  .agenda-wrapper {
+    display: grid;
+    grid-template-columns: 1fr 240px;
+    gap: 0;
+    border-radius: var(--radius);
+    overflow: hidden;
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-subtle);
+  }
+
+  .agenda-main {
+    background: var(--card);
+    overflow: auto;
+  }
+
+  /* Agenda header */
+  .agenda-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .agenda-nav { display: flex; align-items: center; gap: 8px; }
+  .nav-btn {
+    width: 28px; height: 28px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--card);
+    cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--muted-fg);
+    font-size: 12px;
+    box-shadow: var(--shadow-subtle);
+  }
+  .nav-btn:hover { background: var(--muted); }
+  .agenda-title { font-family: Georgia, serif; font-size: 17px; font-weight: 600; letter-spacing: -0.03em; }
+
+  .btn-primary {
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+  }
+
+  /* Week grid */
+  .week-grid {
+    display: grid;
+    grid-template-columns: 72px repeat(5, minmax(120px, 1fr));
+  }
+
+  .day-header {
+    text-align: center;
+    padding: 10px 8px;
+    border-bottom: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+  }
+  .day-header:first-child { border-left: none; background: var(--muted); }
+  .day-name { font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.15em; color: var(--muted-fg); }
+  .day-num { font-family: Georgia, serif; font-size: 20px; font-weight: 600; color: var(--foreground); line-height: 1.2; margin-top: 1px; }
+  .day-today .day-name { color: var(--primary); }
+  .day-today .day-num {
+    background: var(--primary);
+    color: #fff;
+    border-radius: 50%;
+    width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    margin: 2px auto 0;
+    font-size: 16px;
+  }
+
+  /* Time slots */
+  .time-label {
+    padding: 8px 10px;
+    text-align: right;
+    font-size: 10px;
+    color: var(--muted-fg);
+    background: hsl(210,18%,97%);
+    border-right: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    min-height: 80px;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+  }
+
+  .slot-cell {
+    border-top: 1px solid var(--border);
+    border-left: 1px solid var(--border);
+    min-height: 80px;
+    padding: 4px;
+    position: relative;
+    background: var(--card);
+  }
+  .slot-cell.today-col { background: hsl(193, 52%, 99%); }
+  .slot-cell:empty::after {
+    content: 'Livre';
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 10px;
+    color: var(--border);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    margin: 6px;
+  }
+
+  /* Session cards */
+  .sess {
+    border-radius: 12px;
+    padding: 8px 10px;
+    font-size: 10px;
+    height: 100%;
+    min-height: 68px;
+    cursor: grab;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    border: 1px solid;
+    transition: all 0.2s;
+    position: relative;
+  }
+  .sess:hover { transform: translateY(-1px); box-shadow: var(--shadow-soft); }
+  .sess:active { cursor: grabbing; }
+
+  /* Recurrent sessions - primary teal */
+  .sess-recurring {
+    background: var(--primary-light);
+    border-color: hsl(193, 52%, 75%);
+    color: var(--primary);
+  }
+
+  /* Ad hoc sessions - green */
+  .sess-adhoc {
+    background: var(--green-bg);
+    border-color: hsl(157, 46%, 72%);
+    color: var(--green);
+  }
+
+  /* Blocker/personal events - neutral */
+  .sess-block {
+    background: hsl(210, 14%, 94%);
+    border-color: hsl(220, 14%, 78%);
+    color: var(--muted-fg);
+    border-style: dashed;
+  }
+
+  .sess-name { font-weight: 700; font-size: 11px; line-height: 1.2; }
+  .sess-time { font-size: 9px; opacity: 0.75; }
+  .sess-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    font-size: 8px;
+    font-weight: 600;
+    padding: 1px 5px;
+    border-radius: 99px;
+    background: rgba(255,255,255,0.55);
+    margin-top: auto;
+    width: fit-content;
+  }
+
+  /* Suggestions panel */
+  .suggestions-panel {
+    background: hsl(210, 18%, 98%);
+    border-left: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .panel-header {
+    padding: 16px 16px 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .panel-title { font-weight: 700; font-size: 12px; color: var(--foreground); margin-bottom: 2px; }
+  .panel-sub { font-size: 10px; color: var(--muted-fg); }
+
+  .panel-body { padding: 12px; display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
+
+  /* Suggestion card */
+  .sug-card {
+    background: var(--card);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    padding: 10px;
+    box-shadow: var(--shadow-subtle);
+  }
+  .sug-card.from-rule { border-left: 3px solid var(--primary); }
+  .sug-card.from-detect { border-left: 3px solid var(--yellow); }
+
+  .sug-name { font-weight: 700; font-size: 11px; color: var(--foreground); }
+  .sug-time { font-size: 10px; color: var(--muted-fg); margin-top: 1px; }
+  .sug-source {
+    font-size: 9px;
+    margin: 4px 0 6px;
+    padding: 2px 6px;
+    border-radius: 6px;
+    display: inline-block;
+    width: fit-content;
+  }
+  .sug-source.rule { background: var(--primary-light); color: var(--primary); }
+  .sug-source.detect { background: var(--yellow-bg); color: hsl(38, 90%, 35%); }
+
+  .sug-actions { display: flex; gap: 5px; margin-top: 6px; }
+  .btn-confirm {
+    flex: 1;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 7px;
+    padding: 5px 0;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .btn-dismiss {
+    background: var(--muted);
+    color: var(--muted-fg);
+    border: none;
+    border-radius: 7px;
+    padding: 5px 8px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+
+  /* Dialog mockup */
+  .dialog-mock {
+    background: var(--card);
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    box-shadow: 0 32px 80px -34px rgba(15,23,42,0.35);
+    padding: 24px;
+    max-width: 380px;
+  }
+  .dialog-title { font-family: Georgia, serif; font-size: 18px; font-weight: 600; letter-spacing: -0.03em; margin-bottom: 16px; }
+
+  .field-label { font-size: 11px; font-weight: 500; color: var(--foreground); margin-bottom: 4px; }
+  .field-input {
+    width: 100%;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 7px 10px;
+    font-size: 12px;
+    color: var(--foreground);
+    margin-bottom: 12px;
+  }
+
+  .recurrence-box {
+    border: 1px solid var(--primary-mid);
+    background: var(--primary-light);
+    border-radius: 10px;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+  .toggle-row {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 10px;
+  }
+  .toggle {
+    width: 32px; height: 18px;
+    background: var(--primary);
+    border-radius: 9px;
+    position: relative;
+    flex-shrink: 0;
+  }
+  .toggle::after {
+    content: '';
+    position: absolute;
+    right: 2px; top: 2px;
+    width: 14px; height: 14px;
+    background: #fff;
+    border-radius: 50%;
+  }
+  .toggle-label { font-size: 12px; font-weight: 600; color: var(--primary); }
+
+  .freq-pills { display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap; }
+  .pill {
+    border-radius: 7px;
+    padding: 4px 10px;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    border: 1px solid var(--primary-mid);
+    color: var(--primary);
+    background: #fff;
+  }
+  .pill.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+  .recur-summary {
+    background: #fff;
+    border-radius: 7px;
+    padding: 7px 10px;
+    font-size: 10px;
+    color: var(--primary);
+    border: 1px solid var(--primary-mid);
+    font-weight: 500;
+  }
+  .recur-note { font-size: 9px; color: var(--muted-fg); margin-top: 6px; }
+
+  .btn-full {
+    width: 100%;
+    background: var(--primary);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 10px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    margin-top: 4px;
+  }
+
+  /* Event type picker */
+  .event-type-row {
+    display: flex; gap: 6px; margin-bottom: 12px;
+  }
+  .etype {
+    flex: 1;
+    border-radius: 8px;
+    border: 1.5px solid var(--border);
+    padding: 7px;
+    text-align: center;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--muted-fg);
+    background: var(--bg);
+  }
+  .etype.active {
+    border-color: var(--primary);
+    background: var(--primary-light);
+    color: var(--primary);
+  }
+
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .two-col-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+
+  hr.sep { border: none; border-top: 1px solid var(--border); margin: 28px 0; }
+</style>
+</head>
+<body>
+
+<h1>Agenda Inteligente</h1>
+<p class="subtitle">Design integrado ao Ethos — cores, tipografia e componentes reais</p>
+
+<!-- SECTION 1: CALENDAR + PANEL -->
+<div class="section-label">① Agenda semanal com painel de sugestões</div>
+
+<div class="agenda-wrapper">
+  <div class="agenda-main">
+    <!-- Toolbar -->
+    <div class="agenda-header">
+      <div class="agenda-nav">
+        <button class="nav-btn">‹</button>
+        <span class="agenda-title">Abr 14 – 18, 2026</span>
+        <button class="nav-btn">›</button>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button class="btn-primary">+ Nova sessão</button>
+      </div>
+    </div>
+
+    <!-- Grid -->
+    <div class="week-grid">
+      <!-- Day headers -->
+      <div class="day-header" style="border-left:none;background:hsl(210,18%,97%)"></div>
+      <div class="day-header"><div class="day-name">Seg</div><div class="day-num">14</div></div>
+      <div class="day-header"><div class="day-name">Ter</div><div class="day-num">15</div></div>
+      <div class="day-header day-today"><div class="day-name">Qua</div><div class="day-num">16</div></div>
+      <div class="day-header"><div class="day-name">Qui</div><div class="day-num">17</div></div>
+      <div class="day-header"><div class="day-name">Sex</div><div class="day-num">18</div></div>
+
+      <!-- 09:00 row -->
+      <div class="time-label">09:00</div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell">
+        <div class="sess sess-recurring" style="min-height:68px">
+          <div class="sess-name">Ana Silva</div>
+          <div class="sess-time">09:00 · 50min</div>
+          <div class="sess-badge">🔁 semanal</div>
+        </div>
+      </div>
+      <div class="slot-cell today-col"></div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell">
+        <div class="sess sess-recurring" style="min-height:68px">
+          <div class="sess-name">Carlos M.</div>
+          <div class="sess-time">09:00 · 50min</div>
+          <div class="sess-badge">🔁 quinzenal</div>
+        </div>
+      </div>
+
+      <!-- 10:00 row -->
+      <div class="time-label">10:00</div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell today-col"></div>
+      <div class="slot-cell">
+        <div class="sess sess-adhoc" style="min-height:68px">
+          <div class="sess-name">Beatriz F.</div>
+          <div class="sess-time">10:00 · 50min</div>
+          <div class="sess-badge">✦ ad hoc</div>
+        </div>
+      </div>
+      <div class="slot-cell"></div>
+
+      <!-- 12:00 row - blocker -->
+      <div class="time-label">12:00</div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell today-col">
+        <div class="sess sess-block" style="min-height:68px">
+          <div class="sess-name" style="color:var(--muted-fg)">Almoço</div>
+          <div class="sess-time">12:00 · 60min</div>
+          <div class="sess-badge" style="background:rgba(0,0,0,0.05);color:var(--muted-fg)">⊘ bloqueio</div>
+        </div>
+      </div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell"></div>
+
+      <!-- 14:00 row -->
+      <div class="time-label">14:00</div>
+      <div class="slot-cell">
+        <div class="sess sess-recurring" style="min-height:68px">
+          <div class="sess-name">Pedro A.</div>
+          <div class="sess-time">14:00 · 50min</div>
+          <div class="sess-badge">🔁 2× semana</div>
+        </div>
+      </div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell today-col">
+        <div class="sess sess-recurring" style="min-height:68px">
+          <div class="sess-name">Pedro A.</div>
+          <div class="sess-time">14:00 · 50min</div>
+          <div class="sess-badge">🔁 2× semana</div>
+        </div>
+      </div>
+      <div class="slot-cell"></div>
+      <div class="slot-cell"></div>
+    </div>
+
+    <!-- Legend -->
+    <div style="padding:12px 20px;display:flex;gap:16px;font-size:9px;color:var(--muted-fg);border-top:1px solid var(--border);background:hsl(210,14%,99%)">
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--primary-light);border-radius:3px;border:1px solid hsl(193,52%,75%)"></span>🔁 recorrente</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:var(--green-bg);border-radius:3px;border:1px solid hsl(157,46%,72%)"></span>ad hoc</span>
+      <span style="display:flex;align-items:center;gap:4px"><span style="width:10px;height:10px;background:hsl(210,14%,94%);border-radius:3px;border:1px dashed hsl(220,14%,78%)"></span>bloqueio pessoal</span>
+      <span style="margin-left:auto;font-style:italic">Arraste para remarcar</span>
+    </div>
+  </div>
+
+  <!-- Suggestions panel -->
+  <div class="suggestions-panel">
+    <div class="panel-header">
+      <div class="panel-title">✨ Próxima semana</div>
+      <div class="panel-sub">Abr 21 – 25 · 3 sugestões</div>
+    </div>
+    <div class="panel-body">
+
+      <div class="sug-card from-rule">
+        <div class="sug-name">Ana Silva</div>
+        <div class="sug-time">Ter 22/04 · 09:00 · 50min</div>
+        <div class="sug-source rule">🔁 semanal configurado</div>
+        <div class="sug-actions">
+          <button class="btn-confirm">✓ Confirmar</button>
+          <button class="btn-dismiss">✗</button>
+        </div>
+      </div>
+
+      <div class="sug-card from-rule">
+        <div class="sug-name">Pedro Alves</div>
+        <div class="sug-time">Seg 21/04 · 14:00 · 50min</div>
+        <div class="sug-source rule">🔁 2× semana</div>
+        <div class="sug-actions">
+          <button class="btn-confirm">✓ Confirmar</button>
+          <button class="btn-dismiss">✗</button>
+        </div>
+      </div>
+
+      <div class="sug-card from-detect">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start">
+          <div class="sug-name">Beatriz Ferreira</div>
+          <span style="font-size:8px;background:var(--yellow-bg);color:hsl(38,90%,30%);padding:2px 5px;border-radius:5px;font-weight:600">85%</span>
+        </div>
+        <div class="sug-time">Qui 24/04 · 10:00</div>
+        <div class="sug-source detect">📊 detectado pelo histórico</div>
+        <div class="sug-actions">
+          <button class="btn-confirm">✓ Confirmar</button>
+          <button class="btn-dismiss">✗</button>
+        </div>
+      </div>
+
+      <div style="margin-top:auto;padding-top:8px;font-size:9px;color:var(--muted-fg);text-align:center;line-height:1.5">
+        Sessões confirmadas aparecem<br>automaticamente na agenda
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="sep">
+
+<!-- SECTION 2: CREATE DIALOG -->
+<div class="section-label">② Dialog — criar sessão ou bloqueio</div>
+
+<div style="display:flex;gap:24px;flex-wrap:wrap">
+  <!-- Dialog com recorrência -->
+  <div class="dialog-mock">
+    <div class="dialog-title">Nova sessão</div>
+
+    <!-- Event type -->
+    <div class="field-label">Tipo</div>
+    <div class="event-type-row">
+      <div class="etype active">🧠 Sessão clínica</div>
+      <div class="etype">⊘ Bloqueio</div>
+      <div class="etype">📋 Outro</div>
+    </div>
+
+    <!-- Patient -->
+    <div class="field-label">Paciente</div>
+    <div class="field-input" style="color:var(--foreground)">Ana Silva ▾</div>
+
+    <!-- Date + Time -->
+    <div class="two-col">
+      <div>
+        <div class="field-label">Data inicial</div>
+        <div class="field-input">22/04/2026</div>
+      </div>
+      <div>
+        <div class="field-label">Horário</div>
+        <div class="field-input">09:00</div>
+      </div>
+    </div>
+
+    <!-- Recurrence -->
+    <div class="recurrence-box">
+      <div class="toggle-row">
+        <div class="toggle"></div>
+        <span class="toggle-label">Sessão recorrente</span>
+      </div>
+      <div class="freq-pills">
+        <div class="pill active">Semanal</div>
+        <div class="pill">2× semana</div>
+        <div class="pill">Quinzenal</div>
+      </div>
+      <div class="recur-summary">📅 Toda <strong>terça-feira</strong> às 09:00</div>
+      <div class="recur-note">Próxima sessão gerada automaticamente após cada atendimento</div>
+    </div>
+
+    <button class="btn-full">Iniciar série recorrente</button>
+    <div style="text-align:center;font-size:10px;color:var(--muted-fg);margin-top:6px">Apenas a 1ª sessão é criada agora</div>
+  </div>
+
+  <!-- Dialog bloqueio -->
+  <div class="dialog-mock">
+    <div class="dialog-title">Nova sessão</div>
+
+    <!-- Event type — bloqueio selected -->
+    <div class="field-label">Tipo</div>
+    <div class="event-type-row">
+      <div class="etype">🧠 Sessão clínica</div>
+      <div class="etype active">⊘ Bloqueio</div>
+      <div class="etype">📋 Outro</div>
+    </div>
+
+    <!-- Title -->
+    <div class="field-label">Título</div>
+    <div class="field-input" style="color:var(--muted-fg)">ex: Almoço, Reunião, Feriado...</div>
+
+    <!-- Date + Time -->
+    <div class="two-col">
+      <div>
+        <div class="field-label">Data</div>
+        <div class="field-input">16/04/2026</div>
+      </div>
+      <div>
+        <div class="field-label">Horário</div>
+        <div class="field-input">12:00</div>
+      </div>
+    </div>
+
+    <!-- Duration -->
+    <div class="field-label">Duração (min)</div>
+    <div class="field-input">60</div>
+
+    <!-- Note about future integration -->
+    <div style="background:hsl(210,18%,96%);border-radius:8px;padding:10px;font-size:10px;color:var(--muted-fg);margin-bottom:12px;border:1px solid var(--border)">
+      <span style="font-weight:600;color:var(--foreground)">Em breve:</span> sincronizar com Google Calendar ou Outlook automaticamente
+    </div>
+
+    <button class="btn-full" style="background:var(--muted-fg)">Salvar bloqueio</button>
+  </div>
+</div>
+
+<div style="margin-top:24px;font-size:10px;color:var(--muted-fg);background:var(--primary-light);border:1px solid var(--primary-mid);border-radius:10px;padding:12px;color:var(--primary)">
+  <strong>Drag & drop mantido:</strong> qualquer sessão ou bloqueio pode ser arrastado para outro horário. O backend já suporta PATCH /sessions/:id com novo scheduled_at — apenas o padrão recorrente permanece inalterado (a série continua no horário original; a sessão remanejada vira uma exceção).
+</div>
+
+</body>
+</html>

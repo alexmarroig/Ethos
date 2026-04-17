@@ -5,6 +5,7 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "dev": "ts-node src/index.ts",
+    "prebuild": "npm --prefix ../.. run check:encoding",
     "build": "tsc -p tsconfig.json",
     "test": "node scripts/run-tests.js"
   },

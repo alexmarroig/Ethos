@@ -42,31 +42,31 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { id: "home", label: "In?cio", icon: Home, roles: ["professional", "admin"] },
-  { id: "agenda", label: "Agenda cl?nica", icon: Calendar, roles: ["professional"] },
+  { id: "home", label: "In\u00edcio", icon: Home, roles: ["professional", "admin"] },
+  { id: "agenda", label: "Agenda cl\u00ednica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
-  { id: "forms", label: "Di?rio e formul?rios", icon: ClipboardList, roles: ["professional"] },
+  { id: "forms", label: "Di\u00e1rio e formul\u00e1rios", icon: ClipboardList, roles: ["professional"] },
   { id: "anamnesis", label: "Anamnese", icon: BookOpen, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
-  { id: "reports", label: "Relat?rios", icon: FileText, roles: ["professional"] },
+  { id: "reports", label: "Relat\u00f3rios", icon: FileText, roles: ["professional"] },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
   { id: "contracts", label: "Contratos", icon: ScrollText, roles: ["professional"] },
   { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
-  { id: "ethics", label: "?tica e sigilo", icon: Shield, roles: ["professional"] },
+  { id: "ethics", label: "\u00c9tica e sigilo", icon: Shield, roles: ["professional"] },
 
-  { id: "patient-home", label: "In?cio", icon: Home, roles: ["patient"] },
-  { id: "patient-sessions", label: "Sess?es", icon: Calendar, roles: ["patient"] },
+  { id: "patient-home", label: "In\u00edcio", icon: Home, roles: ["patient"] },
+  { id: "patient-sessions", label: "Sess\u00f5es", icon: Calendar, roles: ["patient"] },
   { id: "patient-documents", label: "Documentos", icon: FileText, roles: ["patient"] },
   { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
-  { id: "patient-booking", label: "Agendar sess?o", icon: CalendarPlus, roles: ["patient"] },
-  { id: "patient-diary", label: "Di?rio e formul?rios", icon: ClipboardList, roles: ["patient"] },
+  { id: "patient-booking", label: "Agendar sess\u00e3o", icon: CalendarPlus, roles: ["patient"] },
+  { id: "patient-diary", label: "Di\u00e1rio e formul\u00e1rios", icon: ClipboardList, roles: ["patient"] },
 
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },
-  { id: "admin-users", label: "Usu?rios", icon: Users, roles: ["admin"] },
+  { id: "admin-users", label: "Usu\u00e1rios", icon: Users, roles: ["admin"] },
   { id: "admin-testlab", label: "Test Lab", icon: FlaskConical, roles: ["admin"] },
   { id: "admin-tickets", label: "Tickets", icon: TicketCheck, roles: ["admin"] },
-  { id: "diagnostics", label: "Diagn?stico t?cnico", icon: Stethoscope, roles: ["admin"], separator: true },
+  { id: "diagnostics", label: "Diagn\u00f3stico t\u00e9cnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
@@ -86,8 +86,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       : user?.role === "patient"
         ? "Conta paciente"
         : isLikelyFemaleName(user?.name)
-          ? "Psic?loga"
-          : "Psic?logo";
+          ? "Psic\u00f3loga"
+          : "Psic\u00f3logo";
 
   const initials = user?.name
     ? user.name

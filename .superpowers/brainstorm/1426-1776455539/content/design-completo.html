@@ -1,0 +1,251 @@
+<h2>Design — Agenda Inteligente</h2>
+<p class="subtitle">Mockup completo da solução. Revise cada seção e me diga o que ajustar.</p>
+
+<div class="section">
+  <h3>① Agenda semanal + painel de sugestões</h3>
+
+  <div class="mockup">
+    <div class="mockup-header">AgendaPage — visão semanal</div>
+    <div class="mockup-body" style="display:grid;grid-template-columns:1fr 220px;gap:0;font-size:11px;min-height:320px">
+
+      <!-- Calendar grid -->
+      <div style="border-right:1px solid #e2e8f0;padding:12px">
+        <!-- Header -->
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+          <div style="font-weight:700;color:#1e293b;font-size:13px">◂ Abr 14 – 18, 2026 ▸</div>
+          <button style="background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:5px 12px;font-size:10px;cursor:pointer;font-weight:600">+ Nova sessão</button>
+        </div>
+        <!-- Grid -->
+        <div style="display:grid;grid-template-columns:44px repeat(5,1fr);gap:2px">
+          <!-- Day headers -->
+          <div></div>
+          <div style="text-align:center;padding:4px;color:#64748b;font-size:10px">
+            <div>SEG</div><div style="font-size:13px;font-weight:600;color:#1e293b">14</div>
+          </div>
+          <div style="text-align:center;padding:4px;color:#64748b;font-size:10px">
+            <div>TER</div><div style="font-size:13px;font-weight:600;color:#1e293b">15</div>
+          </div>
+          <div style="text-align:center;padding:4px;font-size:10px">
+            <div style="color:#4f46e5;font-weight:600">QUA</div>
+            <div style="font-size:13px;font-weight:700;background:#4f46e5;color:#fff;border-radius:50%;width:24px;height:24px;display:flex;align-items:center;justify-content:center;margin:0 auto">16</div>
+          </div>
+          <div style="text-align:center;padding:4px;color:#64748b;font-size:10px">
+            <div>QUI</div><div style="font-size:13px;font-weight:600;color:#1e293b">17</div>
+          </div>
+          <div style="text-align:center;padding:4px;color:#64748b;font-size:10px">
+            <div>SEX</div><div style="font-size:13px;font-weight:600;color:#1e293b">18</div>
+          </div>
+
+          <!-- 09:00 -->
+          <div style="color:#94a3b8;font-size:9px;padding-top:4px;text-align:right;padding-right:6px">09:00</div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#e0e7ff;border-radius:4px;border:1px solid #c7d2fe;padding:4px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-weight:600;color:#3730a3;font-size:9px">Ana Silva 🔁</div>
+            <div style="color:#6366f1;font-size:8px">09:00 • 50min</div>
+            <div style="font-size:7px;color:#818cf8;margin-top:1px">semanal</div>
+          </div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#e0e7ff;border-radius:4px;border:1px solid #c7d2fe;padding:4px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-weight:600;color:#3730a3;font-size:9px">Carlos M. 🔁</div>
+            <div style="color:#6366f1;font-size:8px">09:00 • 50min</div>
+            <div style="font-size:7px;color:#818cf8;margin-top:1px">quinzenal</div>
+          </div>
+
+          <!-- 10:00 -->
+          <div style="color:#94a3b8;font-size:9px;padding-top:4px;text-align:right;padding-right:6px">10:00</div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#dcfce7;border-radius:4px;border:1px solid #bbf7d0;padding:4px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-weight:600;color:#166534;font-size:9px">Beatriz F.</div>
+            <div style="color:#16a34a;font-size:8px">10:00 • 50min</div>
+            <div style="font-size:7px;color:#4ade80;margin-top:1px">ad hoc</div>
+          </div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+
+          <!-- 14:00 -->
+          <div style="color:#94a3b8;font-size:9px;padding-top:4px;text-align:right;padding-right:6px">14:00</div>
+          <div style="height:48px;background:#e0e7ff;border-radius:4px;border:1px solid #c7d2fe;padding:4px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-weight:600;color:#3730a3;font-size:9px">Pedro A. 🔁</div>
+            <div style="color:#6366f1;font-size:8px">14:00 • 50min</div>
+            <div style="font-size:7px;color:#818cf8;margin-top:1px">2x semana</div>
+          </div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#e0e7ff;border-radius:4px;border:1px solid #c7d2fe;padding:4px;display:flex;flex-direction:column;justify-content:center">
+            <div style="font-weight:600;color:#3730a3;font-size:9px">Pedro A. 🔁</div>
+            <div style="color:#6366f1;font-size:8px">14:00 • 50min</div>
+            <div style="font-size:7px;color:#818cf8;margin-top:1px">2x semana</div>
+          </div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+          <div style="height:48px;background:#f8fafc;border-radius:4px;border:1px solid #f1f5f9"></div>
+        </div>
+        <div style="margin-top:8px;display:flex;gap:12px;font-size:9px;color:#64748b">
+          <span><span style="display:inline-block;width:8px;height:8px;background:#e0e7ff;border-radius:2px;margin-right:3px"></span>🔁 recorrente</span>
+          <span><span style="display:inline-block;width:8px;height:8px;background:#dcfce7;border-radius:2px;margin-right:3px"></span>ad hoc</span>
+        </div>
+      </div>
+
+      <!-- Suggestions panel -->
+      <div style="padding:12px;background:#fafafa">
+        <div style="font-weight:700;color:#1e293b;font-size:11px;margin-bottom:8px">✨ Próxima semana</div>
+        <div style="font-size:9px;color:#64748b;margin-bottom:10px">Sugestões geradas automaticamente</div>
+
+        <!-- Suggestion 1 - from recurrence rule -->
+        <div style="background:#fff;border:1px solid #e0e7ff;border-left:3px solid #4f46e5;border-radius:6px;padding:8px;margin-bottom:6px">
+          <div style="font-weight:600;color:#1e293b;font-size:10px">Ana Silva</div>
+          <div style="color:#6366f1;font-size:9px;margin-top:1px">Ter 22/04 · 09:00 · 50min</div>
+          <div style="font-size:8px;color:#818cf8;margin-bottom:5px">🔁 semanal configurado</div>
+          <div style="display:flex;gap:4px">
+            <button style="flex:1;background:#4f46e5;color:#fff;border:none;border-radius:4px;padding:3px 0;font-size:9px;cursor:pointer;font-weight:600">✓ Confirmar</button>
+            <button style="background:#f1f5f9;color:#64748b;border:none;border-radius:4px;padding:3px 6px;font-size:9px;cursor:pointer">✗</button>
+          </div>
+        </div>
+
+        <!-- Suggestion 2 - from recurrence rule -->
+        <div style="background:#fff;border:1px solid #e0e7ff;border-left:3px solid #4f46e5;border-radius:6px;padding:8px;margin-bottom:6px">
+          <div style="font-weight:600;color:#1e293b;font-size:10px">Pedro Alves</div>
+          <div style="color:#6366f1;font-size:9px;margin-top:1px">Seg 21/04 · 14:00 · 50min</div>
+          <div style="font-size:8px;color:#818cf8;margin-bottom:5px">🔁 2x semana configurado</div>
+          <div style="display:flex;gap:4px">
+            <button style="flex:1;background:#4f46e5;color:#fff;border:none;border-radius:4px;padding:3px 0;font-size:9px;cursor:pointer;font-weight:600">✓ Confirmar</button>
+            <button style="background:#f1f5f9;color:#64748b;border:none;border-radius:4px;padding:3px 6px;font-size:9px;cursor:pointer">✗</button>
+          </div>
+        </div>
+
+        <!-- Suggestion 3 - from pattern detection -->
+        <div style="background:#fff;border:1px solid #fef9c3;border-left:3px solid #eab308;border-radius:6px;padding:8px;margin-bottom:6px">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start">
+            <div style="font-weight:600;color:#1e293b;font-size:10px">Beatriz Ferreira</div>
+            <span style="background:#fef9c3;color:#854d0e;font-size:7px;padding:1px 4px;border-radius:3px;font-weight:600">DETECTADO</span>
+          </div>
+          <div style="color:#ca8a04;font-size:9px;margin-top:1px">Qui 24/04 · 10:00</div>
+          <div style="font-size:8px;color:#a16207;margin-bottom:5px">📊 padrão: 6 de 7 quintas no mesmo horário (85%)</div>
+          <div style="display:flex;gap:4px">
+            <button style="flex:1;background:#eab308;color:#fff;border:none;border-radius:4px;padding:3px 0;font-size:9px;cursor:pointer;font-weight:600">✓ Confirmar</button>
+            <button style="background:#f1f5f9;color:#64748b;border:none;border-radius:4px;padding:3px 6px;font-size:9px;cursor:pointer">✗</button>
+          </div>
+        </div>
+
+        <div style="font-size:8px;color:#94a3b8;text-align:center;margin-top:8px">Sugestões confirmadas aparecem<br>automaticamente na agenda</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>② Dialog de nova sessão — com recorrência</h3>
+
+  <div class="split">
+    <div class="mockup">
+      <div class="mockup-header">Sem recorrência (ad hoc)</div>
+      <div class="mockup-body" style="font-size:11px;max-width:280px">
+        <div style="font-weight:700;color:#1e293b;font-size:13px;margin-bottom:12px">Nova sessão</div>
+        <div style="margin-bottom:8px">
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Paciente</div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">Beatriz Ferreira ▾</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div>
+            <div style="color:#64748b;font-size:10px;margin-bottom:3px">Data</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">24/04/2026</div>
+          </div>
+          <div>
+            <div style="color:#64748b;font-size:10px;margin-bottom:3px">Horário</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">10:00</div>
+          </div>
+        </div>
+        <!-- Recurrence toggle OFF -->
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:8px;margin-bottom:10px;display:flex;align-items:center;gap:8px;cursor:pointer">
+          <div style="width:28px;height:16px;background:#cbd5e1;border-radius:8px;position:relative;flex-shrink:0">
+            <div style="position:absolute;left:2px;top:2px;width:12px;height:12px;background:#fff;border-radius:50%"></div>
+          </div>
+          <span style="color:#64748b;font-size:10px">Sessão recorrente</span>
+        </div>
+        <button style="width:100%;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;font-weight:600">Agendar sessão</button>
+        <div style="text-align:center;margin-top:6px;font-size:9px;color:#94a3b8">Sessão única (ad hoc)</div>
+      </div>
+    </div>
+
+    <div class="mockup">
+      <div class="mockup-header">Com recorrência ativada</div>
+      <div class="mockup-body" style="font-size:11px;max-width:280px">
+        <div style="font-weight:700;color:#1e293b;font-size:13px;margin-bottom:12px">Nova sessão</div>
+        <div style="margin-bottom:8px">
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Paciente</div>
+          <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">Ana Silva ▾</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+          <div>
+            <div style="color:#64748b;font-size:10px;margin-bottom:3px">Data inicial</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">22/04/2026</div>
+          </div>
+          <div>
+            <div style="color:#64748b;font-size:10px;margin-bottom:3px">Horário</div>
+            <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:6px 10px">09:00</div>
+          </div>
+        </div>
+        <!-- Recurrence toggle ON + options -->
+        <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px;margin-bottom:10px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;cursor:pointer">
+            <div style="width:28px;height:16px;background:#4f46e5;border-radius:8px;position:relative;flex-shrink:0">
+              <div style="position:absolute;right:2px;top:2px;width:12px;height:12px;background:#fff;border-radius:50%"></div>
+            </div>
+            <span style="color:#1e40af;font-size:10px;font-weight:600">Sessão recorrente</span>
+          </div>
+          <!-- Frequency pills -->
+          <div style="display:flex;gap:4px;margin-bottom:8px">
+            <div style="background:#4f46e5;color:#fff;border-radius:5px;padding:3px 8px;font-size:9px;font-weight:600;cursor:pointer">Semanal</div>
+            <div style="background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;font-size:9px;cursor:pointer">2x semana</div>
+            <div style="background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:5px;padding:3px 8px;font-size:9px;cursor:pointer">Quinzenal</div>
+          </div>
+          <!-- Day picker (for weekly - just shows the detected day) -->
+          <div style="background:#fff;border-radius:5px;padding:5px 8px;font-size:9px;color:#1e293b;border:1px solid #e0e7ff">
+            📅 Toda <strong>terça-feira</strong> às 09:00
+          </div>
+          <div style="margin-top:5px;font-size:8px;color:#6366f1">Próxima sessão gerada automaticamente após cada atendimento</div>
+        </div>
+        <button style="width:100%;background:#4f46e5;color:#fff;border:none;border-radius:6px;padding:8px;font-size:11px;cursor:pointer;font-weight:600">Iniciar série recorrente</button>
+        <div style="text-align:center;margin-top:6px;font-size:9px;color:#6366f1">Só a 1ª sessão é criada agora</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>③ Algoritmo de detecção de padrão (sem ML)</h3>
+  <div style="background:#f8fafc;border-radius:8px;padding:16px;font-size:11px;border:1px solid #e2e8f0">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div>
+        <div style="font-weight:600;color:#1e293b;margin-bottom:6px">Como funciona</div>
+        <ol style="color:#475569;margin:0;padding-left:16px;line-height:1.7">
+          <li>Agrupa sessões por paciente</li>
+          <li>Calcula o intervalo médio entre sessões</li>
+          <li>Encontra o dia-da-semana mais frequente (moda)</li>
+          <li>Encontra o horário mais frequente (moda)</li>
+          <li>Score de confiança = % de sessões que seguem o padrão</li>
+          <li>Exibe no painel só se confiança ≥ 70% e ≥ 3 sessões</li>
+        </ol>
+      </div>
+      <div>
+        <div style="font-weight:600;color:#1e293b;margin-bottom:6px">Exemplos de output</div>
+        <div style="background:#dcfce7;border-radius:5px;padding:6px;margin-bottom:4px;border-left:3px solid #16a34a">
+          <div style="font-size:9px;color:#166534;font-weight:600">Alta confiança (≥ 85%)</div>
+          <div style="font-size:9px;color:#166534">→ Sugestão automática confirmada</div>
+        </div>
+        <div style="background:#fef9c3;border-radius:5px;padding:6px;margin-bottom:4px;border-left:3px solid #eab308">
+          <div style="font-size:9px;color:#854d0e;font-weight:600">Confiança média (70–84%)</div>
+          <div style="font-size:9px;color:#854d0e">→ Sugestão com aviso "detectado"</div>
+        </div>
+        <div style="background:#f1f5f9;border-radius:5px;padding:6px;border-left:3px solid #94a3b8">
+          <div style="font-size:9px;color:#64748b;font-weight:600">Baixa confiança (&lt; 70%)</div>
+          <div style="font-size:9px;color:#64748b">→ Não aparece no painel</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div style="margin-top:16px;background:#eff6ff;border-radius:8px;padding:12px;font-size:10px;color:#1e40af;border:1px solid #bfdbfe">
+  <strong>Resumo do que muda no backend:</strong> campo <code>recurrence_rule?</code> e <code>series_id?</code> em <code>ClinicalSession</code> · endpoint <code>GET /sessions/suggestions</code> · geração rolling automática quando sessão é marcada como concluída ou confirmada
+</div>
