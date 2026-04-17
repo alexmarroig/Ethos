@@ -30,7 +30,7 @@ const formatDate = (value?: string) =>
 
 const REDIRECT_TEMPLATES: Record<string, { page: string; label: string }> = {
   "therapy-contract": { page: "contracts", label: "Ir para Contratos" },
-  "psychological-report": { page: "reports", label: "Ir para Relat\u00f3rios" },
+  "psychological-report": { page: "reports", label: "Ir para Relatórios" },
 };
 
 const HIDDEN_TEMPLATES = new Set(["session-summary", "evolution-note"]);
@@ -170,7 +170,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
 
     const generatedHtml = buildClinicalDocumentHtml(templateId, {
       psychologist: {
-        name: user?.name ?? "Psic\u00f3logo(a) respons\u00e1vel",
+        name: user?.name ?? "Psicólogo(a) responsável",
         email: user?.email,
         crp: user?.crp,
       },
@@ -270,7 +270,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
             <Input type="date" value={attendanceDate} onChange={(e) => setAttendanceDate(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground">Hor\u00e1rio do atendimento</label>
+            <label className="text-sm font-medium text-foreground">Horário do atendimento</label>
             <Input type="time" value={attendanceTime} onChange={(e) => setAttendanceTime(e.target.value)} />
           </div>
         </>
@@ -281,11 +281,11 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
       return (
         <>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground">Per\u00edodo de afastamento \u2014 in\u00edcio</label>
+            <label className="text-sm font-medium text-foreground">Período de afastamento — início</label>
             <Input type="date" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground">Per\u00edodo de afastamento \u2014 fim</label>
+            <label className="text-sm font-medium text-foreground">Período de afastamento — fim</label>
             <Input type="date" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
           </div>
           <div className="space-y-1">
@@ -317,21 +317,21 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
               <option value="">Selecione</option>
               <option value="Dinheiro">Dinheiro</option>
               <option value="PIX">PIX</option>
-              <option value="Cart\u00e3o de cr\u00e9dito">Cart\u00e3o de cr\u00e9dito</option>
-              <option value="Cart\u00e3o de d\u00e9bito">Cart\u00e3o de d\u00e9bito</option>
-              <option value="Transfer\u00eancia banc\u00e1ria">Transfer\u00eancia banc\u00e1ria</option>
+              <option value="Cartão de crédito">Cartão de crédito</option>
+              <option value="Cartão de débito">Cartão de débito</option>
+              <option value="Transferência bancária">Transferência bancária</option>
             </select>
           </div>
           <div className="space-y-1">
-            <label className="text-sm font-medium text-foreground">Tipo de servi\u00e7o</label>
+            <label className="text-sm font-medium text-foreground">Tipo de serviço</label>
             <div className="flex gap-4 pt-1">
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="radio" name="serviceType" value="session" checked={serviceType === "session"} onChange={() => setServiceType("session")} />
-                Sess\u00e3o de psicoterapia
+                Sessão de psicoterapia
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="radio" name="serviceType" value="evaluation" checked={serviceType === "evaluation"} onChange={() => setServiceType("evaluation")} />
-                Avalia\u00e7\u00e3o psicol\u00f3gica
+                Avaliação psicológica
               </label>
               <label className="flex items-center gap-2 text-sm cursor-pointer">
                 <input type="radio" name="serviceType" value="other" checked={serviceType === "other"} onChange={() => setServiceType("other")} />
@@ -464,7 +464,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                         {document.title}
                       </h3>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {patientNames.get(document.patient_id ?? "") ?? "Paciente n\u00e3o identificado"} \u00b7 {formatDate(document.created_at)}
+                        {patientNames.get(document.patient_id ?? "") ?? "Paciente não identificado"} · {formatDate(document.created_at)}
                       </p>
                     </div>
                     <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
@@ -472,7 +472,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} \u00b7 vers\u00f5es: {document.versions_count ?? 0}
+                    Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} · versões: {document.versions_count ?? 0}
                   </p>
                 </div>
               ))}
@@ -509,11 +509,11 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
             {renderTemplateFields()}
 
             <div className="space-y-1">
-              <label className="text-sm font-medium text-foreground">T\u00edtulo do documento</label>
+              <label className="text-sm font-medium text-foreground">Título do documento</label>
               <Input
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="T\u00edtulo (preenchido automaticamente)"
+                placeholder="Título (preenchido automaticamente)"
               />
             </div>
           </div>
@@ -544,7 +544,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
             />
           ) : (
             <div className="text-center py-12">
-              <p className="text-muted-foreground text-sm">Nenhuma vers\u00e3o dispon\u00edvel para este documento.</p>
+              <p className="text-muted-foreground text-sm">Nenhuma versão disponível para este documento.</p>
             </div>
           )}
           <DialogFooter className="gap-2">
