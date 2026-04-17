@@ -1,19 +1,21 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// Real screenshots — place PNGs in site/src/assets/ with these exact names
-// Fallback to ethos-dashboard.jpg until real screenshots are added
+// Screens
 import screenFinanceiro from "@/assets/screen-financeiro.png";
 import screenInicio from "@/assets/screen-inicio.png";
 import screenFormularios from "@/assets/screen-formularios.png";
 import screenPacientes from "@/assets/screen-pacientes.png";
 import screenAgenda from "@/assets/screen-agenda.png";
 
+// 👉 centraliza URL do app
+const APP_URL = "https://app.ethos-clinic.com";
+
 const SCREENS = [
   {
     id: "inicio",
     label: "Início",
-    url: "ethos-frontend-rho.vercel.app",
+    url: APP_URL,
     src: screenInicio,
     alt: "Dashboard inicial do ETHOS com visão geral da clínica",
     desc: "Visão completa do dia: sessões, pagamentos pendentes e próximos atendimentos.",
@@ -21,7 +23,7 @@ const SCREENS = [
   {
     id: "agenda",
     label: "Agenda",
-    url: "ethos-frontend-rho.vercel.app",
+    url: APP_URL,
     src: screenAgenda,
     alt: "Agenda clínica semanal do ETHOS",
     desc: "Agenda semanal visual com status de cada sessão em tempo real.",
@@ -29,7 +31,7 @@ const SCREENS = [
   {
     id: "pacientes",
     label: "Pacientes",
-    url: "ethos-frontend-rho.vercel.app",
+    url: APP_URL,
     src: screenPacientes,
     alt: "Lista de pacientes no ETHOS",
     desc: "Prontuário completo de cada paciente, com histórico e sessões.",
@@ -37,7 +39,7 @@ const SCREENS = [
   {
     id: "financeiro",
     label: "Financeiro",
-    url: "ethos-frontend-rho.vercel.app",
+    url: APP_URL,
     src: screenFinanceiro,
     alt: "Painel financeiro do ETHOS com fluxo de recebimentos",
     desc: "Controle de cobranças, pagamentos recebidos e pendências do mês.",
@@ -45,7 +47,7 @@ const SCREENS = [
   {
     id: "formularios",
     label: "Formulários",
-    url: "ethos-frontend-rho.vercel.app",
+    url: APP_URL,
     src: screenFormularios,
     alt: "Formulários e diário clínico no ETHOS",
     desc: "Formulários personalizados e respostas dos pacientes em um só lugar.",
@@ -58,6 +60,8 @@ export default function Demo() {
   return (
     <section id="demo" className="py-28 md:py-36" style={{ background: "#060F1E" }}>
       <div className="max-w-7xl mx-auto px-6">
+
+        {/* Header */}
         <motion.div initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} className="mb-6 text-center">
           <span className="text-xs font-semibold tracking-widest uppercase" style={{ color: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}>
             Veja em ação
@@ -70,12 +74,13 @@ export default function Demo() {
             <br />
             <span style={{ color: "#2F6F73" }}>para o clínico.</span>
           </h2>
+
           <p className="text-lg text-[#6B8FA8] max-w-xl mx-auto" style={{ fontFamily: "'DM Sans', sans-serif" }}>
             Limpa, rápida e focada no que importa. Sem excesso. Sem distração.
           </p>
         </motion.div>
 
-        {/* Tab switcher */}
+        {/* Tabs */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
@@ -115,7 +120,7 @@ export default function Demo() {
           </motion.p>
         </AnimatePresence>
 
-        {/* Browser frame with screenshot */}
+        {/* Frame */}
         <motion.div
           initial={{ opacity: 0, y: 40, scale: 0.97 }}
           whileInView={{ opacity: 1, y: 0, scale: 1 }}
@@ -130,19 +135,27 @@ export default function Demo() {
               boxShadow: "0 40px 100px -20px rgba(0,0,0,0.7), 0 0 60px rgba(47,111,115,0.08)",
             }}
           >
-            {/* Browser chrome */}
+            {/* Browser top */}
             <div
               className="flex items-center gap-2 px-5 py-3.5"
-              style={{ background: "rgba(13,27,46,0.95)", borderBottom: "1px solid rgba(47,111,115,0.12)" }}
+              style={{
+                background: "rgba(13,27,46,0.95)",
+                borderBottom: "1px solid rgba(47,111,115,0.12)",
+              }}
             >
               <span className="w-3 h-3 rounded-full bg-red-500/50" />
               <span className="w-3 h-3 rounded-full bg-yellow-500/50" />
               <span className="w-3 h-3 rounded-full bg-green-500/50" />
+
               <div
                 className="mx-auto flex items-center gap-2 text-xs px-10 py-1.5 rounded-md"
-                style={{ background: "rgba(6,15,30,0.9)", color: "#6B8FA8", fontFamily: "'JetBrains Mono', monospace" }}
+                style={{
+                  background: "rgba(6,15,30,0.9)",
+                  color: "#6B8FA8",
+                  fontFamily: "'JetBrains Mono', monospace",
+                }}
               >
-                <span className="w-2 h-2 flex-shrink-0 rounded-full bg-[#2F6F73]" />
+                <span className="w-2 h-2 rounded-full bg-[#2F6F73]" />
                 {SCREENS[active].url}
               </div>
             </div>
@@ -163,6 +176,7 @@ export default function Demo() {
           </div>
         </motion.div>
 
+        {/* Features */}
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           whileInView={{ opacity: 1, y: 0 }}
