@@ -231,7 +231,7 @@ const Index = () => {
       case "settings":
         return (
           <div className="content-container py-12">
-            <h1 className="font-serif text-3xl font-medium text-foreground">Configura??es</h1>
+            <h1 className="font-serif text-3xl font-medium text-foreground">Configurações</h1>
             <p className="mt-2 text-muted-foreground">Em breve.</p>
           </div>
         );
@@ -279,9 +279,9 @@ function FallbackRedirect({ hasRole, onNavigate }: { hasRole: (...r: string[]) =
 
   return (
     <div className="content-container py-12 text-center">
-      <p className="text-muted-foreground">Acesso n?o permitido.</p>
+      <p className="text-muted-foreground">Acesso não permitido.</p>
       <button onClick={() => onNavigate(defaultPage)} className="mt-4 text-primary text-sm hover:underline">
-        Ir para p?gina inicial
+        Ir para página inicial
       </button>
     </div>
   );

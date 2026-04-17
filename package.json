@@ -8,6 +8,7 @@
     "Frontend"
   ],
   "scripts": {
+    "prebuild": "npm run check:encoding",
     "dev": "npm run dev:frontend",
     "dev:frontend": "npm --workspace Frontend run dev",
     "dev:web": "npm run dev:frontend",

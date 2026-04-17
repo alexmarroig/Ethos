@@ -24,6 +24,21 @@ const SUSPICIOUS_PATTERNS = [
   /ï¿½/g,
 ];
 
+const SUSPICIOUS_LINE_PATTERNS = [
+  /In\?cio/g,
+  /Relat\?rios/g,
+  /Sess\?es/g,
+  /Configura\?es/g,
+  /Cobran\?a/g,
+  /cl\?nica/g,
+  /Di\?rio/g,
+  /formul\?rios/gi,
+  /n\?o/g,
+  /pr\?ximo/g,
+  /pr\?ximos/g,
+  /conte\?do/g,
+];
+
 const IGNORE_FILE_PATTERNS = [
   /[\\/]scripts[\\/]check-mojibake\.js$/,
   /[\\/]pages[\\/]ContractsPage\.tsx$/,
@@ -60,7 +75,9 @@ for (const targetDir of TARGET_DIRS) {
 
     lines.forEach((line, index) => {
       if (line.includes("replaceAll(")) return;
-      if (SUSPICIOUS_PATTERNS.some((pattern) => pattern.test(line))) {
+      const matchesMojibake = SUSPICIOUS_PATTERNS.some((pattern) => pattern.test(line));
+      const matchesBrokenQuestion = SUSPICIOUS_LINE_PATTERNS.some((pattern) => pattern.test(line));
+      if (matchesMojibake || matchesBrokenQuestion) {
         findings.push({
           file: path.relative(ROOT, filePath),
           line: index + 1,

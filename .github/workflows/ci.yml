@@ -22,6 +22,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Verificar encoding e textos corrompidos
+        run: npm run check:encoding
+
       - name: Build
         run: |
           mkdir -p reports
@@ -66,6 +69,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Verificar encoding e textos corrompidos
+        run: npm run check:encoding
+
       - name: SAST básico (padrões críticos)
         run: |
           mkdir -p reports
@@ -105,6 +111,9 @@ jobs:
       - name: Instalar dependências
         run: npm ci
 
+      - name: Verificar encoding e textos corrompidos
+        run: npm run check:encoding
+
       - name: Executar cenário de carga smoke
         run: |
           set -o pipefail
@@ -137,6 +146,9 @@ jobs:
 
       - name: Instalar dependências
         run: npm ci
+
+      - name: Verificar encoding e textos corrompidos
+        run: npm run check:encoding
 
       - name: Validar build e testes em Node ${{ matrix.node-version }}
         run: |
