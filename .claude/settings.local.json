@@ -5,7 +5,9 @@
       "Bash(node -e \"const m = require\\(''module''\\); console.log\\(m.builtinModules.filter\\(x => x.includes\\(''sea''\\) || x.includes\\(''node:''\\)\\)\\)\")",
       "WebFetch(domain:expo.dev)",
       "Bash(eas build:view a15fe55f-d64f-4e11-8aed-080e9705f2ca)",
-      "Bash(eas build:logs 16253018-c602-4fac-b933-90a732541ee1)"
+      "Bash(eas build:logs 16253018-c602-4fac-b933-90a732541ee1)",
+      "mcp__Claude_Preview__preview_start",
+      "Bash(curl -s http://localhost:8080 -o /dev/null -w \"%{http_code}\")"
     ]
   }
 }

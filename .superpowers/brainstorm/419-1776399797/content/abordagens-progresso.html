@@ -1,0 +1,192 @@
+<h2>Abordagens para a Aba "Progresso"</h2>
+<p class="subtitle">Qual nível de complexidade faz mais sentido para começar?</p>
+
+<style>
+.approach-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; margin: 24px 0; }
+.approach { border: 2px solid var(--border, #313244); border-radius: 14px; overflow: hidden; cursor: pointer; transition: all 0.2s; }
+.approach:hover { transform: translateY(-3px); border-color: #7c3aed; }
+.approach.selected { border-color: #7c3aed; box-shadow: 0 0 0 3px #7c3aed33; }
+.approach-header { padding: 16px 18px 12px; border-bottom: 1px solid #313244; }
+.approach-label { font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 4px; }
+.label-a { color: #60a5fa; }
+.label-b { color: #34d399; }
+.label-c { color: #f59e0b; }
+.approach-title { font-size: 15px; font-weight: 700; color: #e2e8f0; }
+.approach-sub { font-size: 12px; color: #64748b; margin-top: 3px; }
+.mockup-area { padding: 16px 18px; background: #0f0f1a; }
+/* Mini mockup styles */
+.mini-tab-bar { display: flex; gap: 6px; margin-bottom: 12px; }
+.mini-tab { padding: 4px 10px; border-radius: 6px; font-size: 10px; color: #64748b; background: #1e1e2e; }
+.mini-tab.active { background: #7c3aed; color: white; }
+.mini-goal { background: #1e1e2e; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.mini-goal-title { font-size: 11px; color: #e2e8f0; margin-bottom: 6px; font-weight: 600; }
+.mini-goal-bar-bg { background: #313244; border-radius: 4px; height: 6px; margin-bottom: 4px; }
+.mini-goal-bar { height: 6px; border-radius: 4px; background: #7c3aed; }
+.mini-goal-meta { font-size: 10px; color: #64748b; display: flex; justify-content: space-between; }
+.mini-task { background: #1e1e2e; border-radius: 6px; padding: 8px 10px; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+.mini-checkbox { width: 12px; height: 12px; border-radius: 3px; border: 1.5px solid #64748b; flex-shrink: 0; }
+.mini-checkbox.done { background: #34d399; border-color: #34d399; }
+.mini-task-text { font-size: 10px; color: #94a3b8; }
+.mini-task-date { font-size: 9px; color: #64748b; margin-left: auto; }
+.mini-metric { background: #1e1e2e; border-radius: 8px; padding: 10px 12px; display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
+.mini-metric-icon { font-size: 18px; }
+.mini-metric-val { font-size: 18px; font-weight: 700; color: #e2e8f0; }
+.mini-metric-label { font-size: 10px; color: #64748b; }
+.mini-metrics-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+.mini-chart { background: #1e1e2e; border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.mini-chart-label { font-size: 10px; color: #64748b; margin-bottom: 8px; }
+.mini-bars { display: flex; align-items: flex-end; gap: 4px; height: 40px; }
+.mini-bar { flex: 1; border-radius: 3px 3px 0 0; background: #7c3aed55; min-height: 4px; }
+.mini-bar.hi { background: #7c3aed; }
+.mini-timeline { padding: 8px 0; }
+.mini-timeline-item { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 10px; }
+.mini-dot { width: 8px; height: 8px; border-radius: 50%; background: #7c3aed; margin-top: 3px; flex-shrink: 0; }
+.mini-dot.grey { background: #313244; }
+.mini-tl-text { font-size: 10px; color: #94a3b8; }
+.mini-tl-date { font-size: 9px; color: #64748b; }
+.section-divider { height: 1px; background: #313244; margin: 10px 0; }
+.recommended-badge { display: inline-block; background: #34d39922; color: #34d399; border: 1px solid #34d39944; border-radius: 20px; padding: 2px 10px; font-size: 10px; font-weight: 700; margin-left: 8px; }
+.pros-list { padding: 10px 18px 14px; }
+.pros-list li { font-size: 12px; color: #64748b; margin: 4px 0; list-style: none; padding-left: 14px; position: relative; }
+.pros-list li::before { content: "·"; position: absolute; left: 0; color: #7c3aed; }
+.effort-row { padding: 8px 18px; display: flex; align-items: center; gap: 8px; border-top: 1px solid #1e1e2e; }
+.effort-label { font-size: 10px; color: #64748b; }
+.effort-dots { display: flex; gap: 4px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: #313244; }
+.dot.filled { background: #7c3aed; }
+</style>
+
+<div class="approach-grid">
+
+  <!-- APPROACH A -->
+  <div class="approach" data-choice="a" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <div class="approach-label label-a">Opção A — Simples</div>
+      <div class="approach-title">Objetivos + Tarefas Básico</div>
+      <div class="approach-sub">Lista estruturada de metas e homework</div>
+    </div>
+    <div class="mockup-area">
+      <div class="mini-tab-bar">
+        <div class="mini-tab">Dados</div>
+        <div class="mini-tab">Sessões</div>
+        <div class="mini-tab active">Progresso</div>
+      </div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;">OBJETIVOS TERAPÊUTICOS</div>
+      <div class="mini-goal">
+        <div class="mini-goal-title">Reduzir ataques de pânico</div>
+        <div class="mini-goal-bar-bg"><div class="mini-goal-bar" style="width:60%"></div></div>
+        <div class="mini-goal-meta"><span>60% concluído</span><span>Em andamento</span></div>
+      </div>
+      <div class="mini-goal">
+        <div class="mini-goal-title">Estabelecer rotina de sono</div>
+        <div class="mini-goal-bar-bg"><div class="mini-goal-bar" style="width:30%"></div></div>
+        <div class="mini-goal-meta"><span>30% concluído</span><span>Em andamento</span></div>
+      </div>
+      <div class="section-divider"></div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;">HOMEWORK</div>
+      <div class="mini-task"><div class="mini-checkbox done"></div><div class="mini-task-text">Diário de pensamentos</div><div class="mini-task-date">✓ seg</div></div>
+      <div class="mini-task"><div class="mini-checkbox"></div><div class="mini-task-text">Exercício de respiração 4-7-8</div><div class="mini-task-date">sex</div></div>
+    </div>
+    <ul class="pros-list">
+      <li>Rápido de implementar (1–2 sprints)</li>
+      <li>Resolve o problema central imediatamente</li>
+      <li>Sem dependências novas</li>
+    </ul>
+    <div class="effort-row">
+      <span class="effort-label">Esforço</span>
+      <div class="effort-dots"><div class="dot filled"></div><div class="dot filled"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+  </div>
+
+  <!-- APPROACH B (RECOMMENDED) -->
+  <div class="approach" data-choice="b" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <div class="approach-label label-b">Opção B — Recomendada <span class="recommended-badge">★ sugerida</span></div>
+      <div class="approach-title">Objetivos + Tarefas + Métricas</div>
+      <div class="approach-sub">Progresso com contexto quantitativo</div>
+    </div>
+    <div class="mockup-area">
+      <div class="mini-tab-bar">
+        <div class="mini-tab">Dados</div>
+        <div class="mini-tab">Sessões</div>
+        <div class="mini-tab active">Progresso</div>
+      </div>
+      <div class="mini-metrics-row">
+        <div class="mini-metric"><div class="mini-metric-icon">📅</div><div><div class="mini-metric-val">18</div><div class="mini-metric-label">sessões no total</div></div></div>
+        <div class="mini-metric"><div class="mini-metric-icon">✅</div><div><div class="mini-metric-val">83%</div><div class="mini-metric-label">presença</div></div></div>
+      </div>
+      <div class="mini-goal">
+        <div class="mini-goal-title">Reduzir ataques de pânico</div>
+        <div class="mini-goal-bar-bg"><div class="mini-goal-bar" style="width:60%"></div></div>
+        <div class="mini-goal-meta"><span>60%</span><span>3 marcos alcançados</span></div>
+      </div>
+      <div class="section-divider"></div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;">HOMEWORK — ÚLTIMAS 4 SEMANAS</div>
+      <div class="mini-chart">
+        <div class="mini-chart-label">Taxa de conclusão semanal</div>
+        <div class="mini-bars">
+          <div class="mini-bar" style="height:55%"></div>
+          <div class="mini-bar" style="height:40%"></div>
+          <div class="mini-bar hi" style="height:80%"></div>
+          <div class="mini-bar hi" style="height:90%"></div>
+        </div>
+      </div>
+      <div class="mini-task"><div class="mini-checkbox done"></div><div class="mini-task-text">Diário de pensamentos</div><div class="mini-task-date">✓ seg</div></div>
+      <div class="mini-task"><div class="mini-checkbox"></div><div class="mini-task-text">Exercício de respiração 4-7-8</div><div class="mini-task-date">sex</div></div>
+    </div>
+    <ul class="pros-list">
+      <li>Dá contexto clínico real (frequência, presença)</li>
+      <li>Gráfico de homework motiva acompanhamento</li>
+      <li>Boa base para relatórios de evolução</li>
+    </ul>
+    <div class="effort-row">
+      <span class="effort-label">Esforço</span>
+      <div class="effort-dots"><div class="dot filled"></div><div class="dot filled"></div><div class="dot filled"></div><div class="dot"></div><div class="dot"></div></div>
+    </div>
+  </div>
+
+  <!-- APPROACH C -->
+  <div class="approach" data-choice="c" onclick="toggleSelect(this)">
+    <div class="approach-header">
+      <div class="approach-label label-c">Opção C — Completa</div>
+      <div class="approach-title">Painel Longitudinal Completo</div>
+      <div class="approach-sub">Timeline visual + tudo de B + marcos clínicos</div>
+    </div>
+    <div class="mockup-area">
+      <div class="mini-tab-bar">
+        <div class="mini-tab">Dados</div>
+        <div class="mini-tab">Sessões</div>
+        <div class="mini-tab active">Progresso</div>
+      </div>
+      <div class="mini-metrics-row">
+        <div class="mini-metric"><div class="mini-metric-icon">📅</div><div><div class="mini-metric-val">18</div><div class="mini-metric-label">sessões</div></div></div>
+        <div class="mini-metric"><div class="mini-metric-icon">🗓️</div><div><div class="mini-metric-val">7mo</div><div class="mini-metric-label">em terapia</div></div></div>
+      </div>
+      <div class="mini-goal">
+        <div class="mini-goal-title">Reduzir ataques de pânico</div>
+        <div class="mini-goal-bar-bg"><div class="mini-goal-bar" style="width:60%"></div></div>
+        <div class="mini-goal-meta"><span>60%</span><span>↗ +15% este mês</span></div>
+      </div>
+      <div class="section-divider"></div>
+      <div style="font-size:10px;color:#64748b;margin-bottom:6px;">TIMELINE DE MARCOS</div>
+      <div class="mini-timeline">
+        <div class="mini-timeline-item"><div class="mini-dot"></div><div><div class="mini-tl-text">Primeiro relato sem ansiedade</div><div class="mini-tl-date">Mar 2025</div></div></div>
+        <div class="mini-timeline-item"><div class="mini-dot"></div><div><div class="mini-tl-text">Retomou atividades sociais</div><div class="mini-tl-date">Jan 2025</div></div></div>
+        <div class="mini-timeline-item"><div class="mini-dot grey"></div><div><div class="mini-tl-text" style="color:#64748b">Início do tratamento</div><div class="mini-tl-date">Set 2024</div></div></div>
+      </div>
+      <div class="mini-task"><div class="mini-checkbox done"></div><div class="mini-task-text">Diário de pensamentos</div><div class="mini-task-date">✓</div></div>
+    </div>
+    <ul class="pros-list">
+      <li>Painel mais rico e impressionante</li>
+      <li>Marcos clínicos viram diferencial narrativo</li>
+      <li>Ideal para relatórios e supervisão futura</li>
+    </ul>
+    <div class="effort-row">
+      <span class="effort-label">Esforço</span>
+      <div class="effort-dots"><div class="dot filled"></div><div class="dot filled"></div><div class="dot filled"></div><div class="dot filled"></div><div class="dot"></div></div>
+    </div>
+  </div>
+
+</div>
+
+<p style="text-align:center;color:#64748b;font-size:13px;margin-top:8px;">Clique para selecionar e me diga no terminal.</p>

@@ -12,7 +12,9 @@ import type {
   ClinicalDocumentVersion,
   FinancialEntry,
   FormEntry,
+  FormAssignment,
   FormTemplate,
+  HomeworkTask,
   Invite,
   Job,
   NotificationConsent,
@@ -24,6 +26,7 @@ import type {
   Patient,
   SessionToken,
   TelemetryEvent,
+  TherapeuticGoal,
   Transcript,
   User,
   LocalEntitlementSnapshot,
@@ -34,6 +37,8 @@ import type {
   PatientNotification,
   AvailabilityBlock,
   SlotRequest,
+  WhatsAppConfig,
+  SessionReminderConfig,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -82,6 +87,7 @@ export const db = {
   anamnesis: new Map<string, AnamnesisResponse>(),
   scales: new Map<string, ScaleRecord>(),
   forms: new Map<string, FormEntry>(),
+  formAssignments: new Map<string, FormAssignment>(),
   formTemplates: new Map<string, FormTemplate>(),
   financial: new Map<string, FinancialEntry>(),
   jobs: new Map<string, Job>(),
@@ -105,6 +111,14 @@ export const db = {
   availabilityBlocks: new Map<string, AvailabilityBlock>(),
   slotRequests: new Map<string, SlotRequest>(),
 
+  therapeuticGoals: new Map<string, TherapeuticGoal>(),
+  homeworkTasks: new Map<string, HomeworkTask>(),
+
+  whatsappConfig: new Map<"config", WhatsAppConfig>(),
+  sessionReminderConfig: new Map<"config", SessionReminderConfig>(),
+  patientSessionReminderEnabled: new Map<string, boolean>(),
+  sentSessionReminders: new Set<string>(),
+
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
@@ -126,6 +140,7 @@ type PersistedDatabaseState = {
   anamnesis: AnamnesisResponse[];
   scales: ScaleRecord[];
   forms: FormEntry[];
+  formAssignments: FormAssignment[];
   formTemplates: FormTemplate[];
   financial: FinancialEntry[];
   jobs: Job[];
@@ -138,6 +153,11 @@ type PersistedDatabaseState = {
   patientNotifications: PatientNotification[];
   availabilityBlocks: AvailabilityBlock[];
   slotRequests: SlotRequest[];
+  therapeuticGoals: TherapeuticGoal[];
+  homeworkTasks: HomeworkTask[];
+  whatsappConfig?: WhatsAppConfig | null;
+  sessionReminderConfig?: SessionReminderConfig | null;
+  patientSessionReminderEnabled?: Record<string, boolean>;
   telemetry: TelemetryEvent[];
   audit: AuditEvent[];
 };
@@ -176,6 +196,7 @@ const loadPersistedDatabase = () => {
     restoreMap(db.anamnesis, snapshot.anamnesis, (item) => item.id);
     restoreMap(db.scales, snapshot.scales, (item) => item.id);
     restoreMap(db.forms, snapshot.forms, (item) => item.id);
+    restoreMap(db.formAssignments, snapshot.formAssignments, (item) => item.id);
     restoreMap(db.formTemplates, snapshot.formTemplates, (item) => item.id);
     restoreMap(db.financial, snapshot.financial, (item) => item.id);
     restoreMap(db.jobs, snapshot.jobs, (item) => item.id);
@@ -188,6 +209,16 @@ const loadPersistedDatabase = () => {
     restoreMap(db.patientNotifications, snapshot.patientNotifications, (item) => item.id);
     restoreMap(db.availabilityBlocks, snapshot.availabilityBlocks, (item) => item.id);
     restoreMap(db.slotRequests, snapshot.slotRequests, (item) => item.id);
+    restoreMap(db.therapeuticGoals, snapshot.therapeuticGoals, (item) => item.id);
+    restoreMap(db.homeworkTasks, snapshot.homeworkTasks, (item) => item.id);
+    if (snapshot.whatsappConfig) db.whatsappConfig.set("config", snapshot.whatsappConfig);
+    if (snapshot.sessionReminderConfig) db.sessionReminderConfig.set("config", snapshot.sessionReminderConfig);
+    if (snapshot.patientSessionReminderEnabled) {
+      db.patientSessionReminderEnabled.clear();
+      for (const [k, v] of Object.entries(snapshot.patientSessionReminderEnabled)) {
+        db.patientSessionReminderEnabled.set(k, v);
+      }
+    }
     restoreMap(db.telemetry, snapshot.telemetry, (item) => item.id);
     restoreMap(db.audit, snapshot.audit, (item) => item.id);
   } catch (error) {
@@ -209,6 +240,7 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   anamnesis: Array.from(db.anamnesis.values()),
   scales: Array.from(db.scales.values()),
   forms: Array.from(db.forms.values()),
+  formAssignments: Array.from(db.formAssignments.values()),
   formTemplates: Array.from(db.formTemplates.values()).filter((item) => item.owner_user_id !== "system"),
   financial: Array.from(db.financial.values()),
   jobs: Array.from(db.jobs.values()),
@@ -221,6 +253,11 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   patientNotifications: Array.from(db.patientNotifications.values()),
   availabilityBlocks: Array.from(db.availabilityBlocks.values()),
   slotRequests: Array.from(db.slotRequests.values()),
+  therapeuticGoals: Array.from(db.therapeuticGoals.values()),
+  homeworkTasks: Array.from(db.homeworkTasks.values()),
+  whatsappConfig: db.whatsappConfig.get("config") ?? null,
+  sessionReminderConfig: db.sessionReminderConfig.get("config") ?? null,
+  patientSessionReminderEnabled: Object.fromEntries(db.patientSessionReminderEnabled.entries()),
   telemetry: Array.from(db.telemetry.values()),
   audit: Array.from(db.audit.values()),
 });

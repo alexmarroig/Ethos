@@ -1,4 +1,5 @@
 ﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import PatientProgressTab from "./PatientProgressTab";
 import { motion } from "framer-motion";
 import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, MessageCircle, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,9 +7,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/services/paymentReminderSettings";
+import { buildSessionReminderMessage, readSessionReminderSettings } from "@/services/sessionReminderSettings";
+import { sessionReminderApi } from "@/api/clinical";
+import { Switch } from "@/components/ui/switch";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
+import { formService, type FormAssignment } from "@/services/formService";
 import { sessionService } from "@/services/sessionService";
 import { contractsApi, documentsApi } from "@/api/clinical";
 import type { Contract } from "@/api/types";
@@ -300,7 +305,11 @@ export default function PatientDetailPage({
   const [shortcutLoading, setShortcutLoading] = useState<string | null>(null);
   const [paymentReminderOpen, setPaymentReminderOpen] = useState(false);
   const [paymentReminderMessage, setPaymentReminderMessage] = useState("");
+  const [sessionReminderOpen, setSessionReminderOpen] = useState(false);
+  const [sessionReminderMessage, setSessionReminderMessage] = useState("");
+  const [sessionReminderEnabled, setSessionReminderEnabled] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
+  const [formAssignments, setFormAssignments] = useState<FormAssignment[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
   const [documentFormValues, setDocumentFormValues] = useState<DocumentFormValues>({});
@@ -310,6 +319,8 @@ export default function PatientDetailPage({
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [lookingUpCep, setLookingUpCep] = useState(false);
   const [lastCepLookup, setLastCepLookup] = useState("");
+  const [documentFilter, setDocumentFilter] = useState<"all" | "portal" | "recent">("all");
+  const [formFilter, setFormFilter] = useState<"all" | "with_response" | "without_response" | "recent">("all");
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
@@ -328,13 +339,25 @@ export default function PatientDetailPage({
 
   useEffect(() => {
     void loadPatient();
-  }, [loadPatient]);
+    void sessionReminderApi.getPatientEnabled(patientId).then((r) => {
+      if (r.success) setSessionReminderEnabled(r.data.enabled);
+    });
+  }, [loadPatient, patientId]);
 
   useEffect(() => {
     const loadContracts = async () => {
-      const result = await contractsApi.list();
-      if (!result.success) return;
-      setContracts(result.data.filter((contract) => contract.patient_id === patientId));
+      const [contractsResult, assignmentsResult] = await Promise.all([
+        contractsApi.list(),
+        formService.listAssignments({ patient_id: patientId }),
+      ]);
+
+      if (contractsResult.success) {
+        setContracts(contractsResult.data.filter((contract) => contract.patient_id === patientId));
+      }
+
+      if (assignmentsResult.success) {
+        setFormAssignments(assignmentsResult.data);
+      }
     };
 
     void loadContracts();
@@ -399,6 +422,49 @@ export default function PatientDetailPage({
     () => contracts.filter((contract) => Boolean(contract.signed_attachment)),
     [contracts],
   );
+  const sharedDocuments = useMemo(
+    () =>
+      detail?.documents.filter((document: any) => Boolean(document.shared_with_patient)) ?? [],
+    [detail?.documents],
+  );
+  const activeAssignments = useMemo(
+    () => formAssignments.filter((assignment) => assignment.active),
+    [formAssignments],
+  );
+  const formEntryGroups = useMemo(() => {
+    const items = detail?.form_entries ?? [];
+    return items.reduce<Record<string, any[]>>((acc, entry: any) => {
+      const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
+      acc[key] = [...(acc[key] ?? []), entry];
+      return acc;
+    }, {});
+  }, [detail?.form_entries]);
+  const filteredDocuments = useMemo(() => {
+    const source = detail?.documents ?? [];
+    const nowMs = Date.now();
+    return source.filter((document: any) => {
+      if (documentFilter === "portal") return Boolean(document.shared_with_patient);
+      if (documentFilter === "recent") {
+        const createdAt = Date.parse(document.created_at ?? "");
+        return Number.isFinite(createdAt) && nowMs - createdAt <= 30 * 24 * 60 * 60 * 1000;
+      }
+      return true;
+    });
+  }, [detail?.documents, documentFilter]);
+  const filteredAssignments = useMemo(() => {
+    const nowMs = Date.now();
+    return activeAssignments.filter((assignment) => {
+      const responses = formEntryGroups[assignment.id] ?? [];
+      if (formFilter === "with_response") return responses.length > 0;
+      if (formFilter === "without_response") return responses.length === 0;
+      if (formFilter === "recent") {
+        const relevantDate = assignment.last_submitted_at ?? assignment.shared_at;
+        const parsed = Date.parse(relevantDate ?? "");
+        return Number.isFinite(parsed) && nowMs - parsed <= 30 * 24 * 60 * 60 * 1000;
+      }
+      return true;
+    });
+  }, [activeAssignments, formEntryGroups, formFilter]);
 
   const summaryCards = useMemo(() => {
     if (!detail) return [];
@@ -406,8 +472,10 @@ export default function PatientDetailPage({
       { label: "Total de sessões", value: String(detail.summary.total_sessions) },
       { label: "Próxima sessão", value: formatDateTime(detail.summary.next_session?.scheduled_at) },
       { label: "Última sessão", value: formatDateTime(detail.summary.last_session?.scheduled_at) },
+      { label: "Docs no portal", value: String(sharedDocuments.length) },
+      { label: "Formulários ativos", value: String(activeAssignments.length) },
     ];
-  }, [detail]);
+  }, [detail, sharedDocuments.length, activeAssignments.length]);
 
   const updateForm = <K extends keyof PatientFormState>(key: K, value: PatientFormState[K]) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -887,6 +955,37 @@ export default function PatientDetailPage({
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(paymentReminderMessage)}`, "_blank", "noopener,noreferrer");
   };
 
+  const openSessionReminder = () => {
+    const settings = readSessionReminderSettings();
+    const nextSessions = detail?.sessions
+      ?.filter((s) => s.status === "scheduled" && s.scheduled_at && new Date(s.scheduled_at) > new Date())
+      .sort((a, b) => new Date(a.scheduled_at!).getTime() - new Date(b.scheduled_at!).getTime());
+    const next = nextSessions?.[0];
+    const sessionDate = next?.scheduled_at
+      ? new Date(next.scheduled_at).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })
+      : "data a confirmar";
+    const sessionTime = next?.scheduled_at
+      ? new Date(next.scheduled_at).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })
+      : "horário a confirmar";
+    const message = buildSessionReminderMessage(settings.defaultTemplate, {
+      patient_name: form.name || detail?.patient.name || "Paciente",
+      session_date: sessionDate,
+      session_time: sessionTime,
+      psychologist_name: "sua psicóloga",
+    });
+    setSessionReminderMessage(message);
+    setSessionReminderOpen(true);
+  };
+
+  const handleSendSessionReminder = () => {
+    const phone = onlyDigits(form.whatsapp || detail?.patient.whatsapp || "");
+    if (!phone) {
+      toast({ title: "WhatsApp indisponível", description: "Cadastre o WhatsApp do paciente para enviar o lembrete.", variant: "destructive" });
+      return;
+    }
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(sessionReminderMessage)}`, "_blank", "noopener,noreferrer");
+  };
+
   if (loading) {
     return (
       <div className="content-container py-12">
@@ -1198,6 +1297,31 @@ export default function PatientDetailPage({
               <MessageCircle className="w-4 h-4" />
               Lembrete de cobrança no WhatsApp
             </Button>
+            <Button variant="outline" className="gap-2" onClick={openSessionReminder}>
+              <MessageCircle className="w-4 h-4" />
+              Lembrete de sessão no WhatsApp
+            </Button>
+          </div>
+          <div className="flex items-center justify-between rounded-lg border border-border p-3 mt-2">
+            <div>
+              <p className="text-sm font-medium text-foreground">Lembrete automático de sessão</p>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {sessionReminderEnabled
+                  ? "Ativado — este paciente receberá lembretes de sessão conforme configurado em Conta."
+                  : "Desativado — ative para incluir este paciente nos lembretes automáticos de sessão."}
+              </p>
+            </div>
+            <Switch
+              checked={sessionReminderEnabled}
+              onCheckedChange={(checked) => {
+                setSessionReminderEnabled(checked);
+                void sessionReminderApi.setPatientEnabled(patientId, checked).then((r) => {
+                  if (r.success) {
+                    toast({ title: checked ? "Lembrete ativado" : "Lembrete desativado" });
+                  }
+                });
+              }}
+            />
           </div>
         </motion.section>
 
@@ -1320,7 +1444,9 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
           <div>
             <h2 className="font-serif text-2xl text-foreground">Documentos</h2>
-            <p className="text-sm text-muted-foreground mt-1">Atalhos rápidos para os principais documentos do caso.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Atalhos rápidos para os principais documentos do caso e visão do que já foi disponibilizado no portal.
+            </p>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
@@ -1346,13 +1472,50 @@ export default function PatientDetailPage({
             </Button>
           </div>
 
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Total de documentos</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{detail.documents.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Disponíveis no portal</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{sharedDocuments.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Rascunhos internos</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{detail.documents.length - sharedDocuments.length}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "Todos" },
+              { key: "portal", label: "Somente no portal" },
+              { key: "recent", label: "Últimos 30 dias" },
+            ].map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                variant={documentFilter === item.key ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setDocumentFilter(item.key as typeof documentFilter)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
           {detail.documents.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
               Nenhum documento clínico vinculado a este paciente ainda.
             </div>
+          ) : filteredDocuments.length === 0 ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+              Nenhum documento corresponde ao filtro selecionado.
+            </div>
           ) : (
             <div className="space-y-3">
-              {detail.documents.map((document) => (
+              {filteredDocuments.map((document) => (
                 <div
                   key={(document as { id: string }).id}
                   className="rounded-xl border border-border bg-background/60 p-4 transition hover:border-primary/40 hover:bg-background"
@@ -1363,8 +1526,22 @@ export default function PatientDetailPage({
                       <p className="text-sm text-muted-foreground mt-1">
                         {documentTemplateLabel((document as { template_id?: string }).template_id)} · criado em {formatDate((document as { created_at?: string }).created_at)}
                       </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        {(document as { shared_with_patient?: boolean }).shared_with_patient
+                          ? `Disponível no portal${(document as { shared_at?: string }).shared_at ? ` desde ${formatDateTime((document as { shared_at?: string }).shared_at)}` : ""}`
+                          : "Ainda não disponível no portal do paciente"}
+                      </p>
                     </div>
                     <div className="flex items-center gap-2">
+                      <span
+                        className={`rounded-full px-3 py-1 text-xs font-medium ${
+                          (document as { shared_with_patient?: boolean }).shared_with_patient
+                            ? "bg-status-validated/10 text-status-validated"
+                            : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {(document as { shared_with_patient?: boolean }).shared_with_patient ? "No portal" : "Interno"}
+                      </span>
                       <Button
                         type="button"
                         variant="secondary"
@@ -1399,7 +1576,26 @@ export default function PatientDetailPage({
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
           <div>
             <h2 className="font-serif text-2xl text-foreground">Contrato assinado</h2>
-            <p className="text-sm text-muted-foreground mt-1">Visualização rápida do contrato assinado já vinculado ao paciente.</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Visualização rápida do envio, aceite e anexo do contrato terapêutico.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Contratos criados</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{contracts.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Enviados / aceitos</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {contracts.filter((contract) => contract.status === "sent" || contract.status === "accepted").length}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Assinados</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{signedContracts.length}</p>
+            </div>
           </div>
 
           {signedContracts.length === 0 ? (
@@ -1415,6 +1611,9 @@ export default function PatientDetailPage({
                       <p className="font-medium text-foreground">{contract.title ?? "Contrato terapêutico"}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         Arquivo: {contract.signed_attachment?.file_name ?? "Anexo"}
+                      </p>
+                      <p className="mt-2 text-xs text-muted-foreground">
+                        Status do fluxo: {contract.status === "accepted" ? "aceito pelo paciente" : contract.status === "sent" ? "enviado para aceite" : "rascunho"}
                       </p>
                     </div>
                     <span className="rounded-full bg-status-validated/10 px-3 py-1 text-xs font-medium text-status-validated">
@@ -1463,9 +1662,108 @@ export default function PatientDetailPage({
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
           <div>
-            <h2 className="font-serif text-2xl text-foreground">Formulários respondidos</h2>
-            <p className="text-sm text-muted-foreground mt-1">Respostas enviadas pelo paciente e registradas na ficha.</p>
+            <h2 className="font-serif text-2xl text-foreground">Formulários do paciente</h2>
+            <p className="text-sm text-muted-foreground mt-1">
+              Veja o que já foi disponibilizado para este paciente e o histórico de respostas enviadas.
+            </p>
           </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Formulários ativos</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{activeAssignments.length}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Respostas recebidas</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{detail.form_entries?.length ?? 0}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-xs uppercase tracking-wide text-muted-foreground">Última resposta</p>
+              <p className="mt-2 text-sm font-medium text-foreground">
+                {detail.form_entries?.length ? formatDateTime((detail.form_entries[0] as any).created_at) : "Nenhuma ainda"}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {[
+              { key: "all", label: "Todos" },
+              { key: "with_response", label: "Com resposta" },
+              { key: "without_response", label: "Sem resposta" },
+              { key: "recent", label: "Últimos 30 dias" },
+            ].map((item) => (
+              <Button
+                key={item.key}
+                type="button"
+                variant={formFilter === item.key ? "secondary" : "outline"}
+                size="sm"
+                onClick={() => setFormFilter(item.key as typeof formFilter)}
+              >
+                {item.label}
+              </Button>
+            ))}
+          </div>
+
+          {activeAssignments.length === 0 ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+              Nenhum formulário foi disponibilizado para este paciente ainda.
+            </div>
+          ) : filteredAssignments.length === 0 ? (
+            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+              Nenhum formulário corresponde ao filtro selecionado.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {filteredAssignments.map((assignment) => {
+                const assignmentEntries = formEntryGroups[assignment.id] ?? [];
+                return (
+                  <div key={assignment.id} className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-medium text-foreground">
+                          {assignment.form?.name ?? assignment.form?.title ?? "Formulário"}
+                        </p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {assignment.mode === "single_use" ? "Envio único" : "Recorrente"} · disponibilizado em {formatDateTime(assignment.shared_at)}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                          {assignment.response_count ?? assignmentEntries.length} resposta(s)
+                        </span>
+                        <span className="rounded-full bg-status-validated/10 px-3 py-1 text-xs font-medium text-status-validated">
+                          No portal
+                        </span>
+                      </div>
+                    </div>
+                    {assignmentEntries.length > 0 ? (
+                      <div className="mt-4 space-y-2">
+                        {assignmentEntries.slice(0, 2).map((entry: any) => (
+                          <div key={entry.id} className="rounded-lg bg-muted/40 px-4 py-3">
+                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                              {formatDateTime(entry.created_at)} · {entry.submitted_by === "patient" ? "enviado pelo paciente" : "registrado pelo profissional"}
+                            </p>
+                            <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-lg bg-background/60 p-3 text-xs text-foreground/75">
+                              {JSON.stringify(entry.content ?? entry.data ?? {}, null, 2)}
+                            </pre>
+                          </div>
+                        ))}
+                        {assignmentEntries.length > 2 ? (
+                          <p className="text-xs text-muted-foreground">
+                            + {assignmentEntries.length - 2} resposta(s) adicional(is) para este formulário.
+                          </p>
+                        ) : null}
+                      </div>
+                    ) : (
+                      <p className="mt-4 text-sm text-muted-foreground">
+                        Este formulário já está disponível no portal, mas o paciente ainda não respondeu.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
 
           {!(detail.form_entries && detail.form_entries.length) ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
@@ -1487,6 +1785,29 @@ export default function PatientDetailPage({
             </div>
           )}
         </motion.section>
+
+        {detail && (
+          <motion.section className="space-y-0" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+            <div className="mb-4">
+              <h2 className="font-serif text-2xl text-foreground">Progresso</h2>
+              <p className="text-sm text-muted-foreground mt-1">Objetivos terapêuticos, homework e evolução do tratamento.</p>
+            </div>
+            <PatientProgressTab
+              patientId={patientId}
+              sessionCount={detail.summary.total_sessions}
+              attendanceRate={
+                detail.sessions.length === 0
+                  ? 0
+                  : detail.sessions.filter((s: { status: string }) => s.status === "completed").length / detail.sessions.length
+              }
+              weeksInTherapy={
+                detail.sessions.length === 0
+                  ? 0
+                  : Math.max(1, Math.round((Date.now() - new Date(detail.sessions[detail.sessions.length - 1].scheduled_at).getTime()) / (7 * 24 * 60 * 60 * 1000)))
+              }
+            />
+          </motion.section>
+        )}
 
         <Dialog open={documentDialogOpen} onOpenChange={(open) => !open && closeDocumentPreview()}>
           <DialogContent className="max-h-[92vh] max-w-[min(96vw,1200px)] overflow-hidden p-0">
@@ -1717,6 +2038,22 @@ export default function PatientDetailPage({
             <DialogFooter>
               <Button variant="secondary" onClick={() => setPaymentReminderOpen(false)}>Fechar</Button>
               <Button onClick={handleSendPaymentReminder}>Enviar no WhatsApp</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={sessionReminderOpen} onOpenChange={setSessionReminderOpen}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Lembrete de sessão</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-3">
+              <p className="text-sm text-muted-foreground">Edite a mensagem antes de enviar ao paciente.</p>
+              <Textarea value={sessionReminderMessage} onChange={(event) => setSessionReminderMessage(event.target.value)} className="min-h-[200px]" />
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setSessionReminderOpen(false)}>Fechar</Button>
+              <Button onClick={handleSendSessionReminder}>Enviar no WhatsApp</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

@@ -34,6 +34,11 @@ import type {
   EmotionalDiaryEntry,
   FinancialEntry,
   FormEntry,
+  FormAssignment,
+  FormAssignmentMode,
+  GoalMilestone,
+  GoalStatus,
+  HomeworkTask,
   Job,
   JobStatus,
   JobType,
@@ -48,6 +53,7 @@ import type {
   SessionStatus,
   SlotRequest,
   TelemetryEvent,
+  TherapeuticGoal,
   Transcript,
   User,
 } from "../domain/types";
@@ -2100,6 +2106,101 @@ const seedDefaultTemplates = (owner: string) => {
   }
 };
 
+const getOwnedFormTemplate = (owner: string, id: string): FormTemplate | null => {
+  seedDefaultTemplates(owner);
+  const normalizedId = id.replace(`${owner}:`, "");
+  const direct = db.formTemplates.get(id);
+  if (direct?.owner_user_id === owner) return direct;
+  const ownerScoped = db.formTemplates.get(`${owner}:${normalizedId}`);
+  if (ownerScoped?.owner_user_id === owner) return ownerScoped;
+  return null;
+};
+
+const findFormAssignment = (owner: string, formId: string, patientId: string) =>
+  byOwner(db.formAssignments.values(), owner).find((item) => item.form_id === formId && item.patient_id === patientId) ?? null;
+
+const countAssignmentResponses = (assignmentId: string) =>
+  Array.from(db.forms.values()).filter((item) => item.assignment_id === assignmentId).length;
+
+const listFormEntriesForPatient = (owner: string, patientId: string, formId?: string) =>
+  byOwner(db.forms.values(), owner)
+    .filter((item) => item.patient_id === patientId && (!formId || item.form_id === formId))
+    .sort(compareByNewestDate);
+
+export const assignFormToPatient = (
+  owner: string,
+  input: {
+    form_id: string;
+    patient_id: string;
+    mode: FormAssignmentMode;
+    active?: boolean;
+  },
+) => {
+  const form = getOwnedFormTemplate(owner, input.form_id);
+  const patient = getPatient(owner, input.patient_id);
+  if (!form || !patient) return null;
+
+  const existing = findFormAssignment(owner, form.id, patient.id);
+  if (existing) {
+    existing.mode = input.mode;
+    existing.active = input.active ?? true;
+    existing.shared_at = now();
+    persistMutation();
+    return existing;
+  }
+
+  const assignment: FormAssignment = {
+    id: uid(),
+    owner_user_id: owner,
+    created_at: now(),
+    form_id: form.id,
+    patient_id: patient.id,
+    mode: input.mode,
+    active: input.active ?? true,
+    shared_at: now(),
+  };
+  db.formAssignments.set(assignment.id, assignment);
+  persistMutation();
+  return assignment;
+};
+
+export const updateFormAssignment = (
+  owner: string,
+  assignmentId: string,
+  patch: Partial<Pick<FormAssignment, "active" | "mode">>,
+) => {
+  const assignment = getByOwner(db.formAssignments, owner, assignmentId);
+  if (!assignment) return null;
+  if (typeof patch.active === "boolean") assignment.active = patch.active;
+  if (patch.mode === "single_use" || patch.mode === "recurring") assignment.mode = patch.mode;
+  persistMutation();
+  return assignment;
+};
+
+export const listFormAssignments = (
+  owner: string,
+  filters?: { patient_id?: string; form_id?: string; active?: boolean },
+) =>
+  byOwner(db.formAssignments.values(), owner)
+    .filter((item) =>
+      (!filters?.patient_id || item.patient_id === filters.patient_id)
+      && (!filters?.form_id || item.form_id === filters.form_id)
+      && (filters?.active === undefined || item.active === filters.active),
+    )
+    .sort(compareByNewestDate)
+    .map((assignment) => {
+      const form = getOwnedFormTemplate(owner, assignment.form_id);
+      const patient = getPatient(owner, assignment.patient_id);
+      const responseCount = countAssignmentResponses(assignment.id);
+      return {
+        ...assignment,
+        form,
+        patient,
+        response_count: responseCount,
+        can_submit: assignment.mode === "recurring" || responseCount === 0,
+      };
+    });
+
 export const listFormsCatalog = (ownerId?: string, _audience?: string): Array<{ id: string; name: string; title: string; description?: string; fields?: unknown[] }> => {
   if (ownerId) {
     seedDefaultTemplates(ownerId);
@@ -2149,22 +2250,87 @@ export const deleteFormTemplate = (owner: string, id: string): boolean => {
   const item = db.formTemplates.get(id);
   if (!item || item.owner_user_id !== owner) return false;
   db.formTemplates.delete(id);
+  for (const assignment of listFormAssignments(owner, { form_id: item.id })) {
+    db.formAssignments.delete(assignment.id);
+  }
   persistMutation();
   return true;
 };
 
-export const createFormEntry = (owner: string, patientId: string, formId: string, content: Record<string, unknown>, _submittedBy?: string): FormEntry => {
-  const item = { id: uid(), owner_user_id: owner, patient_id: patientId, form_id: formId, content, created_at: now() };
+export const createFormEntry = (
+  owner: string,
+  patientId: string,
+  formId: string,
+  content: Record<string, unknown>,
+  submittedBy: "patient" | "professional" = "professional",
+): FormEntry => {
+  const form = getOwnedFormTemplate(owner, formId);
+  if (!form) throw new Error("FORM_TEMPLATE_NOT_FOUND");
+
+  const patient = getPatient(owner, patientId);
+  if (!patient) throw new Error("PATIENT_NOT_FOUND");
+
+  let assignmentId: string | undefined;
+  const assignment = findFormAssignment(owner, form.id, patient.id);
+  if (assignment) {
+    if (!assignment.active && submittedBy === "patient") {
+      throw new Error("FORM_ASSIGNMENT_INACTIVE");
+    }
+
+    const responseCount = countAssignmentResponses(assignment.id);
+    if (submittedBy === "patient" && assignment.mode === "single_use" && responseCount > 0) {
+      throw new Error("FORM_SINGLE_USE_ALREADY_SUBMITTED");
+    }
+
+    assignment.last_submitted_at = now();
+    assignmentId = assignment.id;
+  } else if (submittedBy === "patient") {
+    throw new Error("FORM_NOT_ASSIGNED");
+  }
+
+  const item: FormEntry = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: patient.id,
+    form_id: form.id,
+    assignment_id: assignmentId,
+    content,
+    submitted_by: submittedBy,
+    created_at: now(),
+  };
   db.forms.set(item.id, item);
   persistMutation();
   return item;
 };
 
-export const listFormEntries = (owner: string, filters?: { patient_id?: string; form_id?: string }) =>
+export const listFormEntries = (owner: string, filters?: { patient_id?: string; form_id?: string; assignment_id?: string }) =>
   byOwner(db.forms.values(), owner)
     .filter((item) => (!filters?.patient_id || item.patient_id === filters.patient_id)
-      && (!filters?.form_id || item.form_id === filters.form_id))
+      && (!filters?.form_id || item.form_id === filters.form_id)
+      && (!filters?.assignment_id || item.assignment_id === filters.assignment_id))
     .sort(compareByNewestDate);
+
+export const listPatientAssignedForms = (access: PatientAccess) =>
+  listFormAssignments(access.owner_user_id, { patient_id: access.patient_id, active: true })
+    .map((assignment) => {
+      const form = assignment.form;
+      if (!form || !form.active || form.audience !== "patient") return null;
+      const responseCount = assignment.response_count;
+      return {
+        ...form,
+        name: form.title,
+        assignment_id: assignment.id,
+        mode: assignment.mode,
+        shared_at: assignment.shared_at,
+        last_submitted_at: assignment.last_submitted_at,
+        response_count: responseCount,
+        can_submit: assignment.mode === "recurring" || responseCount === 0,
+      };
+    })
+    .filter(Boolean);
+
+export const listPatientFormEntries = (access: PatientAccess, formId?: string) =>
+  listFormEntriesForPatient(access.owner_user_id, access.patient_id, formId);
 
 export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry, "id" | "owner_user_id" | "created_at">): FinancialEntry => {
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
@@ -2548,3 +2714,97 @@ export const getClinicalNote = (owner: string, noteId: string) => {
 };
 export const listScales = () => Array.from(db.scaleTemplates.values());
 export const getReport = (owner: string, reportId: string) => getByOwner(db.reports, owner, reportId);
+
+// Therapeutic Goals
+export const listGoals = (owner: string, patientId: string): TherapeuticGoal[] =>
+  byOwner(db.therapeuticGoals.values(), owner)
+    .filter((g) => g.patient_id === patientId)
+    .sort(compareByNewestDate);
+
+export const createGoal = (owner: string, patientId: string, title: string, description?: string): TherapeuticGoal => {
+  const goal: TherapeuticGoal = {
+    id: uid(), owner_user_id: owner, patient_id: patientId,
+    title, description,
+    status: "active", progress: 0, milestones: [],
+    created_at: now(),
+  };
+  db.therapeuticGoals.set(goal.id, goal);
+  persistMutation();
+  return goal;
+};
+
+export const updateGoal = (
+  owner: string,
+  goalId: string,
+  patch: Partial<Pick<TherapeuticGoal, "title" | "description" | "status" | "progress" | "milestones">>,
+): TherapeuticGoal | null => {
+  const goal = getByOwner(db.therapeuticGoals, owner, goalId);
+  if (!goal) return null;
+  const updated: TherapeuticGoal = {
+    ...goal,
+    ...patch,
+    achieved_at: patch.status === "achieved" && goal.status !== "achieved" ? now() : goal.achieved_at,
+  };
+  db.therapeuticGoals.set(goalId, updated);
+  persistMutation();
+  return updated;
+};
+
+export const deleteGoal = (owner: string, goalId: string): boolean => {
+  const goal = getByOwner(db.therapeuticGoals, owner, goalId);
+  if (!goal) return false;
+  db.therapeuticGoals.delete(goalId);
+  persistMutation();
+  return true;
+};
+
+// Homework Tasks
+const isoWeekNumber = (date: Date): number => {
+  const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
+  const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+  return Math.ceil((((d.getTime() - yearStart.getTime()) / 86400000) + 1) / 7);
+};
+
+export const listHomework = (owner: string, patientId: string): HomeworkTask[] =>
+  byOwner(db.homeworkTasks.values(), owner)
+    .filter((t) => t.patient_id === patientId)
+    .sort(compareByNewestDate);
+
+export const createHomework = (owner: string, patientId: string, title: string, description?: string, due_date?: string): HomeworkTask => {
+  const task: HomeworkTask = {
+    id: uid(), owner_user_id: owner, patient_id: patientId,
+    title, description, due_date,
+    completed: false,
+    week_number: isoWeekNumber(new Date()),
+    created_at: now(),
+  };
+  db.homeworkTasks.set(task.id, task);
+  persistMutation();
+  return task;
+};
+
+export const updateHomework = (
+  owner: string,
+  taskId: string,
+  patch: Partial<Pick<HomeworkTask, "title" | "description" | "due_date" | "completed">>,
+): HomeworkTask | null => {
+  const task = getByOwner(db.homeworkTasks, owner, taskId);
+  if (!task) return null;
+  const updated: HomeworkTask = {
+    ...task,
+    ...patch,
+    completed_at: patch.completed && !task.completed ? now() : task.completed_at,
+  };
+  db.homeworkTasks.set(taskId, updated);
+  persistMutation();
+  return updated;
+};
+
+export const deleteHomework = (owner: string, taskId: string): boolean => {
+  const task = getByOwner(db.homeworkTasks, owner, taskId);
+  if (!task) return false;
+  db.homeworkTasks.delete(taskId);
+  persistMutation();
+  return true;
+};

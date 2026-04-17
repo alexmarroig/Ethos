@@ -75,4 +75,41 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes("node_modules")) return undefined;
+
+          if (id.includes("recharts")) return "charts-vendor";
+          if (id.includes("framer-motion")) return "motion-vendor";
+          if (id.includes("react-router-dom")) return "router-vendor";
+          if (
+            id.includes("@radix-ui") ||
+            id.includes("cmdk") ||
+            id.includes("vaul") ||
+            id.includes("embla-carousel-react")
+          ) {
+            return "ui-vendor";
+          }
+          if (
+            id.includes("@tanstack/react-query") ||
+            id.includes("zustand") ||
+            id.includes("date-fns") ||
+            id.includes("zod")
+          ) {
+            return "data-vendor";
+          }
+          if (
+            id.includes("react") ||
+            id.includes("react-dom") ||
+            id.includes("scheduler")
+          ) {
+            return "react-vendor";
+          }
+          return undefined;
+        },
+      },
+    },
+  },
 }));

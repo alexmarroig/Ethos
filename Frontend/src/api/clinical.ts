@@ -254,3 +254,61 @@ export const jobsApi = {
   get: (jobId: string): Promise<ApiResult<Job>> =>
     api.get<Job>(`/jobs/${jobId}`),
 };
+
+
+/* ------------------------------------------------------------------ */
+/*  WhatsApp / Evolution API                                          */
+/* ------------------------------------------------------------------ */
+
+export type WhatsAppConfigPublic = {
+  url: string;
+  apiKey: string;
+  instanceName: string;
+  enabled: boolean;
+};
+
+export type WhatsAppConnectionState = "open" | "connecting" | "close" | "unknown";
+
+export const whatsappApi = {
+  getConfig: (): Promise<ApiResult<WhatsAppConfigPublic | null>> =>
+    api.get<WhatsAppConfigPublic | null>("/settings/whatsapp"),
+
+  saveConfig: (payload: { url: string; apiKey: string; instanceName: string; enabled: boolean }): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp", payload),
+
+  connect: (): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp/connect"),
+
+  getStatus: (): Promise<ApiResult<{ state: WhatsAppConnectionState }>> =>
+    api.get<{ state: WhatsAppConnectionState }>("/settings/whatsapp/status"),
+
+  getQRCode: (): Promise<ApiResult<{ base64: string; code: string }>> =>
+    api.get<{ base64: string; code: string }>("/settings/whatsapp/qrcode"),
+
+  sendTest: (phone: string, text?: string): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp/send-test", { phone, text }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Session Reminder Config                                            */
+/* ------------------------------------------------------------------ */
+
+export type SessionReminderConfig = {
+  enabled: boolean;
+  hoursBeforeSession: number;
+  template: string;
+};
+
+export const sessionReminderApi = {
+  getConfig: (): Promise<ApiResult<SessionReminderConfig | null>> =>
+    api.get<SessionReminderConfig | null>("/settings/session-reminder"),
+
+  saveConfig: (payload: SessionReminderConfig): Promise<ApiResult<SessionReminderConfig>> =>
+    api.post<SessionReminderConfig>("/settings/session-reminder", payload),
+
+  getPatientEnabled: (patientId: string): Promise<ApiResult<{ patient_id: string; enabled: boolean }>> =>
+    api.get<{ patient_id: string; enabled: boolean }>(`/patients/${patientId}/session-reminder`),
+
+  setPatientEnabled: (patientId: string, enabled: boolean): Promise<ApiResult<{ patient_id: string; enabled: boolean }>> =>
+    api.patch<{ patient_id: string; enabled: boolean }>(`/patients/${patientId}/session-reminder`, { enabled }),
+};

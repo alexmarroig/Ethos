@@ -180,9 +180,39 @@ export type ScaleRecord = Owned & {
   recorded_at: string;
 };
 
+export type GoalStatus = "active" | "achieved" | "paused" | "abandoned";
+
+export type GoalMilestone = {
+  id: string;
+  title: string;
+  achieved: boolean;
+  achieved_at?: string;
+};
+
+export type TherapeuticGoal = Owned & {
+  patient_id: string;
+  title: string;
+  description?: string;
+  status: GoalStatus;
+  progress: number;
+  milestones: GoalMilestone[];
+  achieved_at?: string;
+};
+
+export type HomeworkTask = Owned & {
+  patient_id: string;
+  title: string;
+  description?: string;
+  due_date?: string;
+  completed: boolean;
+  completed_at?: string;
+  week_number: number;
+};
+
 export type FormEntry = Owned & {
   patient_id: string;
   form_id: string;
+  assignment_id?: string;
   content: Record<string, unknown>;
   submitted_by?: "patient" | "professional";
 };
@@ -209,6 +239,17 @@ export type FormTemplate = Owned & {
   audience: "patient" | "professional";
   active: boolean;
   fields: FormField[];
+};
+
+export type FormAssignmentMode = "single_use" | "recurring";
+
+export type FormAssignment = Owned & {
+  form_id: string;
+  patient_id: string;
+  active: boolean;
+  mode: FormAssignmentMode;
+  shared_at: string;
+  last_submitted_at?: string;
 };
 
 export type FinancialEntry = Owned & {
@@ -451,4 +492,18 @@ export type SlotRequest = Owned & {
   responded_at?: string;
   rejection_reason?: string;
 };
+
+export type WhatsAppConfig = {
+  url: string;
+  apiKey: string;
+  instanceName: string;
+  enabled: boolean;
+};
+
+export type SessionReminderConfig = {
+  enabled: boolean;
+  hoursBeforeSession: number;
+  template: string;
+};
+
 

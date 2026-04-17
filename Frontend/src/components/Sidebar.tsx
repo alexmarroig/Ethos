@@ -1,3 +1,4 @@
+
 import { motion } from "framer-motion";
 import {
   BookOpen,
@@ -42,31 +43,31 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { id: "home", label: "Início", icon: Home, roles: ["professional", "admin"] },
-  { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
+  { id: "home", label: "In?cio", icon: Home, roles: ["professional", "admin"] },
+  { id: "agenda", label: "Agenda cl?nica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
-  { id: "forms", label: "Diário e formulários", icon: ClipboardList, roles: ["professional"] },
+  { id: "forms", label: "Di?rio e formul?rios", icon: ClipboardList, roles: ["professional"] },
   { id: "anamnesis", label: "Anamnese", icon: BookOpen, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
-  { id: "reports", label: "Relatórios", icon: FileText, roles: ["professional"] },
+  { id: "reports", label: "Relat?rios", icon: FileText, roles: ["professional"] },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
   { id: "contracts", label: "Contratos", icon: ScrollText, roles: ["professional"] },
   { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
-  { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },
+  { id: "ethics", label: "?tica e sigilo", icon: Shield, roles: ["professional"] },
 
-  { id: "patient-home", label: "Início", icon: Home, roles: ["patient"] },
-  { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
+  { id: "patient-home", label: "In?cio", icon: Home, roles: ["patient"] },
+  { id: "patient-sessions", label: "Sess?es", icon: Calendar, roles: ["patient"] },
   { id: "patient-documents", label: "Documentos", icon: FileText, roles: ["patient"] },
   { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
-  { id: "patient-booking", label: "Agendar sessão", icon: CalendarPlus, roles: ["patient"] },
-  { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
+  { id: "patient-booking", label: "Agendar sess?o", icon: CalendarPlus, roles: ["patient"] },
+  { id: "patient-diary", label: "Di?rio e formul?rios", icon: ClipboardList, roles: ["patient"] },
 
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },
-  { id: "admin-users", label: "Usuários", icon: Users, roles: ["admin"] },
+  { id: "admin-users", label: "Usu?rios", icon: Users, roles: ["admin"] },
   { id: "admin-testlab", label: "Test Lab", icon: FlaskConical, roles: ["admin"] },
   { id: "admin-tickets", label: "Tickets", icon: TicketCheck, roles: ["admin"] },
-  { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
+  { id: "diagnostics", label: "Diagn?stico t?cnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
@@ -86,15 +87,15 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       : user?.role === "patient"
         ? "Conta paciente"
         : isLikelyFemaleName(user?.name)
-          ? "Psicóloga"
-          : "Psicólogo";
+          ? "Psic?loga"
+          : "Psic?logo";
 
   const initials = user?.name
     ? user.name
-        .replace(/\(.*?\)/g, "")   // remove (Teste) etc.
+        .replace(/\(.*?\)/g, "")
         .trim()
         .split(/\s+/)
-        .filter((p) => /^[A-Za-zÀ-ÖØ-öø-ÿ]/.test(p))  // only words starting with a letter
+        .filter((part) => /^[A-Za-z?-??-??-?]/.test(part))
         .slice(0, 2)
         .map((part) => part.charAt(0).toUpperCase())
         .join("")
@@ -125,10 +126,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             <div className="min-w-0 flex-1">
               <BrandWordmark />
               {user ? (
-                <div className="mt-1 space-y-2 min-w-0">
-                  <p className="break-words text-sm leading-snug text-muted-foreground">
-                    {user.name}
-                  </p>
+                <div className="mt-1 min-w-0 space-y-2">
+                  <p className="break-words text-sm leading-snug text-muted-foreground">{user.name}</p>
                   <span className="inline-flex rounded-full bg-primary/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-primary">
                     {roleBadge}
                   </span>
@@ -143,11 +142,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
             aria-label="Alternar tema"
           >
-            {resolvedTheme === "dark" ? (
-              <Sun className="h-4 w-4" />
-            ) : (
-              <Moon className="h-4 w-4" />
-            )}
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
         </div>
       </div>
@@ -193,9 +188,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           className={cn(
             "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",
             "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-            currentPage === "account"
-              ? "bg-sidebar-accent font-medium text-sidebar-primary"
-              : "text-sidebar-foreground",
+            currentPage === "account" ? "bg-sidebar-accent font-medium text-sidebar-primary" : "text-sidebar-foreground",
           )}
         >
           <User

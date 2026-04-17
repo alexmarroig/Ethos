@@ -2,6 +2,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
+import { whatsAppCreateInstance, whatsAppGetConnectionState, whatsAppGetQRCode, whatsAppSendText } from "../infra/whatsapp";
 import { generateReportFromNotes, generateReportFromTranscript } from "../application/ai/reportGenerator";
 import {
   acceptInvite,
@@ -26,6 +27,7 @@ import {
   deleteDocument,
   createFinancialEntry,
   createFormEntry,
+  assignFormToPatient,
   createFormTemplate,
   createInvite,
   createJob,
@@ -75,7 +77,10 @@ import {
   listPatients,
   listPrivateComments,
   listFormsCatalog,
+  listFormAssignments,
   listFormEntries,
+  listPatientAssignedForms,
+  listPatientFormEntries,
   deleteFormTemplate,
   listScales,
   listSessionClinicalNotes,
@@ -99,6 +104,7 @@ import {
   syncLocalEntitlements,
   updateClinicalNote,
   updateFinancialEntry,
+  updateFormAssignment,
   updateFormTemplate,
   updateReport,
   updateContract,
@@ -120,6 +126,14 @@ import {
   listSlotRequests,
   listPatientSlotRequests,
   respondSlotRequest,
+  listGoals,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  listHomework,
+  createHomework,
+  updateHomework,
+  deleteHomework,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -131,7 +145,7 @@ import {
   scheduleNotification,
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, AvailabilityBlock, NotificationChannel, Role, SessionStatus } from "../domain/types";
-import { db, uid, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
+import { db, uid, getIdempotencyEntry, setIdempotencyEntry, schedulePersistDatabase } from "../infra/database";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
@@ -223,6 +237,8 @@ const CLINICAL_PATHS = [
   /^\/reports/,
   /^\/anamnesis/,
   /^\/scales/,
+  /^\/goals/,
+  /^\/homework/,
   /^\/forms/,
   /^\/finance/,
   /^\/financial/,
@@ -973,7 +989,7 @@ export const createEthosBackend = () =>
         if (!requireRole(res, requestId, "patient", auth.user.role)) return;
         const access = requirePatientAccess(res, requestId, auth.user.id);
         if (!access) return;
-        return ok(res, requestId, 200, listFormsCatalog(access.owner_user_id, "patient"));
+        return ok(res, requestId, 200, listPatientAssignedForms(access));
       }
 
       if (method === "POST" && url.pathname === "/patient/forms/entry") {
@@ -986,12 +1002,23 @@ export const createEthosBackend = () =>
           return error(res, requestId, 422, "VALIDATION_ERROR", "form_id and content are required");
         }
 
-        return ok(
-          res,
-          requestId,
-          201,
-          createFormEntry(access.owner_user_id, access.patient_id, body.form_id, body.content as Record<string, unknown>, "patient"),
-        );
+        try {
+          return ok(
+            res,
+            requestId,
+            201,
+            createFormEntry(access.owner_user_id, access.patient_id, body.form_id, body.content as Record<string, unknown>, "patient"),
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unable to submit form";
+          const status =
+            message === "FORM_NOT_ASSIGNED" || message === "FORM_TEMPLATE_NOT_FOUND" || message === "PATIENT_NOT_FOUND"
+              ? 404
+              : message === "FORM_ASSIGNMENT_INACTIVE" || message === "FORM_SINGLE_USE_ALREADY_SUBMITTED"
+                ? 409
+                : 400;
+          return error(res, requestId, status, "FORM_SUBMISSION_ERROR", message);
+        }
       }
 
       if (method === "GET" && url.pathname === "/patient/forms/entries") {
@@ -1000,15 +1027,7 @@ export const createEthosBackend = () =>
         if (!access) return;
 
         const formId = url.searchParams.get("form_id") ?? undefined;
-        return ok(
-          res,
-          requestId,
-          200,
-          listFormEntries(access.owner_user_id, {
-            patient_id: access.patient_id,
-            form_id: formId,
-          }),
-        );
+        return ok(res, requestId, 200, listPatientFormEntries(access, formId));
       }
 
       const psychologistPatientDiary = url.pathname.match(/^\/psychologist\/patient\/([^/]+)\/diary$/);
@@ -1847,17 +1866,91 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
+      // Therapeutic Goals
+      if (method === "GET" && url.pathname === "/goals") {
+        const patientId = url.searchParams.get("patient_id") ?? "";
+        return ok(res, requestId, 200, listGoals(auth.user.id, patientId));
+      }
+
+      if (method === "POST" && url.pathname === "/goals") {
+        const body = await readJson(req);
+        return ok(res, requestId, 201, createGoal(auth.user.id, String(body.patient_id ?? ""), String(body.title ?? ""), body.description ? String(body.description) : undefined));
+      }
+
+      if (method === "PATCH" && /^\/goals\/[^/]+$/.test(url.pathname)) {
+        const goalId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const updated = updateGoal(auth.user.id, goalId, {
+          ...(body.title !== undefined && { title: String(body.title) }),
+          ...(body.description !== undefined && { description: String(body.description) }),
+          ...(body.status !== undefined && { status: body.status as import("../domain/types").GoalStatus }),
+          ...(body.progress !== undefined && { progress: Number(body.progress) }),
+          ...(body.milestones !== undefined && { milestones: body.milestones as import("../domain/types").GoalMilestone[] }),
+        });
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Goal not found");
+        return ok(res, requestId, 200, updated);
+      }
+
+      if (method === "DELETE" && /^\/goals\/[^/]+$/.test(url.pathname)) {
+        const goalId = url.pathname.split("/")[2];
+        if (!deleteGoal(auth.user.id, goalId)) return error(res, requestId, 404, "NOT_FOUND", "Goal not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
+      // Homework Tasks
+      if (method === "GET" && url.pathname === "/homework") {
+        const patientId = url.searchParams.get("patient_id") ?? "";
+        return ok(res, requestId, 200, listHomework(auth.user.id, patientId));
+      }
+
+      if (method === "POST" && url.pathname === "/homework") {
+        const body = await readJson(req);
+        return ok(res, requestId, 201, createHomework(auth.user.id, String(body.patient_id ?? ""), String(body.title ?? ""), body.description ? String(body.description) : undefined, body.due_date ? String(body.due_date) : undefined));
+      }
+
+      if (method === "PATCH" && /^\/homework\/[^/]+$/.test(url.pathname)) {
+        const taskId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const updated = updateHomework(auth.user.id, taskId, {
+          ...(body.title !== undefined && { title: String(body.title) }),
+          ...(body.description !== undefined && { description: String(body.description) }),
+          ...(body.due_date !== undefined && { due_date: String(body.due_date) }),
+          ...(body.completed !== undefined && { completed: Boolean(body.completed) }),
+        });
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Homework task not found");
+        return ok(res, requestId, 200, updated);
+      }
+
+      if (method === "DELETE" && /^\/homework\/[^/]+$/.test(url.pathname)) {
+        const taskId = url.pathname.split("/")[2];
+        if (!deleteHomework(auth.user.id, taskId)) return error(res, requestId, 404, "NOT_FOUND", "Homework task not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
       // Forms
       if (method === "POST" && url.pathname === "/forms/entry") {
         const body = await readJson(req);
-        return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}, "professional"));
+        try {
+          return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}, "professional"));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unable to create form entry";
+          return error(res, requestId, 400, "FORM_ENTRY_ERROR", message);
+        }
       }
 
       if (method === "GET" && url.pathname === "/forms") {
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = listFormsCatalog(auth.user.id);
+        const items = listFormsCatalog(auth.user.id).map((form) => {
+          const assignments = listFormAssignments(auth.user.id, { form_id: form.id });
+          const responseCount = listFormEntries(auth.user.id, { form_id: form.id }).length;
+          return {
+            ...form,
+            assignments_count: assignments.length,
+            responses_count: responseCount,
+          };
+        });
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
@@ -1906,6 +1999,50 @@ export const createEthosBackend = () =>
         const items = listFormEntries(auth.user.id, { patient_id: patientId, form_id: formId });
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "GET" && url.pathname === "/forms/assignments") {
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        const formId = url.searchParams.get("form_id") ?? undefined;
+        const activeParam = url.searchParams.get("active");
+        const active =
+          activeParam === "true" ? true :
+          activeParam === "false" ? false :
+          undefined;
+
+        return ok(res, requestId, 200, listFormAssignments(auth.user.id, {
+          patient_id: patientId,
+          form_id: formId,
+          active,
+        }));
+      }
+
+      if (method === "POST" && url.pathname === "/forms/assignments") {
+        const body = await readJson(req);
+        if (typeof body.form_id !== "string" || typeof body.patient_id !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "form_id and patient_id are required");
+        }
+        const assignment = assignFormToPatient(auth.user.id, {
+          form_id: body.form_id,
+          patient_id: body.patient_id,
+          mode: body.mode === "single_use" ? "single_use" : "recurring",
+          active: typeof body.active === "boolean" ? body.active : true,
+        });
+        if (!assignment) {
+          return error(res, requestId, 404, "NOT_FOUND", "Form or patient not found");
+        }
+        return ok(res, requestId, 201, assignment);
+      }
+
+      const formAssignmentById = url.pathname.match(/^\/forms\/assignments\/([^/]+)$/);
+      if (method === "PATCH" && formAssignmentById) {
+        const body = await readJson(req);
+        const assignment = updateFormAssignment(auth.user.id, formAssignmentById[1], {
+          active: typeof body.active === "boolean" ? body.active : undefined,
+          mode: body.mode === "single_use" || body.mode === "recurring" ? body.mode : undefined,
+        });
+        if (!assignment) return error(res, requestId, 404, "NOT_FOUND", "Assignment not found");
+        return ok(res, requestId, 200, assignment);
       }
 
       // Templates (HTML/PDF rendering)
@@ -2223,6 +2360,102 @@ export const createEthosBackend = () =>
       if (method === "GET" && url.pathname === "/admin/audit") {
         if (!requireRole(res, requestId, "admin", auth.user.role)) return;
         return ok(res, requestId, 200, Array.from(db.audit.values()));
+      }
+
+      // ─── WhatsApp / Evolution API config ────────────────────────────────────
+      if (method === "GET" && url.pathname === "/settings/whatsapp") {
+        const cfg = db.whatsappConfig.get("config");
+        if (!cfg) return ok(res, requestId, 200, null);
+        // Never expose the full apiKey — return masked version
+        return ok(res, requestId, 200, {
+          url: cfg.url,
+          apiKey: cfg.apiKey ? `${cfg.apiKey.slice(0, 4)}${"*".repeat(Math.max(0, cfg.apiKey.length - 4))}` : "",
+          instanceName: cfg.instanceName,
+          enabled: cfg.enabled,
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/settings/whatsapp") {
+        const body = await readJson(req);
+        const url_ = typeof body.url === "string" ? body.url.trim() : "";
+        const instanceName = typeof body.instanceName === "string" ? body.instanceName.trim() : "";
+        const enabled = body.enabled !== false;
+        const existing = db.whatsappConfig.get("config");
+        // If apiKey is sent as masked (stars), keep old key
+        const apiKey =
+          typeof body.apiKey === "string" && !body.apiKey.includes("*")
+            ? body.apiKey.trim()
+            : existing?.apiKey ?? "";
+        if (!url_ || !instanceName) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "url e instanceName são obrigatórios.");
+        }
+        const cfg = { url: url_, apiKey, instanceName, enabled };
+        db.whatsappConfig.set("config", cfg);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, { ok: true });
+      }
+
+      if (method === "POST" && url.pathname === "/settings/whatsapp/connect") {
+        const result = await whatsAppCreateInstance();
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao conectar.");
+        return ok(res, requestId, 200, { ok: true });
+      }
+
+      if (method === "GET" && url.pathname === "/settings/whatsapp/status") {
+        const state = await whatsAppGetConnectionState();
+        return ok(res, requestId, 200, { state });
+      }
+
+      if (method === "GET" && url.pathname === "/settings/whatsapp/qrcode") {
+        const result = await whatsAppGetQRCode();
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao obter QR.");
+        return ok(res, requestId, 200, result.qr);
+      }
+
+      // ─── Session reminder global config ─────────────────────────────────────
+      if (method === "GET" && url.pathname === "/settings/session-reminder") {
+        const cfg = db.sessionReminderConfig.get("config");
+        return ok(res, requestId, 200, cfg ?? null);
+      }
+
+      if (method === "POST" && url.pathname === "/settings/session-reminder") {
+        const body = await readJson(req);
+        const cfg = {
+          enabled: body.enabled === true,
+          hoursBeforeSession: typeof body.hoursBeforeSession === "number" ? body.hoursBeforeSession : 24,
+          template: typeof body.template === "string" ? body.template : "",
+        };
+        db.sessionReminderConfig.set("config", cfg);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, cfg);
+      }
+
+      // ─── Per-patient session reminder toggle ─────────────────────────────────
+      const patientSessionReminderMatch = url.pathname.match(/^\/patients\/([^/]+)\/session-reminder$/);
+      if (patientSessionReminderMatch) {
+        const patientId = patientSessionReminderMatch[1];
+        if (method === "GET") {
+          const enabled = db.patientSessionReminderEnabled.get(patientId) ?? false;
+          return ok(res, requestId, 200, { patient_id: patientId, enabled });
+        }
+        if (method === "PATCH") {
+          const body = await readJson(req);
+          const enabled = body.enabled === true;
+          db.patientSessionReminderEnabled.set(patientId, enabled);
+          schedulePersistDatabase();
+          return ok(res, requestId, 200, { patient_id: patientId, enabled });
+        }
+      }
+
+      // ─── Manual WhatsApp send (for testing) ──────────────────────────────────
+      if (method === "POST" && url.pathname === "/settings/whatsapp/send-test") {
+        const body = await readJson(req);
+        const phone = typeof body.phone === "string" ? body.phone : "";
+        const text = typeof body.text === "string" ? body.text : "Teste do Ethos 👋";
+        if (!phone) return error(res, requestId, 422, "VALIDATION_ERROR", "phone é obrigatório.");
+        const result = await whatsAppSendText(phone, text);
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao enviar.");
+        return ok(res, requestId, 200, { ok: true });
       }
 
       // Not found

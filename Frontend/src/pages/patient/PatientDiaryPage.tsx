@@ -1,6 +1,15 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BookOpen, ChevronDown, Clock, Loader2, Send, CheckCircle2 } from "lucide-react";
+import {
+  BookOpen,
+  ChevronDown,
+  Clock,
+  Loader2,
+  Send,
+  CheckCircle2,
+  Repeat,
+  ShieldCheck,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +25,9 @@ const formatDatetime = (iso: string) =>
     hour: "2-digit",
     minute: "2-digit",
   });
+
+const modeLabel = (mode?: "single_use" | "recurring") =>
+  mode === "single_use" ? "Envio único" : "Recorrente";
 
 export default function PatientDiaryPage() {
   const { toast } = useToast();
@@ -64,12 +76,13 @@ export default function PatientDiaryPage() {
     void loadEntries();
   }, [selectedFormId]);
 
-  const canSubmit = (selectedForm?.fields ?? []).every(
+  const canSubmitRequiredFields = (selectedForm?.fields ?? []).every(
     (field) => !field.required || (responses[field.id] ?? "").trim().length > 0,
   );
+  const canSubmit = Boolean(selectedForm?.can_submit ?? true) && canSubmitRequiredFields;
 
   const handleSubmit = async () => {
-    if (!selectedFormId || saving) return;
+    if (!selectedFormId || saving || !canSubmit) return;
     setSaving(true);
     const result = await patientPortalService.createFormEntry({
       form_id: selectedFormId,
@@ -90,7 +103,7 @@ export default function PatientDiaryPage() {
     setSubmitted(true);
     toast({
       title: "Resposta enviada",
-      description: "Sua psicóloga já poderá visualizar o que você preencheu.",
+      description: "Sua psicóloga já poderá acompanhar o que você preencheu.",
     });
 
     setTimeout(() => {
@@ -98,6 +111,13 @@ export default function PatientDiaryPage() {
         Object.fromEntries((selectedForm?.fields ?? []).map((field) => [field.id, ""])),
       );
       setSubmitted(false);
+      if (selectedForm?.mode === "single_use") {
+        setForms((current) =>
+          current.map((form) =>
+            form.id === selectedFormId ? { ...form, can_submit: false, response_count: (form.response_count ?? 0) + 1 } : form,
+          ),
+        );
+      }
     }, 1200);
   };
 
@@ -136,7 +156,7 @@ export default function PatientDiaryPage() {
             Diário e formulários
           </h1>
           <p className="mt-2 text-muted-foreground">
-            Preencha seus registros e envie para sua psicóloga acompanhar.
+            Preencha os formulários que sua psicóloga disponibilizou para você.
           </p>
         </motion.header>
 
@@ -178,14 +198,36 @@ export default function PatientDiaryPage() {
 
           <div className="rounded-[28px] border border-border bg-card shadow-[0_18px_40px_rgba(23,49,58,0.08)]">
             <div className="border-b border-border px-7 py-6">
-              <h2 className="font-serif text-2xl font-medium text-foreground">
-                {selectedForm?.name}
-              </h2>
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="font-serif text-2xl font-medium text-foreground">
+                  {selectedForm?.name}
+                </h2>
+                <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  {modeLabel(selectedForm?.mode)}
+                </span>
+                <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
+                  {selectedForm?.response_count ?? entries.length} resposta(s)
+                </span>
+              </div>
               {selectedForm?.description ? (
                 <p className="mt-1.5 text-sm text-muted-foreground">
                   {selectedForm.description}
                 </p>
               ) : null}
+              <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-1">
+                  <Repeat className="h-3.5 w-3.5" />
+                  {selectedForm?.mode === "single_use"
+                    ? "Você envia uma única resposta"
+                    : "Você pode preencher sempre que quiser"}
+                </span>
+                {!selectedForm?.can_submit ? (
+                  <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-1">
+                    <ShieldCheck className="h-3.5 w-3.5" />
+                    Esse formulário já foi concluído
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             {!hasFields ? (
@@ -221,7 +263,7 @@ export default function PatientDiaryPage() {
                         onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
                         placeholder={field.placeholder ?? "Escreva aqui..."}
                         className="min-h-[100px] resize-none rounded-xl"
-                        disabled={submitted}
+                        disabled={submitted || !selectedForm?.can_submit}
                       />
                     ) : field.type === "date" ? (
                       <Input
@@ -229,14 +271,14 @@ export default function PatientDiaryPage() {
                         value={responses[field.id] ?? ""}
                         onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
                         className="rounded-xl"
-                        disabled={submitted}
+                        disabled={submitted || !selectedForm?.can_submit}
                       />
                     ) : field.type === "select" ? (
                       <select
                         value={responses[field.id] ?? ""}
                         onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
                         className="flex h-10 w-full rounded-xl border border-input bg-background px-3 py-2 text-sm disabled:opacity-50"
-                        disabled={submitted}
+                        disabled={submitted || !selectedForm?.can_submit}
                       >
                         <option value="">Selecione...</option>
                         {field.options?.map((option) => (
@@ -251,7 +293,7 @@ export default function PatientDiaryPage() {
                         onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
                         placeholder={field.placeholder ?? ""}
                         className="rounded-xl"
-                        disabled={submitted}
+                        disabled={submitted || !selectedForm?.can_submit}
                       />
                     )}
                   </motion.div>
@@ -284,7 +326,7 @@ export default function PatientDiaryPage() {
                         className="gap-2"
                       >
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {saving ? "Enviando..." : "Enviar resposta"}
+                        {saving ? "Enviando..." : selectedForm?.can_submit ? "Enviar resposta" : "Formulário concluído"}
                       </Button>
                     </motion.div>
                   )}
@@ -313,14 +355,14 @@ export default function PatientDiaryPage() {
                     {form ? <span className="ml-1 rounded-full bg-muted px-2 py-0.5">{form.name}</span> : null}
                   </div>
                   <div className="space-y-3">
-                    {Object.entries(data).map(([key, val]) => {
+                    {Object.entries(data).map(([key, value]) => {
                       const fieldDef = form?.fields?.find((field) => field.id === key);
                       return (
                         <div key={key} className="rounded-xl bg-muted/40 px-4 py-3">
                           <p className="mb-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
                             {fieldDef?.label ?? key}
                           </p>
-                          <p className="text-sm text-foreground">{String(val || "Não respondido")}</p>
+                          <p className="text-sm text-foreground">{String(value || "Não respondido")}</p>
                         </div>
                       );
                     })}

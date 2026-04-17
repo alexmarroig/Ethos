@@ -201,6 +201,9 @@ export const api = {
   patch: <T = unknown>(path: string, body?: unknown, opts?: ApiRequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "PATCH", body: body as any }),
 
+  put: <T = unknown>(path: string, body?: unknown, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "PUT", body: body as any }),
+
   delete: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "DELETE" }),
 };

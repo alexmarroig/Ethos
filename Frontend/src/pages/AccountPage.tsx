@@ -1,6 +1,6 @@
-﻿import { useEffect, useState } from "react";
+﻿import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
-import { User, CreditCard, Shield, Loader2, ExternalLink, Camera } from "lucide-react";
+import { User, CreditCard, Shield, Loader2, ExternalLink, Camera, Wifi, WifiOff, RefreshCw, QrCode, MessageCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -8,9 +8,11 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useEntitlements } from "@/contexts/EntitlementsContext";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
-import { templatesApi } from "@/api/clinical";
+import { templatesApi, whatsappApi, sessionReminderApi } from "@/api/clinical";
+import type { WhatsAppConfigPublic, WhatsAppConnectionState, SessionReminderConfig } from "@/api/clinical";
 import { DEFAULT_CONTRACT_TEMPLATE } from "@/lib/defaultContractTemplate";
 import { defaultPaymentReminderSettings, readPaymentReminderSettings, savePaymentReminderSettings } from "@/services/paymentReminderSettings";
+import { Switch } from "@/components/ui/switch";
 import type { DocumentTemplate } from "@/api/types";
 import {
   Dialog,
@@ -51,6 +53,27 @@ const AccountPage = () => {
   const [templateBody, setTemplateBody] = useState(DEFAULT_CONTRACT_TEMPLATE);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState(defaultPaymentReminderSettings);
+  const [billingCollapsed, setBillingCollapsed] = useState(false);
+
+  // Session reminder (backend)
+  const [sessionConfig, setSessionConfig] = useState<SessionReminderConfig>({
+    enabled: false,
+    hoursBeforeSession: 24,
+    template: "Lembrete ETHOS\n\nOlá, {patient_name}! 👋\n\nLembro que temos sessão agendada para {session_date} às {session_time}.\n\nQualquer dúvida, estou à disposição.\n\nAté lá! 🌱",
+  });
+  const [sessionCollapsed, setSessionCollapsed] = useState(false);
+  const [savingSession, setSavingSession] = useState(false);
+
+  // WhatsApp / Evolution API
+  const [waConfig, setWaConfig] = useState<WhatsAppConfigPublic>({ url: "", apiKey: "", instanceName: "", enabled: true });
+  const [waStatus, setWaStatus] = useState<WhatsAppConnectionState>("unknown");
+  const [waQR, setWaQR] = useState<string>("");
+  const [waLoadingStatus, setWaLoadingStatus] = useState(false);
+  const [waLoadingQR, setWaLoadingQR] = useState(false);
+  const [waSaving, setWaSaving] = useState(false);
+  const [waCollapsed, setWaCollapsed] = useState(false);
+  const [testPhone, setTestPhone] = useState("");
+  const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [profile, setProfile] = useState({
     name: user?.name ?? "",
     email: user?.email ?? "",
@@ -96,6 +119,21 @@ const AccountPage = () => {
 
   useEffect(() => {
     setPaymentSettings(readPaymentReminderSettings());
+
+    // Load session reminder config from backend
+    void sessionReminderApi.getConfig().then((r) => {
+      if (r.success && r.data) setSessionConfig(r.data);
+    });
+
+    // Load WhatsApp config from backend
+    void whatsappApi.getConfig().then((r) => {
+      if (r.success && r.data) setWaConfig(r.data);
+    });
+
+    // Load initial WhatsApp status
+    void whatsappApi.getStatus().then((r) => {
+      if (r.success) setWaStatus(r.data.state);
+    });
   }, []);
 
   const roleName =
@@ -232,7 +270,73 @@ const AccountPage = () => {
 
   const handleSavePaymentSettings = () => {
     savePaymentReminderSettings(paymentSettings);
+    setBillingCollapsed(true);
     toast({ title: "Configuração salva", description: "Os lembretes de pagamento foram atualizados neste navegador." });
+  };
+
+  const handleSaveSessionSettings = async () => {
+    setSavingSession(true);
+    const r = await sessionReminderApi.saveConfig(sessionConfig);
+    setSavingSession(false);
+    if (!r.success) {
+      toast({ title: "Erro ao salvar", description: r.error.message, variant: "destructive" });
+      return;
+    }
+    setSessionCollapsed(true);
+    toast({ title: "Configuração salva", description: "As configurações de lembrete de sessão foram atualizadas." });
+  };
+
+  const handleSaveWaConfig = async () => {
+    setWaSaving(true);
+    const r = await whatsappApi.saveConfig(waConfig);
+    setWaSaving(false);
+    if (!r.success) {
+      toast({ title: "Erro ao salvar", description: r.error.message, variant: "destructive" });
+      return;
+    }
+    toast({ title: "WhatsApp configurado", description: "Clique em 'Conectar' para gerar o QR code." });
+  };
+
+  const handleWaConnect = async () => {
+    setWaLoadingQR(true);
+    // Try to create instance first (idempotent on Evolution)
+    await whatsappApi.connect();
+    const r = await whatsappApi.getQRCode();
+    setWaLoadingQR(false);
+    if (!r.success || !r.data?.base64) {
+      toast({ title: "Erro ao obter QR code", description: r.success ? "QR code não disponível. Instância pode já estar conectada." : r.error.message, variant: "destructive" });
+      // Refresh status anyway
+      void refreshWaStatus();
+      return;
+    }
+    setWaQR(r.data.base64.startsWith("data:") ? r.data.base64 : `data:image/png;base64,${r.data.base64}`);
+    // Poll status every 3s to detect when scanned
+    if (statusPollRef.current) clearInterval(statusPollRef.current);
+    statusPollRef.current = setInterval(() => { void refreshWaStatus(); }, 3000);
+  };
+
+  const refreshWaStatus = async () => {
+    setWaLoadingStatus(true);
+    const r = await whatsappApi.getStatus();
+    setWaLoadingStatus(false);
+    if (r.success) {
+      setWaStatus(r.data.state);
+      if (r.data.state === "open") {
+        setWaQR("");
+        if (statusPollRef.current) { clearInterval(statusPollRef.current); statusPollRef.current = null; }
+        toast({ title: "WhatsApp conectado!", description: "Os lembretes automáticos já podem ser enviados." });
+      }
+    }
+  };
+
+  const handleSendTestMessage = async () => {
+    if (!testPhone) return;
+    const r = await whatsappApi.sendTest(testPhone, "Olá! Teste do Ethos 👋 Se recebeu esta mensagem, o WhatsApp está configurado corretamente.");
+    if (r.success) {
+      toast({ title: "Mensagem enviada!", description: `Mensagem de teste enviada para ${testPhone}.` });
+    } else {
+      toast({ title: "Erro ao enviar", description: r.error.message, variant: "destructive" });
+    }
   };
 
   return (
@@ -402,35 +506,250 @@ const AccountPage = () => {
         >
           <div className="flex items-center justify-between gap-3 mb-4">
             <h2 className="font-serif text-lg font-medium text-foreground">Cobrança e lembretes</h2>
-            <Button onClick={handleSavePaymentSettings}>Salvar configuração</Button>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Forma padrão de pagamento</label>
-              <Input
-                value={paymentSettings.paymentMethodLabel}
-                onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
-                placeholder="PIX, transferência..."
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Chave PIX / dados bancários</label>
-              <Input
-                value={paymentSettings.paymentDestination}
-                onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
-                placeholder="pix@email.com ou dados bancários"
-              />
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete</label>
-              <Textarea
-                value={paymentSettings.defaultTemplate}
-                onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
-                className="min-h-[100px] max-h-[160px] resize-none text-sm"
-              />
-              <p className="text-xs text-muted-foreground">Use as variáveis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
+            <div className="flex gap-2">
+              {billingCollapsed ? (
+                <Button variant="outline" onClick={() => setBillingCollapsed(false)}>Editar</Button>
+              ) : (
+                <Button onClick={handleSavePaymentSettings}>Salvar configuração</Button>
+              )}
             </div>
           </div>
+          {billingCollapsed ? (
+            <div className="flex flex-wrap items-center gap-2 text-sm">
+              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
+                <span className="text-muted-foreground">Pagamento:</span>{" "}
+                <span className="font-medium">{paymentSettings.paymentMethodLabel || "—"}</span>
+              </span>
+              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
+                <span className="text-muted-foreground">Destino:</span>{" "}
+                <span className="font-medium">{paymentSettings.paymentDestination || "—"}</span>
+              </span>
+              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
+                <span className="text-muted-foreground">Template:</span>{" "}
+                <span className="font-medium truncate max-w-[320px] inline-block align-bottom">
+                  {(paymentSettings.defaultTemplate || "Sem mensagem padrão").slice(0, 72)}
+                  {paymentSettings.defaultTemplate && paymentSettings.defaultTemplate.length > 72 ? "..." : ""}
+                </span>
+              </span>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Forma padrão de pagamento</label>
+                <Input
+                  value={paymentSettings.paymentMethodLabel}
+                  onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
+                  placeholder="PIX, transferência..."
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Chave PIX / dados bancários</label>
+                <Input
+                  value={paymentSettings.paymentDestination}
+                  onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
+                  placeholder="pix@email.com ou dados bancários"
+                />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete</label>
+                <Textarea
+                  value={paymentSettings.defaultTemplate}
+                  onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
+                  className="min-h-[100px] max-h-[160px] resize-none text-sm"
+                />
+                <p className="text-xs text-muted-foreground">Use as variáveis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
+              </div>
+            </div>
+          )}
+        </motion.section>
+
+        {/* ── Lembrete de sessão ────────────────────────────────────────── */}
+        <motion.section
+          className="mt-6 p-6 rounded-xl border border-border bg-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <h2 className="font-serif text-lg font-medium text-foreground">Lembrete de sessão</h2>
+            <div className="flex gap-2">
+              {sessionCollapsed ? (
+                <Button variant="outline" onClick={() => setSessionCollapsed(false)}>Editar</Button>
+              ) : (
+                <Button onClick={() => void handleSaveSessionSettings()} disabled={savingSession}>
+                  {savingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Salvar configuração
+                </Button>
+              )}
+            </div>
+          </div>
+          {sessionCollapsed ? (
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p>
+                <span className="font-medium text-foreground">Automático:</span>{" "}
+                {sessionConfig.enabled ? `Ativado — ${sessionConfig.hoursBeforeSession}h antes` : "Desativado"}
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                <div>
+                  <p className="text-sm font-medium text-foreground">Lembrete automático via WhatsApp</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">O backend envia automaticamente antes de cada sessão aos pacientes com toggle ativado.</p>
+                </div>
+                <Switch
+                  checked={sessionConfig.enabled}
+                  onCheckedChange={(checked) => setSessionConfig((c) => ({ ...c, enabled: checked }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Enviar quantas horas antes da sessão</label>
+                <select
+                  value={sessionConfig.hoursBeforeSession}
+                  onChange={(e) => setSessionConfig((c) => ({ ...c, hoursBeforeSession: Number(e.target.value) }))}
+                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                >
+                  {[1, 2, 4, 8, 12, 24, 48].map((h) => (
+                    <option key={h} value={h}>
+                      {h === 1 ? "1 hora antes" : h < 24 ? `${h} horas antes` : h === 24 ? "1 dia antes" : "2 dias antes"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete de sessão</label>
+                <Textarea
+                  value={sessionConfig.template}
+                  onChange={(e) => setSessionConfig((c) => ({ ...c, template: e.target.value }))}
+                  className="min-h-[120px] max-h-[200px] resize-none text-sm"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Use as variáveis {'{patient_name}'}, {'{session_date}'}, {'{session_time}'} e {'{psychologist_name}'}.
+                  <br />
+                  Ative o lembrete individualmente na ficha de cada paciente.
+                </p>
+              </div>
+            </div>
+          )}
+        </motion.section>
+
+        {/* ── WhatsApp / Evolution API ──────────────────────────────────── */}
+        <motion.section
+          className="mt-6 p-6 rounded-xl border border-border bg-card"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+        >
+          <div className="flex items-center justify-between gap-3 mb-1">
+            <div className="flex items-center gap-3">
+              <h2 className="font-serif text-lg font-medium text-foreground">WhatsApp — Evolution API</h2>
+              {waStatus === "open" && (
+                <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Conectado
+                </span>
+              )}
+              {waStatus === "connecting" && (
+                <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Conectando…
+                </span>
+              )}
+              {(waStatus === "close" || waStatus === "unknown") && waConfig.url && (
+                <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+                  <WifiOff className="w-3.5 h-3.5" /> Desconectado
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              {waCollapsed ? (
+                <Button variant="outline" onClick={() => setWaCollapsed(false)}>Editar</Button>
+              ) : (
+                <Button onClick={() => void handleSaveWaConfig()} disabled={waSaving}>
+                  {waSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                  Salvar
+                </Button>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Configure sua instância do{" "}
+            <a href="https://doc.evolution-api.com" target="_blank" rel="noopener noreferrer" className="underline">Evolution API</a>
+            {" "}para envio automático de lembretes.
+          </p>
+
+          {waCollapsed ? (
+            <div className="text-sm text-muted-foreground space-y-1">
+              <p><span className="font-medium text-foreground">URL:</span> {waConfig.url || "—"}</p>
+              <p><span className="font-medium text-foreground">Instância:</span> {waConfig.instanceName || "—"}</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">URL da Evolution API</label>
+                  <Input
+                    value={waConfig.url}
+                    onChange={(e) => setWaConfig((c) => ({ ...c, url: e.target.value }))}
+                    placeholder="https://sua-evolution.railway.app"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Nome da instância</label>
+                  <Input
+                    value={waConfig.instanceName}
+                    onChange={(e) => setWaConfig((c) => ({ ...c, instanceName: e.target.value }))}
+                    placeholder="ethos-camila"
+                  />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="text-sm font-medium text-foreground">API Key</label>
+                  <Input
+                    type="password"
+                    value={waConfig.apiKey}
+                    onChange={(e) => setWaConfig((c) => ({ ...c, apiKey: e.target.value }))}
+                    placeholder="Chave de API da Evolution"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button variant="outline" className="gap-2" onClick={() => void refreshWaStatus()} disabled={waLoadingStatus}>
+                  {waLoadingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                  Verificar status
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={() => void handleWaConnect()} disabled={waLoadingQR || !waConfig.url}>
+                  {waLoadingQR ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                  Conectar / QR code
+                </Button>
+              </div>
+
+              {waQR && (
+                <div className="flex flex-col items-center gap-3 py-4 border border-border rounded-xl bg-white">
+                  <p className="text-sm font-medium text-gray-800">Escaneie com o WhatsApp da Camila</p>
+                  <img src={waQR} alt="QR Code WhatsApp" className="w-56 h-56 object-contain" />
+                  <p className="text-xs text-gray-500">O QR code expira em 60 segundos. Após escanear, o status atualiza automaticamente.</p>
+                </div>
+              )}
+
+              {waStatus === "open" && (
+                <div className="space-y-2 pt-2 border-t border-border">
+                  <label className="text-sm font-medium text-foreground">Enviar mensagem de teste</label>
+                  <div className="flex gap-2">
+                    <Input
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(e.target.value)}
+                      placeholder="5511999999999"
+                      className="flex-1"
+                    />
+                    <Button variant="outline" className="gap-2 shrink-0" onClick={() => void handleSendTestMessage()} disabled={!testPhone}>
+                      <MessageCircle className="w-4 h-4" />
+                      Testar
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Número com código do país, sem espaços ou símbolos. Ex: 5511999999999</p>
+                </div>
+              )}
+            </div>
+          )}
         </motion.section>
       </div>
 

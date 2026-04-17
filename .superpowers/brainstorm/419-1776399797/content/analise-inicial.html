@@ -1,0 +1,237 @@
+<h2>Análise de Melhorias — Ethos para Psicólogos</h2>
+<p class="subtitle">Selecione as áreas que mais te interessam priorizar (pode escolher múltiplas)</p>
+
+<style>
+.grid-areas {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 24px 0;
+}
+.area-card {
+  background: var(--surface, #1e1e2e);
+  border: 1px solid var(--border, #313244);
+  border-radius: 12px;
+  padding: 20px;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+  overflow: hidden;
+}
+.area-card:hover { border-color: #7c3aed; transform: translateY(-2px); }
+.area-card.selected { border-color: #7c3aed; background: #1e1030; }
+.area-card.selected::before {
+  content: "✓";
+  position: absolute;
+  top: 12px; right: 14px;
+  color: #7c3aed; font-weight: bold; font-size: 18px;
+}
+.area-icon { font-size: 28px; margin-bottom: 10px; }
+.area-title { font-size: 16px; font-weight: 700; color: #e2e8f0; margin-bottom: 6px; }
+.area-desc { font-size: 13px; color: #94a3b8; line-height: 1.5; }
+.badge-count {
+  display: inline-block;
+  background: #7c3aed22;
+  color: #a78bfa;
+  border: 1px solid #7c3aed44;
+  border-radius: 20px;
+  padding: 2px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 10px;
+}
+.area-items { margin-top: 8px; }
+.area-items li { font-size: 12px; color: #64748b; margin: 3px 0; list-style: none; padding-left: 12px; position: relative; }
+.area-items li::before { content: "·"; position: absolute; left: 0; color: #7c3aed; }
+.section-label { font-size: 11px; font-weight: 700; letter-spacing: 1px; color: #7c3aed; text-transform: uppercase; margin: 28px 0 12px; }
+</style>
+
+<div class="section-label">🩺 Fluxo Diário do Psicólogo</div>
+<div class="grid-areas">
+
+  <div class="area-card" data-choice="agenda" onclick="toggleCard(this)">
+    <div class="area-icon">📅</div>
+    <div class="area-title">Agenda Inteligente</div>
+    <div class="area-desc">Calendário visual completo com arrastar/soltar, recorrência automática de sessões e bloqueio por tipo de atendimento.</div>
+    <ul class="area-items">
+      <li>Visualização semanal/mensal real</li>
+      <li>Sessões recorrentes automatizadas</li>
+      <li>Sincronização Google Calendar</li>
+      <li>Lista de espera integrada</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="preparo-sessao" onclick="toggleCard(this)">
+    <div class="area-icon">🔍</div>
+    <div class="area-title">Preparo de Sessão</div>
+    <div class="area-desc">Briefing automático antes de cada sessão: resumo da última consulta, escalas pendentes, humor do diário, tarefas em aberto.</div>
+    <ul class="area-items">
+      <li>Resumo IA da última sessão</li>
+      <li>Alertas de escalas vencidas</li>
+      <li>Humor recente do diário emocional</li>
+      <li>Tarefas e homework pendentes</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="prontuario-ia" onclick="toggleCard(this)">
+    <div class="area-icon">✍️</div>
+    <div class="area-title">Prontuário com IA</div>
+    <div class="area-desc">Assistência durante a escrita do prontuário: sugestões contextualizadas, detecção de padrões e evolução clínica ao longo do tempo.</div>
+    <ul class="area-items">
+      <li>Autocompletar baseado em contexto clínico</li>
+      <li>Detectar mudanças de humor entre sessões</li>
+      <li>Sugerir diagnósticos CID-10/DSM-5</li>
+      <li>Comparar evolução com sessões anteriores</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="financeiro" onclick="toggleCard(this)">
+    <div class="area-icon">💰</div>
+    <div class="area-title">Financeiro Inteligente</div>
+    <div class="area-desc">Cobranças automáticas via WhatsApp/email, relatórios mensais de receita, projeção de faturamento e alertas de inadimplência.</div>
+    <ul class="area-items">
+      <li>Cobranças automáticas no vencimento</li>
+      <li>Dashboard mensal com projeção</li>
+      <li>Alerta de inadimplência por paciente</li>
+      <li>Notas fiscais simplificadas</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+</div>
+
+<div class="section-label">🌱 Acompanhamento do Paciente</div>
+<div class="grid-areas">
+
+  <div class="area-card" data-choice="progresso" onclick="toggleCard(this)">
+    <div class="area-icon">📈</div>
+    <div class="area-title">Painel de Progresso Clínico</div>
+    <div class="area-desc">Visualização longitudinal da evolução do paciente: escalas ao longo do tempo, humor do diário, objetivos terapêuticos e marcos.</div>
+    <ul class="area-items">
+      <li>Gráfico de evolução PHQ-9/GAD-7</li>
+      <li>Timeline de marcos terapêuticos</li>
+      <li>Objetivos com % de conquista</li>
+      <li>Análise de padrões de humor</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="entre-sessoes" onclick="toggleCard(this)">
+    <div class="area-icon">🏠</div>
+    <div class="area-title">Engajamento Entre Sessões</div>
+    <div class="area-desc">Ferramentas para o paciente usar entre as consultas: tarefas/homework, exercícios de TCC, psicoeducação e check-ins diários.</div>
+    <ul class="area-items">
+      <li>Atribuir homework com prazo e feedback</li>
+      <li>Biblioteca de exercícios TCC/DBT/ACT</li>
+      <li>Check-in de humor diário</li>
+      <li>Materiais de psicoeducação</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="portal-paciente" onclick="toggleCard(this)">
+    <div class="area-icon">📱</div>
+    <div class="area-title">Portal do Paciente Aprimorado</div>
+    <div class="area-desc">Portal mais completo e intuitivo: agendamento self-service, chat assíncrono melhorado, histórico visual e notificações push.</div>
+    <ul class="area-items">
+      <li>Agendamento com confirmação instantânea</li>
+      <li>Chat com anexos e status de leitura</li>
+      <li>Histórico visual de sessões</li>
+      <li>Notificações push via browser</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="crise-seguranca" onclick="toggleCard(this)">
+    <div class="area-icon">🆘</div>
+    <div class="area-title">Protocolo de Crise e Segurança</div>
+    <div class="area-desc">Plano de segurança digital para o paciente, detecção de alertas no diário emocional e acesso rápido a recursos de emergência.</div>
+    <ul class="area-items">
+      <li>Plano de segurança personalizado no portal</li>
+      <li>Alerta automático ao psi se humor crítico</li>
+      <li>Botão de crise com contatos de emergência</li>
+      <li>Registro de crises no prontuário</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+</div>
+
+<div class="section-label">⚡ Diferenciais Competitivos</div>
+<div class="grid-areas">
+
+  <div class="area-card" data-choice="insights-ia" onclick="toggleCard(this)">
+    <div class="area-icon">🧠</div>
+    <div class="area-title">Insights de IA por Paciente</div>
+    <div class="area-desc">Motor de análise que lê todos os prontuários e gera insights: padrões recorrentes, temas emergentes, evolução de sintomas.</div>
+    <ul class="area-items">
+      <li>Temas recorrentes entre sessões</li>
+      <li>Evolução de sintomas com IA</li>
+      <li>Sugestão de abordagem baseada em dados</li>
+      <li>Resumo semestral automático</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="supervisao" onclick="toggleCard(this)">
+    <div class="area-icon">👥</div>
+    <div class="area-title">Supervisão Clínica</div>
+    <div class="area-desc">Ferramenta completa para supervisores: acesso controlado a prontuários anonimizados, notas de supervisão e avaliação de estagiários.</div>
+    <ul class="area-items">
+      <li>Compartilhamento seletivo com supervisor</li>
+      <li>Notas de supervisão vinculadas</li>
+      <li>Sessões de supervisão registradas</li>
+      <li>Avaliação de competências</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="telepsicologia" onclick="toggleCard(this)">
+    <div class="area-icon">🎥</div>
+    <div class="area-title">Telepsicologia Integrada</div>
+    <div class="area-desc">Sala de vídeo nativa com gravação opcional (consentida), link único por sessão e nota clínica integrada à chamada.</div>
+    <ul class="area-items">
+      <li>Videochamada nativa (sem Zoom externo)</li>
+      <li>Gravação com consentimento digital</li>
+      <li>Prontuário aberto durante a chamada</li>
+      <li>Link único por sessão para o paciente</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+  <div class="area-card" data-choice="diagnostico" onclick="toggleCard(this)">
+    <div class="area-icon">🏷️</div>
+    <div class="area-title">CID-10 / DSM-5 Integrado</div>
+    <div class="area-desc">Banco de diagnósticos com busca rápida, histórico diagnóstico do paciente e geração automática de relatórios com codificação.</div>
+    <ul class="area-items">
+      <li>Busca inteligente CID-10/DSM-5</li>
+      <li>Histórico diagnóstico por paciente</li>
+      <li>Diagnóstico preenche documentos automaticamente</li>
+      <li>Relatórios INSS/jurídicos com CID</li>
+    </ul>
+    <span class="badge-count">4 melhorias</span>
+  </div>
+
+</div>
+
+<p style="text-align:center; margin-top: 24px; color: #64748b; font-size: 13px;">Selecione as áreas que mais importam e me diga no terminal quando terminar.</p>
+
+<script>
+function toggleCard(el) {
+  el.classList.toggle('selected');
+  const choice = el.dataset.choice;
+  const selected = document.querySelectorAll('.area-card.selected');
+  const choices = Array.from(selected).map(c => c.dataset.choice);
+
+  // Record to selection system
+  if (typeof recordSelection === 'function') {
+    recordSelection(choices.join(','), choices.map(c => {
+      const card = document.querySelector('[data-choice="' + c + '"] .area-title');
+      return card ? card.textContent : c;
+    }).join(', '));
+  }
+}
+</script>
