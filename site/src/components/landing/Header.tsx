@@ -10,6 +10,9 @@ const NAV = [
   { label: "FAQ", href: "#faq" },
 ];
 
+// 👉 centraliza aqui (facilita muito no futuro)
+const APP_URL = "https://app.ethos-clinic.com";
+
 const Header = () => {
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
@@ -28,7 +31,9 @@ const Header = () => {
           ? "rgba(6, 15, 30, 0.92)"
           : "transparent",
         backdropFilter: scrolled ? "blur(16px)" : "none",
-        borderBottom: scrolled ? "1px solid rgba(47,111,115,0.12)" : "none",
+        borderBottom: scrolled
+          ? "1px solid rgba(47,111,115,0.12)"
+          : "none",
       }}
     >
       <div className="max-w-7xl mx-auto px-6 flex items-center justify-between h-16">
@@ -36,6 +41,7 @@ const Header = () => {
           <EthosLogo />
         </a>
 
+        {/* NAV DESKTOP */}
         <nav className="hidden md:flex items-center gap-8">
           {NAV.map((item) => (
             <a
@@ -49,16 +55,18 @@ const Header = () => {
           ))}
         </nav>
 
+        {/* CTA DESKTOP */}
         <div className="hidden md:flex items-center gap-3">
           <a
-            href="https://ethos-frontend-rho.vercel.app/login"
+            href={`${APP_URL}/login`}
             className="text-sm font-medium text-[#6B8FA8] hover:text-[#EDF2F7] transition-colors px-4 py-2"
             style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
             Entrar
           </a>
+
           <a
-            href="https://ethos-frontend-rho.vercel.app/login"
+            href={`${APP_URL}/login`}
             className="text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
             style={{
               background: "#2F6F73",
@@ -70,6 +78,7 @@ const Header = () => {
           </a>
         </div>
 
+        {/* MENU MOBILE BUTTON */}
         <button
           className="md:hidden text-[#EDF2F7] p-1"
           onClick={() => setMenuOpen(!menuOpen)}
@@ -79,10 +88,14 @@ const Header = () => {
         </button>
       </div>
 
+      {/* MENU MOBILE */}
       {menuOpen && (
         <div
           className="md:hidden px-6 pb-6 pt-2 space-y-1"
-          style={{ background: "rgba(6, 15, 30, 0.97)", borderBottom: "1px solid rgba(47,111,115,0.15)" }}
+          style={{
+            background: "rgba(6, 15, 30, 0.97)",
+            borderBottom: "1px solid rgba(47,111,115,0.15)",
+          }}
         >
           {NAV.map((item) => (
             <a
@@ -95,11 +108,20 @@ const Header = () => {
               {item.label}
             </a>
           ))}
+
           <div className="pt-4 space-y-2">
-            <a href="https://ethos-frontend-rho.vercel.app/login" className="block text-center py-2.5 text-sm text-[#EDF2F7] border border-[#1A2D42] rounded-lg hover:border-[#2F6F73] transition-colors">
+            <a
+              href={`${APP_URL}/login`}
+              className="block text-center py-2.5 text-sm text-[#EDF2F7] border border-[#1A2D42] rounded-lg hover:border-[#2F6F73] transition-colors"
+            >
               Entrar
             </a>
-            <a href="https://ethos-frontend-rho.vercel.app/login" className="block text-center py-2.5 text-sm font-semibold rounded-lg text-white" style={{ background: "#2F6F73" }}>
+
+            <a
+              href={`${APP_URL}/login`}
+              className="block text-center py-2.5 text-sm font-semibold rounded-lg text-white"
+              style={{ background: "#2F6F73" }}
+            >
               Testar grátis
             </a>
           </div>
