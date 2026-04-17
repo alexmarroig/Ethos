@@ -1798,7 +1798,7 @@ export default function PatientDetailPage({
               attendanceRate={
                 detail.sessions.length === 0
                   ? 0
-                  : detail.sessions.filter((s: { status: string }) => s.status === "completed").length / detail.sessions.length
+                  : detail.sessions.filter((s) => s.status === "completed").length / detail.sessions.length
               }
               weeksInTherapy={
                 detail.sessions.length === 0
