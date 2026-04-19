@@ -10,6 +10,14 @@ import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/serv
 import { buildSessionReminderMessage, readSessionReminderSettings } from "@/services/sessionReminderSettings";
 import { sessionReminderApi } from "@/api/clinical";
 import { Switch } from "@/components/ui/switch";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
@@ -80,6 +88,8 @@ type PatientFormState = {
   package_session_count: string;
   payment_timing: "advance" | "after";
   preferred_payment_day: string;
+  billing_reminder_days: number;
+  billing_auto_charge: boolean;
 };
 
 const emptyForm: PatientFormState = {
@@ -125,6 +135,8 @@ const emptyForm: PatientFormState = {
   package_session_count: "",
   payment_timing: "after",
   preferred_payment_day: "",
+  billing_reminder_days: 0,
+  billing_auto_charge: false,
 };
 
 const formatDate = (value?: string | null) =>
@@ -409,6 +421,8 @@ export default function PatientDetailPage({
       package_session_count: detail.patient.billing?.package_session_count?.toString() ?? "",
       payment_timing: detail.patient.billing?.payment_timing ?? "after",
       preferred_payment_day: detail.patient.billing?.preferred_payment_day?.toString() ?? "",
+      billing_reminder_days: detail.patient.billing?.billing_reminder_days ?? 0,
+      billing_auto_charge: detail.patient.billing?.billing_auto_charge ?? false,
     });
 
     setPortalEmail(detail.patient.email ?? "");
@@ -640,6 +654,8 @@ export default function PatientDetailPage({
         package_session_count: form.billing_mode === "package" && form.package_session_count ? Number(form.package_session_count) : undefined,
         payment_timing: form.payment_timing,
         preferred_payment_day: form.preferred_payment_day ? Number(form.preferred_payment_day) : undefined,
+        billing_reminder_days: form.billing_reminder_days,
+        billing_auto_charge: form.billing_auto_charge,
       },
       notes: form.notes.trim() || undefined,
     });
@@ -1289,6 +1305,38 @@ export default function PatientDetailPage({
                 value={form.preferred_payment_day}
                 onChange={(event) => updateForm("preferred_payment_day", event.target.value)}
                 placeholder="Ex.: 10"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="billing_reminder_days">Aviso de vencimento</Label>
+              <Select
+                value={String(form.billing_reminder_days ?? 0)}
+                onValueChange={(v) => updateForm("billing_reminder_days", Number(v))}
+              >
+                <SelectTrigger id="billing_reminder_days">
+                  <SelectValue placeholder="Não enviar aviso" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">Não enviar aviso</SelectItem>
+                  <SelectItem value="1">1 dia antes</SelectItem>
+                  <SelectItem value="2">2 dias antes</SelectItem>
+                  <SelectItem value="3">3 dias antes</SelectItem>
+                  <SelectItem value="7">7 dias antes</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border p-3">
+              <div className="space-y-0.5">
+                <Label className="text-sm font-medium">Cobrança automática</Label>
+                <p className="text-xs text-muted-foreground">
+                  Cria lançamento ao concluir cada sessão
+                </p>
+              </div>
+              <Switch
+                checked={form.billing_auto_charge ?? false}
+                onCheckedChange={(checked: boolean) => updateForm("billing_auto_charge", checked)}
               />
             </div>
           </div>
