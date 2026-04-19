@@ -630,6 +630,42 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { status: "ok", service: "ethos-clinic" });
       }
 
+      // ─── Webhook Evolution API — confirmação automática de sessão ────────────
+      if (method === "POST" && url.pathname === "/webhook/whatsapp") {
+        try {
+          const body = await readJson(req) as Record<string, unknown>;
+          const event = String(body.event ?? "");
+          if (event === "messages.upsert") {
+            const data = body.data as Record<string, unknown> | undefined;
+            const key = data?.key as Record<string, unknown> | undefined;
+            const message = data?.message as Record<string, unknown> | undefined;
+            const remoteJid = String(key?.remoteJid ?? "");
+            const text = String(
+              message?.conversation ??
+              (message?.extendedTextMessage as Record<string, unknown> | undefined)?.text ?? ""
+            ).trim().toLowerCase();
+            const phoneNormalized = remoteJid.replace(/@.*$/, "").replace(/\D/g, "");
+            const CONFIRM_WORDS = ["sim", "s", "confirmar", "confirmo", "ok", "okay", "yes", "👍"];
+            if (CONFIRM_WORDS.includes(text) && phoneNormalized) {
+              const sessionId = db.pendingConfirmations.get(phoneNormalized);
+              if (sessionId) {
+                const session = db.sessions.get(sessionId);
+                if (session) {
+                  session.status = "confirmed";
+                  db.pendingConfirmations.delete(phoneNormalized);
+                  void (await import("../infra/persist")).saveToFile();
+                  void whatsAppSendText(phoneNormalized, "✅ Presença confirmada! Te esperamos na sessão.");
+                  process.stdout.write(`[webhook/whatsapp] Session ${sessionId} confirmed from ${phoneNormalized}.\n`);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          process.stderr.write(`[webhook/whatsapp] Error: ${String(err)}\n`);
+        }
+        return ok(res, requestId, 200, { received: true });
+      }
+
       // Public docs
       if (method === "GET" && url.pathname === "/openapi.yaml") {
         res.statusCode = 200;

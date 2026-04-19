@@ -118,6 +118,7 @@ export const db = {
   sessionReminderConfig: new Map<"config", SessionReminderConfig>(),
   patientSessionReminderEnabled: new Map<string, boolean>(),
   sentSessionReminders: new Set<string>(),
+  pendingConfirmations: new Map<string, string>(), // normalized phone → session_id
 
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),

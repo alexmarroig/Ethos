@@ -3,6 +3,11 @@ import { whatsAppGetConnectionState, whatsAppSendText } from "../infra/whatsapp"
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000; // every 5 minutes
 
+function normalizePhone(phone: string): string {
+  const digits = phone.replace(/\D/g, "");
+  return digits.startsWith("55") ? digits : `55${digits}`;
+}
+
 function buildMessage(
   template: string,
   values: {
@@ -101,6 +106,7 @@ async function runReminderCheck() {
 
     if (result.ok) {
       db.sentSessionReminders.add(reminderKey);
+      db.pendingConfirmations.set(normalizePhone(phone), session.id);
       process.stdout.write(`[session-reminder] Sent reminder to patient ${patientId} for session ${session.id}.\n`);
     } else {
       process.stderr.write(`[session-reminder] Failed to send reminder to patient ${patientId}: ${result.error}\n`);

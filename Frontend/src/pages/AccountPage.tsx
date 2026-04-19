@@ -60,7 +60,7 @@ const AccountPage = () => {
   const [sessionConfig, setSessionConfig] = useState<SessionReminderConfig>({
     enabled: false,
     hoursBeforeSession: 24,
-    template: "Lembrete ETHOS\n\nOlá, {patient_name}! 👋\n\nLembro que temos sessão agendada para {session_date} às {session_time}.\n\nQualquer dúvida, estou à disposição.\n\nAté lá! 🌱",
+    template: "Lembrete ETHOS\n\nOlá, {patient_name}! 👋\n\nLembro que temos sessão agendada para {session_date} às {session_time}.\n\nResponda *SIM* para confirmar sua presença.\n\nQualquer dúvida, estou à disposição. Até lá! 🌱",
   });
   const [sessionCollapsed, setSessionCollapsed] = useState(false);
   const [savingSession, setSavingSession] = useState(false);
