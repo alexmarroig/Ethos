@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Settings2, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { sessionService, type Session } from "@/services/sessionService";
+import { sessionService, type Session, type CalendarSuggestion } from "@/services/sessionService";
+import { SessionDialog } from "@/components/SessionDialog";
 import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
 import { CLINICAL_BASE_URL } from "@/config/runtime";
 import { readStoredAuthUser } from "@/services/authStorage";
@@ -113,6 +114,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     patientId: string;
   } | null>(null);
 
+  const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
+  const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
+  const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [newPatientId, setNewPatientId] = useState("");
@@ -192,6 +197,14 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       }
       setLoading(false);
     };
+
+    // Load suggestions for next week
+    const nextWeek = new Date();
+    nextWeek.setDate(nextWeek.getDate() + (7 - nextWeek.getDay() + 1) % 7 || 7);
+    const weekStart = nextWeek.toISOString().split("T")[0];
+    sessionService.getSuggestions(weekStart).then((r) => {
+      if (r.success) setSuggestions(r.data);
+    }).catch(() => {});
 
     void loadSessions();
   }, [weekWindow]);
@@ -435,45 +448,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="secondary" className="gap-2">
-                    <Plus className="w-4 h-4" strokeWidth={1.5} />
-                    Agendar sessão
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle className="font-serif text-xl">Agendar sessão</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-sm font-medium text-foreground">Paciente</label>
-                      <select
-                        value={newPatientId}
-                        onChange={(event) => setNewPatientId(event.target.value)}
-                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                      >
-                        <option value="">Selecione um paciente</option>
-                        {patients.map((patient) => (
-                          <option key={patient.id} value={patient.id}>
-                            {patient.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <Input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} />
-                    <Input type="time" value={newTime} onChange={(event) => setNewTime(event.target.value)} />
-                    <Input type="number" min="20" step="10" value={newDuration} onChange={(event) => setNewDuration(event.target.value)} placeholder="Duração em minutos" />
-                  </div>
-                  <DialogFooter>
-                    <Button onClick={handleCreateSession} disabled={creating || !newPatientId || !newDate || !newTime} className="gap-2">
-                      {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                      Agendar
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+              <Button variant="secondary" className="gap-2" onClick={() => setSessionDialogOpen(true)}>
+                <Plus className="w-4 h-4" strokeWidth={1.5} />
+                Agendar sessão
+              </Button>
             </div>
           </div>
         </motion.header>
@@ -524,7 +502,8 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         {loading ? <AgendaGridSkeleton /> : null}
 
         {!loading && !error ? (
-          <motion.div className="overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <motion.div className="flex gap-4 items-start" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
             <div className="grid" style={{ gridTemplateColumns: `88px repeat(${visibleWeekDays.length}, minmax(160px, 1fr))` }}>
               <div className="border-b border-r border-border bg-muted/30 p-4" />
               {visibleWeekDays.map((day) => (
@@ -583,6 +562,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     "w-full rounded-2xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
                                     getStatusColor(session.status),
                                     draggingSessionId === session.id && "opacity-60",
+                                    session.event_type === "block" && "border-dashed opacity-80",
                                   )}
                                 >
                                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -595,7 +575,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     </span>
                                   </div>
 
-                                  <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.patient_name}</p>
+                                  <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.block_title ?? session.patient_name}</p>
+                                  {session.recurrence && (
+                                    <span className="text-xs opacity-60">
+                                      🔁 {session.recurrence.type === "weekly" ? "semanal" : session.recurrence.type === "biweekly" ? "quinzenal" : "2×sem"}
+                                    </span>
+                                  )}
 
                                   <div className="mt-2 flex flex-wrap gap-1.5">
                                     {flags.map((flag) => (
@@ -630,10 +615,94 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                 </div>
               ))}
             </div>
+          </div>
+
+          {suggestions.filter((s) => !dismissedSuggestions.has(`${s.patient_id}-${s.suggested_at}`)).length > 0 && (
+            <div className="w-60 shrink-0 space-y-3 border-l pl-4 pt-2">
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>Próxima semana</span>
+                <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">
+                  {suggestions.filter((s) => !dismissedSuggestions.has(`${s.patient_id}-${s.suggested_at}`)).length}
+                </span>
+              </div>
+
+              {suggestions
+                .filter((s) => !dismissedSuggestions.has(`${s.patient_id}-${s.suggested_at}`))
+                .map((s) => (
+                  <div
+                    key={`${s.patient_id}-${s.suggested_at}`}
+                    className={cn(
+                      "rounded-lg border p-3 text-sm space-y-2",
+                      s.source === "rule"
+                        ? "border-l-4 border-l-teal-500 bg-teal-50 dark:bg-teal-950/30"
+                        : "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/30",
+                    )}
+                  >
+                    <div className="flex items-start justify-between gap-1">
+                      <div>
+                        <p className="font-medium leading-tight">{s.patient_name}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(s.suggested_at).toLocaleString("pt-BR", {
+                            weekday: "short", day: "2-digit", month: "short",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                        </p>
+                        {s.source === "pattern" && s.confidence !== undefined && (
+                          <p className="text-xs text-amber-600 dark:text-amber-400">
+                            detectado · {s.confidence}% conf.
+                          </p>
+                        )}
+                        {s.recurrence_type && (
+                          <p className="text-xs text-teal-600 dark:text-teal-400">{s.recurrence_type}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() =>
+                          setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]))
+                        }
+                        className="text-muted-foreground hover:text-foreground shrink-0"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full h-7 text-xs"
+                      onClick={async () => {
+                        await sessionService.create({
+                          patient_id: s.patient_id,
+                          scheduled_at: s.suggested_at,
+                          duration_minutes: s.duration_minutes,
+                        });
+                        setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]));
+                        const result = await sessionService.list(weekWindow);
+                        if (result.success) setSessions(result.data);
+                      }}
+                    >
+                      Confirmar
+                    </Button>
+                  </div>
+                ))}
+            </div>
+          )}
           </motion.div>
         ) : null}
       </div>
     </div>
+
+    <SessionDialog
+      open={sessionDialogOpen}
+      onOpenChange={setSessionDialogOpen}
+      patients={sessions
+        .filter((s, i, arr) => arr.findIndex((x) => x.patient_id === s.patient_id) === i)
+        .map((s) => ({ id: s.patient_id, name: s.patient_name }))}
+      onCreated={async () => {
+        const result = await sessionService.list(weekWindow);
+        if (result.success) setSessions(result.data);
+      }}
+    />
 
     {billingDialog && (
       <BillingConfirmDialog
