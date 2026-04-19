@@ -552,7 +552,7 @@ export default function ReportsPage() {
         </motion.div>
 
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogContent className={`${isFullscreen ? "h-[96vh] max-w-[98vw]" : "max-h-[92vh] max-w-[min(96vw,1540px)]"} overflow-hidden border-border/70 bg-background p-0`}>
+          <DialogContent className={`${isFullscreen ? "h-[96vh] max-w-[98vw]" : "h-[92vh] max-w-[min(96vw,1540px)]"} overflow-hidden border-border/70 bg-background p-0`}>
             <DialogHeader className="border-b border-border/70 bg-card px-6 py-5">
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
@@ -773,7 +773,7 @@ export default function ReportsPage() {
                       <h3 className="font-serif text-lg text-foreground">Preview do relatório</h3>
                       <p className="mt-1 text-sm text-muted-foreground">Visualização do documento final antes de salvar ou exportar.</p>
                     </div>
-                    <iframe title="Preview do relatório" srcDoc={previewHtml} className="h-[70vh] w-full rounded-xl border border-border bg-white" />
+                    <iframe title="Preview do relatório" srcDoc={previewHtml} className="min-h-[600px] w-full rounded-xl border border-border bg-white" style={{ height: "calc(92vh - 260px)" }} />
                   </div>
                 </section>
               )}
