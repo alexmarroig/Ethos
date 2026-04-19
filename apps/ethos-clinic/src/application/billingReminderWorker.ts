@@ -1,5 +1,5 @@
 import { db } from "../infra/database";
-import { persistMutation } from "../infra/persist";
+import { saveToFile } from "../infra/persist";
 import { whatsAppGetConnectionState, whatsAppSendText } from "../infra/whatsapp";
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000; // every hour
@@ -76,7 +76,7 @@ async function runBillingReminderCheck() {
 
     if (result.ok) {
       entry.reminder_sent_at = new Date().toISOString();
-      persistMutation();
+      saveToFile();
       process.stdout.write(`[billing-reminder] Sent reminder to patient ${patient.id} for entry ${entry.id}.\n`);
     } else {
       process.stderr.write(`[billing-reminder] Failed to send reminder to patient ${patient.id}: ${result.error}\n`);
