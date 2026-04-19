@@ -18,6 +18,7 @@ import {
   financeService,
   type FinancialEntry,
   type FinanceSummary,
+  type FinancialSummary,
 } from "@/services/financeService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import WhatsAppButton from "@/components/WhatsAppButton";
@@ -103,6 +104,8 @@ export default function FinancePage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "open" | "paid">("all");
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [filterOverdue, setFilterOverdue] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -124,6 +127,14 @@ export default function FinancePage() {
 
   useEffect(() => {
     void loadEntries();
+    financeService.getFinancialSummary().then((result) => {
+      if (result.success) setFinancialSummary(result.data);
+    }).catch(console.error);
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("filter") === "overdue") setFilterOverdue(true);
   }, []);
 
   async function loadEntries() {
@@ -139,10 +150,20 @@ export default function FinancePage() {
     setLoading(false);
   }
 
-  const filteredEntries = useMemo(
-    () => (filterStatus === "all" ? entries : entries.filter((entry) => entry.status === filterStatus)),
-    [entries, filterStatus],
-  );
+  const isOverdue = (entry: any) => {
+    if (entry.status !== "open") return false;
+    const due = new Date(entry.due_date.length === 10 ? entry.due_date + "T12:00:00" : entry.due_date);
+    due.setHours(0, 0, 0, 0);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return due < today;
+  };
+
+  const filteredEntries = useMemo(() => {
+    let result = filterStatus === "all" ? entries : entries.filter((entry) => entry.status === filterStatus);
+    if (filterOverdue) result = result.filter((entry) => isOverdue(entry));
+    return result;
+  }, [entries, filterStatus, filterOverdue]);
 
   const paidEntries = useMemo(() => entries.filter((entry) => entry.status === "paid"), [entries]);
   const openEntries = useMemo(() => entries.filter((entry) => entry.status === "open"), [entries]);
@@ -404,8 +425,37 @@ export default function FinancePage() {
             </DialogContent>
           </Dialog>
 
-          <div className="ml-auto flex gap-1">{(["all", "open", "paid"] as const).map((status) => <button key={status} onClick={() => setFilterStatus(status)} className={cn("rounded-lg px-3 py-1.5 text-xs transition-colors", filterStatus === status ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80")}>{status === "all" ? "Todos" : statusLabel(status)}</button>)}</div>
+          <div className="ml-auto flex gap-1">
+            {(["all", "open", "paid"] as const).map((status) => <button key={status} onClick={() => setFilterStatus(status)} className={cn("rounded-lg px-3 py-1.5 text-xs transition-colors", filterStatus === status ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80")}>{status === "all" ? "Todos" : statusLabel(status)}</button>)}
+            <button
+              onClick={() => setFilterOverdue((v) => !v)}
+              className={cn("rounded-lg px-3 py-1.5 text-xs transition-colors", filterOverdue ? "bg-destructive text-destructive-foreground" : "bg-secondary text-secondary-foreground hover:bg-secondary/80")}
+            >
+              Vencidos
+            </button>
+          </div>
         </motion.div>
+
+        {financialSummary && financialSummary.overdue_count > 0 && (
+          <div className="flex items-center gap-3 rounded-lg border border-destructive/30 bg-destructive/10 p-4 text-sm mb-4">
+            <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
+            <div className="flex-1">
+              <span className="font-semibold text-destructive">
+                {financialSummary.overdue_count} {financialSummary.overdue_count === 1 ? "cobrança vencida" : "cobranças vencidas"}
+              </span>
+              <span className="text-muted-foreground">
+                {" · "}
+                {financialSummary.overdue_total.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })} em aberto
+              </span>
+            </div>
+            <button
+              className="text-xs font-medium text-destructive underline-offset-2 hover:underline"
+              onClick={() => setFilterOverdue(true)}
+            >
+              Ver vencidas
+            </button>
+          </div>
+        )}
 
         <motion.div className="space-y-3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           {filteredEntries.length === 0 ? (
@@ -414,7 +464,7 @@ export default function FinancePage() {
             filteredEntries.map((entry) => (
               <div key={entry.id} className="session-card">
                 <button type="button" className="w-full text-left" onClick={() => openEdit(entry)}>
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-base font-semibold text-foreground">{entry.patient_name ?? "Paciente"}</p><p className="mt-1 text-sm text-muted-foreground">{entry.description ?? "Cobran?a"} ? vencimento {formatDate(entry.due_date)}</p></div><div className="text-right"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusColor(entry.status))}>{statusLabel(entry.status)}</span><p className="mt-3 text-lg font-semibold text-foreground">{formatCurrency(entry.amount)}</p></div></div>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-base font-semibold text-foreground">{entry.patient_name ?? "Paciente"}</p><p className="mt-1 text-sm text-muted-foreground">{entry.description ?? "Cobran?a"} ? vencimento {formatDate(entry.due_date)}</p></div><div className="text-right flex flex-col items-end gap-1"><span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusColor(entry.status))}>{statusLabel(entry.status)}</span>{isOverdue(entry) && (<span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">Vencido</span>)}<p className="mt-3 text-lg font-semibold text-foreground">{formatCurrency(entry.amount)}</p></div></div>
                 </button>
                 <div className="mt-4 flex flex-wrap items-center justify-between gap-3"><div className="flex flex-wrap gap-2"><Button variant="outline" size="sm" className="gap-2" onClick={() => openEdit(entry)}><PencilLine className="h-4 w-4" />Editar</Button><ShareWithPatientButton type="financial/entries" id={entry.id} shared={(entry as FinancialEntry & { shared_with_patient?: boolean }).shared_with_patient ?? false} /><WhatsAppButton phoneNumber="" message={`Ol?! Gostaria de lembrar que existe um pagamento combinado no valor de ${formatCurrency(entry.amount)} com vencimento em ${formatDate(entry.due_date)}.`} label="Lembrar no WhatsApp" /></div><p className="text-xs text-muted-foreground">{entry.payment_method ? `Forma de pagamento: ${entry.payment_method}` : "Forma de pagamento n?o definida"}</p></div>
               </div>
