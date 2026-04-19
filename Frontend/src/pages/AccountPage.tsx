@@ -1,4 +1,5 @@
 ﻿import { useEffect, useRef, useState } from "react";
+import { formatPhone } from "@/lib/utils";
 import { motion } from "framer-motion";
 import { User, CreditCard, Shield, Loader2, ExternalLink, Camera, Wifi, WifiOff, RefreshCw, QrCode, MessageCircle, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -736,7 +737,7 @@ const AccountPage = () => {
                   <div className="flex gap-2">
                     <Input
                       value={testPhone}
-                      onChange={(e) => setTestPhone(e.target.value)}
+                      onChange={(e) => setTestPhone(formatPhone(e.target.value))}
                       placeholder="5511999999999"
                       className="flex-1"
                     />

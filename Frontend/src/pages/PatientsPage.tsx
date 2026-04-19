@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronRight, KeyRound, Loader2, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { formatPhone } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
@@ -120,7 +121,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
     const result = await patientService.create({
       name: newName.trim(),
       email: newEmail.trim() || undefined,
-      whatsapp: newWhatsApp.trim() || undefined,
+      whatsapp: newWhatsApp.replace(/\D/g, "") || undefined,
     });
 
     if (!result.success) {
@@ -220,7 +221,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                 <div className="space-y-4">
                   <Input placeholder="Nome completo *" value={newName} onChange={(event) => setNewName(event.target.value)} />
                   <Input placeholder="Email (opcional)" value={newEmail} onChange={(event) => setNewEmail(event.target.value)} />
-                  <Input placeholder="WhatsApp (opcional)" value={newWhatsApp} onChange={(event) => setNewWhatsApp(event.target.value)} />
+                  <Input placeholder="WhatsApp (opcional)" value={newWhatsApp} onChange={(event) => setNewWhatsApp(formatPhone(event.target.value))} />
                 </div>
                 <DialogFooter>
                   <Button onClick={handleCreate} disabled={creating || !newName.trim()} className="gap-2">

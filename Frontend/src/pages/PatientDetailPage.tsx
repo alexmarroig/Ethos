@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/services/paymentReminderSettings";
 import { buildSessionReminderMessage, readSessionReminderSettings } from "@/services/sessionReminderSettings";
 import { sessionReminderApi } from "@/api/clinical";
+import { formatPhone } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
@@ -171,17 +172,6 @@ const PHONE_REGEX = /^\d{10,11}$/;
 
 const toInputDate = (value?: string) => (value ? new Date(value).toISOString().slice(0, 10) : "");
 const onlyDigits = (value: string) => value.replace(/\D/g, "");
-const formatPhoneInput = (value: string) => {
-  const digits = onlyDigits(value).slice(0, 11);
-  if (digits.length <= 10) {
-    return digits
-      .replace(/^(\d{2})(\d)/g, "($1) $2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  }
-  return digits
-    .replace(/^(\d{2})(\d)/g, "($1) $2")
-    .replace(/(\d{5})(\d)/, "$1-$2");
-};
 const formatCpfInput = (value: string) => {
   const digits = onlyDigits(value).slice(0, 11);
   return digits
@@ -382,8 +372,8 @@ export default function PatientDetailPage({
       name: detail.patient.name,
       care_status: detail.patient.care_status ?? "active",
       email: detail.patient.email ?? "",
-      phone: detail.patient.phone ?? "",
-      whatsapp: detail.patient.whatsapp ?? detail.patient.phone ?? "",
+      phone: formatPhone(detail.patient.phone ?? ""),
+      whatsapp: formatPhone(detail.patient.whatsapp ?? detail.patient.phone ?? ""),
       birth_date: toInputDate(detail.patient.birth_date),
       address: detail.patient.address ?? "",
       address_street: detail.patient.address_street ?? "",
@@ -402,10 +392,10 @@ export default function PatientDetailPage({
       psychiatric_medications: detail.patient.psychiatric_medications ?? "",
       has_psychiatric_followup: Boolean(detail.patient.has_psychiatric_followup),
       psychiatrist_name: detail.patient.psychiatrist_name ?? "",
-      psychiatrist_contact: detail.patient.psychiatrist_contact ?? "",
+      psychiatrist_contact: formatPhone(detail.patient.psychiatrist_contact ?? ""),
       emergency_contact_name: detail.patient.emergency_contact_name ?? "",
       emergency_contact_relationship: detail.patient.emergency_contact_relationship ?? "",
-      emergency_contact_phone: detail.patient.emergency_contact_phone ?? "",
+      emergency_contact_phone: formatPhone(detail.patient.emergency_contact_phone ?? ""),
       education_level: detail.patient.education_level ?? "",
       marital_status: detail.patient.marital_status ?? "",
       legal_guardian_name: detail.patient.legal_guardian_name ?? "",
@@ -492,6 +482,9 @@ export default function PatientDetailPage({
   }, [detail, sharedDocuments.length, activeAssignments.length]);
 
   const updateForm = <K extends keyof PatientFormState>(key: K, value: PatientFormState[K]) => {
+    if (["phone", "whatsapp", "psychiatrist_contact", "emergency_contact_phone"].includes(key as string)) {
+      value = formatPhone(value as string) as any;
+    }
     setForm((current) => ({ ...current, [key]: value }));
   };
 
@@ -616,8 +609,8 @@ export default function PatientDetailPage({
       name: form.name.trim(),
       care_status: form.care_status,
       email: form.email.trim() || undefined,
-      phone: form.phone.trim() || undefined,
-      whatsapp: form.whatsapp.trim() || undefined,
+      phone: onlyDigits(form.phone) || undefined,
+      whatsapp: onlyDigits(form.whatsapp) || undefined,
       birth_date: form.birth_date || undefined,
       address_street: form.address_street.trim() || undefined,
       address_number: form.address_number.trim() || undefined,
@@ -635,10 +628,10 @@ export default function PatientDetailPage({
       psychiatric_medications: form.psychiatric_medications.trim() || undefined,
       has_psychiatric_followup: form.has_psychiatric_followup,
       psychiatrist_name: form.psychiatrist_name.trim() || undefined,
-      psychiatrist_contact: form.psychiatrist_contact.trim() || undefined,
+      psychiatrist_contact: onlyDigits(form.psychiatrist_contact) || undefined,
       emergency_contact_name: form.emergency_contact_name.trim() || undefined,
       emergency_contact_relationship: form.emergency_contact_relationship.trim() || undefined,
-      emergency_contact_phone: form.emergency_contact_phone.trim() || undefined,
+      emergency_contact_phone: onlyDigits(form.emergency_contact_phone) || undefined,
       education_level: form.education_level.trim() || undefined,
       marital_status: form.marital_status.trim() || undefined,
       legal_guardian_name: form.legal_guardian_name.trim() || undefined,
@@ -1149,7 +1142,7 @@ export default function PatientDetailPage({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">WhatsApp</label>
-              <Input value={form.whatsapp} onChange={(event) => updateForm("whatsapp", formatPhoneInput(event.target.value))} placeholder="(11) 99999-9999" />
+              <Input value={form.whatsapp} onChange={(event) => updateForm("whatsapp", formatPhone(event.target.value))} placeholder="(11) 99999-9999" />
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">E-mail</label>
@@ -1393,8 +1386,11 @@ export default function PatientDetailPage({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Contato do psiquiatra</label>
-              <Input value={form.psychiatrist_contact} onChange={(event) => updateForm("psychiatrist_contact", event.target.value)} />
+              <Input value={form.psychiatrist_contact} onChange={(event) => updateForm("psychiatrist_contact", formatPhone(event.target.value))} />
             </div>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 mt-4">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Contato de emergência</label>
               <Input value={form.emergency_contact_name} onChange={(event) => updateForm("emergency_contact_name", event.target.value)} />
@@ -1405,7 +1401,7 @@ export default function PatientDetailPage({
             </div>
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Telefone de emergência</label>
-              <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", event.target.value)} />
+              <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", formatPhone(event.target.value))} />
             </div>
           </div>
         </motion.section>
