@@ -673,6 +673,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
+                    Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} · versões: {document.versions_count ?? 0}
                     Template: {templates.find((item) => item.id === document.template_id)?.name
                       ?? templates.find((item) => item.id === document.template_id)?.title
                       ?? document.template_id
@@ -936,6 +937,8 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
               )}
             </div>
           ) : (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground text-sm">Nenhuma versão disponível para este documento.</p>
             <div className="py-12 text-center">
               <p className="text-sm text-muted-foreground">Nenhuma versão disponível para este documento.</p>
             </div>
