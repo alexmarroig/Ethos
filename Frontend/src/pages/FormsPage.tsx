@@ -348,7 +348,7 @@ export default function FormsPage() {
                 const assignmentCount = form.assignments_count ?? linkedAssignments.length;
 
                 return (
-                  <div key={form.id} className="session-card flex flex-col gap-4">
+                  <div key={form.id} className="session-card flex flex-col gap-6 p-6 md:p-8">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="font-serif text-lg font-medium text-foreground">
@@ -359,24 +359,24 @@ export default function FormsPage() {
                             {form.description}
                           </p>
                         ) : null}
-                      </div>
 
-                      <div className="flex shrink-0 gap-1.5">
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {form.fields?.length ?? 0} campos
-                        </span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {assignmentCount} pacientes
-                        </span>
-                        <span className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          {responseCount} respostas
-                        </span>
+                        <div className="mt-4 flex flex-wrap gap-1.5">
+                          <span className="rounded-full bg-muted/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {form.fields?.length ?? 0} campos
+                          </span>
+                          <span className="rounded-full bg-muted/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {assignmentCount} pacientes
+                          </span>
+                          <span className="rounded-full bg-muted/80 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                            {responseCount} respostas
+                          </span>
+                        </div>
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-border/70 bg-muted/20 p-4">
+                    <div className="rounded-2xl border border-border/50 bg-muted/10 p-5">
                       <div className="mb-3 flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+                        <p className="text-xs font-semibold uppercase tracking-[0.12em] font-medium text-muted-foreground">
                           Disponibilizações
                         </p>
                         <Button size="sm" className="gap-2" onClick={() => openShare(form)}>
