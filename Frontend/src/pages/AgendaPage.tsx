@@ -117,6 +117,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
+  const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string }>({});
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -540,9 +541,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                         }}
                       >
                         {daySessions.length === 0 ? (
-                          <div className="flex h-full items-center justify-center rounded-xl border border-dashed border-border/70 text-[11px] text-muted-foreground/60">
+                          <button
+                            type="button"
+                            className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-border/70 text-[11px] text-muted-foreground/60 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60 min-h-[86px]"
+                            onClick={() => {
+                              setSessionDialogDefaults({ date: day.key, time: slot });
+                              setSessionDialogOpen(true);
+                            }}
+                          >
                             Livre
-                          </div>
+                          </button>
                         ) : (
                           <div className="space-y-2">
                             {daySessions.map((session) => {
@@ -694,10 +702,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
     <SessionDialog
       open={sessionDialogOpen}
-      onOpenChange={setSessionDialogOpen}
+      onOpenChange={(v) => { setSessionDialogOpen(v); if (!v) setSessionDialogDefaults({}); }}
       patients={sessions
         .filter((s, i, arr) => arr.findIndex((x) => x.patient_id === s.patient_id) === i)
         .map((s) => ({ id: s.patient_id, name: s.patient_name }))}
+      defaultDate={sessionDialogDefaults.date}
+      defaultTime={sessionDialogDefaults.time}
       onCreated={async () => {
         const result = await sessionService.list(weekWindow);
         if (result.success) setSessions(result.data);
