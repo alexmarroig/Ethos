@@ -733,6 +733,8 @@ const normalizePatientBilling = (value: PatientUpsertInput["billing"]) => {
     payment_timing: value.payment_timing === "advance" || value.payment_timing === "after" ? value.payment_timing : undefined,
     preferred_payment_day:
       normalizeOptionalNumber((value as PatientBilling & { preferred_payment_day?: number }).preferred_payment_day),
+    billing_reminder_days: typeof value.billing_reminder_days === "number" ? value.billing_reminder_days : undefined,
+    billing_auto_charge: typeof value.billing_auto_charge === "boolean" ? value.billing_auto_charge : undefined,
   } satisfies PatientBilling;
 };
 
@@ -2807,4 +2809,86 @@ export const deleteHomework = (owner: string, taskId: string): boolean => {
   db.homeworkTasks.delete(taskId);
   persistMutation();
   return true;
+};
+
+// Calcula due_date baseado em payment_timing e preferred_payment_day
+export const calculateDueDate = (sessionAt: string, billing: PatientBilling): string => {
+  const sessionDate = new Date(sessionAt);
+  if (billing.payment_timing === "advance") {
+    return sessionDate.toISOString().split("T")[0];
+  }
+  if (billing.preferred_payment_day) {
+    const day = billing.preferred_payment_day;
+    const candidate = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), day);
+    if (candidate <= sessionDate) {
+      candidate.setMonth(candidate.getMonth() + 1);
+    }
+    return candidate.toISOString().split("T")[0];
+  }
+  const fallback = new Date(sessionDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  return fallback.toISOString().split("T")[0];
+};
+
+export type BillingGenerationResult =
+  | { pending_billing: false }
+  | { pending_billing: true; suggested_amount: number; suggested_due_date: string };
+
+export const generateSessionBilling = (
+  owner: string,
+  session: ClinicalSession,
+): BillingGenerationResult => {
+  const patient = getPatient(owner, session.patient_id);
+  if (!patient?.billing?.session_price) return { pending_billing: false };
+
+  const dueDate = calculateDueDate(session.scheduled_at, patient.billing);
+
+  if (patient.billing.billing_auto_charge) {
+    createFinancialEntry(owner, {
+      patient_id: patient.id,
+      session_id: session.id,
+      type: "receivable",
+      amount: patient.billing.session_price,
+      due_date: dueDate,
+      status: "open",
+      description: `Sessão ${new Date(session.scheduled_at).toLocaleDateString("pt-BR")}`,
+    });
+    return { pending_billing: false };
+  }
+
+  return {
+    pending_billing: true,
+    suggested_amount: patient.billing.session_price,
+    suggested_due_date: dueDate,
+  };
+};
+
+export type FinancialSummary = {
+  overdue_count: number;
+  overdue_total: number;
+  due_soon_count: number;
+};
+
+export const getFinancialSummary = (owner: string): FinancialSummary => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const sevenDaysFromNow = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  let overdue_count = 0;
+  let overdue_total = 0;
+  let due_soon_count = 0;
+
+  for (const entry of db.financial.values()) {
+    if (entry.owner_user_id !== owner) continue;
+    if (entry.status !== "open") continue;
+    const due = new Date(entry.due_date + (entry.due_date.length === 10 ? "T12:00:00" : ""));
+    due.setHours(0, 0, 0, 0);
+    if (due < today) {
+      overdue_count++;
+      overdue_total += entry.amount;
+    } else if (due <= sevenDaysFromNow) {
+      due_soon_count++;
+    }
+  }
+
+  return { overdue_count, overdue_total, due_soon_count };
 };
