@@ -1,6 +1,24 @@
 import { api, type ApiResult } from "./apiClient";
 import { patientService, type Patient } from "./patientService";
 
+export interface RecurrenceRule {
+  type: "weekly" | "2x-week" | "biweekly";
+  days: Array<"monday" | "tuesday" | "wednesday" | "thursday" | "friday">;
+  time: string;
+  duration_minutes: number;
+}
+
+export interface CalendarSuggestion {
+  patient_id: string;
+  patient_name: string;
+  suggested_at: string;
+  duration_minutes: number;
+  source: "rule" | "pattern";
+  confidence?: number;
+  series_id?: string;
+  recurrence_type?: string;
+}
+
 type RawSession = {
   id: string;
   patient_id: string;
@@ -16,6 +34,11 @@ type RawSession = {
   has_clinical_note?: boolean;
   clinical_note_status?: "draft" | "validated";
   payment_status?: "paid" | "open" | "exempt";
+  recurrence?: RecurrenceRule;
+  series_id?: string;
+  is_series_anchor?: boolean;
+  event_type?: "session" | "block" | "other";
+  block_title?: string;
 };
 
 type RawPaginatedSessions = {
@@ -40,6 +63,11 @@ export interface Session {
   clinical_note_status?: "draft" | "validated";
   payment_status?: "paid" | "open" | "exempt";
   scheduled_at?: string;
+  recurrence?: RecurrenceRule;
+  series_id?: string;
+  is_series_anchor?: boolean;
+  event_type?: "session" | "block" | "other";
+  block_title?: string;
 }
 
 export interface SessionTranscript {
@@ -112,6 +140,11 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
     clinical_note_status: raw.clinical_note_status,
     payment_status: raw.payment_status,
     scheduled_at,
+    recurrence: raw.recurrence,
+    series_id: raw.series_id,
+    is_series_anchor: raw.is_series_anchor,
+    event_type: raw.event_type,
+    block_title: raw.block_title,
   };
 }
 
@@ -171,6 +204,9 @@ export const sessionService = {
     patient_id: string;
     scheduled_at: string;
     duration_minutes?: number;
+    recurrence?: RecurrenceRule;
+    event_type?: "session" | "block" | "other";
+    block_title?: string;
   }): Promise<ApiResult<Session>> => {
     const [createResult, patients] = await Promise.all([
       api.post<RawSession>("/sessions", data),
@@ -219,4 +255,8 @@ export const sessionService = {
 
   getTranscript: (id: string): Promise<ApiResult<SessionTranscript>> =>
     api.get<SessionTranscript>(`/sessions/${id}/transcript`),
+
+  getSuggestions: async (weekStart: string): Promise<ApiResult<CalendarSuggestion[]>> => {
+    return api.get<CalendarSuggestion[]>(`/sessions/suggestions?week_start=${weekStart}`);
+  },
 };
