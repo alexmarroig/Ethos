@@ -134,6 +134,8 @@ import {
   createHomework,
   updateHomework,
   deleteHomework,
+  generateSessionBilling,
+  getFinancialSummary,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -1400,7 +1402,13 @@ export const createEthosBackend = () =>
         }
         const session = patchSessionStatus(auth.user.id, sessionStatus[1], status);
         if (!session) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
-        return ok(res, requestId, 200, session);
+
+        let billingResult: ReturnType<typeof generateSessionBilling> = { pending_billing: false };
+        if (status === "completed") {
+          billingResult = generateSessionBilling(auth.user.id, session);
+        }
+
+        return ok(res, requestId, 200, { ...session, ...billingResult });
       }
 
       const sessionAudio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
@@ -2141,6 +2149,12 @@ export const createEthosBackend = () =>
         });
         if (!item) return error(res, requestId, 404, "NOT_FOUND", "Financial entry not found");
         return ok(res, requestId, 200, item);
+      }
+
+      if (method === "GET" && url.pathname === "/financial/summary") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const summary = getFinancialSummary(auth.user.id);
+        return ok(res, requestId, 200, summary);
       }
 
       if (method === "GET" && url.pathname === "/financial/entries") {
