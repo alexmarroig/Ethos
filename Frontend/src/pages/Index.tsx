@@ -1,5 +1,4 @@
-
-import { lazy, Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useState, lazy } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import Sidebar from "@/components/Sidebar";
@@ -17,26 +16,27 @@ import FormsPage from "@/pages/FormsPage";
 import AnamnesisPage from "@/pages/AnamnesisPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { lazyRetry } from "@/lib/lazyRetry";
 
-const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
-const FinancePage = lazy(() => import("@/pages/FinancePage"));
-const DocumentsPage = lazy(() => import("@/pages/DocumentsPage"));
-const AccountPage = lazy(() => import("@/pages/AccountPage"));
-const BackupPage = lazy(() => import("@/pages/BackupPage"));
-const ContractsPage = lazy(() => import("@/pages/ContractsPage"));
-const PatientHomePage = lazy(() => import("@/pages/patient/PatientHomePage"));
-const PatientSessionsPage = lazy(() => import("@/pages/patient/PatientSessionsPage"));
-const PatientDiaryPage = lazy(() => import("@/pages/patient/PatientDiaryPage"));
-const PatientMessagesPage = lazy(() => import("@/pages/patient/PatientMessagesPage"));
-const PatientDocumentsPage = lazy(() => import("@/pages/patient/PatientDocumentsPage"));
-const PatientPaymentsPage = lazy(() => import("@/pages/patient/PatientPaymentsPage"));
-const PatientBookingPage = lazy(() => import("@/pages/patient/PatientBookingPage"));
-const AvailabilitySettingsPage = lazy(() => import("@/pages/AvailabilitySettingsPage"));
-const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
-const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
-const AdminTestLab = lazy(() => import("@/pages/admin/AdminTestLab"));
-const AdminTicketsPage = lazy(() => import("@/pages/admin/AdminTicketsPage"));
-const DiagnosticsPage = lazy(() => import("@/pages/DiagnosticsPage"));
+const ReportsPage = lazyRetry(() => import("@/pages/ReportsPage"));
+const FinancePage = lazyRetry(() => import("@/pages/FinancePage"));
+const DocumentsPage = lazyRetry(() => import("@/pages/DocumentsPage"));
+const AccountPage = lazyRetry(() => import("@/pages/AccountPage"));
+const BackupPage = lazyRetry(() => import("@/pages/BackupPage"));
+const ContractsPage = lazyRetry(() => import("@/pages/ContractsPage"));
+const PatientHomePage = lazyRetry(() => import("@/pages/patient/PatientHomePage"));
+const PatientSessionsPage = lazyRetry(() => import("@/pages/patient/PatientSessionsPage"));
+const PatientDiaryPage = lazyRetry(() => import("@/pages/patient/PatientDiaryPage"));
+const PatientMessagesPage = lazyRetry(() => import("@/pages/patient/PatientMessagesPage"));
+const PatientDocumentsPage = lazyRetry(() => import("@/pages/patient/PatientDocumentsPage"));
+const PatientPaymentsPage = lazyRetry(() => import("@/pages/patient/PatientPaymentsPage"));
+const PatientBookingPage = lazyRetry(() => import("@/pages/patient/PatientBookingPage"));
+const AvailabilitySettingsPage = lazyRetry(() => import("@/pages/AvailabilitySettingsPage"));
+const AdminDashboard = lazyRetry(() => import("@/pages/admin/AdminDashboard"));
+const AdminUsersPage = lazyRetry(() => import("@/pages/admin/AdminUsersPage"));
+const AdminTestLab = lazyRetry(() => import("@/pages/admin/AdminTestLab"));
+const AdminTicketsPage = lazyRetry(() => import("@/pages/admin/AdminTicketsPage"));
+const DiagnosticsPage = lazyRetry(() => import("@/pages/DiagnosticsPage"));
 
 type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"

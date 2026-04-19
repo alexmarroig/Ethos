@@ -27,6 +27,30 @@ async function clearLocalWebArtifacts() {
   }
 }
 
+// Global handler for Chunk Load Errors (dynamic import failures)
+// This is critical for resolving issues after new deployments where old hashes no longer exist.
+if (typeof window !== "undefined") {
+  window.addEventListener("error", (event) => {
+    const isChunkLoadFailed = /Loading chunk .* failed|Failed to fetch dynamically imported module/.test(
+      event.message || ""
+    );
+    if (isChunkLoadFailed) {
+      console.warn("Chunk load failure detected. Reloading page to fetch latest version...");
+      window.location.reload();
+    }
+  }, true);
+
+  window.addEventListener("unhandledrejection", (event) => {
+    const isChunkLoadFailed = /Loading chunk .* failed|Failed to fetch dynamically imported module/.test(
+      event.reason?.message || ""
+    );
+    if (isChunkLoadFailed) {
+      console.warn("Chunk load failure detected in promise. Reloading page...");
+      window.location.reload();
+    }
+  });
+}
+
 void clearLocalWebArtifacts();
 
 createRoot(document.getElementById("root")!).render(<App />);
