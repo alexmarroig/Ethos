@@ -1,0 +1,32 @@
+app = "ethos-evolution"
+primary_region = "gru"
+
+[build]
+  image = "evoapicloud/evolution-api:latest"
+
+[env]
+  PORT = "8080"
+  DATABASE_PROVIDER = "postgresql"
+  STORE_MESSAGES = "false"
+  STORE_MESSAGE_UP = "false"
+  STORE_CONTACTS = "false"
+  STORE_CHATS = "false"
+  WEBHOOK_GLOBAL_ENABLED = "true"
+  WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS = "true"
+  WEBHOOK_EVENTS_MESSAGES = "true"
+
+[[services]]
+  internal_port = 8080
+  protocol = "tcp"
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.ports]]
+    port = 443
+    handlers = ["tls", "http"]
+
+[mounts]
+  source = "evolution_instances"
+  destination = "/evolution/instances"
