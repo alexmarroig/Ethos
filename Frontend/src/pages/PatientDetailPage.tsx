@@ -1366,16 +1366,17 @@ export default function PatientDetailPage({
           </div>
         </motion.section>
 
-        <motion.section className="grid gap-5 lg:grid-cols-2" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
+        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
           <div>
             <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergência</h2>
             <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e segurança do caso.</p>
           </div>
-          <label className="flex items-center gap-3 text-sm text-foreground">
+          <label className="flex items-center gap-3 text-sm text-foreground cursor-pointer">
             <input
               type="checkbox"
               checked={form.has_psychiatric_followup}
               onChange={(event) => updateForm("has_psychiatric_followup", event.target.checked)}
+              className="h-4 w-4 accent-primary"
             />
             Em acompanhamento psiquiátrico
           </label>
@@ -1389,8 +1390,7 @@ export default function PatientDetailPage({
               <Input value={form.psychiatrist_contact} onChange={(event) => updateForm("psychiatrist_contact", formatPhone(event.target.value))} />
             </div>
           </div>
-
-          <div className="grid gap-4 md:grid-cols-3 mt-4">
+          <div className="grid gap-4 md:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Contato de emergência</label>
               <Input value={form.emergency_contact_name} onChange={(event) => updateForm("emergency_contact_name", event.target.value)} />
