@@ -56,10 +56,40 @@ import type {
   TherapeuticGoal,
   Transcript,
   User,
+  CalendarSuggestion,
+  RecurrenceRule,
 } from "../domain/types";
 
 const now = seeds.now;
 const DAY_MS = 86_400_000;
+
+const dayOfWeekName = (iso: string): "monday" | "tuesday" | "wednesday" | "thursday" | "friday" => {
+  const names = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] as const;
+  return names[new Date(iso).getDay()] as "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
+};
+
+const timeOfDay = (iso: string): string => {
+  const d = new Date(iso);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+const modeOf = <T>(arr: T[]): T | undefined => {
+  if (!arr.length) return undefined;
+  const counts = new Map<string, number>();
+  for (const v of arr) {
+    const key = String(v);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  let best: T | undefined;
+  let bestCount = 0;
+  for (const [key, count] of counts) {
+    if (count > bestCount) {
+      bestCount = count;
+      best = arr.find((v) => String(v) === key);
+    }
+  }
+  return best;
+};
 const persistMutation = () => schedulePersistDatabase();
 const passwordResetTokens = new Map<string, { userId: string; expiresAt: number }>();
 const decryptPath = (value: string) =>
@@ -2891,4 +2921,182 @@ export const getFinancialSummary = (owner: string): FinancialSummary => {
   }
 
   return { overdue_count, overdue_total, due_soon_count };
+};
+
+export const generateNextSession = (owner: string, completedSession: ClinicalSession): ClinicalSession | null => {
+  if (!completedSession.recurrence || !completedSession.series_id) return null;
+
+  const rule = completedSession.recurrence;
+
+  // Check if a future session already exists for this series
+  const existingFuture = Array.from(db.sessions.values()).find(
+    (s) =>
+      s.owner_user_id === owner &&
+      s.series_id === completedSession.series_id &&
+      s.id !== completedSession.id &&
+      new Date(s.scheduled_at) > new Date(),
+  );
+  if (existingFuture) return null;
+
+  const currentDate = new Date(completedSession.scheduled_at);
+  let nextDate: Date;
+
+  if (rule.type === "weekly") {
+    nextDate = new Date(currentDate.getTime() + 7 * 24 * 60 * 60 * 1000);
+  } else if (rule.type === "biweekly") {
+    nextDate = new Date(currentDate.getTime() + 14 * 24 * 60 * 60 * 1000);
+  } else {
+    // 2x-week: find next day from rule.days after the current day
+    const dayOrder = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const currentDayIdx = currentDate.getDay();
+    const ruleDayIdxes = rule.days.map((d) => dayOrder.indexOf(d)).sort((a, b) => a - b);
+    const nextIdx = ruleDayIdxes.find((idx) => idx > currentDayIdx) ?? ruleDayIdxes[0];
+    const diff = nextIdx > currentDayIdx ? nextIdx - currentDayIdx : 7 - currentDayIdx + nextIdx;
+    nextDate = new Date(currentDate.getTime() + diff * 24 * 60 * 60 * 1000);
+  }
+
+  const [hours, minutes] = rule.time.split(":").map(Number);
+  nextDate.setHours(hours, minutes, 0, 0);
+
+  const next: ClinicalSession = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: completedSession.patient_id,
+    scheduled_at: nextDate.toISOString(),
+    status: "scheduled",
+    duration_minutes: rule.duration_minutes,
+    recurrence: rule,
+    series_id: completedSession.series_id,
+    is_series_anchor: false,
+    event_type: "session",
+    created_at: now(),
+  };
+
+  db.sessions.set(next.id, next);
+  persistMutation();
+  return next;
+};
+
+export const listSuggestions = (owner: string, weekStart: string): CalendarSuggestion[] => {
+  const start = new Date(weekStart);
+  start.setHours(0, 0, 0, 0);
+  const end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000);
+
+  const suggestions: CalendarSuggestion[] = [];
+
+  // --- Source "rule": series with explicit recurrence ---
+  const seriesMap = new Map<string, ClinicalSession>();
+  for (const s of db.sessions.values()) {
+    if (s.owner_user_id !== owner) continue;
+    if (!s.recurrence || !s.series_id) continue;
+    const existing = seriesMap.get(s.series_id);
+    if (!existing || new Date(s.scheduled_at) > new Date(existing.scheduled_at)) {
+      seriesMap.set(s.series_id, s);
+    }
+  }
+
+  for (const [seriesId, anchor] of seriesMap) {
+    const rule = anchor.recurrence!;
+    const alreadyThisWeek = Array.from(db.sessions.values()).some(
+      (s) =>
+        s.owner_user_id === owner &&
+        s.series_id === seriesId &&
+        new Date(s.scheduled_at) >= start &&
+        new Date(s.scheduled_at) < end,
+    );
+    if (alreadyThisWeek) continue;
+
+    const dayOrder = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const targetDays = rule.days.map((d) => dayOrder.indexOf(d));
+    const [hours, minutes] = rule.time.split(":").map(Number);
+
+    for (const dayIdx of targetDays) {
+      const candidate = new Date(start);
+      while (candidate.getDay() !== dayIdx && candidate < end) {
+        candidate.setDate(candidate.getDate() + 1);
+      }
+      if (candidate >= end) continue;
+      candidate.setHours(hours, minutes, 0, 0);
+
+      const patient = db.patients.get(anchor.patient_id);
+      const recurrenceLabel =
+        rule.type === "weekly" ? "semanal" : rule.type === "biweekly" ? "quinzenal" : "2× semana";
+
+      suggestions.push({
+        patient_id: anchor.patient_id,
+        patient_name: patient?.label ?? anchor.patient_id,
+        suggested_at: candidate.toISOString(),
+        duration_minutes: rule.duration_minutes,
+        source: "rule",
+        series_id: seriesId,
+        recurrence_type: recurrenceLabel,
+      });
+    }
+  }
+
+  // --- Source "pattern": patients WITHOUT explicit recurrence ---
+  const patientSessions = new Map<string, ClinicalSession[]>();
+  for (const s of db.sessions.values()) {
+    if (s.owner_user_id !== owner) continue;
+    if (s.recurrence) continue;
+    if (s.status !== "completed") continue;
+    if (!s.patient_id) continue;
+    const list = patientSessions.get(s.patient_id) ?? [];
+    list.push(s);
+    patientSessions.set(s.patient_id, list);
+  }
+
+  for (const [patientId, sessions] of patientSessions) {
+    const sorted = sessions
+      .sort((a, b) => new Date(b.scheduled_at).getTime() - new Date(a.scheduled_at).getTime())
+      .slice(0, 12);
+    if (sorted.length < 3) continue;
+
+    const days = sorted.map((s) => dayOfWeekName(s.scheduled_at));
+    const dayModal = modeOf(days);
+    if (!dayModal) continue;
+
+    const times = sorted.map((s) => timeOfDay(s.scheduled_at));
+    const timeModal = modeOf(times);
+    if (!timeModal) continue;
+
+    const matching = sorted.filter(
+      (s) => dayOfWeekName(s.scheduled_at) === dayModal && timeOfDay(s.scheduled_at) === timeModal,
+    );
+    const confidence = Math.round((matching.length / sorted.length) * 100);
+    if (confidence < 70) continue;
+
+    const alreadyThisWeek = Array.from(db.sessions.values()).some(
+      (s) =>
+        s.owner_user_id === owner &&
+        s.patient_id === patientId &&
+        !s.recurrence &&
+        new Date(s.scheduled_at) >= start &&
+        new Date(s.scheduled_at) < end,
+    );
+    if (alreadyThisWeek) continue;
+
+    const dayOrder = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+    const targetDayIdx = dayOrder.indexOf(dayModal);
+    const candidate = new Date(start);
+    while (candidate.getDay() !== targetDayIdx && candidate < end) {
+      candidate.setDate(candidate.getDate() + 1);
+    }
+    if (candidate >= end) continue;
+
+    const [hours, minutes] = timeModal.split(":").map(Number);
+    candidate.setHours(hours, minutes, 0, 0);
+
+    const patient = db.patients.get(patientId);
+    suggestions.push({
+      patient_id: patientId,
+      patient_name: patient?.label ?? patientId,
+      suggested_at: candidate.toISOString(),
+      duration_minutes: sorted[0].duration_minutes ?? 50,
+      source: "pattern",
+      confidence,
+    });
+  }
+
+  return suggestions;
 };
