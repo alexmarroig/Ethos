@@ -4,7 +4,7 @@ import { AlertCircle, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react"
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
 import { sessionService, type Session } from "@/services/sessionService";
-import { financeService, type FinancialEntry } from "@/services/financeService";
+import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -92,6 +92,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const [pendingPayments, setPendingPayments] = useState<FinancialEntry[]>([]);
   const [upcomingPayments, setUpcomingPayments] = useState<FinancialEntry[]>([]);
   const [birthdayPatients, setBirthdayPatients] = useState<Patient[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
@@ -193,6 +194,12 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
     };
 
     void load();
+  }, []);
+
+  useEffect(() => {
+    financeService.getFinancialSummary().then((res) => {
+      if (res.success) setFinancialSummary(res.data);
+    }).catch(console.error);
   }, []);
 
   const mapStatus = (session: Session): SessionStatus => {
@@ -324,6 +331,33 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
             icon={<Gift className="h-4 w-4" />}
           />
         </section>
+
+        {financialSummary && financialSummary.overdue_count > 0 && (
+          <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
+            <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+            <div className="flex-1">
+              <span className="font-semibold text-amber-700 dark:text-amber-300">
+                {financialSummary.overdue_count}{" "}
+                {financialSummary.overdue_count === 1
+                  ? "paciente com cobrança em atraso"
+                  : "pacientes com cobranças em atraso"}
+              </span>
+              <span className="text-muted-foreground">
+                {" · "}
+                {financialSummary.overdue_total.toLocaleString("pt-BR", {
+                  style: "currency",
+                  currency: "BRL",
+                })}
+              </span>
+            </div>
+            <a
+              href="/financeiro?filter=overdue"
+              className="text-xs font-medium text-amber-700 dark:text-amber-300 underline-offset-2 hover:underline"
+            >
+              Ver →
+            </a>
+          </div>
+        )}
 
         <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
           <div className="space-y-6">
