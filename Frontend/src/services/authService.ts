@@ -39,6 +39,9 @@ export const authService = {
     email: string;
     avatar_url?: string;
     crp?: string;
+    rg?: string;
+    cpf?: string;
+    gender?: "F" | "M";
     specialty?: string;
     clinical_approach?: string;
   }>): Promise<ApiResult<LoginResponse["user"]>> =>

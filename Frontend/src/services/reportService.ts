@@ -5,6 +5,7 @@ export interface Report {
   patient_id: string;
   patient_name?: string;
   purpose: string;
+  kind?: "session_report" | "longitudinal_record";
   content?: string;
   status?: "draft" | "final";
   created_at?: string;
@@ -18,12 +19,12 @@ type PaginatedResponse<T> = {
 };
 
 export const reportService = {
-  create: (data: { patient_id: string; purpose: string; content: string }): Promise<ApiResult<Report>> =>
+  create: (data: { patient_id: string; purpose: string; content: string; kind?: "session_report" | "longitudinal_record" }): Promise<ApiResult<Report>> =>
     api.post<Report>("/reports", data),
 
   update: (
     reportId: string,
-    data: Partial<{ purpose: string; content: string; status: "draft" | "final" }>,
+    data: Partial<{ purpose: string; content: string; status: "draft" | "final"; kind: "session_report" | "longitudinal_record" }>,
   ): Promise<ApiResult<Report>> =>
     api.patch<Report>(`/reports/${reportId}`, data),
 

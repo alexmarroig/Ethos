@@ -48,8 +48,20 @@ export const contractsApi = {
   create: (data: Partial<Contract>): Promise<ApiResult<Contract>> =>
     api.post<Contract>("/contracts", data),
 
-  send: (id: string): Promise<ApiResult<{ contract: Contract; portal_url: string | null }>> =>
-    api.post<{ contract: Contract; portal_url: string | null }>(`/contracts/${id}/send`),
+  update: (id: string, data: Partial<Contract>): Promise<ApiResult<Contract>> =>
+    api.patch<Contract>(`/contracts/${id}`, data),
+
+  send: (
+    id: string,
+    data: { channel: "email" | "whatsapp"; recipient?: string },
+  ): Promise<ApiResult<{ contract: Contract; portal_url: string | null; whatsapp_url: string | null }>> =>
+    api.post<{ contract: Contract; portal_url: string | null; whatsapp_url: string | null }>(`/contracts/${id}/send`, data),
+
+  uploadSigned: (
+    id: string,
+    data: { file_name: string; mime_type: string; data_url: string },
+  ): Promise<ApiResult<Contract>> =>
+    api.post<Contract>(`/contracts/${id}/signed-upload`, data),
 
   exportContract: (id: string, format: "pdf" | "docx" = "pdf"): Promise<ApiResult<{ url: string }>> =>
     api.get<{ url: string }>(`/contracts/${id}/export?format=${format}`),
@@ -80,6 +92,9 @@ export const documentsApi = {
   create: (data: Partial<Document>): Promise<ApiResult<Document>> =>
     api.post<Document>("/documents", data),
 
+  remove: (docId: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/documents/${docId}`),
+
   listTemplates: async (): Promise<ApiResult<DocumentTemplate[]>> => {
     const result = await api.get<DocumentTemplate[]>("/document-templates");
     if (!result.success) return result;
@@ -101,6 +116,20 @@ export const documentsApi = {
 
   renderTemplate: (templateId: string, variables: Record<string, string>): Promise<ApiResult<{ rendered: string }>> =>
     api.post<{ rendered: string }>("/templates/render", { template_id: templateId, variables }),
+};
+
+export const templatesApi = {
+  list: (): Promise<ApiResult<DocumentTemplate[]>> =>
+    api.get<DocumentTemplate[]>("/templates"),
+
+  create: (data: Partial<DocumentTemplate>): Promise<ApiResult<DocumentTemplate>> =>
+    api.post<DocumentTemplate>("/templates", data),
+
+  update: (id: string, data: Partial<DocumentTemplate>): Promise<ApiResult<DocumentTemplate>> =>
+    api.put<DocumentTemplate>(`/templates/${id}`, data),
+
+  remove: (id: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/templates/${id}`),
 };
 
 /* ------------------------------------------------------------------ */
@@ -147,8 +176,14 @@ export const casesApi = {
 /* ------------------------------------------------------------------ */
 
 export const privateCommentsApi = {
-  list: (noteId: string): Promise<ApiResult<PrivateComment[]>> =>
-    api.get<PrivateComment[]>(`/clinical-notes/${noteId}/private-comments`),
+  list: async (noteId: string): Promise<ApiResult<PrivateComment[]>> => {
+    const result = await api.get<PaginatedResponse<PrivateComment> | PrivateComment[]>(`/clinical-notes/${noteId}/private-comments`);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: unwrapList(result.data),
+    };
+  },
 
   create: (noteId: string, content: string): Promise<ApiResult<PrivateComment>> =>
     api.post<PrivateComment>(`/clinical-notes/${noteId}/private-comments`, { content }),
@@ -218,4 +253,62 @@ export const localEntitlementsApi = {
 export const jobsApi = {
   get: (jobId: string): Promise<ApiResult<Job>> =>
     api.get<Job>(`/jobs/${jobId}`),
+};
+
+
+/* ------------------------------------------------------------------ */
+/*  WhatsApp / Evolution API                                          */
+/* ------------------------------------------------------------------ */
+
+export type WhatsAppConfigPublic = {
+  url: string;
+  apiKey: string;
+  instanceName: string;
+  enabled: boolean;
+};
+
+export type WhatsAppConnectionState = "open" | "connecting" | "close" | "unknown";
+
+export const whatsappApi = {
+  getConfig: (): Promise<ApiResult<WhatsAppConfigPublic | null>> =>
+    api.get<WhatsAppConfigPublic | null>("/settings/whatsapp"),
+
+  saveConfig: (payload: { url: string; apiKey: string; instanceName: string; enabled: boolean }): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp", payload),
+
+  connect: (): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp/connect"),
+
+  getStatus: (): Promise<ApiResult<{ state: WhatsAppConnectionState }>> =>
+    api.get<{ state: WhatsAppConnectionState }>("/settings/whatsapp/status"),
+
+  getQRCode: (): Promise<ApiResult<{ base64: string; code: string }>> =>
+    api.get<{ base64: string; code: string }>("/settings/whatsapp/qrcode"),
+
+  sendTest: (phone: string, text?: string): Promise<ApiResult<{ ok: boolean }>> =>
+    api.post<{ ok: boolean }>("/settings/whatsapp/send-test", { phone, text }),
+};
+
+/* ------------------------------------------------------------------ */
+/*  Session Reminder Config                                            */
+/* ------------------------------------------------------------------ */
+
+export type SessionReminderConfig = {
+  enabled: boolean;
+  hoursBeforeSession: number;
+  template: string;
+};
+
+export const sessionReminderApi = {
+  getConfig: (): Promise<ApiResult<SessionReminderConfig | null>> =>
+    api.get<SessionReminderConfig | null>("/settings/session-reminder"),
+
+  saveConfig: (payload: SessionReminderConfig): Promise<ApiResult<SessionReminderConfig>> =>
+    api.post<SessionReminderConfig>("/settings/session-reminder", payload),
+
+  getPatientEnabled: (patientId: string): Promise<ApiResult<{ patient_id: string; enabled: boolean }>> =>
+    api.get<{ patient_id: string; enabled: boolean }>(`/patients/${patientId}/session-reminder`),
+
+  setPatientEnabled: (patientId: string, enabled: boolean): Promise<ApiResult<{ patient_id: string; enabled: boolean }>> =>
+    api.patch<{ patient_id: string; enabled: boolean }>(`/patients/${patientId}/session-reminder`, { enabled }),
 };

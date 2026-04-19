@@ -11,7 +11,9 @@ node_modules/
 coverage/
 dist/
 *.log
-
+*.zip
+*.rar
+*.7z
 # Expo / React Native build artifacts
 apps/ethos-mobile/android/
 apps/ethos-mobile/ios/

@@ -8,6 +8,7 @@
     "Frontend"
   ],
   "scripts": {
+    "prebuild": "npm run check:encoding",
     "dev": "npm run dev:frontend",
     "dev:frontend": "npm --workspace Frontend run dev",
     "dev:web": "npm run dev:frontend",
@@ -26,6 +27,7 @@
     "build:transcriber": "npm --workspace apps/ethos-transcriber run build",
     "build:backend": "npm run build:clinic",
     "build:control-plane": "npm --workspace apps/ethos-control-plane run build",
+    "check:encoding": "node scripts/check-mojibake.js",
     "test": "npm run test:apps",
     "test:apps": "npm --workspace ethos-clinic run test && npm --workspace ethos-control-plane run test",
     "lint": "echo \"lint placeholder\"",
@@ -34,6 +36,11 @@
     "ci:check-boundaries": "bash scripts/check-boundaries.sh"
   },
   "devDependencies": {
+    "@types/node": "^25.6.0",
     "typescript": "^5.3.3"
+  },
+  "dependencies": {
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   }
 }

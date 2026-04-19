@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { BookOpen, Loader2, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,7 +26,7 @@ const fieldLabels: Record<string, string> = {
   personal_history: "Histórico pessoal",
   family_history: "Histórico familiar",
   psychiatric_history: "Histórico psiquiátrico",
-  medication: "Medicação",
+  medication: "Medicação em uso",
   relevant_events: "Eventos relevantes",
 };
 
@@ -52,7 +52,10 @@ const AnamnesisPage = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
+
+  // Create / edit dialog
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [editingRecord, setEditingRecord] = useState<Anamnesis | null>(null);
   const [creating, setCreating] = useState(false);
   const [patientId, setPatientId] = useState("");
   const [templateId, setTemplateId] = useState(templates[0].id);
@@ -61,6 +64,9 @@ const AnamnesisPage = () => {
   const [psychiatricHistory, setPsychiatricHistory] = useState("");
   const [medication, setMedication] = useState("");
   const [relevantEvents, setRelevantEvents] = useState("");
+
+  // Expanded record
+  const [expandedRecordId, setExpandedRecordId] = useState<string | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -98,6 +104,24 @@ const AnamnesisPage = () => {
     setPsychiatricHistory("");
     setMedication("");
     setRelevantEvents("");
+    setEditingRecord(null);
+  };
+
+  const openCreate = () => {
+    resetForm();
+    setDialogOpen(true);
+  };
+
+  const openEdit = (record: Anamnesis) => {
+    setEditingRecord(record);
+    setPatientId(record.patient_id);
+    setTemplateId(record.template ?? templates[0].id);
+    setPersonalHistory(record.content.personal_history ?? "");
+    setFamilyHistory(record.content.family_history ?? "");
+    setPsychiatricHistory(record.content.psychiatric_history ?? "");
+    setMedication(record.content.medication ?? "");
+    setRelevantEvents(record.content.relevant_events ?? "");
+    setDialogOpen(true);
   };
 
   const handleCreate = async () => {
@@ -122,11 +146,18 @@ const AnamnesisPage = () => {
       return;
     }
 
-    setRecords((current) => [result.data, ...current]);
+    if (editingRecord) {
+      setRecords((current) =>
+        current.map((r) => (r.id === editingRecord.id ? result.data : r)),
+      );
+    } else {
+      setRecords((current) => [result.data, ...current]);
+    }
+
     resetForm();
     setDialogOpen(false);
     setCreating(false);
-    toast({ title: "Anamnese registrada" });
+    toast({ title: editingRecord ? "Anamnese atualizada" : "Anamnese registrada" });
   };
 
   if (loading) {
@@ -173,16 +204,24 @@ const AnamnesisPage = () => {
               Registros de anamnese
             </h2>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <Dialog
+              open={dialogOpen}
+              onOpenChange={(open) => {
+                if (!open) resetForm();
+                setDialogOpen(open);
+              }}
+            >
               <DialogTrigger asChild>
-                <Button variant="secondary" size="sm" className="gap-2">
+                <Button variant="secondary" size="sm" className="gap-2" onClick={openCreate}>
                   <Plus className="w-4 h-4" strokeWidth={1.5} />
                   Nova anamnese
                 </Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">Nova anamnese</DialogTitle>
+                  <DialogTitle className="font-serif text-xl">
+                    {editingRecord ? "Editar anamnese" : "Nova anamnese"}
+                  </DialogTitle>
                 </DialogHeader>
 
                 <div className="space-y-4">
@@ -221,7 +260,7 @@ const AnamnesisPage = () => {
                 <DialogFooter>
                   <Button onClick={handleCreate} disabled={creating || !patientId} className="gap-2">
                     {creating && <Loader2 className="w-4 h-4 animate-spin" />}
-                    Salvar anamnese
+                    {editingRecord ? "Salvar alterações" : "Salvar anamnese"}
                   </Button>
                 </DialogFooter>
               </DialogContent>
@@ -237,28 +276,78 @@ const AnamnesisPage = () => {
             </div>
           ) : (
             <div className="space-y-3">
-              {records.map((record) => (
-                <div key={record.id} className="session-card">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="font-serif text-lg font-medium text-foreground">
-                        {patientNames.get(record.patient_id) ?? "Paciente"}
-                      </h3>
-                      <p className="mt-1 text-sm text-muted-foreground">
-                        {templates.find((template) => template.id === record.template)?.label ?? record.template ?? "Anamnese"} · {formatDate(record.created_at)}
-                      </p>
+              {records.map((record) => {
+                const isExpanded = expandedRecordId === record.id;
+                return (
+                  <div
+                    key={record.id}
+                    className="session-card cursor-pointer select-none"
+                    onClick={() => setExpandedRecordId(isExpanded ? null : record.id)}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-serif text-lg font-medium text-foreground">
+                          {patientNames.get(record.patient_id) ?? "Paciente"}
+                        </h3>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {templates.find((t) => t.id === record.template)?.label ?? record.template ?? "Anamnese"} · {formatDate(record.created_at)}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="text-xs"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openEdit(record);
+                          }}
+                        >
+                          Editar
+                        </Button>
+                        <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
+                          v{record.version}
+                        </span>
+                      </div>
                     </div>
 
-                    <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-full">
-                      v{record.version}
-                    </span>
-                  </div>
+                    {!isExpanded && (
+                      <p className="mt-3 text-sm text-foreground/80">
+                        {summarizeContent(record.content) || "Sem conteúdo detalhado."}
+                      </p>
+                    )}
 
-                  <p className="mt-3 text-sm text-foreground/80">
-                    {summarizeContent(record.content) || "Sem conteúdo detalhado."}
-                  </p>
-                </div>
-              ))}
+                    <AnimatePresence initial={false}>
+                      {isExpanded && (
+                        <motion.div
+                          key="expanded"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.2 }}
+                          className="overflow-hidden"
+                        >
+                          <div className="mt-4 space-y-2">
+                            {Object.entries(record.content)
+                              .filter(([, value]) => typeof value === "string" && value.trim())
+                              .map(([key, value]) => (
+                                <div key={key} className="bg-muted/40 rounded-xl px-4 py-3">
+                                  <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">
+                                    {fieldLabels[key] ?? key}
+                                  </p>
+                                  <p className="text-sm text-foreground whitespace-pre-wrap">
+                                    {value}
+                                  </p>
+                                </div>
+                              ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
             </div>
           )}
         </motion.div>

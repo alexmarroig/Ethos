@@ -5,11 +5,15 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "dev": "ts-node src/index.ts",
+    "prebuild": "npm --prefix ../.. run check:encoding",
     "build": "tsc -p tsconfig.json",
     "test": "node scripts/run-tests.js"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  },
   "devDependencies": {
+    "@types/node": "^22.19.17",
     "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
   }

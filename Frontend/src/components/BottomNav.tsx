@@ -15,7 +15,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       return [
         { id: "patient-home", label: "Início", icon: Home },
         { id: "patient-sessions", label: "Sessões", icon: Calendar },
-        { id: "patient-diary", label: "Diário", icon: Clipboard },
+        { id: "patient-diary", label: "Formulários", icon: Clipboard },
         { id: "account", label: "Conta", icon: User },
       ];
     }
@@ -30,7 +30,6 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       ];
     }
 
-    // Professional
     return [
       { id: "home", label: "Início", icon: Home },
       { id: "agenda", label: "Agenda", icon: Calendar },
@@ -55,9 +54,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
               onClick={() => onNavigate(item.id)}
               className={cn(
                 "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
-                isActive
-                  ? "text-primary"
-                  : "text-muted-foreground"
+                isActive ? "text-primary" : "text-muted-foreground",
               )}
             >
               <Icon className="w-5 h-5 mb-1" strokeWidth={1.5} />
@@ -66,7 +63,6 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
           );
         })}
       </div>
-      {/* Safe area for iOS */}
       <div className="h-[env(safe-area-inset-bottom)]" />
     </nav>
   );

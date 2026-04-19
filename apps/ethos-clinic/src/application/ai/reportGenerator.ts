@@ -12,12 +12,17 @@ type OpenAIChatCompletionResponse = {
   };
 };
 
+const defaultModel =
+  LLM_API_URL.includes("openrouter.ai")
+    ? "deepseek/deepseek-chat-v3-0324:free"
+    : "gpt-4o-mini";
+
 const OPENAI_MODEL =
   process.env.OPENROUTER_REPORT_MODEL
   ?? process.env.ETHOS_REPORT_MODEL
   ?? process.env.OPENROUTER_CLINICAL_NOTE_MODEL
   ?? process.env.ETHOS_CLINICAL_NOTE_MODEL
-  ?? "deepseek/deepseek-chat-v3-0324:free";
+  ?? defaultModel;
 const OPENAI_TIMEOUT_MS = Number(process.env.ETHOS_REPORT_TIMEOUT_MS ?? 20_000);
 
 const extractMessageContent = (payload: OpenAIChatCompletionResponse) => {

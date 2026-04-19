@@ -1,0 +1,98 @@
+- generic [ref=e15]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: WS
+          - generic [ref=e22]:
+            - heading "ETHOS" [level=1] [ref=e23]
+            - generic [ref=e24]:
+              - paragraph [ref=e25]: Whisper Speech 447267
+              - generic [ref=e26]: Conta clínica
+        - button "Alternar tema" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+      - navigation [ref=e30]:
+        - list [ref=e31]:
+          - listitem [ref=e32]:
+            - button "Início" [ref=e33] [cursor=pointer]:
+              - img [ref=e34]
+              - generic [ref=e37]: Início
+          - listitem [ref=e38]:
+            - button "Agenda clínica" [ref=e39] [cursor=pointer]:
+              - img [ref=e40]
+              - generic [ref=e42]: Agenda clínica
+          - listitem [ref=e43]:
+            - button "Pacientes" [active] [ref=e44] [cursor=pointer]:
+              - img [ref=e45]
+              - generic [ref=e50]: Pacientes
+          - listitem [ref=e51]:
+            - button "Diário e formulários" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+              - generic [ref=e56]: Diário e formulários
+          - listitem [ref=e57]:
+            - button "Anamnese" [ref=e58] [cursor=pointer]:
+              - img [ref=e59]
+              - generic [ref=e61]: Anamnese
+          - listitem [ref=e62]:
+            - button "Financeiro" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - generic [ref=e67]: Financeiro
+          - listitem [ref=e68]:
+            - button "Relatórios" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Relatórios
+          - listitem [ref=e74]:
+            - button "Documentos" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - generic [ref=e78]: Documentos
+          - listitem [ref=e79]:
+            - button "Contratos" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+              - generic [ref=e85]: Contratos
+          - listitem [ref=e86]:
+            - button "Backup e dados" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+              - generic [ref=e94]: Backup e dados
+          - listitem [ref=e95]:
+            - button "Ética e sigilo" [ref=e96] [cursor=pointer]:
+              - img [ref=e97]
+              - generic [ref=e99]: Ética e sigilo
+      - generic [ref=e100]:
+        - button "Conta" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+          - generic [ref=e105]: Conta
+        - button "Sair" [ref=e106] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Sair
+    - main [ref=e111]:
+      - generic [ref=e160]:
+        - generic [ref=e161]:
+          - heading "Pacientes" [level=1] [ref=e162]
+          - paragraph [ref=e163]: Cadastre e acompanhe seus pacientes com calma.
+        - generic [ref=e164]:
+          - generic [ref=e165]:
+            - img [ref=e166]
+            - textbox "Buscar por nome" [ref=e169]
+          - generic [ref=e170]:
+            - button "Novo paciente" [ref=e171] [cursor=pointer]:
+              - img
+              - text: Novo paciente
+            - button "Criar acesso" [ref=e172] [cursor=pointer]:
+              - img
+              - text: Criar acesso
+        - generic [ref=e174]:
+          - 'button "Paciente Speech 447267 Sem email 1 sessões Última: 13 de abr." [ref=e175] [cursor=pointer]':
+            - heading "Paciente Speech 447267" [level=3] [ref=e176]
+            - paragraph [ref=e177]: Sem email
+            - generic [ref=e178]:
+              - generic [ref=e179]: 1 sessões
+              - generic [ref=e180]: "Última: 13 de abr."
+          - generic [ref=e181]:
+            - button "Criar acesso" [ref=e182] [cursor=pointer]:
+              - img
+              - text: Criar acesso
+            - button "Abrir ficha de Paciente Speech 447267" [ref=e183] [cursor=pointer]:
+              - img

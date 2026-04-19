@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+﻿import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
+import BrandWordmark from "@/components/BrandWordmark";
 
 interface LoginPageProps {
   onLoginSuccess: () => void;
@@ -141,7 +142,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       onLoginSuccess();
     } else {
       toast({
-        title: "Credenciais invalidas",
+        title: "Credenciais inválidas",
         description: "Verifique seu email e senha.",
         variant: "destructive",
       });
@@ -154,8 +155,8 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     e.preventDefault();
     if (!EMAIL_REGEX.test(recoveryEmail.trim())) {
       toast({
-        title: "Email invalido",
-        description: "Digite um email valido para recuperar o acesso.",
+        title: "Email inválido",
+        description: "Digite um email válido para recuperar o acesso.",
         variant: "destructive",
       });
       return;
@@ -169,7 +170,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     } else {
       toast({
         title: "Erro",
-        description: result.error?.message ?? "Nao foi possivel enviar o email de recuperacao.",
+        description: result.error?.message ?? "Não foi possível enviar o email de recuperação.",
         variant: "destructive",
       });
     }
@@ -182,13 +183,13 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       return "Informe o nome completo.";
     }
     if (!EMAIL_REGEX.test(signup.email.trim())) {
-      return "Informe um email valido.";
+      return "Informe um email válido.";
     }
     if (signup.password.length < 8) {
       return "A senha precisa ter pelo menos 8 caracteres.";
     }
     if (signup.password !== signup.confirmPassword) {
-      return "As senhas nao conferem.";
+      return "As senhas não conferem.";
     }
     if (!CRP_REGEX.test(normalizedCrp)) {
       return "Informe o CRP no formato 00/0000 a 00/000000.";
@@ -197,10 +198,10 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
       return "Selecione uma especialidade.";
     }
     if (!selectedApproach) {
-      return "Selecione uma abordagem clinica.";
+      return "Selecione uma abordagem clínica.";
     }
     if (!signup.accepted_ethics) {
-      return "Voce precisa aceitar o codigo de etica para criar sua conta.";
+      return "Você precisa aceitar o código de ética para criar sua conta.";
     }
     return null;
   };
@@ -211,7 +212,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     const validationError = validateSignup();
     if (validationError) {
       toast({
-        title: "Cadastro nao concluido",
+        title: "Cadastro não concluído",
         description: validationError,
         variant: "destructive",
       });
@@ -231,11 +232,11 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 
     if (!result.success) {
       toast({
-        title: "Cadastro nao concluido",
+        title: "Cadastro não concluído",
         description:
           result.error?.code === "EMAIL_IN_USE"
-            ? "Este email ja esta cadastrado. Entre com ele ou use recuperar acesso."
-            : result.error?.message ?? "Nao foi possivel criar sua conta agora.",
+            ? "Este email já está cadastrado. Entre com ele ou use recuperar acesso."
+            : result.error?.message ?? "Não foi possível criar sua conta agora.",
         variant: "destructive",
       });
       setIsSigningUp(false);
@@ -274,7 +275,9 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, delay: 0.1 }}
         >
-          <h1 className="font-serif text-4xl font-medium text-foreground tracking-tight">ETHOS</h1>
+          <div className="mx-auto flex justify-center">
+            <BrandWordmark textClassName="text-4xl font-medium tracking-tight" />
+          </div>
           <p className="mt-2 text-muted-foreground text-sm">Plataforma clinica para atendimento real</p>
         </motion.div>
 
@@ -337,7 +340,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                         Enviando...
                       </>
                     ) : (
-                      "Enviar link de recuperacao"
+                      "Enviar link de recuperação"
                     )}
                   </Button>
 
@@ -609,7 +612,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                   </button>
                 </p>
                 <p>
-                  Nao tem conta?{" "}
+                  Não tem conta?{" "}
                   <button
                     type="button"
                     className="text-primary hover:underline"
@@ -631,3 +634,4 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 };
 
 export default LoginPage;
+

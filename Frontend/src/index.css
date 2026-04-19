@@ -1,8 +1,6 @@
-@import '@fontsource/lora/400.css';
-@import '@fontsource/lora/500.css';
-@import '@fontsource/lora/600.css';
 @import '@fontsource/inter/400.css';
 @import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
 
 @tailwind base;
 @tailwind components;
@@ -16,57 +14,58 @@
 @layer base {
   :root {
     /* Warm editorial foundation */
-    --background: 36 35% 96%;
-    --foreground: 213 29% 17%;
+    --background: 210 14% 97%;
+    --foreground: 213 29% 12%;
 
     /* Cards and surfaces */
-    --card: 36 30% 98%;
-    --card-foreground: 213 29% 17%;
+    --card: 0 0% 100%;
+    --card-foreground: 213 29% 12%;
 
     /* Popover */
-    --popover: 36 30% 98%;
-    --popover-foreground: 213 29% 17%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 213 29% 12%;
 
     /* Primary: deep Atlantic teal */
     --primary: 193 52% 23%;
-    --primary-foreground: 36 30% 97%;
+    --primary-foreground: 0 0% 100%;
 
     /* Secondary: linen stone */
-    --secondary: 35 20% 91%;
-    --secondary-foreground: 213 24% 24%;
+    --secondary: 210 17% 95%;
+    --secondary-foreground: 213 24% 18%;
 
     /* Muted surfaces */
-    --muted: 35 18% 93%;
-    --muted-foreground: 214 14% 42%;
+    --muted: 210 18% 95%;
+    --muted-foreground: 214 10% 42%;
 
     /* Accent: copper gold */
-    --accent: 28 58% 48%;
-    --accent-foreground: 36 30% 98%;
+    --accent: 206 100% 45%;
+    --accent-foreground: 0 0% 100%;
+    --brand-blue: 191 55% 62%;
 
     /* Status colors */
-    --status-pending: 45 85% 55%;
-    --status-validated: 155 45% 42%;
-    --status-draft: 35 60% 55%;
+    --status-pending: 38 90% 54%;
+    --status-validated: 157 46% 37%;
+    --status-draft: 30 68% 55%;
 
     /* Destructive */
-    --destructive: 0 55% 48%;
+    --destructive: 2 71% 54%;
     --destructive-foreground: 0 0% 98%;
 
     /* Borders and inputs */
-    --border: 33 18% 85%;
-    --input: 33 18% 85%;
-    --ring: 193 52% 31%;
+    --border: 220 14% 89%;
+    --input: 220 14% 89%;
+    --ring: 206 100% 45%;
 
-    --radius: 0.875rem;
+    --radius: 1rem;
 
     /* Typography */
-    --font-serif: 'Lora', Georgia, 'Times New Roman', serif;
-    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-display: "SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
+    --font-sans: "SF Pro Text", "Inter", -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif;
 
     /* Shadows — soft, organic */
-    --shadow-subtle: 0 1px 3px 0 hsl(220 15% 18% / 0.04), 0 1px 2px -1px hsl(220 15% 18% / 0.04);
-    --shadow-soft: 0 4px 12px -2px hsl(220 15% 18% / 0.06), 0 2px 6px -2px hsl(220 15% 18% / 0.04);
-    --shadow-medium: 0 8px 24px -4px hsl(220 15% 18% / 0.08), 0 4px 12px -4px hsl(220 15% 18% / 0.05);
+    --shadow-subtle: 0 1px 2px hsl(220 15% 18% / 0.04), 0 8px 24px -20px hsl(220 15% 18% / 0.08);
+    --shadow-soft: 0 10px 30px -18px hsl(220 15% 18% / 0.16);
+    --shadow-medium: 0 18px 44px -24px hsl(220 15% 18% / 0.2);
     --shadow-pressed: inset 0 1px 2px 0 hsl(220 15% 18% / 0.08);
 
     /* Transitions */
@@ -74,14 +73,14 @@
     --transition-gentle: 500ms cubic-bezier(0.4, 0, 0.2, 1);
 
     /* Sidebar */
-    --sidebar-background: 34 24% 94%;
-    --sidebar-foreground: 213 24% 24%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 213 24% 16%;
     --sidebar-primary: 193 52% 23%;
-    --sidebar-primary-foreground: 36 30% 97%;
-    --sidebar-accent: 34 19% 90%;
-    --sidebar-accent-foreground: 213 29% 17%;
-    --sidebar-border: 33 18% 86%;
-    --sidebar-ring: 193 52% 31%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 210 16% 96%;
+    --sidebar-accent-foreground: 213 29% 12%;
+    --sidebar-border: 220 14% 90%;
+    --sidebar-ring: 206 100% 45%;
   }
 
   .dark {
@@ -105,6 +104,7 @@
 
     --accent: 28 62% 55%;
     --accent-foreground: 210 22% 10%;
+    --brand-blue: 191 55% 62%;
 
     --status-pending: 45 80% 50%;
     --status-validated: 155 40% 45%;
@@ -142,17 +142,14 @@
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
-    background-image:
-      radial-gradient(circle at top left, hsl(var(--accent) / 0.08), transparent 26%),
-      radial-gradient(circle at top right, hsl(var(--primary) / 0.08), transparent 24%);
-    background-attachment: fixed;
+    background: hsl(var(--background));
   }
 
-  /* Serif headings for clinical depth */
   h1, h2, h3 {
-    font-family: var(--font-serif);
-    font-weight: 500;
-    letter-spacing: -0.01em;
+    font-family: var(--font-display);
+    font-weight: 600;
+    letter-spacing: -0.025em;
+    line-height: 1.08;
   }
 
   /* Selection */
@@ -165,13 +162,14 @@
 @layer components {
   /* Session card states */
   .session-card {
-    @apply relative rounded-lg border border-border bg-card p-5 transition-all;
+    @apply relative rounded-[1.25rem] border border-border bg-card p-6 transition-all;
     box-shadow: var(--shadow-subtle);
-    transition: box-shadow var(--transition-calm), transform var(--transition-calm);
+    transition: box-shadow var(--transition-calm), transform var(--transition-calm), border-color var(--transition-calm);
   }
 
   .session-card:hover {
     box-shadow: var(--shadow-soft);
+    border-color: hsl(var(--primary) / 0.14);
     transform: translateY(-1px);
   }
 
@@ -201,7 +199,7 @@
 
   /* Floating action button */
   .fab {
-    @apply fixed bottom-8 right-8 z-50 px-6 py-4 rounded-xl font-medium;
+    @apply fixed bottom-8 right-8 z-50 rounded-full px-6 py-4 font-medium;
     @apply bg-primary text-primary-foreground;
     box-shadow: var(--shadow-medium);
     transition: box-shadow var(--transition-calm), transform var(--transition-calm);
@@ -289,7 +287,7 @@
   /* Container for main content */
   .content-container {
     @apply mx-auto px-4 sm:px-6 lg:px-8;
-    max-width: 1100px;
+    max-width: 1220px;
   }
 
   /* Motion: button hover/click */

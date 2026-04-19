@@ -6,6 +6,8 @@ type RawPatientBilling = {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
 };
 
 type RawPatient = {
@@ -13,6 +15,7 @@ type RawPatient = {
   external_id?: string;
   label?: string;
   name?: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -38,6 +41,13 @@ type RawPatient = {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: RawPatientBilling;
   notes?: string;
   created_at?: string;
@@ -66,6 +76,7 @@ type RawPatientDetail = {
   documents?: unknown[];
   clinical_notes?: unknown[];
   emotional_diary?: unknown[];
+  form_entries?: unknown[];
   timeline?: unknown[];
 };
 
@@ -73,6 +84,10 @@ type RawPatientAccessResponse = {
   access: { id: string; patient_id: string };
   patient_user: { id: string; email: string; name: string };
   temporary_password?: string | null;
+  email_delivery?: {
+    status: "sent" | "skipped" | "failed";
+    detail?: string;
+  } | null;
 };
 
 export interface PatientBilling {
@@ -81,6 +96,8 @@ export interface PatientBilling {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
 }
 
 export interface PatientSummarySession {
@@ -100,6 +117,7 @@ export interface Patient {
   id: string;
   external_id?: string;
   name: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -125,6 +143,13 @@ export interface Patient {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: PatientBilling;
   notes?: string;
   last_session?: string;
@@ -140,6 +165,7 @@ export interface PatientDetail {
   documents: RawPatientDetail["documents"];
   clinical_notes: RawPatientDetail["clinical_notes"];
   emotional_diary: RawPatientDetail["emotional_diary"];
+  form_entries?: RawPatientDetail["form_entries"];
   timeline: RawPatientDetail["timeline"];
 }
 
@@ -147,6 +173,7 @@ export interface PatientAccessResult {
   credentials: string;
   patient_user: RawPatientAccessResponse["patient_user"];
   access_id: string;
+  email_delivery?: RawPatientAccessResponse["email_delivery"];
 }
 
 export interface CreatePatientInput {
@@ -176,6 +203,7 @@ function mapPatient(raw: RawPatient): Patient {
     id: String(raw.id),
     external_id: raw.external_id,
     name: raw.name ?? raw.label ?? "Paciente sem nome",
+    care_status: raw.care_status,
     email: raw.email,
     phone: raw.phone,
     whatsapp: raw.whatsapp ?? raw.phone,
@@ -201,6 +229,13 @@ function mapPatient(raw: RawPatient): Patient {
     emergency_contact_name: raw.emergency_contact_name,
     emergency_contact_relationship: raw.emergency_contact_relationship,
     emergency_contact_phone: raw.emergency_contact_phone,
+    education_level: raw.education_level,
+    marital_status: raw.marital_status,
+    legal_guardian_name: raw.legal_guardian_name,
+    legal_guardian_relationship: raw.legal_guardian_relationship,
+    report_indication: raw.report_indication,
+    recurring_techniques: raw.recurring_techniques,
+    report_notes: raw.report_notes,
     billing: raw.billing,
     notes: raw.notes,
     last_session: raw.last_session,
@@ -230,6 +265,7 @@ function mapPatientDetail(raw: RawPatientDetail): PatientDetail {
     documents: raw.documents ?? [],
     clinical_notes: raw.clinical_notes ?? [],
     emotional_diary: raw.emotional_diary ?? [],
+    form_entries: raw.form_entries ?? [],
     timeline: raw.timeline ?? [],
   };
 }
@@ -276,9 +312,11 @@ export const patientService = {
     return ok(result, (data) => ({
       access_id: data.access.id,
       patient_user: data.patient_user,
-      credentials: data.temporary_password
-        ? `Email: ${data.patient_user.email} | Senha temporaria: ${data.temporary_password}`
-        : `Email: ${data.patient_user.email}`,
+      credentials:
+        data.temporary_password || input.patient_password
+          ? `Email: ${data.patient_user.email} | Senha: ${data.temporary_password ?? input.patient_password}`
+          : `Email: ${data.patient_user.email}`,
+      email_delivery: data.email_delivery ?? undefined,
     }));
   },
 };

@@ -1,10 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { CalendarDays, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, UserRound } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Settings2, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { sessionService, type Session } from "@/services/sessionService";
+import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
+import { CLINICAL_BASE_URL } from "@/config/runtime";
+import { readStoredAuthUser } from "@/services/authStorage";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
@@ -22,20 +25,37 @@ interface AgendaPageProps {
   onSessionClick: (sessionId: string) => void;
 }
 
+type AgendaSettings = {
+  startHour: number;
+  endHour: number;
+  enabledWeekdays: number[];
+};
+
+const AGENDA_SETTINGS_KEY = "ethos_web_agenda_settings_v1";
+const defaultAgendaSettings: AgendaSettings = {
+  startHour: 8,
+  endHour: 19,
+  enabledWeekdays: [1, 2, 3, 4, 5],
+};
+
 const weekDays = [
-  { short: "Seg", long: "Segunda" },
-  { short: "Ter", long: "Terça" },
-  { short: "Qua", long: "Quarta" },
-  { short: "Qui", long: "Quinta" },
-  { short: "Sex", long: "Sexta" },
-  { short: "Sáb", long: "Sábado" },
-  { short: "Dom", long: "Domingo" },
+  { id: 1, short: "Seg", long: "Segunda" },
+  { id: 2, short: "Ter", long: "Terça" },
+  { id: 3, short: "Qua", long: "Quarta" },
+  { id: 4, short: "Qui", long: "Quinta" },
+  { id: 5, short: "Sex", long: "Sexta" },
+  { id: 6, short: "Sáb", long: "Sábado" },
+  { id: 0, short: "Dom", long: "Domingo" },
 ];
 
-const timeSlots = Array.from({ length: 12 }, (_, index) => {
-  const hour = 8 + index;
-  return `${String(hour).padStart(2, "0")}:00`;
-});
+const buildTimeSlots = (startHour: number, endHour: number) => {
+  const normalizedStart = Math.max(0, Math.min(startHour, 23));
+  const normalizedEnd = Math.max(normalizedStart + 1, Math.min(endHour, 23));
+  return Array.from({ length: normalizedEnd - normalizedStart + 1 }, (_, index) => {
+    const hour = normalizedStart + index;
+    return `${String(hour).padStart(2, "0")}:00`;
+  });
+};
 
 function getStartOfWeek(reference: Date, weekOffset: number) {
   const start = new Date(reference);
@@ -80,9 +100,18 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [currentWeek, setCurrentWeek] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+  const [billingDialog, setBillingDialog] = useState<{
+    open: boolean;
+    patientName: string;
+    suggestedAmount: number;
+    suggestedDueDate: string;
+    patientId: string;
+  } | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -90,6 +119,11 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [newDate, setNewDate] = useState("");
   const [newTime, setNewTime] = useState("");
   const [newDuration, setNewDuration] = useState("50");
+
+  const timeSlots = useMemo(
+    () => buildTimeSlots(agendaSettings.startHour, agendaSettings.endHour),
+    [agendaSettings.startHour, agendaSettings.endHour],
+  );
 
   const weekStart = useMemo(() => getStartOfWeek(new Date(), currentWeek), [currentWeek]);
 
@@ -111,8 +145,31 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           isToday: formatDate(value) === formatDate(new Date()),
         };
       }),
-    [weekStart]
+    [weekStart],
   );
+
+  const visibleWeekDays = useMemo(
+    () => weekDaysWithDate.filter((day) => agendaSettings.enabledWeekdays.includes(day.id)),
+    [weekDaysWithDate, agendaSettings.enabledWeekdays],
+  );
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(AGENDA_SETTINGS_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as Partial<AgendaSettings>;
+      setAgendaSettings({
+        startHour: typeof parsed.startHour === "number" ? parsed.startHour : defaultAgendaSettings.startHour,
+        endHour: typeof parsed.endHour === "number" ? parsed.endHour : defaultAgendaSettings.endHour,
+        enabledWeekdays:
+          Array.isArray(parsed.enabledWeekdays) && parsed.enabledWeekdays.length > 0
+            ? parsed.enabledWeekdays.filter((value): value is number => typeof value === "number")
+            : defaultAgendaSettings.enabledWeekdays,
+      });
+    } catch {
+      setAgendaSettings(defaultAgendaSettings);
+    }
+  }, []);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -187,9 +244,63 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     });
   };
 
+  const handleCompleteSession = async (session: Session) => {
+    const result = await sessionService.updateStatus(session.id, "completed");
+
+    if (!result.success) {
+      toast({ title: "Erro ao concluir sessão", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    setSessions((current) =>
+      current.map((s) => (s.id === session.id ? result.data : s)),
+    );
+
+    const data = result.data as Session & {
+      pending_billing?: boolean;
+      suggested_amount?: number;
+      suggested_due_date?: string;
+    };
+
+    if (data.pending_billing) {
+      setBillingDialog({
+        open: true,
+        patientName: session.patient_name,
+        suggestedAmount: data.suggested_amount ?? 0,
+        suggestedDueDate: data.suggested_due_date ?? new Date().toISOString().slice(0, 10),
+        patientId: session.patient_id,
+      });
+    }
+  };
+
+  const toggleWeekday = (dayId: number) => {
+    setAgendaSettings((current) => {
+      const exists = current.enabledWeekdays.includes(dayId);
+      const enabledWeekdays = exists
+        ? current.enabledWeekdays.filter((value) => value !== dayId)
+        : [...current.enabledWeekdays, dayId].sort((a, b) => a - b);
+      return { ...current, enabledWeekdays };
+    });
+  };
+
+  const handleSaveAgendaSettings = () => {
+    if (agendaSettings.enabledWeekdays.length === 0) {
+      toast({ title: "Selecione ao menos um dia", description: "A agenda precisa de pelo menos um dia ativo.", variant: "destructive" });
+      return;
+    }
+    if (agendaSettings.endHour <= agendaSettings.startHour) {
+      toast({ title: "Horário inválido", description: "O horário final precisa ser maior que o inicial.", variant: "destructive" });
+      return;
+    }
+
+    localStorage.setItem(AGENDA_SETTINGS_KEY, JSON.stringify(agendaSettings));
+    setSettingsOpen(false);
+    toast({ title: "Agenda atualizada", description: "Dias e horários de atendimento foram salvos neste navegador." });
+  };
+
   const sessionsByCell = useMemo(() => {
     const map = new Map<string, Session[]>();
-    for (const day of weekDaysWithDate) {
+    for (const day of visibleWeekDays) {
       for (const slot of timeSlots) {
         map.set(`${day.key}-${slot}`, []);
       }
@@ -199,19 +310,18 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
       const timeKey = session.time || "00:00";
       const slotKey = `${dateKey}-${timeKey}`;
-      if (!map.has(slotKey)) map.set(slotKey, []);
+      if (!map.has(slotKey)) continue;
       map.get(slotKey)?.push(session);
     }
 
     return map;
-  }, [sessions, weekDaysWithDate]);
+  }, [sessions, visibleWeekDays, timeSlots]);
 
   const agendaSummary = useMemo(() => {
     const total = sessions.length;
-    const confirmed = sessions.filter((session) => session.status === "confirmed" || session.status === "completed").length;
     const pending = sessions.filter((session) => session.status === "pending").length;
     const newPatients = sessions.filter((session) => (session.patient_total_sessions ?? 0) <= 1).length;
-    return { total, confirmed, pending, newPatients };
+    return { total, pending, newPatients };
   }, [sessions]);
 
   const getWeekLabel = () => {
@@ -244,87 +354,161 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   };
 
   return (
+    <>
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
-        <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Agenda clínica</h1>
-              <p className="mt-2 text-muted-foreground">Grade horária semanal para planejar e remanejar atendimentos com clareza.</p>
+              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">ETHOS Web</p>
+              <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">Agenda clínica</h1>
+              <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Configure sua semana e visualize apenas os dias e horários reais de atendimento.</p>
             </div>
 
-            <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-              <DialogTrigger asChild>
-                <Button variant="secondary" className="gap-2">
-                  <Plus className="w-4 h-4" strokeWidth={1.5} />
-                  Agendar sessão
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle className="font-serif text-xl">Agendar sessão</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <label className="text-sm font-medium text-foreground">Paciente</label>
-                    <select
-                      value={newPatientId}
-                      onChange={(event) => setNewPatientId(event.target.value)}
-                      className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                    >
-                      <option value="">Selecione um paciente</option>
-                      {patients.map((patient) => (
-                        <option key={patient.id} value={patient.id}>
-                          {patient.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} />
-                  <Input type="time" value={newTime} onChange={(event) => setNewTime(event.target.value)} />
-                  <Input type="number" min="20" step="10" value={newDuration} onChange={(event) => setNewDuration(event.target.value)} placeholder="Duração em minutos" />
-                </div>
-                <DialogFooter>
-                  <Button onClick={handleCreateSession} disabled={creating || !newPatientId || !newDate || !newTime} className="gap-2">
-                    {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Agendar
+            <div className="flex flex-wrap gap-2">
+              <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="gap-2">
+                    <Settings2 className="w-4 h-4" strokeWidth={1.5} />
+                    Configurar agenda
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="font-serif text-xl">Configurar agenda</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-5">
+                    <div className="grid gap-4 md:grid-cols-2">
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">Início do expediente</label>
+                        <select
+                          value={agendaSettings.startHour}
+                          onChange={(event) => setAgendaSettings((current) => ({ ...current, startHour: Number(event.target.value) }))}
+                          className="flex h-11 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {Array.from({ length: 24 }, (_, hour) => (
+                            <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">Fim do expediente</label>
+                        <select
+                          value={agendaSettings.endHour}
+                          onChange={(event) => setAgendaSettings((current) => ({ ...current, endHour: Number(event.target.value) }))}
+                          className="flex h-11 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
+                        >
+                          {Array.from({ length: 24 }, (_, hour) => (
+                            <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-foreground">Dias de atendimento</label>
+                      <div className="flex flex-wrap gap-2">
+                        {weekDays.map((day) => {
+                          const selected = agendaSettings.enabledWeekdays.includes(day.id);
+                          return (
+                            <button
+                              key={day.id}
+                              type="button"
+                              onClick={() => toggleWeekday(day.id)}
+                              className={cn(
+                                "rounded-full border px-3 py-2 text-sm transition-colors",
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-background text-foreground hover:border-primary/30",
+                              )}
+                            >
+                              {day.long}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleSaveAgendaSettings}>Salvar configuração</Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="secondary" className="gap-2">
+                    <Plus className="w-4 h-4" strokeWidth={1.5} />
+                    Agendar sessão
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="font-serif text-xl">Agendar sessão</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-foreground">Paciente</label>
+                      <select
+                        value={newPatientId}
+                        onChange={(event) => setNewPatientId(event.target.value)}
+                        className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                      >
+                        <option value="">Selecione um paciente</option>
+                        {patients.map((patient) => (
+                          <option key={patient.id} value={patient.id}>
+                            {patient.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <Input type="date" value={newDate} onChange={(event) => setNewDate(event.target.value)} />
+                    <Input type="time" value={newTime} onChange={(event) => setNewTime(event.target.value)} />
+                    <Input type="number" min="20" step="10" value={newDuration} onChange={(event) => setNewDuration(event.target.value)} placeholder="Duração em minutos" />
+                  </div>
+                  <DialogFooter>
+                    <Button onClick={handleCreateSession} disabled={creating || !newPatientId || !newDate || !newTime} className="gap-2">
+                      {creating ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                      Agendar
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
         </motion.header>
 
         <motion.div className="mb-8 grid gap-4 md:grid-cols-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Semana</p>
-            <p className="mt-2 font-serif text-2xl text-foreground">{getWeekLabel()}</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{getWeekLabel()}</p>
             <p className="mt-1 text-sm text-muted-foreground">{formatWeekRange(weekStart)}</p>
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Sessões</p>
-            <p className="mt-2 font-serif text-2xl text-foreground">{agendaSummary.total}</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.total}</p>
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Pendentes</p>
-            <p className="mt-2 font-serif text-2xl text-foreground">{agendaSummary.pending}</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.pending}</p>
           </div>
           <div className="session-card">
-            <p className="text-sm text-muted-foreground">Pacientes novos</p>
-            <p className="mt-2 font-serif text-2xl text-foreground">{agendaSummary.newPatients}</p>
+            <p className="text-sm text-muted-foreground">Agenda ativa</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSettings.enabledWeekdays.length} dias</p>
+            <p className="mt-1 text-sm text-muted-foreground">{String(agendaSettings.startHour).padStart(2, "0")}:00 às {String(agendaSettings.endHour).padStart(2, "0")}:00</p>
           </div>
         </motion.div>
 
-        <motion.div className="flex items-center justify-between mb-6" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
+        <motion.div className="mb-6 flex items-center justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
           <div className="inline-flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 shadow-subtle">
-            <button onClick={() => setCurrentWeek((value) => value - 1)} className="p-2 rounded-xl hover:bg-secondary transition-colors duration-200">
+            <button onClick={() => setCurrentWeek((value) => value - 1)} className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary">
               <ChevronLeft className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             </button>
             <div className="min-w-[220px] text-center">
               <p className="text-sm font-medium text-foreground">{getWeekLabel()}</p>
               <p className="text-xs text-muted-foreground">{formatWeekRange(weekStart)}</p>
             </div>
-            <button onClick={() => setCurrentWeek((value) => value + 1)} className="p-2 rounded-xl hover:bg-secondary transition-colors duration-200">
+            <button onClick={() => setCurrentWeek((value) => value + 1)} className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary">
               <ChevronRight className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             </button>
           </div>
@@ -340,14 +524,11 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         {loading ? <AgendaGridSkeleton /> : null}
 
         {!loading && !error ? (
-          <motion.div className="rounded-[28px] border border-border bg-card shadow-soft overflow-hidden" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            <div className="grid" style={{ gridTemplateColumns: "88px repeat(7, minmax(160px, 1fr))" }}>
+          <motion.div className="overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+            <div className="grid" style={{ gridTemplateColumns: `88px repeat(${visibleWeekDays.length}, minmax(160px, 1fr))` }}>
               <div className="border-b border-r border-border bg-muted/30 p-4" />
-              {weekDaysWithDate.map((day) => (
-                <div
-                  key={day.key}
-                  className={cn("border-b border-border p-4", day.isToday && "bg-primary/5")}
-                >
+              {visibleWeekDays.map((day) => (
+                <div key={day.key} className={cn("border-b border-border p-4", day.isToday && "bg-primary/5")}>
                   <p className={cn("text-xs uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>
                     {day.long}
                   </p>
@@ -359,20 +540,17 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
               ))}
 
               {timeSlots.map((slot) => (
-                <>
-                  <div key={`label-${slot}`} className="border-r border-border bg-muted/20 px-3 py-4 text-right">
+                <div key={slot} className="contents">
+                  <div className="border-r border-border bg-muted/20 px-3 py-4 text-right">
                     <span className="text-xs font-medium text-muted-foreground">{slot}</span>
                   </div>
-                  {weekDaysWithDate.map((day) => {
+                  {visibleWeekDays.map((day) => {
                     const cellKey = `${day.key}-${slot}`;
                     const daySessions = sessionsByCell.get(cellKey) ?? [];
                     return (
                       <div
                         key={cellKey}
-                        className={cn(
-                          "min-h-[110px] border-t border-border/70 p-2",
-                          day.isToday && "bg-primary/5"
-                        )}
+                        className={cn("min-h-[110px] border-t border-border/70 p-2", day.isToday && "bg-primary/5")}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={async (event) => {
                           event.preventDefault();
@@ -404,7 +582,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                   className={cn(
                                     "w-full rounded-2xl border p-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
                                     getStatusColor(session.status),
-                                    draggingSessionId === session.id && "opacity-60"
+                                    draggingSessionId === session.id && "opacity-60",
                                   )}
                                 >
                                   <div className="mb-2 flex items-center justify-between gap-2">
@@ -417,7 +595,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     </span>
                                   </div>
 
-                                  <p className="text-sm font-semibold text-foreground line-clamp-2">{session.patient_name}</p>
+                                  <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.patient_name}</p>
 
                                   <div className="mt-2 flex flex-wrap gap-1.5">
                                     {flags.map((flag) => (
@@ -428,8 +606,8 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                           flag === "Novo"
                                             ? "bg-accent/15 text-accent"
                                             : flag === "Retorno"
-                                            ? "bg-primary/10 text-primary"
-                                            : "bg-status-pending/15 text-status-pending"
+                                              ? "bg-primary/10 text-primary"
+                                              : "bg-status-pending/15 text-status-pending",
                                         )}
                                       >
                                         {flag}
@@ -449,13 +627,47 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                       </div>
                     );
                   })}
-                </>
+                </div>
               ))}
             </div>
           </motion.div>
         ) : null}
       </div>
     </div>
+
+    {billingDialog && (
+      <BillingConfirmDialog
+        open={billingDialog.open}
+        patientName={billingDialog.patientName}
+        suggestedAmount={billingDialog.suggestedAmount}
+        suggestedDueDate={billingDialog.suggestedDueDate}
+        onConfirm={async () => {
+          try {
+            const token = readStoredAuthUser()?.token;
+            await fetch(`${CLINICAL_BASE_URL}/financial/entry`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                patient_id: billingDialog.patientId,
+                type: "receivable",
+                amount: billingDialog.suggestedAmount,
+                due_date: billingDialog.suggestedDueDate,
+                status: "open",
+                description: "Sessão clínica",
+              }),
+            });
+          } catch (e) {
+            console.error(e);
+          }
+          setBillingDialog(null);
+        }}
+        onDismiss={() => setBillingDialog(null)}
+      />
+    )}
+    </>
   );
 };
 

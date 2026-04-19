@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { ChevronRight, KeyRound, Loader2, Plus, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -28,6 +29,39 @@ const formatSessionDate = (value?: string) =>
         month: "short",
       })
     : null;
+
+const formatCurrency = (value?: number) =>
+  typeof value === "number"
+    ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
+    : null;
+
+const careStatusLabel = (status?: Patient["care_status"]) => {
+  switch (status) {
+    case "paused":
+      return "Pausa";
+    case "transferred":
+      return "Transferido";
+    case "inactive":
+      return "Desativado";
+    case "active":
+    default:
+      return "Ativo";
+  }
+};
+
+const careStatusTone = (status?: Patient["care_status"]) => {
+  switch (status) {
+    case "paused":
+      return "bg-status-pending/10 text-status-pending";
+    case "transferred":
+      return "bg-primary/10 text-primary";
+    case "inactive":
+      return "bg-muted text-muted-foreground";
+    case "active":
+    default:
+      return "bg-status-validated/10 text-status-validated";
+  }
+};
 
 const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   const { toast } = useToast();
@@ -123,7 +157,13 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
     }
 
     setAccessCredentials(result.data.credentials);
-    toast({ title: "Acesso criado" });
+    toast({
+      title: "Acesso criado",
+      description:
+        result.data.email_delivery?.status === "sent"
+          ? "As credenciais também foram enviadas por email."
+          : "Copie as credenciais exibidas abaixo para compartilhar com o paciente.",
+    });
     setGranting(false);
   };
 
@@ -269,14 +309,22 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
             >
               <button className="flex-1 text-left" onClick={() => onOpenPatient(patient.id)}>
                 <h3 className="font-serif text-lg font-medium text-foreground">{patient.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {patient.email || "Sem email"}
-                  {patient.whatsapp ? ` · ${patient.whatsapp}` : patient.phone ? ` · ${patient.phone}` : ""}
-                </p>
-                <div className="mt-2 flex flex-wrap gap-3 text-xs text-muted-foreground">
+                {/* Email/phone shown only in patient detail, not in list cards */}
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", careStatusTone(patient.care_status))}>
+                    {careStatusLabel(patient.care_status)}
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>{typeof patient.total_sessions === "number" ? `${patient.total_sessions} sessões` : "Sem sessões"}</span>
                   {patient.next_session && <span>Próxima: {formatSessionDate(patient.next_session)}</span>}
                   {patient.last_session && <span>Última: {formatSessionDate(patient.last_session)}</span>}
+                  {patient.billing?.mode === "per_session" && formatCurrency(patient.billing.session_price) && (
+                    <span>Sessão: {formatCurrency(patient.billing.session_price)}</span>
+                  )}
+                  {patient.billing?.mode === "package" && formatCurrency(patient.billing.package_total_price) && (
+                    <span>Pacote: {formatCurrency(patient.billing.package_total_price)}</span>
+                  )}
                 </div>
               </button>
 

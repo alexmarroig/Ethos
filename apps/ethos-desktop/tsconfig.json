@@ -1,22 +1,31 @@
 {
-  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
-    "module": "ESNext",
-    "lib": ["DOM", "DOM.Iterable", "ESNext"],
+    "module": "CommonJS",
+
+    "moduleResolution": "node",
     "jsx": "react-jsx",
-    "moduleResolution": "Bundler",
-    "noEmit": true,
 
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
 
-    "baseUrl": ".",
-    "paths": {
-      "@ethos/shared": ["../../packages/shared/src"]
-    }
+    "types": ["node"],
+
+    "rootDir": ".",
+    "outDir": "dist",
+
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true
   },
-  "include": ["src", "vite-env.d.ts"],
-  "exclude": ["node_modules", "dist", "dist-electron"]
+  "include": [
+    "src",
+    "electron"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "dist-electron",
+    "../../apps/ethos-mobile"
+  ]
 }

@@ -1,0 +1,14 @@
+- generic [active]:
+  - generic:
+    - region "Notifications (F8)":
+      - list
+    - region "Notifications alt+T"
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - generic [ref=e7]:
+        - generic [ref=e8]: E
+        - generic [ref=e9]: T
+        - generic [ref=e10]: H
+        - generic [ref=e11]: O
+        - generic [ref=e12]: S
+      - paragraph [ref=e13]: Prática clínica. Com cuidado.

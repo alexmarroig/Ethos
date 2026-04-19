@@ -11,6 +11,13 @@ type RawClinicalNote = {
   content: string;
 };
 
+type PaginatedResponse<T> = {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+};
+
 export interface ClinicalNoteContent {
   queixa_principal: string;
   observacoes_clinicas: string;
@@ -45,21 +52,25 @@ function extractSection(source: string, heading: RegExp) {
 function deserializeContent(content: string): ClinicalNoteContent {
   if (!content.trim()) return emptyContent();
 
+  const additionalNotes = extractSection(content, /## OBSERVA(?:ÇÕES|COES) ADICIONAIS\s*([\s\S]*?)$/i);
   const queixa = extractSection(content, /## 3\.[\s\S]*?QUEIXA PRINCIPAL\s*([\s\S]*?)## 4\./i);
   const contexto = extractSection(content, /## 4\.[\s\S]*?CONTEXTO\s*([\s\S]*?)## 5\./i);
-  const plano = extractSection(content, /## 7\.[\s\S]*?PLANO TERAP[ÊE]UTICO\s*([\s\S]*?)## 8\./i);
-  const evolucao = extractSection(content, /## 8\.[\s\S]*?EVOLU[ÇC][ÃA]O DA SESS[ÃA]O[\s\S]*?SOAP\)\s*([\s\S]*?)(?:## 9\.|## OBSERVA)/i);
+  const plano = extractSection(content, /## 7\.[\s\S]*?PLANO TERAPÊUTICO\s*([\s\S]*?)## 8\./i);
+  const evolucao = extractSection(
+    content,
+    /## 8\.[\s\S]*?EVOLU(?:ÇÃO|CAO) DA SESS(?:ÃO|AO)[\s\S]*?SOAP\)\s*([\s\S]*?)(?:## 9\.|## OBSERVA)/i,
+  );
 
   if (!queixa && !contexto && !plano && !evolucao) {
     return {
       ...emptyContent(),
-      observacoes_clinicas: content.trim(),
+      observacoes_clinicas: additionalNotes || content.trim(),
     };
   }
 
   return {
     queixa_principal: queixa,
-    observacoes_clinicas: contexto,
+    observacoes_clinicas: contexto || additionalNotes || "",
     evolucao,
     plano_terapeutico: plano,
   };
@@ -68,16 +79,16 @@ function deserializeContent(content: string): ClinicalNoteContent {
 function serializeContent(content: ClinicalNoteContent) {
   return [
     "## 3. QUEIXA PRINCIPAL",
-    content.queixa_principal || "Nao informado",
+    content.queixa_principal || "Não informado",
     "",
     "## 4. CONTEXTO",
-    content.observacoes_clinicas || "Nao informado",
+    content.observacoes_clinicas || "Não informado",
     "",
-    "## 7. PLANO TERAPEUTICO",
-    content.plano_terapeutico || "Nao informado",
+    "## 7. PLANO TERAPÊUTICO",
+    content.plano_terapeutico || "Não informado",
     "",
-    "## 8. EVOLUCAO DA SESSAO (SOAP)",
-    content.evolucao || "Nao informado",
+    "## 8. EVOLUÇÃO DA SESSÃO (SOAP)",
+    content.evolucao || "Não informado",
   ].join("\n");
 }
 
@@ -106,7 +117,10 @@ function ok<TInput, TOutput>(
 }
 
 export const clinicalNoteService = {
-  create: async (sessionId: string, content: ClinicalNoteContent): Promise<ApiResult<ClinicalNote>> => {
+  create: async (
+    sessionId: string,
+    content: ClinicalNoteContent,
+  ): Promise<ApiResult<ClinicalNote>> => {
     const result = await api.post<RawClinicalNote>(`/sessions/${sessionId}/clinical-note`, {
       content: serializeContent(content),
     });
@@ -114,8 +128,13 @@ export const clinicalNoteService = {
   },
 
   listBySession: async (sessionId: string): Promise<ApiResult<ClinicalNote[]>> => {
-    const result = await api.get<ClinicalNote[]>(`/sessions/${sessionId}/clinical-notes`);
-    return ok(result as ApiResult<RawClinicalNote[]>, (items) => items.map(mapNote));
+    const result = await api.get<PaginatedResponse<RawClinicalNote> | RawClinicalNote[]>(
+      `/sessions/${sessionId}/clinical-notes`,
+    );
+    return ok(result, (payload) => {
+      const items = Array.isArray(payload) ? payload : payload.items;
+      return items.map(mapNote);
+    });
   },
 
   getById: async (noteId: string): Promise<ApiResult<ClinicalNote>> => {

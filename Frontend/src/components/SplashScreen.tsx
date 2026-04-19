@@ -103,7 +103,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
             <motion.span
               key={letter}
               className="font-serif text-6xl md:text-7xl font-medium"
-              style={{ color: "#e8e4df", letterSpacing: "0.05em" }}
+              style={{ color: letter === "E" ? "#2F6F73" : "#e8e4df", letterSpacing: "0.05em" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ delay: 0.8 + i * 0.15, duration: 0.6, ease: "easeOut" }}

@@ -114,6 +114,9 @@ const allowedHeaders = "Authorization,Content-Type,Idempotency-Key";
 const defaultAllowedOrigins = [
   "https://ethos-clinical-space.lovable.app",
   "*.lovableproject.com",
+  "https://ethos-frontend-rho.vercel.app",
+  "https://ethos-rho-five.vercel.app",
+  "*.vercel.app",
   "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:8082",

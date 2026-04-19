@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+
+import { lazy, Suspense, useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import Sidebar from "@/components/Sidebar";
@@ -14,32 +15,47 @@ import LoginPage from "@/pages/LoginPage";
 import ProntuarioPage from "@/pages/ProntuarioPage";
 import FormsPage from "@/pages/FormsPage";
 import AnamnesisPage from "@/pages/AnamnesisPage";
-import ReportsPage from "@/pages/ReportsPage";
-import FinancePage from "@/pages/FinancePage";
-import DocumentsPage from "@/pages/DocumentsPage";
-import AIPage from "@/pages/AIPage";
-import AccountPage from "@/pages/AccountPage";
-import BackupPage from "@/pages/BackupPage";
-import ContractsPage from "@/pages/ContractsPage";
-import PatientHomePage from "@/pages/patient/PatientHomePage";
-import PatientSessionsPage from "@/pages/patient/PatientSessionsPage";
-import PatientDiaryPage from "@/pages/patient/PatientDiaryPage";
-import PatientMessagesPage from "@/pages/patient/PatientMessagesPage";
-import AdminDashboard from "@/pages/admin/AdminDashboard";
-import AdminUsersPage from "@/pages/admin/AdminUsersPage";
-import AdminTestLab from "@/pages/admin/AdminTestLab";
-import AdminTicketsPage from "@/pages/admin/AdminTicketsPage";
-import DiagnosticsPage from "@/pages/DiagnosticsPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const FinancePage = lazy(() => import("@/pages/FinancePage"));
+const DocumentsPage = lazy(() => import("@/pages/DocumentsPage"));
+const AccountPage = lazy(() => import("@/pages/AccountPage"));
+const BackupPage = lazy(() => import("@/pages/BackupPage"));
+const ContractsPage = lazy(() => import("@/pages/ContractsPage"));
+const PatientHomePage = lazy(() => import("@/pages/patient/PatientHomePage"));
+const PatientSessionsPage = lazy(() => import("@/pages/patient/PatientSessionsPage"));
+const PatientDiaryPage = lazy(() => import("@/pages/patient/PatientDiaryPage"));
+const PatientMessagesPage = lazy(() => import("@/pages/patient/PatientMessagesPage"));
+const PatientDocumentsPage = lazy(() => import("@/pages/patient/PatientDocumentsPage"));
+const PatientPaymentsPage = lazy(() => import("@/pages/patient/PatientPaymentsPage"));
+const PatientBookingPage = lazy(() => import("@/pages/patient/PatientBookingPage"));
+const AvailabilitySettingsPage = lazy(() => import("@/pages/AvailabilitySettingsPage"));
+const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const AdminUsersPage = lazy(() => import("@/pages/admin/AdminUsersPage"));
+const AdminTestLab = lazy(() => import("@/pages/admin/AdminTestLab"));
+const AdminTicketsPage = lazy(() => import("@/pages/admin/AdminTicketsPage"));
+const DiagnosticsPage = lazy(() => import("@/pages/DiagnosticsPage"));
+
 type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
-  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "ai" | "account" | "backup"
+  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "account" | "backup"
   | "contracts"
   | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
+  | "patient-documents" | "patient-payments" | "patient-booking"
+  | "availability"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
   | "diagnostics";
+
+function PageFallback() {
+  return (
+    <div className="content-container py-12 flex items-center gap-3">
+      <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
+      <p className="text-sm text-muted-foreground">Carregando tela...</p>
+    </div>
+  );
+}
 
 const Index = () => {
   const [showSplash, setShowSplash] = useState(true);
@@ -99,12 +115,25 @@ const Index = () => {
     }
   };
 
-  // Render page content with role guards
   const renderPage = () => {
-    // Professional pages
-    const professionalPages = ["home", "agenda", "patients", "patient-detail", "forms", "anamnesis",
-      "finance", "reports", "documents", "contracts", "ai", "backup", "ethics",
-      "session", "prontuario", "account", "settings"];
+    const professionalPages = [
+      "home",
+      "agenda",
+      "patients",
+      "patient-detail",
+      "forms",
+      "anamnesis",
+      "finance",
+      "reports",
+      "documents",
+      "contracts",
+      "backup",
+      "ethics",
+      "session",
+      "prontuario",
+      "account",
+      "settings",
+    ];
 
     if (professionalPages.includes(currentPage)) {
       return (
@@ -114,7 +143,6 @@ const Index = () => {
       );
     }
 
-    // Patient pages
     if (currentPage.startsWith("patient-")) {
       return (
         <RoleGate allowed={["patient"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
@@ -123,7 +151,6 @@ const Index = () => {
       );
     }
 
-    // Admin pages
     if (currentPage.startsWith("admin-")) {
       return (
         <RoleGate allowed={["admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
@@ -132,7 +159,6 @@ const Index = () => {
       );
     }
 
-    // Diagnostics — admin only
     if (currentPage === "diagnostics") {
       return (
         <RoleGate allowed={["admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
@@ -149,33 +175,15 @@ const Index = () => {
       case "home":
         return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} />;
       case "session":
-        return (
-          <SessionPage
-            sessionId={selectedSessionId!}
-            onBack={handleBackFromSession}
-            onOpenProntuario={handleOpenProntuario}
-          />
-        );
+        return <SessionPage sessionId={selectedSessionId!} onBack={handleBackFromSession} onOpenProntuario={handleOpenProntuario} />;
       case "prontuario":
-        return (
-          <ProntuarioPage
-            sessionId={selectedSessionId!}
-            onBack={handleBackFromProntuario}
-          />
-        );
+        return <ProntuarioPage sessionId={selectedSessionId!} onBack={handleBackFromProntuario} />;
       case "agenda":
         return <AgendaPage onSessionClick={handleSessionClick} />;
       case "patients":
         return <PatientsPage onOpenPatient={handleOpenPatient} />;
       case "patient-detail":
-        return (
-          <PatientDetailPage
-            patientId={selectedPatientId!}
-            onBack={handleBackFromPatient}
-            onOpenSession={handleSessionClick}
-            onOpenProntuario={handleOpenProntuario}
-          />
-        );
+        return <PatientDetailPage patientId={selectedPatientId!} onBack={handleBackFromPatient} onOpenSession={handleSessionClick} onOpenProntuario={handleOpenProntuario} />;
       case "ethics":
         return <EthicsPage />;
       case "forms":
@@ -190,14 +198,10 @@ const Index = () => {
         return <DocumentsPage onNavigate={handleNavigate} />;
       case "contracts":
         return <ContractsPage />;
-      case "ai":
-        return <AIPage />;
       case "account":
         return <AccountPage />;
       case "backup":
         return <BackupPage />;
-
-      // Patient pages
       case "patient-home":
         return <PatientHomePage />;
       case "patient-sessions":
@@ -206,8 +210,14 @@ const Index = () => {
         return <PatientDiaryPage />;
       case "patient-messages":
         return <PatientMessagesPage />;
-
-      // Admin pages
+      case "patient-documents":
+        return <PatientDocumentsPage />;
+      case "patient-payments":
+        return <PatientPaymentsPage />;
+      case "patient-booking":
+        return <PatientBookingPage />;
+      case "availability":
+        return <AvailabilitySettingsPage />;
       case "admin-dashboard":
         return <AdminDashboard />;
       case "admin-users":
@@ -218,13 +228,10 @@ const Index = () => {
         return <DiagnosticsPage />;
       case "admin-tickets":
         return <AdminTicketsPage />;
-
       case "settings":
         return (
           <div className="content-container py-12">
-            <h1 className="font-serif text-3xl font-medium text-foreground">
-              Configurações
-            </h1>
+            <h1 className="font-serif text-3xl font-medium text-foreground">Configurações</h1>
             <p className="mt-2 text-muted-foreground">Em breve.</p>
           </div>
         );
@@ -235,19 +242,11 @@ const Index = () => {
 
   return (
     <>
-      <AnimatePresence>
-        {showSplash && <SplashScreen onComplete={handleSplashComplete} />}
-      </AnimatePresence>
+      <AnimatePresence>{showSplash && <SplashScreen onComplete={handleSplashComplete} />}</AnimatePresence>
 
       <AnimatePresence>
         {!showSplash && showLogin && !isAuthenticated && (
-          <motion.div
-            key="login"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.4 }}
-          >
+          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             <LoginPage onLoginSuccess={handleLoginSuccess} />
           </motion.div>
         )}
@@ -255,34 +254,16 @@ const Index = () => {
 
       <AnimatePresence>
         {!showSplash && !showLogin && isAuthenticated && (
-          <motion.div
-            className="min-h-screen bg-background"
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
-          >
+          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}>
             <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
-
-            <main className={cn(
-              "pb-20 md:pb-0",
-              !isMobile && "md:pl-64"
-            )}>
+            <main className={cn("pb-20 md:pb-0", !isMobile && "md:pl-64")}>
               <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, y: -8 }}
-                  transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
-                >
-                  {renderPage()}
+                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}>
+                  <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
                 </motion.div>
               </AnimatePresence>
             </main>
-
-            {isMobile && (
-              <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />
-            )}
+            {isMobile && <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />}
           </motion.div>
         )}
       </AnimatePresence>
@@ -290,7 +271,6 @@ const Index = () => {
   );
 };
 
-// Redirect to role-appropriate default page
 function FallbackRedirect({ hasRole, onNavigate }: { hasRole: (...r: string[]) => boolean; onNavigate: (p: string) => void }) {
   const defaultPage = hasRole("patient") ? "patient-home" : hasRole("admin") ? "admin-dashboard" : "home";
   useEffect(() => {
@@ -307,7 +287,6 @@ function FallbackRedirect({ hasRole, onNavigate }: { hasRole: (...r: string[]) =
   );
 }
 
-// Helper
 function cn(...classes: (string | boolean | undefined)[]) {
   return classes.filter(Boolean).join(" ");
 }

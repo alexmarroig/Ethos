@@ -1,0 +1,104 @@
+- generic [ref=e15]:
+  - region "Notifications (F8)":
+    - list
+  - region "Notifications alt+T"
+  - generic [ref=e16]:
+    - complementary [ref=e17]:
+      - generic [ref=e19]:
+        - generic [ref=e20]:
+          - generic [ref=e21]: WS
+          - generic [ref=e22]:
+            - heading "ETHOS" [level=1] [ref=e23]
+            - generic [ref=e24]:
+              - paragraph [ref=e25]: Whisper Speech 447267
+              - generic [ref=e26]: Conta clínica
+        - button "Alternar tema" [ref=e27] [cursor=pointer]:
+          - img [ref=e28]
+      - navigation [ref=e30]:
+        - list [ref=e31]:
+          - listitem [ref=e32]:
+            - button "Início" [ref=e33] [cursor=pointer]:
+              - img [ref=e34]
+              - generic [ref=e37]: Início
+          - listitem [ref=e38]:
+            - button "Agenda clínica" [ref=e39] [cursor=pointer]:
+              - img [ref=e40]
+              - generic [ref=e42]: Agenda clínica
+          - listitem [ref=e43]:
+            - button "Pacientes" [ref=e44] [cursor=pointer]:
+              - img [ref=e45]
+              - generic [ref=e50]: Pacientes
+          - listitem [ref=e51]:
+            - button "Diário e formulários" [ref=e52] [cursor=pointer]:
+              - img [ref=e53]
+              - generic [ref=e56]: Diário e formulários
+          - listitem [ref=e57]:
+            - button "Anamnese" [ref=e58] [cursor=pointer]:
+              - img [ref=e59]
+              - generic [ref=e61]: Anamnese
+          - listitem [ref=e62]:
+            - button "Financeiro" [ref=e64] [cursor=pointer]:
+              - img [ref=e65]
+              - generic [ref=e67]: Financeiro
+          - listitem [ref=e68]:
+            - button "Relatórios" [ref=e69] [cursor=pointer]:
+              - img [ref=e70]
+              - generic [ref=e73]: Relatórios
+          - listitem [ref=e74]:
+            - button "Documentos" [ref=e75] [cursor=pointer]:
+              - img [ref=e76]
+              - generic [ref=e78]: Documentos
+          - listitem [ref=e79]:
+            - button "Contratos" [ref=e81] [cursor=pointer]:
+              - img [ref=e82]
+              - generic [ref=e85]: Contratos
+          - listitem [ref=e86]:
+            - button "Backup e dados" [ref=e87] [cursor=pointer]:
+              - img [ref=e88]
+              - generic [ref=e94]: Backup e dados
+          - listitem [ref=e95]:
+            - button "Ética e sigilo" [ref=e96] [cursor=pointer]:
+              - img [ref=e97]
+              - generic [ref=e99]: Ética e sigilo
+      - generic [ref=e100]:
+        - button "Conta" [ref=e101] [cursor=pointer]:
+          - img [ref=e102]
+          - generic [ref=e105]: Conta
+        - button "Sair" [ref=e106] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Sair
+    - main [ref=e111]:
+      - generic [ref=e383]:
+        - button "Voltar" [ref=e384] [cursor=pointer]:
+          - img [ref=e385]
+          - generic [ref=e387]: Voltar
+        - generic [ref=e388]:
+          - heading "Prontuário da sessão" [level=1] [ref=e389]
+          - generic [ref=e390]: Rascunho — revisão necessária
+        - generic [ref=e392]:
+          - generic [ref=e393]:
+            - text: Queixa principal
+            - textbox [ref=e394]: Não informado
+          - generic [ref=e395]:
+            - text: Observações clínicas
+            - textbox [ref=e396]: Não informado
+          - generic [ref=e397]:
+            - text: Evolução
+            - textbox [ref=e398]: "S (Subjetivo): Rascunho estruturado indisponÃvel no momento. Revisar a transcriÃ§Ã£o original. O (Objetivo): Sem extraÃ§Ã£o automÃ¡tica confiÃ¡vel de dados observÃ¡veis. A (Análise): InterpretaÃ§Ã£o clÃnica nÃ£o automatizada. Completar manualmente. P (Plano): Definir prÃ³ximos passos apÃ³s revisÃ£o manual."
+          - generic [ref=e399]:
+            - text: Plano terapêutico
+            - textbox [ref=e400]: "Abordagem: Não informado Estratégias: Não informado Intervenções planejadas: Não informado"
+        - generic [ref=e401]:
+          - generic [ref=e402]:
+            - img [ref=e403]
+            - heading "Comentários privados" [level=2] [ref=e405]
+          - paragraph [ref=e407]: Nenhum comentário privado.
+          - generic [ref=e408]:
+            - textbox "Adicionar comentário privado..." [ref=e409]
+            - button [disabled]:
+              - img
+        - generic [ref=e411]:
+          - button "Salvar rascunho" [ref=e412] [cursor=pointer]
+          - button "Validar prontuário" [ref=e413] [cursor=pointer]:
+            - img
+            - text: Validar prontuário

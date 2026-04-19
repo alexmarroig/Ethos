@@ -2,18 +2,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { audioService } from "../services/audioService";
 
-declare global {
-  interface Window {
-    ethos?: {
-      // compat antigo
-      saveAudio?: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string } | null>;
-      // compat novo (recomendado)
-      audio?: {
-        save?: (payload: { data: ArrayBuffer; mimeType: string }) => Promise<{ filePath: string; mimeType?: string } | null>;
-      };
-    };
-  }
-}
 
 type RecorderStatus = "idle" | "recording" | "saving" | "error";
 

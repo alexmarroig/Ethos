@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -180,7 +180,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       payment_method: paymentMethod || undefined,
       status: markAsPaid ? ("paid" as const) : ("open" as const),
       paid_at: markAsPaid ? new Date().toISOString() : undefined,
-      description: "SessÃ£o de psicoterapia",
+      description: "Sessão de psicoterapia",
     };
 
     const result = linkedEntry
@@ -199,8 +199,8 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setPaymentDueDate(result.data.due_date ? new Date(result.data.due_date).toISOString().slice(0, 10) : "");
     setPaymentMethod(result.data.payment_method ?? "");
     toast({
-      title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "CobranÃ§a atualizada" : "CobranÃ§a registrada",
-      description: markAsPaid ? "A sessÃ£o ficou quitada no financeiro." : "O pagamento desta sessÃ£o foi vinculado ao financeiro.",
+      title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "Cobrança atualizada" : "Cobrança registrada",
+      description: markAsPaid ? "A sessão ficou quitada no financeiro." : "O pagamento desta sessão foi vinculado ao financeiro.",
     });
   };
 
@@ -297,7 +297,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
         </motion.section>
 
         <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-          <h2 className="font-serif text-xl font-medium text-foreground mb-4">Pagamento da sessÃ£o</h2>
+          <h2 className="font-serif text-xl font-medium text-foreground mb-4">Pagamento da sessão</h2>
           <div className="session-card space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
@@ -305,9 +305,9 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
                 <span className="text-sm text-muted-foreground">
                   {linkedEntry
                     ? linkedEntry.status === "paid"
-                      ? "Pagamento jÃ¡ registrado como pago"
-                      : "CobranÃ§a pendente vinculada a esta sessÃ£o"
-                    : "Nenhuma cobranÃ§a vinculada a esta sessÃ£o ainda"}
+                      ? "Pagamento já registrado como pago"
+                      : "Cobrança pendente vinculada a esta sessão"
+                    : "Nenhuma cobrança vinculada a esta sessão ainda"}
                 </span>
               </div>
               {linkedEntry ? (
@@ -318,7 +318,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
             </div>
 
             <div className="grid gap-4 md:grid-cols-3">
-              <Input type="number" step="0.01" placeholder="Valor da sessÃ£o" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
+              <Input type="number" step="0.01" placeholder="Valor da sessão" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
               <Input type="date" value={paymentDueDate} onChange={(event) => setPaymentDueDate(event.target.value)} />
               <Input placeholder="Forma de pagamento" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} />
             </div>
@@ -326,7 +326,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => void handleSavePayment(false)} disabled={paymentSaving || !paymentAmount.trim()}>
                 {paymentSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-                {linkedEntry ? "Atualizar cobranÃ§a" : "LanÃ§ar cobranÃ§a da sessÃ£o"}
+                {linkedEntry ? "Atualizar cobrança" : "Lançar cobrança da sessão"}
               </Button>
               <Button onClick={() => void handleSavePayment(true)} disabled={paymentSaving || !paymentAmount.trim()}>
                 {paymentSaving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
@@ -353,3 +353,5 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 };
 
 export default SessionPage;
+
+

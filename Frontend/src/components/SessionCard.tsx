@@ -50,22 +50,22 @@ const SessionCard = ({
         delay: index * 0.08,
         ease: [0.25, 0.1, 0.25, 1],
       }}
-      whileHover={{ scale: 1.005 }}
+      whileHover={{ scale: 1.003 }}
       whileTap={{ scale: 0.995 }}
     >
       <div className="flex items-start justify-between">
-        <div className="flex-1 min-w-0">
-          <h3 className="font-serif text-lg font-medium text-foreground truncate">
+        <div className="min-w-0 flex-1">
+          <h3 className="truncate text-[1.15rem] font-semibold tracking-[-0.02em] text-foreground">
             {patientName}
           </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="mt-1 text-sm leading-6 text-muted-foreground">
             {date} · {time}
           </p>
         </div>
 
-        <div className="flex items-center gap-2 ml-4 shrink-0">
-          <span className={cn("w-2 h-2 rounded-full", config.dotClass)} />
-          <span className="text-sm text-muted-foreground">{statusLabel}</span>
+        <div className="ml-4 flex shrink-0 items-center gap-2">
+          <span className={cn("h-2 w-2 rounded-full", config.dotClass)} />
+          <span className="text-sm font-medium text-muted-foreground">{statusLabel}</span>
         </div>
       </div>
     </motion.button>

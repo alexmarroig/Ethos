@@ -64,6 +64,7 @@ export interface Report {
   patient_name?: string;
   clinical_note_id: string;
   purpose: string;
+  kind?: "session_report" | "longitudinal_record";
   content?: string;
   status: "draft" | "final";
   created_at?: string;
@@ -74,6 +75,7 @@ export interface DocumentTemplate {
   title?: string;
   name?: string;
   description?: string;
+  kind?: "document" | "contract";
   version?: number;
   html?: string;
   template_body?: string;
@@ -100,6 +102,7 @@ export interface DocumentVersion {
   version: number;
   content: string;
   created_at: string;
+  global_values?: Record<string, string>;
 }
 
 export interface Contract {
@@ -107,6 +110,7 @@ export interface Contract {
   patient_id: string;
   patient_name?: string;
   title?: string;
+  template_id?: string;
   content?: string;
   psychologist?: {
     name: string;
@@ -118,6 +122,7 @@ export interface Contract {
     name: string;
     email: string;
     document: string;
+    address?: string;
   };
   terms?: {
     value: string;
@@ -125,7 +130,18 @@ export interface Contract {
     absence_policy: string;
     payment_method: string;
   };
-  status: "draft" | "sent" | "accepted" | "expired";
+  status: "draft" | "sent" | "accepted" | "expired" | "signed";
+  delivery_channels?: Array<{
+    channel: "email" | "whatsapp";
+    recipient?: string;
+    sent_at: string;
+  }>;
+  signed_attachment?: {
+    file_name: string;
+    mime_type: string;
+    data_url: string;
+    uploaded_at: string;
+  };
   portal_token?: string;
   portal_url?: string;
   accepted_at?: string;

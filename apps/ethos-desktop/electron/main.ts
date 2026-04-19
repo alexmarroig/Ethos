@@ -1,8 +1,40 @@
+import crypto, { randomUUID } from "node:crypto";
+
+let userEncryptionKey: Buffer | null = null;
+
+function setUserKey(key: Buffer) {
+  userEncryptionKey = key;
+}
+
+function getUserKey(): Buffer {
+  if (!userEncryptionKey) {
+    throw new Error("User encryption key not set");
+  }
+  return userEncryptionKey;
+}
+
+function encryptText(text: string, key: Buffer) {
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+
+  const encrypted = Buffer.concat([
+    cipher.update(text, "utf8"),
+    cipher.final()
+  ]);
+
+  const tag = cipher.getAuthTag();
+
+  return JSON.stringify({
+    iv: iv.toString("hex"),
+    data: encrypted.toString("hex"),
+    tag: tag.toString("hex")
+  });
+}
 import { app, BrowserWindow, ipcMain, dialog } from "electron";
 import path from "node:path";
 import { promises as fs } from "node:fs";
 import { spawn } from "node:child_process";
-import { randomUUID } from "node:crypto";
+
 
 import { initDb, getDb } from "./db";
 import { getVaultKey } from "./security";
@@ -95,11 +127,23 @@ function handleWorkerStdoutChunk(chunk: Buffer) {
       // Persist job update (tenta, mas não derruba em safe mode)
       if (msg?.type === "job_update" && msg?.payload?.id) {
         try {
-          transcriptionJobsService.update(msg.payload.id, {
-            status: msg.payload.status,
-            progress: msg.payload.progress,
-            error: msg.payload.error,
-          });
+         let updates: any = {
+  status: msg.payload.status,
+  progress: msg.payload.progress,
+  error: msg.payload.error,
+};
+
+// 🔐 criptografar transcript
+if (msg.payload.transcript) {
+  try {
+    const key = getUserKey();
+    updates.transcript = encryptText(msg.payload.transcript, key);
+  } catch {
+    // fallback silencioso
+  }
+}
+
+transcriptionJobsService.update(msg.payload.id, updates);
         } catch {
           // ignore
         }
@@ -162,9 +206,9 @@ function startWorker() {
     stdio: ["pipe", "pipe", "pipe"],
   });
 
-  workerProcess.stdout.on("data", handleWorkerStdoutChunk);
+ workerProcess.stdout?.on("data", handleWorkerStdoutChunk);
 
-  workerProcess.stderr.on("data", (data) => {
+  workerProcess.stderr?.on("data", (data) => {
     sendToRenderer(WORKER_CHANNEL_STDERR, data.toString("utf8"));
   });
 
@@ -501,7 +545,8 @@ ipcMain.handle("transcription:enqueue", async (_event, payload) => {
   transcriptionJobsService.create(job);
 
   // 4) Enfileira no worker (passa tempPath para processamento)
-  workerProcess?.stdin.write(
+ if (workerProcess?.stdin) {
+  workerProcess.stdin.write(
     `${JSON.stringify({
       type: "enqueue",
       payload: {
@@ -511,7 +556,7 @@ ipcMain.handle("transcription:enqueue", async (_event, payload) => {
       },
     })}\n`
   );
-
+}
   return jobId;
 });
 
@@ -569,15 +614,55 @@ ipcMain.handle("models:download", async (event, id) => {
 // Auth IPC
 // ---------------------
 ipcMain.handle("auth:login", (_e, { email, password }) => {
-  return authService.login(email, password);
-});
+  const result = authService.login(email, password);
 
+  if (result.success && result.encryptionKey) {
+    const key = result.encryptionKey;
+
+    // 🔐 guarda chave da sessão
+    setUserKey(key);
+
+    // 🔐 injeta nos services
+    notesService.setEncryptionKey(key);
+  }
+
+  return result;
+});
 ipcMain.handle("auth:encryptToken", (_e, token) => {
-  return authService.saveCredentials("", token);
+  return authService.encryptToken(token);
 });
 
 ipcMain.handle("auth:decryptToken", (_e, encrypted) => {
   return authService.decryptToken(encrypted);
+});
+
+ipcMain.handle("auth:decryptToken", (_e, encrypted) => {
+  return authService.decryptToken(encrypted);
+});
+
+// 🔐 Transcript decrypt (ESSENCIAL)
+ipcMain.handle("crypto:decrypt", (_e, encrypted: string) => {
+  try {
+    const key = getUserKey();
+    const parsed = JSON.parse(encrypted);
+
+    const decipher = crypto.createDecipheriv(
+      "aes-256-gcm",
+      key,
+      Buffer.from(parsed.iv, "hex")
+    );
+
+    decipher.setAuthTag(Buffer.from(parsed.tag, "hex"));
+
+    const decrypted = Buffer.concat([
+      decipher.update(Buffer.from(parsed.data, "hex")),
+      decipher.final()
+    ]);
+
+    return decrypted.toString("utf8");
+  } catch {
+    return encrypted;
+  }
 });
 
 // ---------------------

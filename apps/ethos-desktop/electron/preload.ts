@@ -118,7 +118,9 @@ const ethosApi = Object.freeze({
     encryptToken: (token: string) => invoke<string>("auth:encryptToken", token),
     decryptToken: (encrypted: string) => invoke<string | null>("auth:decryptToken", encrypted),
   }),
-
+   crypto: Object.freeze({
+    decrypt: (data: string) => invoke<string>("crypto:decrypt", data),
+  }),
   // ------------------------
   // Patients
   // ------------------------

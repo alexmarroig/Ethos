@@ -37,13 +37,6 @@ type ClinicalSection =
   | "diarios"
   | "relatorios"
   | "config";
-
-declare global {
-  interface Window {
-    ethos?: any;
-  }
-}
-
 // -----------------------------
 // Styles (base)
 // -----------------------------
@@ -271,7 +264,7 @@ export const App = () => {
 
   const refreshData = useCallback(async () => {
     if (window.ethos?.patients) {
-      const p = await window.ethos.patients.getAll();
+      const p = await window.ethos?.patients?.getAll();
       setPatients(p || []);
     }
     if (window.ethos?.sessions) {
@@ -319,7 +312,7 @@ export const App = () => {
 
   const sessionId = currentSession?.id || "no-session";
   const patientName = currentPatient?.fullName || "Nenhum paciente selecionado";
-  const clinicianName = "Dra. Ana Souza";
+  const clinicianName = "Dra. Camila Freitas";
   const sessionDate = currentSession ? new Date(currentSession.scheduledAt).toLocaleDateString("pt-BR") : "--/--/----";
 
   // =========================
@@ -408,6 +401,13 @@ export const App = () => {
         setJobStatus(String(payload.status || "unknown"));
         setJobProgress(typeof payload.progress === "number" ? payload.progress : 0);
         setJobError(payload.error ? String(payload.error) : null);
+      }
+
+      if (msg.type === "job_result") {
+        const payload = msg.payload;
+        if (payload?.transcript?.fullText) {
+          setTranscriptionText(payload.transcript.fullText);
+        }
       }
     });
 
@@ -590,18 +590,21 @@ export const App = () => {
   const doExport = useCallback(async () => {
     setExporting(true);
     try {
-      await exportClinicalNote({
-        sessionId,
-        patientName,
-        clinicianName,
-        sessionDate,
-        text: draft,
-        format: exportFormat,
-      });
+      await exportClinicalNote(
+        {
+          patientName,
+          clinicianName,
+          sessionDate,
+          noteText: draft,
+          status,
+          validatedAt: validatedAt ?? undefined,
+        },
+        exportFormat,
+      );
     } finally {
       setExporting(false);
     }
-  }, [sessionId, patientName, clinicianName, sessionDate, draft, exportFormat]);
+  }, [patientName, clinicianName, sessionDate, draft, status, validatedAt, exportFormat]);
 
   // =========================
   // Auth actions
@@ -781,7 +784,14 @@ export const App = () => {
       ) : null}
 
       {/* Consent Modal */}
-      {showConsentModal ? <RecordingConsentModal onCancel={handleConsentCancel} onConfirm={handleConsentConfirm} /> : null}
+      {showConsentModal ? (
+        <RecordingConsentModal
+          checked={consentForNote}
+          onCheck={setConsentForNote}
+          onCancel={handleConsentCancel}
+          onConfirm={handleConsentConfirm}
+        />
+      ) : null}
 
       {showEthicsModal ? <EthicsValidationModal onCancel={() => setShowEthicsModal(false)} onConfirm={confirmValidation} /> : null}
 

@@ -2,12 +2,14 @@
 import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
+import { whatsAppCreateInstance, whatsAppGetConnectionState, whatsAppGetQRCode, whatsAppSendText } from "../infra/whatsapp";
 import { generateReportFromNotes, generateReportFromTranscript } from "../application/ai/reportGenerator";
 import {
   acceptInvite,
   acceptContract,
   addAudit,
   addAudio,
+  storeUploadedAudio,
   addDocumentVersion,
   addTelemetry,
   adminOverviewMetrics,
@@ -22,14 +24,20 @@ import {
   createClinicalNoteDraft,
   createContract,
   createDocument,
+  deleteDocument,
   createFinancialEntry,
   createFormEntry,
+  assignFormToPatient,
+  createFormTemplate,
   createInvite,
-  createPatient,
   createJob,
+  createPatient,
   createPatientAccess,
   createPrivateComment,
   registerClinician,
+  requestPasswordReset,
+  resetPasswordWithToken,
+  updatePatient,
   createReport,
   getReport,
   createScaleRecord,
@@ -38,6 +46,7 @@ import {
   deleteTemplate,
   evaluateObservability,
   exportCase,
+  exportResourcePdf,
   exportContract,
   getByOwner,
   getClinicalNote,
@@ -68,7 +77,11 @@ import {
   listPatients,
   listPrivateComments,
   listFormsCatalog,
+  listFormAssignments,
   listFormEntries,
+  listPatientAssignedForms,
+  listPatientFormEntries,
+  deleteFormTemplate,
   listScales,
   listSessionClinicalNotes,
   listTemplates,
@@ -86,15 +99,43 @@ import {
   resolveLocalEntitlements,
   runJob,
   sendContract,
+  attachSignedContract,
   sendPatientAsyncMessage,
   syncLocalEntitlements,
   updateClinicalNote,
   updateFinancialEntry,
+  updateFormAssignment,
+  updateFormTemplate,
   updateReport,
-  updatePatient,
+  updateContract,
   updateRetentionPolicy,
   updateTemplate,
   validateClinicalNote,
+  toggleShareWithPatient,
+  getPatientSharedDocuments,
+  getPatientFinancial,
+  notifyPatient,
+  listPatientNotifications,
+  markNotificationRead,
+  createAvailabilityBlock,
+  listAvailabilityBlocks,
+  updateAvailabilityBlock,
+  deleteAvailabilityBlock,
+  getAvailableSlots,
+  requestSlot,
+  listSlotRequests,
+  listPatientSlotRequests,
+  respondSlotRequest,
+  listGoals,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  listHomework,
+  createHomework,
+  updateHomework,
+  deleteHomework,
+  generateSessionBilling,
+  getFinancialSummary,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -105,8 +146,8 @@ import {
   listNotificationTemplates,
   scheduleNotification,
 } from "../application/notifications";
-import type { ApiEnvelope, ApiError, NotificationChannel, Role, SessionStatus } from "../domain/types";
-import { db, getIdempotencyEntry, setIdempotencyEntry } from "../infra/database";
+import type { ApiEnvelope, ApiError, AvailabilityBlock, NotificationChannel, Role, SessionStatus } from "../domain/types";
+import { db, uid, getIdempotencyEntry, setIdempotencyEntry, schedulePersistDatabase } from "../infra/database";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
@@ -118,6 +159,9 @@ const CRP_REGEX = /^\d{2}\/\d{4,6}$/;
 const defaultAllowedOrigins = [
   "https://ethos-clinical-space.lovable.app",
   "*.lovableproject.com",
+  "https://ethos-frontend-rho.vercel.app",
+  "https://ethos-rho-five.vercel.app",
+  "*.vercel.app",
   "http://localhost:8080",
   "http://localhost:8081",
   "http://localhost:8082",
@@ -184,8 +228,9 @@ const applyCors = (req: IncomingMessage, res: ServerResponse, allowedOrigins: st
   return true;
 };
 
-// âœ… CorreÃ§Ã£o importante: â€œuserâ€ (psicÃ³logo) precisa ser clÃ­nico.
-const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor"];
+// Correção importante: "user" (psicólogo) precisa ser clínico.
+// "admin" também é incluído pois o admin local é o próprio psicólogo na conta principal.
+const CLINICAL_ROLES: Role[] = ["user", "assistente", "supervisor", "admin"];
 
 const CLINICAL_PATHS = [
   /^\/(sessions|cases)/,
@@ -194,6 +239,8 @@ const CLINICAL_PATHS = [
   /^\/reports/,
   /^\/anamnesis/,
   /^\/scales/,
+  /^\/goals/,
+  /^\/homework/,
   /^\/forms/,
   /^\/finance/,
   /^\/financial/,
@@ -218,23 +265,28 @@ class BadRequestError extends Error {
 }
 
 const jsonHeaders = (res: ServerResponse, requestId: string) => {
-  res.setHeader("content-type", "application/json");
+  res.setHeader("content-type", "application/json; charset=utf-8");
   res.setHeader("x-request-id", requestId);
   res.setHeader("cache-control", "no-store");
 };
+
+// Escape non-ASCII characters so the JSON is pure ASCII.
+// This prevents encoding issues regardless of Content-Type charset.
+const safeStringify = (value: unknown): string =>
+  JSON.stringify(value).replace(/[\u0080-\uFFFF]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, "0")}`);
 
 const error = (res: ServerResponse, requestId: string, status: number, code: string, message: string) => {
   const payload: ApiError = { request_id: requestId, error: { code, message } };
   res.statusCode = status;
   jsonHeaders(res, requestId);
-  res.end(JSON.stringify(payload));
+  res.end(safeStringify(payload));
 };
 
 const ok = <T>(res: ServerResponse, requestId: string, status: number, data: T) => {
   const payload: ApiEnvelope<T> = { request_id: requestId, data };
   res.statusCode = status;
   jsonHeaders(res, requestId);
-  res.end(JSON.stringify(payload));
+  res.end(safeStringify(payload));
 };
 
 const tokenFrom = (req: IncomingMessage) =>
@@ -250,6 +302,55 @@ const getRemoteIp = (req: IncomingMessage) => {
   const forwarded = req.headers["x-forwarded-for"]?.toString();
   if (forwarded) return forwarded.split(",")[0]?.trim() ?? "unknown";
   return req.socket.remoteAddress ?? "unknown";
+};
+
+const sendPatientAccessEmail = async (input: {
+  to: string;
+  patientName: string;
+  password: string;
+  clinicianName: string;
+}) => {
+  const webhookUrl =
+    process.env.ETHOS_PATIENT_ACCESS_EMAIL_WEBHOOK_URL ??
+    process.env.ETHOS_EMAIL_WEBHOOK_URL;
+
+  if (!webhookUrl) {
+    return { status: "skipped" as const, detail: "EMAIL_WEBHOOK_NOT_CONFIGURED" };
+  }
+
+  const subject = "Seu acesso ao portal do paciente ETHOS";
+  const text = [
+    `Olá, ${input.patientName}.`,
+    "",
+    `${input.clinicianName} criou seu acesso ao portal do paciente ETHOS.`,
+    "",
+    `Email: ${input.to}`,
+    `Senha: ${input.password}`,
+    "",
+    "Você já pode acessar o portal para acompanhar seus documentos, formulários e sessões.",
+  ].join("\n");
+
+  const response = await fetch(webhookUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      to: input.to,
+      subject,
+      text,
+      html: text.replace(/\n/g, "<br />"),
+      kind: "patient_access",
+    }),
+  });
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => "");
+    return {
+      status: "failed" as const,
+      detail: detail || `EMAIL_PROVIDER_${response.status}`,
+    };
+  }
+
+  return { status: "sent" as const };
 };
 
 const readJson = async (req: IncomingMessage) => {
@@ -359,6 +460,7 @@ const normalizeWeeklyFrequency = (value: unknown): 1 | 2 | 3 | 4 | 5 | undefined
 
 type PatientPayload = {
   name?: string;
+  care_status?: "active" | "paused" | "transferred" | "inactive";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -384,12 +486,23 @@ type PatientPayload = {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: {
     mode: "per_session" | "package";
     weekly_frequency?: 1 | 2 | 3 | 4 | 5;
     session_price?: number;
     package_total_price?: number;
     package_session_count?: number;
+    payment_timing?: "advance" | "after";
+    preferred_payment_day?: number;
+    billing_reminder_days?: number;
+    billing_auto_charge?: boolean;
   };
   notes?: string;
 };
@@ -407,11 +520,19 @@ const parsePatientBilling = (value: unknown): PatientPayload["billing"] => {
     session_price: normalizeOptionalNumber(billing.session_price),
     package_total_price: normalizeOptionalNumber(billing.package_total_price),
     package_session_count: normalizeOptionalNumber(billing.package_session_count),
+    payment_timing: billing.payment_timing === "advance" || billing.payment_timing === "after" ? billing.payment_timing : undefined,
+    preferred_payment_day: normalizeOptionalNumber(billing.preferred_payment_day),
+    billing_reminder_days: typeof billing.billing_reminder_days === "number" ? billing.billing_reminder_days : undefined,
+    billing_auto_charge: typeof billing.billing_auto_charge === "boolean" ? billing.billing_auto_charge : undefined,
   };
 };
 
 const parsePatientPayload = (body: Record<string, unknown>, options?: { includeName?: boolean }): PatientPayload => ({
   name: options?.includeName && typeof body.name === "string" ? body.name.trim() || undefined : undefined,
+  care_status:
+    body.care_status === "active" || body.care_status === "paused" || body.care_status === "transferred" || body.care_status === "inactive"
+      ? body.care_status
+      : undefined,
   email: normalizeOptionalText(body.email),
   phone: normalizeOptionalText(body.phone),
   whatsapp: normalizeOptionalText(body.whatsapp),
@@ -437,6 +558,13 @@ const parsePatientPayload = (body: Record<string, unknown>, options?: { includeN
   emergency_contact_name: normalizeOptionalText(body.emergency_contact_name),
   emergency_contact_relationship: normalizeOptionalText(body.emergency_contact_relationship),
   emergency_contact_phone: normalizeOptionalText(body.emergency_contact_phone),
+  education_level: normalizeOptionalText(body.education_level),
+  marital_status: normalizeOptionalText(body.marital_status),
+  legal_guardian_name: normalizeOptionalText(body.legal_guardian_name),
+  legal_guardian_relationship: normalizeOptionalText(body.legal_guardian_relationship),
+  report_indication: normalizeOptionalText(body.report_indication),
+  recurring_techniques: normalizeOptionalText(body.recurring_techniques),
+  report_notes: normalizeOptionalText(body.report_notes),
   billing: parsePatientBilling(body.billing),
   notes: normalizeOptionalText(body.notes),
 });
@@ -509,7 +637,7 @@ export const createEthosBackend = () =>
         return res.end(openApi);
       }
 
-      // Portal pÃºblico: obter contrato por portal token
+      // Portal público: obter contrato por portal token
       if (method === "GET" && url.pathname.startsWith("/portal/contracts/")) {
         const token = url.pathname.split("/")[3];
         if (!token) return error(res, requestId, 404, "NOT_FOUND", "Contract token not found");
@@ -518,7 +646,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Portal pÃºblico: aceitar contrato
+      // Portal público: aceitar contrato
       if (method === "POST" && url.pathname.startsWith("/portal/contracts/") && url.pathname.endsWith("/accept")) {
         const parts = url.pathname.split("/");
         const token = parts[3];
@@ -595,6 +723,26 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 201, safeUser);
       }
 
+      if (method === "POST" && url.pathname === "/auth/request-password-reset") {
+        const body = await readJson(req);
+        const email = String(body.email ?? "").trim();
+        if (!email || !EMAIL_REGEX.test(email)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid email");
+        }
+        return ok(res, requestId, 200, requestPasswordReset(email));
+      }
+
+      if (method === "POST" && url.pathname === "/auth/reset-password") {
+        const body = await readJson(req);
+        const token = String(body.token ?? "").trim();
+        const password = String(body.password ?? "");
+        if (!token) return error(res, requestId, 422, "VALIDATION_ERROR", "token is required");
+        if (password.length < 6) return error(res, requestId, 422, "VALIDATION_ERROR", "Password must have at least 6 characters");
+        const result = resetPasswordWithToken(token, password);
+        if (!result) return error(res, requestId, 422, "INVALID_RESET_TOKEN", "Token expirado ou invalido");
+        return ok(res, requestId, 200, result);
+      }
+
       if (method === "POST" && url.pathname === "/auth/logout") {
         const token = tokenFrom(req);
         if (token) logout(token);
@@ -627,6 +775,9 @@ export const createEthosBackend = () =>
             email,
             avatar_url: typeof body.avatar_url === "string" ? body.avatar_url : undefined,
             crp,
+            rg: typeof body.rg === "string" ? body.rg.trim() || undefined : undefined,
+            cpf: typeof body.cpf === "string" ? body.cpf.trim() || undefined : undefined,
+            gender: body.gender === "F" || body.gender === "M" ? body.gender : undefined,
             specialty: typeof body.specialty === "string" ? body.specialty : undefined,
             clinical_approach:
               typeof body.clinical_approach === "string" ? body.clinical_approach : undefined,
@@ -641,9 +792,13 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Gate para rotas clÃ­nicas (corrigido)
+      // Gate para rotas clínicas (corrigido)
       const isClinicalPath = CLINICAL_PATHS.some((pattern) => pattern.test(url.pathname));
       if (isClinicalPath && !requireClinicalAccess(res, requestId, auth.user.role)) return;
+
+      if (method === "GET" && url.pathname === "/patients") {
+        return ok(res, requestId, 200, listPatients(auth.user.id));
+      }
 
       if (method === "POST" && url.pathname === "/patients") {
         const body = await readJson(req);
@@ -676,9 +831,9 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, updated);
       }
 
-      // Patient access management (apenas psicÃ³logo â€œuserâ€)
+      // Patient access management (psicólogo ou admin)
       if (method === "POST" && url.pathname === "/patients/access") {
-        if (!requireRole(res, requestId, "user", auth.user.role)) return;
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
 
         const body = await readJson(req);
         if (
@@ -707,10 +862,21 @@ export const createEthosBackend = () =>
 
         if ("error" in result) return error(res, requestId, 409, "EMAIL_IN_USE", "Email already in use by a non-patient");
 
+        const emailDelivery = await sendPatientAccessEmail({
+          to: result.patientUser.email,
+          patientName: result.patientUser.name,
+          password: result.temporaryPassword ?? String(body.patient_password ?? ""),
+          clinicianName: auth.user.name,
+        }).catch((error) => ({
+          status: "failed" as const,
+          detail: error instanceof Error ? error.message : "EMAIL_SEND_FAILED",
+        }));
+
         return ok(res, requestId, 201, {
           access: result.access,
           patient_user: { id: result.patientUser.id, email: result.patientUser.email, name: result.patientUser.name },
           temporary_password: result.temporaryPassword ?? null,
+          email_delivery: emailDelivery,
         });
       }
 
@@ -825,6 +991,51 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 201, result.entry);
       }
 
+      if (method === "GET" && url.pathname === "/patient/forms") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, listPatientAssignedForms(access));
+      }
+
+      if (method === "POST" && url.pathname === "/patient/forms/entry") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const body = await readJson(req);
+        if (typeof body.form_id !== "string" || typeof body.content !== "object" || body.content === null) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "form_id and content are required");
+        }
+
+        try {
+          return ok(
+            res,
+            requestId,
+            201,
+            createFormEntry(access.owner_user_id, access.patient_id, body.form_id, body.content as Record<string, unknown>, "patient"),
+          );
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unable to submit form";
+          const status =
+            message === "FORM_NOT_ASSIGNED" || message === "FORM_TEMPLATE_NOT_FOUND" || message === "PATIENT_NOT_FOUND"
+              ? 404
+              : message === "FORM_ASSIGNMENT_INACTIVE" || message === "FORM_SINGLE_USE_ALREADY_SUBMITTED"
+                ? 409
+                : 400;
+          return error(res, requestId, status, "FORM_SUBMISSION_ERROR", message);
+        }
+      }
+
+      if (method === "GET" && url.pathname === "/patient/forms/entries") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+
+        const formId = url.searchParams.get("form_id") ?? undefined;
+        return ok(res, requestId, 200, listPatientFormEntries(access, formId));
+      }
+
       const psychologistPatientDiary = url.pathname.match(/^\/psychologist\/patient\/([^/]+)\/diary$/);
       if (method === "GET" && psychologistPatientDiary) {
         if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
@@ -864,6 +1075,137 @@ export const createEthosBackend = () =>
         });
       }
 
+      // Patient portal: shared documents
+      if (method === "GET" && url.pathname === "/patient/shared-documents") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, getPatientSharedDocuments(access));
+      }
+
+      // Patient portal: financial
+      if (method === "GET" && url.pathname === "/patient/financial") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, getPatientFinancial(access));
+      }
+
+      // Patient portal: sign contract
+      const patientSignContract = url.pathname.match(/^\/patient\/contracts\/([^/]+)\/sign$/);
+      if (method === "POST" && patientSignContract) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const contractId = patientSignContract[1];
+        const contract = db.contracts.get(contractId) as Record<string, unknown> | undefined;
+        if (!contract || contract.patient_id !== access.patient_id || !contract.shared_with_patient) {
+          return error(res, requestId, 404, "NOT_FOUND", "Contrato não encontrado");
+        }
+        contract.status = "signed";
+        contract.signed_at = new Date().toISOString();
+        contract.signed_by = auth.user.id;
+        db.contracts.set(contractId, contract);
+        return ok(res, requestId, 200, contract);
+      }
+
+      // Patient portal: notifications
+      if (method === "GET" && url.pathname === "/patient/notifications") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        return ok(res, requestId, 200, listPatientNotifications(auth.user.id));
+      }
+
+      const patientNotificationRead = url.pathname.match(/^\/patient\/notifications\/([^/]+)\/read$/);
+      if (method === "POST" && patientNotificationRead) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const n = markNotificationRead(auth.user.id, patientNotificationRead[1]);
+        if (!n) return error(res, requestId, 404, "NOT_FOUND", "Notificação não encontrada");
+        return ok(res, requestId, 200, n);
+      }
+
+      // Patient portal: available slots
+      if (method === "GET" && url.pathname === "/patient/available-slots") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const startDate = url.searchParams.get("start") ?? new Date().toISOString().split("T")[0];
+        const endDate = url.searchParams.get("end") ?? startDate;
+        return ok(res, requestId, 200, getAvailableSlots(access, startDate, endDate));
+      }
+
+      // Patient portal: request slot
+      if (method === "POST" && url.pathname === "/patient/slot-request") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const body = await readJson(req);
+        if (typeof body.date !== "string" || typeof body.time !== "string" || typeof body.duration !== "number") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "date, time, duration required");
+        }
+        return ok(res, requestId, 201, requestSlot(access, body.date, body.time, body.duration));
+      }
+
+      // Patient portal: list own slot requests
+      if (method === "GET" && url.pathname === "/patient/slot-requests") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        return ok(res, requestId, 200, listPatientSlotRequests(access));
+      }
+
+      // Psychologist: availability blocks
+      if (method === "GET" && url.pathname === "/availability") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        return ok(res, requestId, 200, listAvailabilityBlocks(auth.user.id));
+      }
+
+      if (method === "POST" && url.pathname === "/availability") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        if (typeof body.day_of_week !== "number" || typeof body.start_time !== "string" || typeof body.end_time !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "day_of_week, start_time, end_time required");
+        }
+        return ok(res, requestId, 201, createAvailabilityBlock(auth.user.id, {
+          day_of_week: body.day_of_week as AvailabilityBlock["day_of_week"],
+          start_time: body.start_time,
+          end_time: body.end_time,
+          slot_duration_minutes: typeof body.slot_duration_minutes === "number" ? body.slot_duration_minutes : 50,
+          enabled: body.enabled !== false,
+          patient_ids: Array.isArray(body.patient_ids) ? body.patient_ids : [],
+        }));
+      }
+
+      const availabilityById = url.pathname.match(/^\/availability\/([^/]+)$/);
+      if (method === "PATCH" && availabilityById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        const block = updateAvailabilityBlock(auth.user.id, availabilityById[1], body as Partial<AvailabilityBlock>);
+        if (!block) return error(res, requestId, 404, "NOT_FOUND", "Bloco não encontrado");
+        return ok(res, requestId, 200, block);
+      }
+
+      if (method === "DELETE" && availabilityById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const ok2 = deleteAvailabilityBlock(auth.user.id, availabilityById[1]);
+        if (!ok2) return error(res, requestId, 404, "NOT_FOUND", "Bloco não encontrado");
+        return ok(res, requestId, 204, null);
+      }
+
+      // Psychologist: slot requests
+      if (method === "GET" && url.pathname === "/slot-requests") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        return ok(res, requestId, 200, listSlotRequests(auth.user.id));
+      }
+
+      const slotRequestById = url.pathname.match(/^\/slot-requests\/([^/]+)\/respond$/);
+      if (method === "POST" && slotRequestById) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const body = await readJson(req);
+        const result = respondSlotRequest(auth.user.id, slotRequestById[1], body.approved !== false, typeof body.reason === "string" ? body.reason : undefined);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Solicitação não encontrada");
+        return ok(res, requestId, 200, result);
+      }
+
       // Local entitlements
       if (method === "POST" && url.pathname === "/local/entitlements/sync") {
         const body = await readJson(req);
@@ -875,7 +1217,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, resolveLocalEntitlements(auth.user.id));
       }
 
-      // Contracts (clÃ­nico)
+      // Contracts (clínico)
       if (method === "GET" && url.pathname === "/contracts") {
         return ok(res, requestId, 200, listContracts(auth.user.id));
       }
@@ -888,21 +1230,61 @@ export const createEthosBackend = () =>
 
         const contract = createContract(auth.user.id, {
           patient_id: String(body.patient_id ?? ""),
+          template_id: typeof body.template_id === "string" ? body.template_id : undefined,
+          title: typeof body.title === "string" ? body.title : undefined,
+          content: typeof body.content === "string" ? body.content : undefined,
           psychologist: body.psychologist as { name: string; license: string; email: string; phone?: string },
-          patient: body.patient as { name: string; email: string; document: string },
+          patient: body.patient as { name: string; email: string; document: string; address?: string },
           terms: body.terms as { value: string; periodicity: string; absence_policy: string; payment_method: string },
         });
         return ok(res, requestId, 201, contract);
       }
 
+      const contractById = url.pathname.match(/^\/contracts\/([^/]+)$/);
+      if (method === "PATCH" && contractById) {
+        const body = await readJson(req);
+        const contract = updateContract(auth.user.id, contractById[1], {
+          template_id: typeof body.template_id === "string" ? body.template_id : undefined,
+          title: typeof body.title === "string" ? body.title : undefined,
+          content: typeof body.content === "string" ? body.content : undefined,
+          psychologist: typeof body.psychologist === "object" && body.psychologist ? body.psychologist as any : undefined,
+          patient: typeof body.patient === "object" && body.patient ? body.patient as any : undefined,
+          terms: typeof body.terms === "object" && body.terms ? body.terms as any : undefined,
+        });
+        if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        return ok(res, requestId, 200, contract);
+      }
+
       if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/send")) {
         const contractId = url.pathname.split("/")[2];
-        const contract = sendContract(auth.user.id, contractId);
+        const body = await readJson(req);
+        const channel = body.channel === "whatsapp" ? "whatsapp" : "email";
+        const recipient = typeof body.recipient === "string" ? body.recipient : undefined;
+        const contract = sendContract(auth.user.id, contractId, channel, recipient);
         if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        const portalUrl = contract.portal_token ? `/portal/contract?token=${contract.portal_token}` : null;
         return ok(res, requestId, 200, {
           contract,
-          portal_url: contract.portal_token ? `/portal/contract?token=${contract.portal_token}` : null,
+          portal_url: portalUrl,
+          whatsapp_url: channel === "whatsapp" && portalUrl
+            ? `https://wa.me/?text=${encodeURIComponent(`Olá! Segue o link do contrato para revisão e aceite: ${portalUrl}`)}`
+            : null,
         });
+      }
+
+      if (method === "POST" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/signed-upload")) {
+        const contractId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        if (typeof body.file_name !== "string" || typeof body.mime_type !== "string" || typeof body.data_url !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "file_name, mime_type and data_url are required");
+        }
+        const contract = attachSignedContract(auth.user.id, contractId, {
+          file_name: body.file_name,
+          mime_type: body.mime_type,
+          data_url: body.data_url,
+        });
+        if (!contract) return error(res, requestId, 404, "NOT_FOUND", "Contract not found");
+        return ok(res, requestId, 200, contract);
       }
 
       if (method === "GET" && url.pathname.startsWith("/contracts/") && url.pathname.endsWith("/export")) {
@@ -920,7 +1302,44 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, contract);
       }
 
-      // Sessions (com idempotÃªncia)
+      // Share with patient
+      if (method === "POST" && url.pathname.match(/^\/contracts\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "contracts", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Contrato não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/reports\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "reports", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Relatório não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/documents\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "documents", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Documento não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname.match(/^\/financial\/entries\/[^/]+\/share$/)) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const id = url.pathname.split("/")[3];
+        const body = await readJson(req);
+        const result = toggleShareWithPatient(auth.user.id, "financial", id, body.shared !== false);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Lançamento não encontrado");
+        return ok(res, requestId, 200, result);
+      }
+
+      // Sessions (com idempotência)
       const idemKey = req.headers["idempotency-key"]?.toString();
 
       if (method === "POST" && url.pathname === "/sessions") {
@@ -987,7 +1406,13 @@ export const createEthosBackend = () =>
         }
         const session = patchSessionStatus(auth.user.id, sessionStatus[1], status);
         if (!session) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
-        return ok(res, requestId, 200, session);
+
+        let billingResult: ReturnType<typeof generateSessionBilling> = { pending_billing: false };
+        if (status === "completed") {
+          billingResult = generateSessionBilling(auth.user.id, session);
+        }
+
+        return ok(res, requestId, 200, { ...session, ...billingResult });
       }
 
       const sessionAudio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
@@ -995,6 +1420,14 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         if (body.consent_confirmed !== true) return error(res, requestId, 422, "CONSENT_REQUIRED", "Explicit consent is required");
         if (!getByOwner(db.sessions, auth.user.id, sessionAudio[1])) return error(res, requestId, 404, "NOT_FOUND", "Session not found");
+        if (typeof body.audio_base64 === "string" && body.audio_base64.trim()) {
+          const uploaded = await storeUploadedAudio(auth.user.id, sessionAudio[1], {
+            fileName: typeof body.file_name === "string" ? body.file_name : undefined,
+            mimeType: typeof body.mime_type === "string" ? body.mime_type : undefined,
+            base64: body.audio_base64,
+          });
+          return ok(res, requestId, 201, uploaded);
+        }
         return ok(res, requestId, 201, addAudio(auth.user.id, sessionAudio[1], String(body.file_path ?? "vault://audio.enc")));
       }
 
@@ -1098,7 +1531,7 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        // Nota: vocÃª registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhor:
+        // Nota: você registrava audit usando sessionNotes[1] como id. Mantive, mas se quiser melhorar:
         // ideal seria registrar por "session_id" explicitamente.
         recordProntuarioAudit(auth.user.id, "ACCESS", "clinical_note", sessionNotes[1]);
 
@@ -1269,8 +1702,9 @@ export const createEthosBackend = () =>
         const report = createReport(
           auth.user.id,
           String(body.patient_id ?? ""),
-          String(body.purpose ?? "profissional") as "instituiÃ§Ã£o" | "profissional" | "paciente",
+          (body.purpose === "instituição" ? "instituição" : String(body.purpose ?? "profissional")) as "instituição" | "profissional" | "paciente",
           String(body.content ?? ""),
+          body.kind === "longitudinal_record" ? "longitudinal_record" : "session_report",
         );
         if (!report) return error(res, requestId, 422, "VALIDATED_NOTE_REQUIRED", "A validated note for the patient is required before creating reports");
         return ok(res, requestId, 201, report);
@@ -1297,16 +1731,41 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const report = updateReport(auth.user.id, reportById[1], {
           purpose:
-            body.purpose === "instituiÃ§Ã£o" || body.purpose === "profissional" || body.purpose === "paciente"
+            body.purpose === "instituição" || body.purpose === "profissional" || body.purpose === "paciente"
               ? body.purpose
               : undefined,
+          kind: body.kind === "longitudinal_record" || body.kind === "session_report" ? body.kind : undefined,
           content: typeof body.content === "string" ? body.content : undefined,
           status: body.status === "draft" || body.status === "final" ? body.status : undefined,
         });
         if (!report) return error(res, requestId, 404, "NOT_FOUND", "Report not found");
         return ok(res, requestId, 200, report);
       }
-      // Document templates (lista pÃºblica)
+
+      // WhatsApp notification (queued — pluggable provider via WHATSAPP_WEBHOOK_URL env)
+      if (method === "POST" && url.pathname === "/notifications/whatsapp/send") {
+        const body = await readJson(req);
+        if (!body.to || !body.message) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "to and message are required");
+        }
+        const logId = uid();
+        const logEntry = {
+          id: logId,
+          channel: "whatsapp",
+          recipient: String(body.to),
+          message: String(body.message),
+          patient_id: body.patient_id ? String(body.patient_id) : undefined,
+          sent_by: auth.user.id,
+          sent_at: new Date().toISOString(),
+          status: "queued",
+        };
+        db.notificationLogs.set(logId, logEntry as any);
+        addAudit(auth.user.id, "WHATSAPP_NOTIFICATION_QUEUED");
+        return ok(res, requestId, 201, { id: logId, status: "queued", message: "Notification queued" });
+      }
+
+
+      // Document templates (lista pública)
       if (method === "GET" && url.pathname === "/document-templates") {
         return ok(res, requestId, 200, listDocumentTemplates());
       }
@@ -1319,7 +1778,7 @@ export const createEthosBackend = () =>
           String(body.patient_id ?? ""),
           String(body.case_id ?? ""),
           String(body.template_id ?? ""),
-          String(body.title ?? "Documento clÃ­nico"),
+          String(body.title ?? "Documento clínico"),
         );
         if (!document) return error(res, requestId, 404, "TEMPLATE_NOT_FOUND", "Template not found");
         return ok(res, requestId, 201, document);
@@ -1346,6 +1805,12 @@ export const createEthosBackend = () =>
       }
 
       const documentById = url.pathname.match(/^\/documents\/([^/]+)$/);
+      if (method === "DELETE" && documentById) {
+        const removed = deleteDocument(auth.user.id, documentById[1]);
+        if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
       if (method === "GET" && documentById) {
         const detail = getDocumentDetail(auth.user.id, documentById[1]);
         if (!detail) return error(res, requestId, 404, "NOT_FOUND", "Document not found");
@@ -1413,19 +1878,128 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
+      // Therapeutic Goals
+      if (method === "GET" && url.pathname === "/goals") {
+        const patientId = url.searchParams.get("patient_id") ?? "";
+        return ok(res, requestId, 200, listGoals(auth.user.id, patientId));
+      }
+
+      if (method === "POST" && url.pathname === "/goals") {
+        const body = await readJson(req);
+        return ok(res, requestId, 201, createGoal(auth.user.id, String(body.patient_id ?? ""), String(body.title ?? ""), body.description ? String(body.description) : undefined));
+      }
+
+      if (method === "PATCH" && /^\/goals\/[^/]+$/.test(url.pathname)) {
+        const goalId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const updated = updateGoal(auth.user.id, goalId, {
+          ...(body.title !== undefined && { title: String(body.title) }),
+          ...(body.description !== undefined && { description: String(body.description) }),
+          ...(body.status !== undefined && { status: body.status as import("../domain/types").GoalStatus }),
+          ...(body.progress !== undefined && { progress: Number(body.progress) }),
+          ...(body.milestones !== undefined && { milestones: body.milestones as import("../domain/types").GoalMilestone[] }),
+        });
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Goal not found");
+        return ok(res, requestId, 200, updated);
+      }
+
+      if (method === "DELETE" && /^\/goals\/[^/]+$/.test(url.pathname)) {
+        const goalId = url.pathname.split("/")[2];
+        if (!deleteGoal(auth.user.id, goalId)) return error(res, requestId, 404, "NOT_FOUND", "Goal not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
+      // Homework Tasks
+      if (method === "GET" && url.pathname === "/homework") {
+        const patientId = url.searchParams.get("patient_id") ?? "";
+        return ok(res, requestId, 200, listHomework(auth.user.id, patientId));
+      }
+
+      if (method === "POST" && url.pathname === "/homework") {
+        const body = await readJson(req);
+        return ok(res, requestId, 201, createHomework(auth.user.id, String(body.patient_id ?? ""), String(body.title ?? ""), body.description ? String(body.description) : undefined, body.due_date ? String(body.due_date) : undefined));
+      }
+
+      if (method === "PATCH" && /^\/homework\/[^/]+$/.test(url.pathname)) {
+        const taskId = url.pathname.split("/")[2];
+        const body = await readJson(req);
+        const updated = updateHomework(auth.user.id, taskId, {
+          ...(body.title !== undefined && { title: String(body.title) }),
+          ...(body.description !== undefined && { description: String(body.description) }),
+          ...(body.due_date !== undefined && { due_date: String(body.due_date) }),
+          ...(body.completed !== undefined && { completed: Boolean(body.completed) }),
+        });
+        if (!updated) return error(res, requestId, 404, "NOT_FOUND", "Homework task not found");
+        return ok(res, requestId, 200, updated);
+      }
+
+      if (method === "DELETE" && /^\/homework\/[^/]+$/.test(url.pathname)) {
+        const taskId = url.pathname.split("/")[2];
+        if (!deleteHomework(auth.user.id, taskId)) return error(res, requestId, 404, "NOT_FOUND", "Homework task not found");
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
       // Forms
       if (method === "POST" && url.pathname === "/forms/entry") {
         const body = await readJson(req);
-        return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}));
+        try {
+          return ok(res, requestId, 201, createFormEntry(auth.user.id, String(body.patient_id ?? ""), String(body.form_id ?? ""), (body.content as Record<string, unknown>) ?? {}, "professional"));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : "Unable to create form entry";
+          return error(res, requestId, 400, "FORM_ENTRY_ERROR", message);
+        }
       }
 
       if (method === "GET" && url.pathname === "/forms") {
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = listFormsCatalog();
+        const items = listFormsCatalog(auth.user.id).map((form) => {
+          const assignments = listFormAssignments(auth.user.id, { form_id: form.id });
+          const responseCount = listFormEntries(auth.user.id, { form_id: form.id }).length;
+          return {
+            ...form,
+            assignments_count: assignments.length,
+            responses_count: responseCount,
+          };
+        });
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "POST" && url.pathname === "/forms") {
+        const body = await readJson(req);
+        if (typeof body.title !== "string" || !Array.isArray(body.fields)) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "title and fields are required");
+        }
+        const template = createFormTemplate(auth.user.id, {
+          title: body.title,
+          description: typeof body.description === "string" ? body.description : undefined,
+          audience: body.audience === "professional" ? "professional" : "patient",
+          active: body.active !== false,
+          fields: body.fields as any,
+        });
+        return ok(res, requestId, 201, template);
+      }
+
+      const formById = url.pathname.match(/^\/forms\/([^/]+)$/);
+      if (method === "PATCH" && formById) {
+        const body = await readJson(req);
+        const template = updateFormTemplate(auth.user.id, formById[1], {
+          title: typeof body.title === "string" ? body.title : undefined,
+          description: typeof body.description === "string" ? body.description : undefined,
+          audience: body.audience === "patient" || body.audience === "professional" ? body.audience : undefined,
+          active: typeof body.active === "boolean" ? body.active : undefined,
+          fields: Array.isArray(body.fields) ? body.fields as any : undefined,
+        });
+        if (!template) return error(res, requestId, 404, "NOT_FOUND", "Form not found");
+        return ok(res, requestId, 200, template);
+      }
+
+      if (method === "DELETE" && formById) {
+        const removed = deleteFormTemplate(auth.user.id, formById[1]);
+        if (!removed) return error(res, requestId, 404, "NOT_FOUND", "Form not found");
+        return ok(res, requestId, 200, { deleted: true });
       }
 
       if (method === "GET" && url.pathname === "/forms/entries") {
@@ -1439,6 +2013,50 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
+      if (method === "GET" && url.pathname === "/forms/assignments") {
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        const formId = url.searchParams.get("form_id") ?? undefined;
+        const activeParam = url.searchParams.get("active");
+        const active =
+          activeParam === "true" ? true :
+          activeParam === "false" ? false :
+          undefined;
+
+        return ok(res, requestId, 200, listFormAssignments(auth.user.id, {
+          patient_id: patientId,
+          form_id: formId,
+          active,
+        }));
+      }
+
+      if (method === "POST" && url.pathname === "/forms/assignments") {
+        const body = await readJson(req);
+        if (typeof body.form_id !== "string" || typeof body.patient_id !== "string") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "form_id and patient_id are required");
+        }
+        const assignment = assignFormToPatient(auth.user.id, {
+          form_id: body.form_id,
+          patient_id: body.patient_id,
+          mode: body.mode === "single_use" ? "single_use" : "recurring",
+          active: typeof body.active === "boolean" ? body.active : true,
+        });
+        if (!assignment) {
+          return error(res, requestId, 404, "NOT_FOUND", "Form or patient not found");
+        }
+        return ok(res, requestId, 201, assignment);
+      }
+
+      const formAssignmentById = url.pathname.match(/^\/forms\/assignments\/([^/]+)$/);
+      if (method === "PATCH" && formAssignmentById) {
+        const body = await readJson(req);
+        const assignment = updateFormAssignment(auth.user.id, formAssignmentById[1], {
+          active: typeof body.active === "boolean" ? body.active : undefined,
+          mode: body.mode === "single_use" || body.mode === "recurring" ? body.mode : undefined,
+        });
+        if (!assignment) return error(res, requestId, 404, "NOT_FOUND", "Assignment not found");
+        return ok(res, requestId, 200, assignment);
+      }
+
       // Templates (HTML/PDF rendering)
       if (method === "GET" && url.pathname === "/templates") {
         return ok(res, requestId, 200, listTemplates(auth.user.id));
@@ -1449,12 +2067,13 @@ export const createEthosBackend = () =>
         if (typeof body.title !== "string" || typeof body.html !== "string") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "title and html required");
         }
-        const template = createTemplate(auth.user.id, {
-          title: body.title,
-          description: typeof body.description === "string" ? body.description : undefined,
-          version: typeof body.version === "number" ? body.version : 1,
-          html: body.html,
-          fields: Array.isArray(body.fields) ? (body.fields as any) : [],
+          const template = createTemplate(auth.user.id, {
+            title: body.title,
+            description: typeof body.description === "string" ? body.description : undefined,
+            kind: body.kind === "contract" ? "contract" : "document",
+            version: typeof body.version === "number" ? body.version : 1,
+            html: body.html,
+            fields: Array.isArray(body.fields) ? (body.fields as any) : [],
         });
         return ok(res, requestId, 201, template);
       }
@@ -1468,12 +2087,13 @@ export const createEthosBackend = () =>
 
       if (method === "PUT" && templateById) {
         const body = await readJson(req);
-        const template = updateTemplate(auth.user.id, templateById[1], {
-          title: typeof body.title === "string" ? body.title : undefined,
-          description: typeof body.description === "string" ? body.description : undefined,
-          version: typeof body.version === "number" ? body.version : undefined,
-          html: typeof body.html === "string" ? body.html : undefined,
-          fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
+          const template = updateTemplate(auth.user.id, templateById[1], {
+            title: typeof body.title === "string" ? body.title : undefined,
+            description: typeof body.description === "string" ? body.description : undefined,
+            kind: body.kind === "contract" || body.kind === "document" ? body.kind : undefined,
+            version: typeof body.version === "number" ? body.version : undefined,
+            html: typeof body.html === "string" ? body.html : undefined,
+            fields: Array.isArray(body.fields) ? (body.fields as any) : undefined,
         });
         if (!template) return error(res, requestId, 404, "NOT_FOUND", "Template not found");
         return ok(res, requestId, 200, template);
@@ -1535,6 +2155,12 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, item);
       }
 
+      if (method === "GET" && url.pathname === "/financial/summary") {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const summary = getFinancialSummary(auth.user.id);
+        return ok(res, requestId, 200, summary);
+      }
+
       if (method === "GET" && url.pathname === "/financial/entries") {
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
@@ -1549,7 +2175,18 @@ export const createEthosBackend = () =>
       }
 
       // Export
-      if (method === "POST" && (url.pathname === "/export/pdf" || url.pathname === "/export/docx")) {
+      if (method === "POST" && url.pathname === "/export/pdf") {
+        if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
+        const body = await readJson(req);
+        const documentType = String(body.document_type ?? "");
+        const documentId = String(body.document_id ?? "");
+        if (!documentType || !documentId) return error(res, requestId, 400, "INVALID_PAYLOAD", "document_type and document_id are required");
+        const result = await exportResourcePdf(auth.user.id, documentType, documentId);
+        if (!result) return error(res, requestId, 404, "NOT_FOUND", "Documento não encontrado para exportação");
+        return ok(res, requestId, 200, result);
+      }
+
+      if (method === "POST" && url.pathname === "/export/docx") {
         if (!canUseFeature(auth.user.id, "export")) return error(res, requestId, 402, "ENTITLEMENT_BLOCK", "Export unavailable for this subscription");
         const job = createJob(auth.user.id, "export");
         void runJob(job.id, {});
@@ -1655,11 +2292,6 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 202, { accepted: true });
       }
 
-      // Patients list
-      if (method === "GET" && url.pathname === "/patients") {
-        return ok(res, requestId, 200, listPatients(auth.user.id));
-      }
-
       // AI organize
       if (method === "POST" && url.pathname === "/ai/organize") {
         const body = await readJson(req);
@@ -1748,6 +2380,102 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, Array.from(db.audit.values()));
       }
 
+      // ─── WhatsApp / Evolution API config ────────────────────────────────────
+      if (method === "GET" && url.pathname === "/settings/whatsapp") {
+        const cfg = db.whatsappConfig.get("config");
+        if (!cfg) return ok(res, requestId, 200, null);
+        // Never expose the full apiKey — return masked version
+        return ok(res, requestId, 200, {
+          url: cfg.url,
+          apiKey: cfg.apiKey ? `${cfg.apiKey.slice(0, 4)}${"*".repeat(Math.max(0, cfg.apiKey.length - 4))}` : "",
+          instanceName: cfg.instanceName,
+          enabled: cfg.enabled,
+        });
+      }
+
+      if (method === "POST" && url.pathname === "/settings/whatsapp") {
+        const body = await readJson(req);
+        const url_ = typeof body.url === "string" ? body.url.trim() : "";
+        const instanceName = typeof body.instanceName === "string" ? body.instanceName.trim() : "";
+        const enabled = body.enabled !== false;
+        const existing = db.whatsappConfig.get("config");
+        // If apiKey is sent as masked (stars), keep old key
+        const apiKey =
+          typeof body.apiKey === "string" && !body.apiKey.includes("*")
+            ? body.apiKey.trim()
+            : existing?.apiKey ?? "";
+        if (!url_ || !instanceName) {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "url e instanceName são obrigatórios.");
+        }
+        const cfg = { url: url_, apiKey, instanceName, enabled };
+        db.whatsappConfig.set("config", cfg);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, { ok: true });
+      }
+
+      if (method === "POST" && url.pathname === "/settings/whatsapp/connect") {
+        const result = await whatsAppCreateInstance();
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao conectar.");
+        return ok(res, requestId, 200, { ok: true });
+      }
+
+      if (method === "GET" && url.pathname === "/settings/whatsapp/status") {
+        const state = await whatsAppGetConnectionState();
+        return ok(res, requestId, 200, { state });
+      }
+
+      if (method === "GET" && url.pathname === "/settings/whatsapp/qrcode") {
+        const result = await whatsAppGetQRCode();
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao obter QR.");
+        return ok(res, requestId, 200, result.qr);
+      }
+
+      // ─── Session reminder global config ─────────────────────────────────────
+      if (method === "GET" && url.pathname === "/settings/session-reminder") {
+        const cfg = db.sessionReminderConfig.get("config");
+        return ok(res, requestId, 200, cfg ?? null);
+      }
+
+      if (method === "POST" && url.pathname === "/settings/session-reminder") {
+        const body = await readJson(req);
+        const cfg = {
+          enabled: body.enabled === true,
+          hoursBeforeSession: typeof body.hoursBeforeSession === "number" ? body.hoursBeforeSession : 24,
+          template: typeof body.template === "string" ? body.template : "",
+        };
+        db.sessionReminderConfig.set("config", cfg);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, cfg);
+      }
+
+      // ─── Per-patient session reminder toggle ─────────────────────────────────
+      const patientSessionReminderMatch = url.pathname.match(/^\/patients\/([^/]+)\/session-reminder$/);
+      if (patientSessionReminderMatch) {
+        const patientId = patientSessionReminderMatch[1];
+        if (method === "GET") {
+          const enabled = db.patientSessionReminderEnabled.get(patientId) ?? false;
+          return ok(res, requestId, 200, { patient_id: patientId, enabled });
+        }
+        if (method === "PATCH") {
+          const body = await readJson(req);
+          const enabled = body.enabled === true;
+          db.patientSessionReminderEnabled.set(patientId, enabled);
+          schedulePersistDatabase();
+          return ok(res, requestId, 200, { patient_id: patientId, enabled });
+        }
+      }
+
+      // ─── Manual WhatsApp send (for testing) ──────────────────────────────────
+      if (method === "POST" && url.pathname === "/settings/whatsapp/send-test") {
+        const body = await readJson(req);
+        const phone = typeof body.phone === "string" ? body.phone : "";
+        const text = typeof body.text === "string" ? body.text : "Teste do Ethos 👋";
+        if (!phone) return error(res, requestId, 422, "VALIDATION_ERROR", "phone é obrigatório.");
+        const result = await whatsAppSendText(phone, text);
+        if (!result.ok) return error(res, requestId, 502, "WHATSAPP_ERROR", result.error ?? "Erro ao enviar.");
+        return ok(res, requestId, 200, { ok: true });
+      }
+
       // Not found
       return error(res, requestId, 404, "NOT_FOUND", "Route not found");
     } catch (err) {
@@ -1774,4 +2502,5 @@ export const createEthosBackend = () =>
       );
     }
   });
+
 

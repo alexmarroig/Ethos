@@ -20,6 +20,9 @@ export interface User {
   name: string;
   avatar_url?: string;
   crp?: string;
+  rg?: string;
+  cpf?: string;
+  gender?: "F" | "M";
   specialty?: string;
   clinical_approach?: string;
   role: UserRole;
@@ -60,6 +63,9 @@ function normalizeUser(
   raw: Pick<User, "id" | "email" | "name"> & {
     avatar_url?: string;
     crp?: string;
+    rg?: string;
+    cpf?: string;
+    gender?: "F" | "M";
     specialty?: string;
     clinical_approach?: string;
     role?: IncomingRole | string;
@@ -72,6 +78,9 @@ function normalizeUser(
     name: raw.name,
     avatar_url: raw.avatar_url,
     crp: raw.crp,
+    rg: raw.rg,
+    cpf: raw.cpf,
+    gender: raw.gender,
     specialty: raw.specialty,
     clinical_approach: raw.clinical_approach,
     role: normalizeRole(raw.role),
@@ -114,6 +123,37 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   useEffect(() => {
     const restore = async () => {
+      const params = new URLSearchParams(window.location.search);
+      const tokenFromUrl = params.get("token");
+
+      if (tokenFromUrl) {
+        localStorage.setItem(
+          WEB_AUTH_STORAGE_KEY,
+          JSON.stringify({ token: tokenFromUrl }),
+        );
+        localStorage.setItem(WEB_AUTH_EXPIRY_KEY, String(Date.now() + EXPIRY_MS));
+        localStorage.setItem(WEB_CLOUD_AUTH_KEY, "false");
+
+        const me = await authService.me();
+        if (me.success) {
+          persistUser(
+            normalizeUser({
+              ...me.data,
+              token: tokenFromUrl,
+            }),
+            false,
+          );
+          const cleanUrl = `${window.location.pathname}${window.location.hash || ""}`;
+          window.history.replaceState({}, document.title, cleanUrl);
+          setIsLoading(false);
+          return;
+        }
+
+        localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
+        localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
+        localStorage.removeItem(WEB_CLOUD_AUTH_KEY);
+      }
+
       const stored = localStorage.getItem(WEB_AUTH_STORAGE_KEY);
       const expiry = localStorage.getItem(WEB_AUTH_EXPIRY_KEY);
 
@@ -216,6 +256,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       email: payload.email,
       avatar_url: payload.avatar_url,
       crp: payload.crp,
+      rg: payload.rg,
+      cpf: payload.cpf,
+      gender: payload.gender,
       specialty: payload.specialty,
       clinical_approach: payload.clinical_approach,
     });

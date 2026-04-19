@@ -1,0 +1,114 @@
+<h2>Como criar uma sessão recorrente?</h2>
+<p class="subtitle">Quando o psicólogo agenda uma sessão, como ele define a recorrência?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;font-size:11px">
+      <div style="font-weight:600;color:#1e293b;margin-bottom:10px">➕ Nova sessão</div>
+      <div style="margin-bottom:8px">
+        <div style="color:#64748b;font-size:10px;margin-bottom:3px">Paciente</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;color:#1e293b">Ana Silva ▾</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <div>
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Data</div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;color:#1e293b">22/04/2026</div>
+        </div>
+        <div>
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Horário</div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;color:#1e293b">09:00</div>
+        </div>
+      </div>
+      <!-- Simple toggle -->
+      <div style="background:#eff6ff;border-radius:6px;padding:8px;border:1px solid #bfdbfe;display:flex;align-items:center;gap:8px">
+        <div style="width:28px;height:16px;background:#4f46e5;border-radius:8px;position:relative;flex-shrink:0">
+          <div style="position:absolute;right:2px;top:2px;width:12px;height:12px;background:#fff;border-radius:50%"></div>
+        </div>
+        <div>
+          <div style="font-weight:600;color:#1e40af;font-size:10px">Repetir semanalmente</div>
+          <div style="color:#3b82f6;font-size:9px">Sessão gerada todo 2ª-feira às 09h</div>
+        </div>
+      </div>
+      <div style="margin-top:8px;background:#4f46e5;color:#fff;border-radius:5px;padding:5px 10px;text-align:center;font-weight:600;font-size:10px">Agendar sessão</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Toggle simples</h3>
+      <p>Um toggle "Repetir semanalmente" no dialog existente. Liga/desliga — sem configurações extras. Gera sessões a cada 7 dias automaticamente. Mínima fricção, ideal para 90% dos casos.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;font-size:11px">
+      <div style="font-weight:600;color:#1e293b;margin-bottom:10px">➕ Nova sessão</div>
+      <div style="margin-bottom:8px">
+        <div style="color:#64748b;font-size:10px;margin-bottom:3px">Paciente</div>
+        <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px;color:#1e293b">Ana Silva ▾</div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">
+        <div>
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Data</div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px">22/04/2026</div>
+        </div>
+        <div>
+          <div style="color:#64748b;font-size:10px;margin-bottom:3px">Horário</div>
+          <div style="background:#fff;border:1px solid #e2e8f0;border-radius:5px;padding:5px 8px">09:00</div>
+        </div>
+      </div>
+      <!-- Recurrence rule picker -->
+      <div style="background:#eff6ff;border-radius:6px;padding:8px;border:1px solid #bfdbfe">
+        <div style="font-weight:600;color:#1e40af;font-size:10px;margin-bottom:6px">🔁 Recorrência</div>
+        <div style="display:flex;gap:4px;margin-bottom:6px">
+          <div style="background:#4f46e5;color:#fff;border-radius:4px;padding:3px 7px;font-size:9px;font-weight:600">Semanal</div>
+          <div style="background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:4px;padding:3px 7px;font-size:9px">Quinzenal</div>
+          <div style="background:#fff;color:#64748b;border:1px solid #e2e8f0;border-radius:4px;padding:3px 7px;font-size:9px">Mensal</div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px">
+          <div>
+            <div style="color:#64748b;font-size:9px;margin-bottom:2px">Por quantas semanas?</div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:4px;padding:4px 6px;font-size:9px">12 semanas ▾</div>
+          </div>
+          <div>
+            <div style="color:#64748b;font-size:9px;margin-bottom:2px">Ou até</div>
+            <div style="background:#fff;border:1px solid #e2e8f0;border-radius:4px;padding:4px 6px;font-size:9px">15/07/2026</div>
+          </div>
+        </div>
+        <div style="margin-top:5px;font-size:9px;color:#6366f1">→ Cria 12 sessões: 22/04 até 08/07</div>
+      </div>
+      <div style="margin-top:8px;background:#4f46e5;color:#fff;border-radius:5px;padding:5px 10px;text-align:center;font-weight:600;font-size:10px">Agendar 12 sessões</div>
+    </div>
+    <div class="card-body">
+      <h3>B — Regra de recorrência</h3>
+      <p>Semanal / quinzenal / mensal + duração (nº de semanas ou data de término). Cria todas as sessões de uma vez. Mais controle, mas requer mais cliques. Ideal para contratos terapêuticos com prazo definido.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px;font-size:11px">
+      <!-- No manual config - pattern based -->
+      <div style="text-align:center;padding:8px;background:#fff;border-radius:6px;border:1px solid #e2e8f0;margin-bottom:8px">
+        <div style="font-size:10px;color:#64748b">Dialog existente inalterado</div>
+        <div style="font-size:9px;color:#94a3b8;margin-top:2px">(nenhuma mudança na criação)</div>
+      </div>
+      <!-- Pattern detection card -->
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:8px">
+        <div style="font-weight:600;color:#166534;font-size:10px;margin-bottom:6px">✨ Padrão detectado automaticamente</div>
+        <div style="background:#fff;border-radius:5px;padding:6px;margin-bottom:4px">
+          <div style="font-weight:600;color:#1e293b;font-size:10px">Ana Silva</div>
+          <div style="color:#64748b;font-size:9px;margin-top:2px">📊 8 sessões nas últimas 8 terças, 09h</div>
+          <div style="color:#16a34a;font-size:9px">Confiança: 100% • Padrão: semanal</div>
+          <div style="margin-top:5px;display:flex;gap:4px">
+            <span style="background:#16a34a;color:#fff;padding:3px 7px;border-radius:3px;font-size:9px">✓ Sugerir próxima Ter 22/04 09h</span>
+            <span style="background:#f1f5f9;color:#64748b;padding:3px 7px;border-radius:3px;font-size:9px">Ignorar</span>
+          </div>
+        </div>
+        <div style="font-size:8px;color:#4ade80">Aparece no painel lateral da agenda automaticamente</div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Só detecção automática</h3>
+      <p>Nada muda na criação de sessão. O sistema analisa o histórico e detecta padrões sozinho — aparece no painel de sugestões sem configuração. Zero fricção, mas o psicólogo não pode declarar explicitamente "isso é recorrente".</p>
+    </div>
+  </div>
+
+</div>

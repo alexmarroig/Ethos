@@ -1,0 +1,161 @@
+<h2>Agenda Inteligente — Visão do calendário</h2>
+<p class="subtitle">Qual abordagem de calendário faz mais sentido para você?</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px">
+      <!-- Week view mockup -->
+      <div style="font-size:11px;color:#64748b;font-weight:600;text-transform:uppercase;letter-spacing:.05em;margin-bottom:8px">Semana atual</div>
+      <div style="display:grid;grid-template-columns:40px repeat(5,1fr);gap:2px;font-size:10px">
+        <div></div>
+        <div style="text-align:center;padding:3px;color:#64748b">Seg</div>
+        <div style="text-align:center;padding:3px;color:#64748b">Ter</div>
+        <div style="text-align:center;padding:3px;color:#64748b;font-weight:700;color:#4f46e5">Qua</div>
+        <div style="text-align:center;padding:3px;color:#64748b">Qui</div>
+        <div style="text-align:center;padding:3px;color:#64748b">Sex</div>
+        <!-- 9h row -->
+        <div style="color:#94a3b8;padding:2px 4px;font-size:9px">09:00</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#4f46e5;border-radius:3px;display:flex;align-items:center;padding:2px 4px;color:#fff;font-size:9px">Ana S. 🔁</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#4f46e5;border-radius:3px;display:flex;align-items:center;padding:2px 4px;color:#fff;font-size:9px">Carlos M. 🔁</div>
+        <!-- 10h row -->
+        <div style="color:#94a3b8;padding:2px 4px;font-size:9px">10:00</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#0ea5e9;border-radius:3px;display:flex;align-items:center;padding:2px 4px;color:#fff;font-size:9px">Beatriz F.</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <!-- 14h row -->
+        <div style="color:#94a3b8;padding:2px 4px;font-size:9px">14:00</div>
+        <div style="height:28px;background:#4f46e5;border-radius:3px;display:flex;align-items:center;padding:2px 4px;color:#fff;font-size:9px">Pedro A. 🔁</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#4f46e5;border-radius:3px;display:flex;align-items:center;padding:2px 4px;color:#fff;font-size:9px">Ana S. 🔁</div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+        <div style="height:28px;background:#f1f5f9;border-radius:3px"></div>
+      </div>
+      <div style="margin-top:8px;font-size:9px;color:#6366f1">🔁 = sessão recorrente confirmada</div>
+    </div>
+    <div class="card-body">
+      <h3>A — Semana turbinada</h3>
+      <p>Mantém a visão semanal atual. Adiciona ícone 🔁 nas sessões recorrentes e geração automática das próximas semanas. Menor mudança, mais consistente com o que já existe.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px">
+      <!-- Split view mockup -->
+      <div style="display:grid;grid-template-columns:1fr 140px;gap:8px;font-size:10px">
+        <!-- calendar -->
+        <div>
+          <div style="font-size:11px;color:#64748b;font-weight:600;margin-bottom:6px">Semana • Abr 14–18</div>
+          <div style="display:grid;grid-template-columns:32px repeat(5,1fr);gap:2px">
+            <div></div>
+            <div style="text-align:center;color:#64748b;font-size:9px">Seg</div>
+            <div style="text-align:center;color:#64748b;font-size:9px">Ter</div>
+            <div style="text-align:center;color:#4f46e5;font-size:9px;font-weight:700">Qua</div>
+            <div style="text-align:center;color:#64748b;font-size:9px">Qui</div>
+            <div style="text-align:center;color:#64748b;font-size:9px">Sex</div>
+            <div style="color:#94a3b8;font-size:8px">09h</div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+            <div style="height:22px;background:#4f46e5;border-radius:3px"></div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+            <div style="height:22px;background:#4f46e5;border-radius:3px"></div>
+            <div style="color:#94a3b8;font-size:8px">14h</div>
+            <div style="height:22px;background:#4f46e5;border-radius:3px"></div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+            <div style="height:22px;background:#4f46e5;border-radius:3px"></div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+            <div style="height:22px;background:#f1f5f9;border-radius:3px"></div>
+          </div>
+        </div>
+        <!-- suggestions panel -->
+        <div style="background:#eff6ff;border-radius:8px;padding:8px;border:1px solid #bfdbfe">
+          <div style="font-size:10px;font-weight:600;color:#1e40af;margin-bottom:6px">✨ Sugestões</div>
+          <div style="background:#fff;border-radius:5px;padding:5px;margin-bottom:4px;border-left:3px solid #4f46e5;font-size:9px">
+            <div style="font-weight:600;color:#1e293b">Ana S.</div>
+            <div style="color:#64748b">Ter 09h • semanal</div>
+            <div style="margin-top:3px;display:flex;gap:3px">
+              <span style="background:#4f46e5;color:#fff;padding:2px 5px;border-radius:3px;font-size:8px;cursor:pointer">✓ Confirmar</span>
+              <span style="background:#f1f5f9;color:#64748b;padding:2px 5px;border-radius:3px;font-size:8px;cursor:pointer">✗</span>
+            </div>
+          </div>
+          <div style="background:#fff;border-radius:5px;padding:5px;margin-bottom:4px;border-left:3px solid #4f46e5;font-size:9px">
+            <div style="font-weight:600;color:#1e293b">Pedro A.</div>
+            <div style="color:#64748b">Seg 14h • semanal</div>
+            <div style="margin-top:3px;display:flex;gap:3px">
+              <span style="background:#4f46e5;color:#fff;padding:2px 5px;border-radius:3px;font-size:8px;cursor:pointer">✓ Confirmar</span>
+              <span style="background:#f1f5f9;color:#64748b;padding:2px 5px;border-radius:3px;font-size:8px;cursor:pointer">✗</span>
+            </div>
+          </div>
+          <div style="font-size:8px;color:#94a3b8;margin-top:4px">2 sessões detectadas</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Semana + painel de sugestões</h3>
+      <p>Calendário semanal com um painel lateral "Sugestões da semana". O sistema detecta padrões e mostra sessões esperadas para confirmar com um clique. Mais interativo, foco no fluxo de confirmação.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#f8fafc;border-radius:8px;margin-bottom:12px">
+      <!-- Month + week toggle -->
+      <div style="display:flex;gap:6px;margin-bottom:8px">
+        <div style="background:#4f46e5;color:#fff;border-radius:4px;padding:3px 8px;font-size:9px;font-weight:600">Mês</div>
+        <div style="background:#f1f5f9;color:#64748b;border-radius:4px;padding:3px 8px;font-size:9px">Semana</div>
+      </div>
+      <!-- Month grid -->
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;font-size:9px">
+        <div style="text-align:center;color:#94a3b8;padding:2px">D</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">S</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">T</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">Q</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">Q</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">S</div>
+        <div style="text-align:center;color:#94a3b8;padding:2px">S</div>
+        <!-- week 1 -->
+        <div style="padding:3px;color:#cbd5e1;text-align:center">30</div>
+        <div style="padding:3px;text-align:center">31</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">1●</div>
+        <div style="padding:3px;text-align:center">2</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">3●</div>
+        <div style="padding:3px;text-align:center">4</div>
+        <div style="padding:3px;text-align:center">5</div>
+        <!-- week 2 -->
+        <div style="padding:3px;text-align:center">6</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">7●</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">8●</div>
+        <div style="padding:3px;text-align:center">9</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">10●</div>
+        <div style="padding:3px;text-align:center">11</div>
+        <div style="padding:3px;text-align:center">12</div>
+        <!-- week 3 - current -->
+        <div style="padding:3px;text-align:center">13</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">14●</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">15●</div>
+        <div style="padding:3px;text-align:center;border:2px solid #4f46e5;border-radius:3px;font-weight:700;color:#4f46e5">16</div>
+        <div style="padding:3px;text-align:center;background:#4f46e5;color:#fff;border-radius:3px">17●</div>
+        <div style="padding:3px;text-align:center">18</div>
+        <div style="padding:3px;text-align:center">19</div>
+        <!-- week 4 - suggested -->
+        <div style="padding:3px;text-align:center">20</div>
+        <div style="padding:3px;text-align:center;background:#e0e7ff;color:#4f46e5;border-radius:3px;border:1px dashed #818cf8">21?</div>
+        <div style="padding:3px;text-align:center;background:#e0e7ff;color:#4f46e5;border-radius:3px;border:1px dashed #818cf8">22?</div>
+        <div style="padding:3px;text-align:center">23</div>
+        <div style="padding:3px;text-align:center;background:#e0e7ff;color:#4f46e5;border-radius:3px;border:1px dashed #818cf8">24?</div>
+        <div style="padding:3px;text-align:center">25</div>
+        <div style="padding:3px;text-align:center">26</div>
+      </div>
+      <div style="margin-top:6px;font-size:8px;color:#6366f1">● sessão confirmada &nbsp; ? sugestão automática (clique p/ confirmar)</div>
+    </div>
+    <div class="card-body">
+      <h3>C — Visão mensal com sugestões</h3>
+      <p>Adiciona visão de mês (toggle semana/mês). Sessões futuras sugeridas aparecem em azul claro tracejado no calendário — clique confirma. Melhor para ver o panorama completo do mês e padrões de recorrência.</p>
+    </div>
+  </div>
+
+</div>

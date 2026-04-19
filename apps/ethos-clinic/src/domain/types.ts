@@ -44,6 +44,9 @@ export type User = {
   password_hash?: string;
   avatar_url?: string;
   crp?: string;
+  rg?: string;
+  cpf?: string;
+  gender?: "F" | "M";
   specialty?: string;
   clinical_approach?: string;
   accepted_ethics_at?: string;
@@ -77,11 +80,19 @@ export type PatientBilling = {
   session_price?: number;
   package_total_price?: number;
   package_session_count?: number;
+  payment_timing?: "advance" | "after";
+  preferred_payment_day?: number;
+  billing_reminder_days?: number;
+  billing_auto_charge?: boolean;
 };
+
+export type PatientCareStatus = "active" | "paused" | "transferred" | "inactive";
 
 export type Patient = Owned & {
   external_id: string;
   label: string;
+  care_status?: PatientCareStatus;
+  gender?: "M" | "F";
   email?: string;
   phone?: string;
   whatsapp?: string;
@@ -107,6 +118,13 @@ export type Patient = Owned & {
   emergency_contact_name?: string;
   emergency_contact_relationship?: string;
   emergency_contact_phone?: string;
+  education_level?: string;
+  marital_status?: string;
+  legal_guardian_name?: string;
+  legal_guardian_relationship?: string;
+  report_indication?: string;
+  recurring_techniques?: string;
+  report_notes?: string;
   billing?: PatientBilling;
   notes?: string;
 };
@@ -142,9 +160,12 @@ export type ClinicalNote = Owned & {
 
 export type ClinicalReport = Owned & {
   patient_id: string;
-  purpose: "instituiÃ§Ã£o" | "profissional" | "paciente";
+  purpose: "instituição" | "profissional" | "paciente";
+  kind?: "session_report" | "longitudinal_record";
   content: string;
   status?: "draft" | "final";
+  shared_with_patient?: boolean;
+  shared_at?: string;
 };
 
 export type AnamnesisResponse = Owned & {
@@ -161,9 +182,39 @@ export type ScaleRecord = Owned & {
   recorded_at: string;
 };
 
+export type GoalStatus = "active" | "achieved" | "paused" | "abandoned";
+
+export type GoalMilestone = {
+  id: string;
+  title: string;
+  achieved: boolean;
+  achieved_at?: string;
+};
+
+export type TherapeuticGoal = Owned & {
+  patient_id: string;
+  title: string;
+  description?: string;
+  status: GoalStatus;
+  progress: number;
+  milestones: GoalMilestone[];
+  achieved_at?: string;
+};
+
+export type HomeworkTask = Owned & {
+  patient_id: string;
+  title: string;
+  description?: string;
+  due_date?: string;
+  completed: boolean;
+  completed_at?: string;
+  week_number: number;
+};
+
 export type FormEntry = Owned & {
   patient_id: string;
   form_id: string;
+  assignment_id?: string;
   content: Record<string, unknown>;
   submitted_by?: "patient" | "professional";
 };
@@ -192,6 +243,17 @@ export type FormTemplate = Owned & {
   fields: FormField[];
 };
 
+export type FormAssignmentMode = "single_use" | "recurring";
+
+export type FormAssignment = Owned & {
+  form_id: string;
+  patient_id: string;
+  active: boolean;
+  mode: FormAssignmentMode;
+  shared_at: string;
+  last_submitted_at?: string;
+};
+
 export type FinancialEntry = Owned & {
   patient_id: string;
   session_id?: string;
@@ -203,6 +265,9 @@ export type FinancialEntry = Owned & {
   payment_method?: string;
   paid_at?: string;
   notes?: string;
+  shared_with_patient?: boolean;
+  shared_at?: string;
+  reminder_sent_at?: string;
 };
 
 export type PatientTimelineItem = {
@@ -247,6 +312,7 @@ export type DocumentTemplate = {
   created_at: string;
   title: string;
   description?: string;
+  kind?: "document" | "contract";
   version: number;
   html: string;
   fields: Array<{ key: string; label: string; required?: boolean }>;
@@ -257,6 +323,8 @@ export type ClinicalDocument = Owned & {
   case_id: string;
   template_id: UUID;
   title: string;
+  shared_with_patient?: boolean;
+  shared_at?: string;
 };
 
 export type ClinicalDocumentVersion = Owned & {
@@ -341,6 +409,10 @@ export type NotificationLog = Owned & {
   status: "sent" | "failed";
   dispatched_at: string;
   reason?: string;
+  subject?: string;
+  message?: string;
+  delivery_url?: string;
+  provider_response?: string;
 };
 
 export type NotificationPreview = {
@@ -394,4 +466,47 @@ export type ApiError = {
   request_id: string;
   error: { code: string; message: string };
 };
+
+export type PatientNotification = {
+  id: string;
+  patient_user_id: string;
+  type: "session_reminder" | "payment_due" | "document_shared" | "slot_response";
+  data: Record<string, string>;
+  read: boolean;
+  created_at: string;
+};
+
+export type AvailabilityBlock = Owned & {
+  day_of_week: 0 | 1 | 2 | 3 | 4 | 5 | 6;
+  start_time: string;
+  end_time: string;
+  slot_duration_minutes: number;
+  enabled: boolean;
+  patient_ids?: string[];
+};
+
+export type SlotRequest = Owned & {
+  patient_id: string;
+  patient_user_id: string;
+  requested_date: string;
+  requested_time: string;
+  duration_minutes: number;
+  status: "pending" | "confirmed" | "rejected";
+  responded_at?: string;
+  rejection_reason?: string;
+};
+
+export type WhatsAppConfig = {
+  url: string;
+  apiKey: string;
+  instanceName: string;
+  enabled: boolean;
+};
+
+export type SessionReminderConfig = {
+  enabled: boolean;
+  hoursBeforeSession: number;
+  template: string;
+};
+
 
