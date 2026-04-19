@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { sessionService, type Session } from "@/services/sessionService";
+import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
+import { CLINICAL_BASE_URL } from "@/config/runtime";
+import { readStoredAuthUser } from "@/services/authStorage";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
@@ -102,6 +105,13 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [draggingSessionId, setDraggingSessionId] = useState<string | null>(null);
+  const [billingDialog, setBillingDialog] = useState<{
+    open: boolean;
+    patientName: string;
+    suggestedAmount: number;
+    suggestedDueDate: string;
+    patientId: string;
+  } | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -234,6 +244,35 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     });
   };
 
+  const handleCompleteSession = async (session: Session) => {
+    const result = await sessionService.updateStatus(session.id, "completed");
+
+    if (!result.success) {
+      toast({ title: "Erro ao concluir sessão", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    setSessions((current) =>
+      current.map((s) => (s.id === session.id ? result.data : s)),
+    );
+
+    const data = result.data as Session & {
+      pending_billing?: boolean;
+      suggested_amount?: number;
+      suggested_due_date?: string;
+    };
+
+    if (data.pending_billing) {
+      setBillingDialog({
+        open: true,
+        patientName: session.patient_name,
+        suggestedAmount: data.suggested_amount ?? 0,
+        suggestedDueDate: data.suggested_due_date ?? new Date().toISOString().slice(0, 10),
+        patientId: session.patient_id,
+      });
+    }
+  };
+
   const toggleWeekday = (dayId: number) => {
     setAgendaSettings((current) => {
       const exists = current.enabledWeekdays.includes(dayId);
@@ -315,6 +354,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   };
 
   return (
+    <>
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
@@ -594,6 +634,40 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         ) : null}
       </div>
     </div>
+
+    {billingDialog && (
+      <BillingConfirmDialog
+        open={billingDialog.open}
+        patientName={billingDialog.patientName}
+        suggestedAmount={billingDialog.suggestedAmount}
+        suggestedDueDate={billingDialog.suggestedDueDate}
+        onConfirm={async () => {
+          try {
+            const token = readStoredAuthUser()?.token;
+            await fetch(`${CLINICAL_BASE_URL}/financial/entry`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                ...(token ? { Authorization: `Bearer ${token}` } : {}),
+              },
+              body: JSON.stringify({
+                patient_id: billingDialog.patientId,
+                type: "receivable",
+                amount: billingDialog.suggestedAmount,
+                due_date: billingDialog.suggestedDueDate,
+                status: "open",
+                description: "Sessão clínica",
+              }),
+            });
+          } catch (e) {
+            console.error(e);
+          }
+          setBillingDialog(null);
+        }}
+        onDismiss={() => setBillingDialog(null)}
+      />
+    )}
+    </>
   );
 };
 
