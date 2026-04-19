@@ -594,9 +594,9 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           </h2>
 
           {visibleTemplates.length === 0 ? (
-            <div className="py-12 text-center">
-              <FolderOpen className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Nenhum template cadastrado.</p>
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FolderOpen className="mb-3 h-10 w-10 text-muted-foreground/30" />
+              <p className="text-sm text-muted-foreground">Nenhum template cadastrado no momento.</p>
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
@@ -651,8 +651,8 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           </h2>
 
           {visibleDocuments.length === 0 ? (
-            <div className="py-12 text-center">
-              <FileText className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
+            <div className="flex flex-col items-center justify-center py-12 text-center">
+              <FileText className="mb-3 h-10 w-10 text-muted-foreground/30" />
               <p className="text-sm text-muted-foreground">Nenhum documento criado ainda.</p>
             </div>
           ) : (
@@ -674,10 +674,6 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
                     Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} · versões: {document.versions_count ?? 0}
-                    Template: {templates.find((item) => item.id === document.template_id)?.name
-                      ?? templates.find((item) => item.id === document.template_id)?.title
-                      ?? document.template_id
-                      ?? "n/a"} · versões: {document.versions_count ?? 0}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button
