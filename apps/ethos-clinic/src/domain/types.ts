@@ -129,11 +129,34 @@ export type Patient = Owned & {
   notes?: string;
 };
 
+export type RecurrenceRule = {
+  type: "weekly" | "2x-week" | "biweekly";
+  days: Array<"monday" | "tuesday" | "wednesday" | "thursday" | "friday">;
+  time: string;           // "HH:MM"
+  duration_minutes: number;
+};
+
 export type ClinicalSession = Owned & {
   patient_id: string;
   scheduled_at: string;
   status: SessionStatus;
   duration_minutes?: number;
+  recurrence?: RecurrenceRule;
+  series_id?: string;
+  is_series_anchor?: boolean;
+  event_type?: "session" | "block" | "other";
+  block_title?: string;
+};
+
+export type CalendarSuggestion = {
+  patient_id: string;
+  patient_name: string;
+  suggested_at: string;
+  duration_minutes: number;
+  source: "rule" | "pattern";
+  confidence?: number;
+  series_id?: string;
+  recurrence_type?: string;
 };
 
 export type AudioRecord = Owned & {
