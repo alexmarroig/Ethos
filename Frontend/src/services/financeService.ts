@@ -66,6 +66,12 @@ function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
   };
 }
 
+export interface FinancialSummary {
+  overdue_count: number;
+  overdue_total: number;
+  due_soon_count: number;
+}
+
 async function loadPatientsIndex() {
   const patientsResult = await patientService.list();
   return patientsResult.success ? patientsResult.data : [];
@@ -152,6 +158,10 @@ export const financeService = {
       ...result,
       data: result.data.items.map((item) => mapEntry(item, patients)),
     };
+  },
+
+  getFinancialSummary: async (): Promise<ApiResult<FinancialSummary>> => {
+    return api.get<FinancialSummary>("/financial/summary");
   },
 
   getSummary: async (): Promise<ApiResult<FinanceSummary>> => {
