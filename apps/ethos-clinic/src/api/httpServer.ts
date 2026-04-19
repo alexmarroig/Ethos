@@ -136,6 +136,8 @@ import {
   deleteHomework,
   generateSessionBilling,
   getFinancialSummary,
+  generateNextSession,
+  listSuggestions,
 } from "../application/service";
 import {
   createNotificationTemplate,
@@ -1364,11 +1366,52 @@ export const createEthosBackend = () =>
           typeof body.duration_minutes === "number" ? body.duration_minutes : undefined,
         );
 
+        // Apply recurrence fields
+        if (body.recurrence && typeof body.recurrence === "object") {
+          const r = body.recurrence as any;
+          if (
+            ["weekly", "2x-week", "biweekly"].includes(r.type) &&
+            Array.isArray(r.days) &&
+            typeof r.time === "string"
+          ) {
+            session.recurrence = {
+              type: r.type,
+              days: r.days,
+              time: r.time,
+              duration_minutes:
+                typeof r.duration_minutes === "number"
+                  ? r.duration_minutes
+                  : typeof body.duration_minutes === "number"
+                  ? body.duration_minutes
+                  : 50,
+            };
+            session.series_id = uid();
+            session.is_series_anchor = true;
+          }
+        }
+        // Apply event_type and block_title
+        if (body.event_type === "block" || body.event_type === "other") {
+          session.event_type = body.event_type;
+          if (typeof body.block_title === "string" && body.block_title.trim()) {
+            session.block_title = body.block_title.trim();
+          }
+        } else {
+          session.event_type = "session";
+        }
+        schedulePersistDatabase();
+
         if (idemCacheKey) {
           setIdempotencyEntry(idemCacheKey, { statusCode: 201, body: session, createdAt: new Date().toISOString() });
         }
 
         return ok(res, requestId, 201, session);
+      }
+
+      if (method === "GET" && url.pathname === "/sessions/suggestions") {
+        const weekStart = url.searchParams.get("week_start");
+        if (!weekStart) return error(res, requestId, 422, "VALIDATION_ERROR", "week_start required");
+        const suggestions = listSuggestions(auth.user.id, weekStart);
+        return ok(res, requestId, 200, suggestions);
       }
 
       if (method === "GET" && url.pathname === "/sessions") {
@@ -1410,6 +1453,7 @@ export const createEthosBackend = () =>
         let billingResult: ReturnType<typeof generateSessionBilling> = { pending_billing: false };
         if (status === "completed") {
           billingResult = generateSessionBilling(auth.user.id, session);
+          generateNextSession(auth.user.id, session);
         }
 
         return ok(res, requestId, 200, { ...session, ...billingResult });
