@@ -10,7 +10,7 @@ import { useEntitlements } from "@/contexts/EntitlementsContext";
 import { billingService } from "@/services/billingService";
 import { useToast } from "@/hooks/use-toast";
 import { templatesApi, whatsappApi, sessionReminderApi } from "@/api/clinical";
-import type { WhatsAppConfigPublic, WhatsAppConnectionState, SessionReminderConfig } from "@/api/clinical";
+import type { WhatsAppConnectionState, SessionReminderConfig } from "@/api/clinical";
 import { DEFAULT_CONTRACT_TEMPLATE } from "@/lib/defaultContractTemplate";
 import { defaultPaymentReminderSettings, readPaymentReminderSettings, savePaymentReminderSettings } from "@/services/paymentReminderSettings";
 import { Switch } from "@/components/ui/switch";
@@ -65,14 +65,10 @@ const AccountPage = () => {
   const [sessionCollapsed, setSessionCollapsed] = useState(false);
   const [savingSession, setSavingSession] = useState(false);
 
-  // WhatsApp / Evolution API
-  const [waConfig, setWaConfig] = useState<WhatsAppConfigPublic>({ url: "", apiKey: "", instanceName: "", enabled: true });
+  // WhatsApp — simplified
   const [waStatus, setWaStatus] = useState<WhatsAppConnectionState>("unknown");
   const [waQR, setWaQR] = useState<string>("");
-  const [waLoadingStatus, setWaLoadingStatus] = useState(false);
-  const [waLoadingQR, setWaLoadingQR] = useState(false);
-  const [waSaving, setWaSaving] = useState(false);
-  const [waCollapsed, setWaCollapsed] = useState(false);
+  const [waConnecting, setWaConnecting] = useState(false);
   const [testPhone, setTestPhone] = useState("");
   const statusPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [profile, setProfile] = useState({
@@ -287,45 +283,34 @@ const AccountPage = () => {
     toast({ title: "Configuração salva", description: "As configurações de lembrete de sessão foram atualizadas." });
   };
 
-  const handleSaveWaConfig = async () => {
-    setWaSaving(true);
-    const r = await whatsappApi.saveConfig(waConfig);
-    setWaSaving(false);
+  const handleWaQuickConnect = async () => {
+    setWaConnecting(true);
+    setWaQR("");
+    const r = await whatsappApi.quickConnect();
+    setWaConnecting(false);
     if (!r.success) {
-      toast({ title: "Erro ao salvar", description: r.error.message, variant: "destructive" });
+      toast({ title: "Erro ao conectar", description: r.error.message, variant: "destructive" });
       return;
     }
-    toast({ title: "WhatsApp configurado", description: "Clique em 'Conectar' para gerar o QR code." });
-  };
-
-  const handleWaConnect = async () => {
-    setWaLoadingQR(true);
-    // Try to create instance first (idempotent on Evolution)
-    await whatsappApi.connect();
-    const r = await whatsappApi.getQRCode();
-    setWaLoadingQR(false);
-    if (!r.success || !r.data?.base64) {
-      toast({ title: "Erro ao obter QR code", description: r.success ? "QR code não disponível. Instância pode já estar conectada." : r.error.message, variant: "destructive" });
-      // Refresh status anyway
-      void refreshWaStatus();
+    if (r.data.state === "open") {
+      setWaStatus("open");
+      toast({ title: "WhatsApp já conectado! ✅" });
       return;
     }
-    setWaQR(r.data.base64.startsWith("data:") ? r.data.base64 : `data:image/png;base64,${r.data.base64}`);
-    // Poll status every 3s to detect when scanned
+    const b64 = r.data.qr?.base64 ?? "";
+    setWaQR(b64.startsWith("data:") ? b64 : `data:image/png;base64,${b64}`);
     if (statusPollRef.current) clearInterval(statusPollRef.current);
     statusPollRef.current = setInterval(() => { void refreshWaStatus(); }, 3000);
   };
 
   const refreshWaStatus = async () => {
-    setWaLoadingStatus(true);
     const r = await whatsappApi.getStatus();
-    setWaLoadingStatus(false);
     if (r.success) {
       setWaStatus(r.data.state);
       if (r.data.state === "open") {
         setWaQR("");
         if (statusPollRef.current) { clearInterval(statusPollRef.current); statusPollRef.current = null; }
-        toast({ title: "WhatsApp conectado!", description: "Os lembretes automáticos já podem ser enviados." });
+        toast({ title: "WhatsApp conectado! ✅", description: "Lembretes automáticos estão ativos." });
       }
     }
   };
@@ -634,121 +619,75 @@ const AccountPage = () => {
           )}
         </motion.section>
 
-        {/* ── WhatsApp / Evolution API ──────────────────────────────────── */}
+        {/* ── WhatsApp ──────────────────────────────────────────────────── */}
         <motion.section
           className="mt-6 p-6 rounded-xl border border-border bg-card"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.45 }}
         >
-          <div className="flex items-center justify-between gap-3 mb-1">
-            <div className="flex items-center gap-3">
-              <h2 className="font-serif text-lg font-medium text-foreground">WhatsApp — Evolution API</h2>
-              {waStatus === "open" && (
-                <span className="flex items-center gap-1 text-xs font-medium text-emerald-500">
-                  <CheckCircle2 className="w-3.5 h-3.5" /> Conectado
-                </span>
-              )}
-              {waStatus === "connecting" && (
-                <span className="flex items-center gap-1 text-xs font-medium text-yellow-500">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" /> Conectando…
-                </span>
-              )}
-              {(waStatus === "close" || waStatus === "unknown") && waConfig.url && (
-                <span className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
-                  <WifiOff className="w-3.5 h-3.5" /> Desconectado
-                </span>
-              )}
-            </div>
-            <div className="flex gap-2">
-              {waCollapsed ? (
-                <Button variant="outline" onClick={() => setWaCollapsed(false)}>Editar</Button>
-              ) : (
-                <Button onClick={() => void handleSaveWaConfig()} disabled={waSaving}>
-                  {waSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Salvar
-                </Button>
-              )}
-            </div>
+          <div className="flex items-center gap-3 mb-1">
+            <h2 className="font-serif text-lg font-medium text-foreground">WhatsApp</h2>
+            {waStatus === "open" && (
+              <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                <CheckCircle2 className="w-3 h-3" /> Conectado
+              </span>
+            )}
+            {waStatus === "connecting" && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-500">
+                <Loader2 className="w-3 h-3 animate-spin" /> Conectando…
+              </span>
+            )}
+            {(waStatus === "close" || waStatus === "unknown") && (
+              <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <WifiOff className="w-3 h-3" /> Desconectado
+              </span>
+            )}
           </div>
-          <p className="text-xs text-muted-foreground mb-4">
-            Configure sua instância do{" "}
-            <a href="https://doc.evolution-api.com" target="_blank" rel="noopener noreferrer" className="underline">Evolution API</a>
-            {" "}para envio automático de lembretes.
+          <p className="text-sm text-muted-foreground mb-5">
+            Conecte seu WhatsApp para enviar lembretes automáticos de sessão e cobrança aos seus pacientes.
           </p>
 
-          {waCollapsed ? (
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p><span className="font-medium text-foreground">URL:</span> {waConfig.url || "—"}</p>
-              <p><span className="font-medium text-foreground">Instância:</span> {waConfig.instanceName || "—"}</p>
+          {waStatus !== "open" && !waQR && (
+            <Button className="gap-2 w-full sm:w-auto" onClick={() => void handleWaQuickConnect()} disabled={waConnecting}>
+              {waConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+              {waConnecting ? "Gerando QR code…" : "Conectar WhatsApp"}
+            </Button>
+          )}
+
+          {waQR && (
+            <div className="flex flex-col items-center gap-4 py-6 border border-border rounded-2xl bg-white dark:bg-card">
+              <p className="text-sm font-semibold text-gray-800 dark:text-foreground">Abra o WhatsApp no celular e escaneie</p>
+              <img src={waQR} alt="QR Code WhatsApp" className="w-60 h-60 object-contain rounded-xl" />
+              <p className="text-xs text-muted-foreground text-center max-w-xs">
+                WhatsApp → Aparelhos conectados → Conectar aparelho → Aponte a câmera para o código acima
+              </p>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="w-3 h-3 animate-spin" /> Aguardando conexão…
+              </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">URL da Evolution API</label>
-                  <Input
-                    value={waConfig.url}
-                    onChange={(e) => setWaConfig((c) => ({ ...c, url: e.target.value }))}
-                    placeholder="https://sua-evolution.railway.app"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Nome da instância</label>
-                  <Input
-                    value={waConfig.instanceName}
-                    onChange={(e) => setWaConfig((c) => ({ ...c, instanceName: e.target.value }))}
-                    placeholder="ethos-camila"
-                  />
-                </div>
-                <div className="space-y-2 md:col-span-2">
-                  <label className="text-sm font-medium text-foreground">API Key</label>
-                  <Input
-                    type="password"
-                    value={waConfig.apiKey}
-                    onChange={(e) => setWaConfig((c) => ({ ...c, apiKey: e.target.value }))}
-                    placeholder="Chave de API da Evolution"
-                  />
-                </div>
-              </div>
+          )}
 
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button variant="outline" className="gap-2" onClick={() => void refreshWaStatus()} disabled={waLoadingStatus}>
-                  {waLoadingStatus ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-                  Verificar status
-                </Button>
-                <Button variant="outline" className="gap-2" onClick={() => void handleWaConnect()} disabled={waLoadingQR || !waConfig.url}>
-                  {waLoadingQR ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-                  Conectar / QR code
+          {waStatus === "open" && (
+            <div className="space-y-3">
+              <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
+                ✅ Lembretes automáticos estão ativos para seus pacientes.
+              </p>
+              <div className="flex gap-2 pt-1">
+                <Input
+                  value={testPhone}
+                  onChange={(e) => setTestPhone(formatPhone(e.target.value))}
+                  placeholder="Número para teste (ex: 5511999999999)"
+                  className="flex-1 text-sm"
+                />
+                <Button variant="outline" className="gap-2 shrink-0" onClick={() => void handleSendTestMessage()} disabled={!testPhone}>
+                  <MessageCircle className="w-4 h-4" />
+                  Testar
                 </Button>
               </div>
-
-              {waQR && (
-                <div className="flex flex-col items-center gap-3 py-4 border border-border rounded-xl bg-white">
-                  <p className="text-sm font-medium text-gray-800">Escaneie com o WhatsApp da Camila</p>
-                  <img src={waQR} alt="QR Code WhatsApp" className="w-56 h-56 object-contain" />
-                  <p className="text-xs text-gray-500">O QR code expira em 60 segundos. Após escanear, o status atualiza automaticamente.</p>
-                </div>
-              )}
-
-              {waStatus === "open" && (
-                <div className="space-y-2 pt-2 border-t border-border">
-                  <label className="text-sm font-medium text-foreground">Enviar mensagem de teste</label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={testPhone}
-                      onChange={(e) => setTestPhone(formatPhone(e.target.value))}
-                      placeholder="5511999999999"
-                      className="flex-1"
-                    />
-                    <Button variant="outline" className="gap-2 shrink-0" onClick={() => void handleSendTestMessage()} disabled={!testPhone}>
-                      <MessageCircle className="w-4 h-4" />
-                      Testar
-                    </Button>
-                  </div>
-                  <p className="text-xs text-muted-foreground">Número com código do país, sem espaços ou símbolos. Ex: 5511999999999</p>
-                </div>
-              )}
+              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => void handleWaQuickConnect()}>
+                <RefreshCw className="w-3.5 h-3.5" /> Reconectar
+              </Button>
             </div>
           )}
         </motion.section>

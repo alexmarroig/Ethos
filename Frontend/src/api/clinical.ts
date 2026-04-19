@@ -287,6 +287,9 @@ export const whatsappApi = {
 
   sendTest: (phone: string, text?: string): Promise<ApiResult<{ ok: boolean }>> =>
     api.post<{ ok: boolean }>("/settings/whatsapp/send-test", { phone, text }),
+
+  quickConnect: (): Promise<ApiResult<{ state: "open" | "qr"; qr?: { base64: string; code: string } }>> =>
+    api.post<{ state: "open" | "qr"; qr?: { base64: string; code: string } }>("/settings/whatsapp/quick-connect"),
 };
 
 /* ------------------------------------------------------------------ */

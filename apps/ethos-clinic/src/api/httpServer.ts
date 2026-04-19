@@ -2499,6 +2499,29 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { ok: true });
       }
 
+      // ─── Quick connect — auto-configures from env vars, returns QR in one shot
+      if (method === "POST" && url.pathname === "/settings/whatsapp/quick-connect") {
+        const evoUrl = (process.env.EVOLUTION_API_URL ?? "").trim();
+        const evoKey = (process.env.EVOLUTION_API_KEY ?? "").trim();
+        if (!evoUrl || !evoKey) {
+          return error(res, requestId, 503, "EVOLUTION_NOT_CONFIGURED", "EVOLUTION_API_URL e EVOLUTION_API_KEY não configurados no servidor.");
+        }
+        // Instance name is unique per user — short hash of user id
+        const instanceName = `ethos-${auth.user.id.replace(/-/g, "").slice(0, 10)}`;
+        const cfg = { url: evoUrl, apiKey: evoKey, instanceName, enabled: true };
+        db.whatsappConfig.set("config", cfg);
+        schedulePersistDatabase();
+        await whatsAppCreateInstance();
+        const qrResult = await whatsAppGetQRCode();
+        if (!qrResult.ok || !qrResult.qr?.base64) {
+          // Already connected?
+          const state = await whatsAppGetConnectionState();
+          if (state === "open") return ok(res, requestId, 200, { state: "open" });
+          return error(res, requestId, 502, "WHATSAPP_ERROR", "Não foi possível obter QR code. Tente novamente.");
+        }
+        return ok(res, requestId, 200, { state: "qr", qr: qrResult.qr });
+      }
+
       if (method === "GET" && url.pathname === "/settings/whatsapp/status") {
         const state = await whatsAppGetConnectionState();
         return ok(res, requestId, 200, { state });
