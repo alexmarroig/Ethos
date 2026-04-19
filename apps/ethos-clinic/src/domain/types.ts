@@ -184,7 +184,7 @@ export type ClinicalNote = Owned & {
 export type ClinicalReport = Owned & {
   patient_id: string;
   purpose: "instituição" | "profissional" | "paciente";
-  kind?: "session_report" | "longitudinal_record";
+  kind?: "session_report" | "longitudinal_record" | "referral" | "psychological_report" | "school_report" | "attendance_declaration";
   content: string;
   status?: "draft" | "final";
   shared_with_patient?: boolean;

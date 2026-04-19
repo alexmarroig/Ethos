@@ -1,11 +1,19 @@
 import { api, ApiResult } from "./apiClient";
 
+export type ReportKind =
+  | "session_report"
+  | "longitudinal_record"
+  | "referral"
+  | "psychological_report"
+  | "school_report"
+  | "attendance_declaration";
+
 export interface Report {
   id: string;
   patient_id: string;
   patient_name?: string;
   purpose: string;
-  kind?: "session_report" | "longitudinal_record";
+  kind?: ReportKind;
   content?: string;
   status?: "draft" | "final";
   created_at?: string;
@@ -19,7 +27,7 @@ type PaginatedResponse<T> = {
 };
 
 export const reportService = {
-  create: (data: { patient_id: string; purpose: string; content: string; kind?: "session_report" | "longitudinal_record" }): Promise<ApiResult<Report>> =>
+  create: (data: { patient_id: string; purpose: string; content: string; kind?: ReportKind }): Promise<ApiResult<Report>> =>
     api.post<Report>("/reports", data),
 
   update: (
