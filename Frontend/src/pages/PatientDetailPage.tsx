@@ -1129,7 +1129,7 @@ export default function PatientDetailPage({
             <h2 className="font-serif text-2xl text-foreground">Identificação</h2>
             <p className="text-sm text-muted-foreground mt-1">Dados de contato e identificação do paciente.</p>
           </div>
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Nome do paciente</label>
               <Input value={form.name} onChange={(event) => updateForm("name", event.target.value)} />
