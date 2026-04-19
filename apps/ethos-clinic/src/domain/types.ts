@@ -82,6 +82,8 @@ export type PatientBilling = {
   package_session_count?: number;
   payment_timing?: "advance" | "after";
   preferred_payment_day?: number;
+  billing_reminder_days?: number;
+  billing_auto_charge?: boolean;
 };
 
 export type PatientCareStatus = "active" | "paused" | "transferred" | "inactive";
@@ -265,6 +267,7 @@ export type FinancialEntry = Owned & {
   notes?: string;
   shared_with_patient?: boolean;
   shared_at?: string;
+  reminder_sent_at?: string;
 };
 
 export type PatientTimelineItem = {
