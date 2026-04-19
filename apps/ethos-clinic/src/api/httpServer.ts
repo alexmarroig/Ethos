@@ -501,6 +501,8 @@ type PatientPayload = {
     package_session_count?: number;
     payment_timing?: "advance" | "after";
     preferred_payment_day?: number;
+    billing_reminder_days?: number;
+    billing_auto_charge?: boolean;
   };
   notes?: string;
 };
@@ -520,6 +522,8 @@ const parsePatientBilling = (value: unknown): PatientPayload["billing"] => {
     package_session_count: normalizeOptionalNumber(billing.package_session_count),
     payment_timing: billing.payment_timing === "advance" || billing.payment_timing === "after" ? billing.payment_timing : undefined,
     preferred_payment_day: normalizeOptionalNumber(billing.preferred_payment_day),
+    billing_reminder_days: typeof billing.billing_reminder_days === "number" ? billing.billing_reminder_days : undefined,
+    billing_auto_charge: typeof billing.billing_auto_charge === "boolean" ? billing.billing_auto_charge : undefined,
   };
 };
 
