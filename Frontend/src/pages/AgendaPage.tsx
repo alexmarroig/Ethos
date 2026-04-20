@@ -258,9 +258,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       setSessions((current) => current.map((session) => (session.id === sessionId ? result.data : session)));
     }
 
+    const displayName = result.data.event_type === "block"
+      ? (result.data.block_title ?? "Bloqueio")
+      : result.data.patient_name;
     toast({
-      title: "Sessão remarcada",
-      description: `${result.data.patient_name} agora está em ${new Date(scheduledAt).toLocaleString("pt-BR", {
+      title: result.data.event_type === "block" ? "Bloqueio remarcado" : "Sessão remarcada",
+      description: `${displayName} agora está em ${new Date(scheduledAt).toLocaleString("pt-BR", {
         day: "2-digit",
         month: "2-digit",
         hour: "2-digit",

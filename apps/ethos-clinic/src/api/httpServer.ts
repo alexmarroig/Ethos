@@ -1460,7 +1460,11 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const excludeBlocks = url.searchParams.get("exclude_blocks") === "true";
+        let items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
+        if (excludeBlocks) {
+          items = items.filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"));
+        }
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 

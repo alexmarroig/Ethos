@@ -110,9 +110,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         .slice(0, 10);
 
       const [todayRes, pendingRes, upcomingRes, financeRes, patientsRes] = await Promise.all([
-        sessionService.list({ from: today, to: today }),
-        sessionService.list({ status: "pending" }),
-        sessionService.list({ from: today, to: monthEnd }),
+        sessionService.list({ from: today, to: today, exclude_blocks: true }),
+        sessionService.list({ status: "pending", exclude_blocks: true }),
+        sessionService.list({ from: today, to: monthEnd, exclude_blocks: true }),
         financeService.listEntries({ status: "open" }),
         patientService.list(),
       ]);

@@ -82,6 +82,7 @@ export interface SessionFilters {
   to?: string;
   status?: string;
   patient_id?: string;
+  exclude_blocks?: boolean;
 }
 
 function formatDateParts(raw: RawSession) {
@@ -128,7 +129,9 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
   return {
     id: String(raw.id),
     patient_id: raw.patient_id,
-    patient_name: raw.patient_name ?? patient?.name ?? "Paciente",
+    patient_name: raw.event_type === "block"
+      ? (raw.block_title ?? "Bloqueio")
+      : (raw.patient_name ?? patient?.name ?? "Paciente"),
     patient_total_sessions: patient?.total_sessions,
     date,
     time,
@@ -162,6 +165,7 @@ export const sessionService = {
     if (filters?.to) params.set("to", filters.to);
     if (filters?.status) params.set("status", filters.status === "pending" ? "scheduled" : filters.status);
     if (filters?.patient_id) params.set("patient_id", filters.patient_id);
+    if (filters?.exclude_blocks) params.set("exclude_blocks", "true");
     const qs = params.toString();
 
     const [sessionsResult, patients] = await Promise.all([
