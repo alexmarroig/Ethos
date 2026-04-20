@@ -1,7 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import PatientProgressTab from "./PatientProgressTab";
 import { motion } from "framer-motion";
-import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, MessageCircle, Save, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  CalendarPlus,
+  ChevronDown,
+  ChevronUp,
+  FileText,
+  History,
+  KeyRound,
+  Loader2,
+  MessageCircle,
+  MoreHorizontal,
+  Save,
+  Trash,
+  Trash2,
+  User,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -29,14 +44,20 @@ import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 
 type PatientDetailPageProps = {
   patientId: string;
@@ -139,6 +160,46 @@ const emptyForm: PatientFormState = {
   preferred_payment_day: "",
   billing_reminder_days: 0,
   billing_auto_charge: true,
+};
+
+const CollapsibleSection = ({
+  title,
+  subtitle,
+  children,
+  isOpen,
+  onToggle,
+  icon: Icon,
+}: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  isOpen: boolean;
+  onToggle: () => void;
+  icon?: any;
+}) => {
+  return (
+    <Collapsible open={isOpen} onOpenChange={onToggle} className="session-card space-y-5">
+      <div className="flex items-center justify-between">
+        <CollapsibleTrigger asChild>
+          <button className="flex items-center gap-3 text-left hover:opacity-80 transition-opacity">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+              {Icon ? <Icon className="h-5 w-5" /> : <ChevronDown className="h-5 w-5" />}
+            </div>
+            <div>
+              <h2 className="font-serif text-2xl text-foreground flex items-center gap-2">
+                {title}
+                {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </h2>
+              {subtitle && <p className="text-sm text-muted-foreground mt-0.5">{subtitle}</p>}
+            </div>
+          </button>
+        </CollapsibleTrigger>
+      </div>
+      <CollapsibleContent className="space-y-5 pt-2">
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
+  );
 };
 
 const formatDate = (value?: string | null) =>
@@ -331,6 +392,19 @@ export default function PatientDetailPage({
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [formAssignments, setFormAssignments] = useState<FormAssignment[]>([]);
   const [allFormEntries, setAllFormEntries] = useState<FormEntry[]>([]);
+  const [showAllSessions, setShowAllSessions] = useState(false);
+  const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [sectionVisibility, setSectionVisibility] = useState<Record<string, boolean>>({
+    observacoes: true,
+    sessoes: true,
+    documentos: true,
+    contratos: true,
+    diario: true,
+    formularios: true,
+    progresso: true,
+    objetivos: true,
+    homework: true,
+  });
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
   const [documentFormValues, setDocumentFormValues] = useState<DocumentFormValues>({});
@@ -342,6 +416,60 @@ export default function PatientDetailPage({
   const [lastCepLookup, setLastCepLookup] = useState("");
   const [documentFilter, setDocumentFilter] = useState<"all" | "portal" | "recent">("all");
   const [formFilter, setFormFilter] = useState<"all" | "with_response" | "without_response" | "recent">("all");
+
+  const sessionStats = useMemo(() => {
+    const sessions = detail?.sessions ?? [];
+    return {
+      total: sessions.length,
+      confirmed: sessions.filter((s: any) => s.status === "confirmed" || s.status === "completed").length,
+      missed: sessions.filter((s: any) => s.status === "missed").length,
+      pending: sessions.filter((s: any) => s.status === "pending").length,
+      presenceRate: sessions.length > 0
+        ? Math.round((sessions.filter((s: any) => s.status === "confirmed" || s.status === "completed").length / (sessions.filter((s: any) => s.status !== "pending").length || 1)) * 100)
+        : 100
+    };
+  }, [detail?.sessions]);
+
+  const handleUpdateSessionStatus = async (sessionId: string, status: "pending" | "confirmed" | "missed" | "completed") => {
+    const result = await sessionService.updateStatus(sessionId, status);
+    if (!result.success) {
+      toast({ title: "Erro ao atualizar sessão", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    
+    if (detail) {
+      setDetail({
+        ...detail,
+        sessions: (detail.sessions || []).map(s => s.id === sessionId ? result.data as any : s)
+      });
+    }
+    toast({ title: "Sessão atualizada" });
+  };
+
+  const handleDeleteSession = async (sessionId: string) => {
+    if (!confirm("Tem certeza que deseja excluir esta sessão?")) return;
+    
+    setDeletingSessionId(sessionId);
+    const result = await sessionService.delete(sessionId);
+    setDeletingSessionId(null);
+    
+    if (!result.success) {
+      toast({ title: "Erro ao excluir sessão", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    
+    if (detail) {
+      setDetail({
+        ...detail,
+        sessions: (detail.sessions || []).filter(s => s.id !== sessionId)
+      });
+    }
+    toast({ title: "Sessão excluída" });
+  };
+
+  const toggleSection = (section: string) => {
+    setSectionVisibility(prev => ({ ...prev, [section]: !prev[section] }));
+  };
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
@@ -473,30 +601,44 @@ export default function PatientDetailPage({
     return unique;
   }, [detail?.form_entries, allFormEntries]);
 
+  const sessionStats = useMemo(() => {
+    const sessions = detail?.sessions ?? [];
+    return {
+      total: sessions.length,
+      confirmed: sessions.filter(s => s.status === "confirmed" || s.status === "completed").length,
+      missed: sessions.filter(s => s.status === "missed").length,
+      pending: sessions.filter(s => s.status === "pending").length,
+      presenceRate: sessions.length > 0
+        ? Math.round((sessions.filter(s => s.status === "confirmed" || s.status === "completed").length / (sessions.filter(s => s.status !== "pending").length || 1)) * 100)
+        : 100
+    };
+  }, [detail?.sessions]);
+
   const formEntryGroups = useMemo(() => {
-    const items = formEntries;
-    return items.reduce<Record<string, any[]>>((acc, entry: any) => {
-      // Tenta agrupar por assignment_id, se não houver, tenta agrupar pelo form_id original do template
+    return formEntries.reduce<Record<string, any[]>>((acc, entry: any) => {
+      // Priority: explicit assignment_id
       const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
-      acc[key] = [...(acc[key] ?? []), entry];
+      if (!acc[key]) acc[key] = [];
+      acc[key].push(entry);
       
-      // Fallback robusto: se o frontend está procurando pelo assignment_id, mas a resposta só tem form_id
-      // tentamos vincular usando normalização de nomes para garantir que apareça onde deve
+      // Fallback: If entry doesn't have assignment_id, try to link it to an existing assignment
+      // using form_id or normalized name matching
       if (!entry.assignment_id) {
-         const matchingAssignment = activeAssignments.find(a => {
+         const matchingAssignment = formAssignments.find(a => {
            const aName = normalizeStr(a.form?.name ?? a.form?.title ?? "");
            const eName = normalizeStr(entry.form_id); 
            return a.form_id === entry.form_id || aName === eName || (eName.includes("diario") && aName.includes("diario"));
          });
          
          if (matchingAssignment && matchingAssignment.id !== key) {
-           acc[matchingAssignment.id] = [...(acc[matchingAssignment.id] ?? []), entry];
+           if (!acc[matchingAssignment.id]) acc[matchingAssignment.id] = [];
+           acc[matchingAssignment.id].push(entry);
          }
       }
       
       return acc;
     }, {});
-  }, [detail?.form_entries, activeAssignments]);
+  }, [formEntries, formAssignments]);
 
   const filteredDocuments = useMemo(() => {
     const source = detail?.documents ?? [];
@@ -1163,6 +1305,22 @@ export default function PatientDetailPage({
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">Paciente</p>
               <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">{detail.patient.name}</h1>
               <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {hasPortalAccess ? (
+                  <span className="inline-flex items-center rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-emerald-600">
+                    Portal ativo
+                  </span>
+                ) : (
+                  <span className="inline-flex items-center rounded-full border border-border bg-muted px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                    Sem portal
+                  </span>
+                )}
+                {detail.portal_access?.last_email_delivery_status ? (
+                  <span className="inline-flex items-center rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
+                    Último envio: {detail.portal_access.last_email_delivery_status}
+                  </span>
+                ) : null}
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -1423,136 +1581,151 @@ export default function PatientDetailPage({
               <select
                 value={form.weekly_frequency}
                 onChange={(event) => updateForm("weekly_frequency", event.target.value)}
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="1">1x por semana</option>
-                <option value="2">2x por semana</option>
-                <option value="3">3x por semana</option>
-                <option value="4">4x por semana</option>
-                <option value="5">5x por semana</option>
-              </select>
-            </div>
+        </CollapsibleSection>
 
-            {form.billing_mode === "per_session" ? (
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Valor por sessão</label>
-                <Input type="number" min="0" step="0.01" value={form.session_price} onChange={(event) => updateForm("session_price", event.target.value)} />
-              </div>
-            ) : (
-              <>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Valor mensal / acompanhamento</label>
-                  <Input type="number" min="0" step="0.01" value={form.package_total_price} onChange={(event) => updateForm("package_total_price", event.target.value)} />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-sm font-medium text-foreground">Observação do acordo</label>
-                  <Input value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} placeholder="Ex.: varia conforme o mês" />
-                </div>
-              </>
-            )}
+        <CollapsibleSection
+          title="Observações e faturamento"
+          subtitle="Histórico clínico, anotações de sessões e configurações de cobrança."
+          isOpen={sectionVisibility.observacoes}
+          onToggle={() => toggleSection("observacoes")}
+          icon={FileText}
+        >
+          <div className="space-y-4">
             <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Pagamento</label>
-              <select
-                value={form.payment_timing}
-                onChange={(event) => updateForm("payment_timing", event.target.value as "advance" | "after")}
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="advance">Antecipado</option>
-                <option value="after">Pós atendimento</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Dia preferido de pagamento</label>
-              <Input
-                type="number"
-                min="1"
-                max="31"
-                value={form.preferred_payment_day}
-                onChange={(event) => updateForm("preferred_payment_day", event.target.value)}
-                placeholder="Ex.: 10"
+              <label className="text-sm font-medium text-foreground">Notas e observações</label>
+              <Textarea
+                value={form.notes}
+                onChange={(event) => updateForm("notes", event.target.value)}
+                placeholder="Anotações gerais sobre o caso..."
+                className="min-h-[150px] bg-background/50"
               />
             </div>
 
-            <div className="space-y-1.5">
-              <Label htmlFor="billing_reminder_days">Aviso de vencimento</Label>
-              <Select
-                value={String(form.billing_reminder_days ?? 0)}
-                onValueChange={(v) => updateForm("billing_reminder_days", Number(v))}
-              >
-                <SelectTrigger id="billing_reminder_days">
-                  <SelectValue placeholder="Não enviar aviso" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="0">Não enviar aviso</SelectItem>
-                  <SelectItem value="1">1 dia antes</SelectItem>
-                  <SelectItem value="2">2 dias antes</SelectItem>
-                  <SelectItem value="3">3 dias antes</SelectItem>
-                  <SelectItem value="7">7 dias antes</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Modalidade de cobrança</label>
+                <select
+                  value={form.billing_mode}
+                  onChange={(event) => updateForm("billing_mode", event.target.value as "per_session" | "package")}
+                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="per_session">Por sessão</option>
+                  <option value="package">Pacote mensal/fechado</option>
+                </select>
+              </div>
 
-            <div className="flex items-start justify-between rounded-lg border p-3 gap-3">
-              <div className="space-y-0.5">
-                <Label className="text-sm font-medium">Cobrança automática</Label>
-                <p className="text-xs text-muted-foreground">
-                  Cria lançamento financeiro automaticamente ao marcar a sessão como "Concluída"
+              {form.billing_mode === "per_session" ? (
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Valor por sessão</label>
+                  <Input value={form.session_price} onChange={(event) => updateForm("session_price", event.target.value)} placeholder="R$ 0,00" />
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Valor total do pacote</label>
+                    <Input value={form.package_total_price} onChange={(event) => updateForm("package_total_price", event.target.value)} placeholder="R$ 0,00" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Sessões incluídas</label>
+                    <Input value={form.package_session_count} onChange={(event) => updateForm("package_session_count", event.target.value)} placeholder="Ex.: varia conforme o mês" />
+                  </div>
+                </>
+              )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Pagamento</label>
+                <select
+                  value={form.payment_timing}
+                  onChange={(event) => updateForm("payment_timing", event.target.value as "advance" | "after")}
+                  className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                >
+                  <option value="advance">Antecipado</option>
+                  <option value="after">Pós atendimento</option>
+                </select>
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-foreground">Dia preferido de pagamento</label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={form.preferred_payment_day}
+                  onChange={(event) => updateForm("preferred_payment_day", event.target.value)}
+                  placeholder="Ex.: 10"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="billing_reminder_days">Aviso de vencimento</Label>
+                <Select
+                  value={String(form.billing_reminder_days ?? 0)}
+                  onValueChange={(v) => updateForm("billing_reminder_days", Number(v))}
+                >
+                  <SelectTrigger id="billing_reminder_days">
+                    <SelectValue placeholder="Não enviar aviso" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">Não enviar aviso</SelectItem>
+                    <SelectItem value="1">1 dia antes</SelectItem>
+                    <SelectItem value="2">2 dias antes</SelectItem>
+                    <SelectItem value="3">3 dias antes</SelectItem>
+                    <SelectItem value="7">7 dias antes</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="flex items-start justify-between rounded-lg border p-3 gap-3">
+                <div className="space-y-0.5">
+                  <Label className="text-sm font-medium">Cobrança automática</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Cria lançamento financeiro automaticamente ao marcar a sessão como "Concluída"
+                  </p>
+                  {!form.billing_auto_charge && form.session_price && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      ⚠️ Desativada — cobranças não serão geradas automaticamente
+                    </p>
+                  )}
+                  {!form.session_price && (
+                    <p className="text-xs text-amber-500 mt-1">
+                      ⚠️ Defina o valor por sessão para ativar a cobrança automática
+                    </p>
+                  )}
+                </div>
+                <Switch
+                  checked={form.billing_auto_charge ?? true}
+                  onCheckedChange={(checked: boolean) => updateForm("billing_auto_charge", checked)}
+                />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="gap-2" onClick={openPaymentReminder}>
+                <MessageCircle className="w-4 h-4" />
+                Lembrete de cobrança no WhatsApp
+              </Button>
+              <Button variant="outline" className="gap-2" onClick={openSessionReminder}>
+                <MessageCircle className="w-4 h-4" />
+                Lembrete de sessão no WhatsApp
+              </Button>
+            </div>
+            <div className="flex items-center justify-between rounded-lg border border-border p-3 mt-2">
+              <div>
+                <p className="text-sm font-medium text-foreground">Lembrete automático de sessão</p>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  {sessionReminderEnabled
+                    ? "Ativado — este paciente receberá lembretes de sessão conforme configurado em Conta."
+                    : "Desativado — ative para incluir este paciente nos lembretes automáticos de sessão."}
                 </p>
-                {!form.billing_auto_charge && form.session_price && (
-                  <p className="text-xs text-amber-500 mt-1">
-                    ⚠️ Desativada — cobranças não serão geradas automaticamente
-                  </p>
-                )}
-                {!form.session_price && (
-                  <p className="text-xs text-amber-500 mt-1">
-                    ⚠️ Defina o valor por sessão para ativar a cobrança automática
-                  </p>
-                )}
               </div>
               <Switch
-                checked={form.billing_auto_charge ?? true}
-                onCheckedChange={(checked: boolean) => updateForm("billing_auto_charge", checked)}
-              />
-            </div>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" className="gap-2" onClick={openPaymentReminder}>
-              <MessageCircle className="w-4 h-4" />
-              Lembrete de cobrança no WhatsApp
-            </Button>
-            <Button variant="outline" className="gap-2" onClick={openSessionReminder}>
-              <MessageCircle className="w-4 h-4" />
-              Lembrete de sessão no WhatsApp
-            </Button>
-          </div>
-          <div className="flex items-center justify-between rounded-lg border border-border p-3 mt-2">
-            <div>
-              <p className="text-sm font-medium text-foreground">Lembrete automático de sessão</p>
-              <p className="text-xs text-muted-foreground mt-0.5">
-                {sessionReminderEnabled
-                  ? "Ativado — este paciente receberá lembretes de sessão conforme configurado em Conta."
-                  : "Desativado — ative para incluir este paciente nos lembretes automáticos de sessão."}
-              </p>
-            </div>
-            <Switch
-              checked={sessionReminderEnabled}
-              onCheckedChange={(checked) => {
-                setSessionReminderEnabled(checked);
-                void sessionReminderApi.setPatientEnabled(patientId, checked).then((r) => {
-                  if (r.success) {
-                    toast({ title: checked ? "Lembrete ativado" : "Lembrete desativado" });
-                  }
-                });
-              }}
-            />
           </div>
         </motion.section>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Psiquiatria e emergência</h2>
-            <p className="text-sm text-muted-foreground mt-1">Rede de cuidado e segurança do caso.</p>
-          </div>
+        <CollapsibleSection
+          title="Psiquiatria e emergência"
+          subtitle="Rede de cuidado e segurança do caso."
+          isOpen={sectionVisibility.progresso}
+          onToggle={() => toggleSection("progresso")}
+          icon={User}
+        >
           <label className="flex items-center gap-3 text-sm text-foreground cursor-pointer">
             <input
               type="checkbox"
@@ -1586,13 +1759,15 @@ export default function PatientDetailPage({
               <Input value={form.emergency_contact_phone} onChange={(event) => updateForm("emergency_contact_phone", formatPhone(event.target.value))} />
             </div>
           </div>
-        </motion.section>
+        </CollapsibleSection>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.28 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Dados para documentos e relatórios</h2>
-            <p className="text-sm text-muted-foreground mt-1">Informações de apoio para relatórios, declarações e documentos clínicos.</p>
-          </div>
+        <CollapsibleSection
+          title="Dados para documentos e relatórios"
+          subtitle="Informações de apoio para relatórios, declarações e documentos clínicos."
+          isOpen={sectionVisibility.progresso}
+          onToggle={() => toggleSection("progresso")}
+          icon={FileText}
+        >
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <label className="text-sm font-medium text-foreground">Escolaridade</label>
@@ -1623,19 +1798,43 @@ export default function PatientDetailPage({
               <Textarea value={form.report_notes} onChange={(event) => updateForm("report_notes", event.target.value)} className="min-h-[120px]" placeholder="Observações que ajudam na redação de relatórios, sem misturar com o núcleo do prontuário." />
             </div>
           </div>
-        </motion.section>
+        </CollapsibleSection>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <h2 className="font-serif text-2xl text-foreground">Histórico de sessões</h2>
-              <p className="text-sm text-muted-foreground mt-1">Sessões registradas e acesso rápido ao prontuário.</p>
-            </div>
+        <CollapsibleSection
+          title="Histórico de sessões"
+          subtitle="Sessões registradas e acesso rápido ao prontuário."
+          isOpen={sectionVisibility.sessoes}
+          onToggle={() => toggleSection("sessoes")}
+          icon={History}
+        >
+          <div className="flex justify-end">
             {latestSessionId && (
-              <Button variant="outline" onClick={() => onOpenProntuario(latestSessionId)}>
+              <Button variant="outline" size="sm" onClick={() => onOpenProntuario(latestSessionId)}>
                 Abrir prontuário mais recente
               </Button>
             )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground">Total</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{sessionStats.total}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-status-validated">Presença</p>
+              <div className="flex items-baseline gap-1">
+                <p className="mt-1 text-2xl font-bold text-foreground">{sessionStats.confirmed}</p>
+                <p className="text-xs text-muted-foreground">{sessionStats.presenceRate}%</p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-destructive">Faltas</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{sessionStats.missed}</p>
+            </div>
+            <div className="rounded-xl border border-border bg-background/40 p-4">
+              <p className="text-[10px] uppercase tracking-wider text-status-pending">Pendentes</p>
+              <p className="mt-1 text-2xl font-bold text-foreground">{sessionStats.pending}</p>
+            </div>
           </div>
 
           {detail.sessions.length === 0 ? (
@@ -1644,37 +1843,86 @@ export default function PatientDetailPage({
             </div>
           ) : (
             <div className="space-y-3">
-              {detail.sessions.map((session) => (
-                <div key={session.id} className="rounded-xl border border-border bg-background/60 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <p className="font-medium text-foreground">{formatDateTime(session.scheduled_at)}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {session.duration_minutes ? `${session.duration_minutes} min · ` : ""}
-                      {sessionStatusLabel(session.status)}
-                    </p>
+              {(showAllSessions ? detail.sessions : detail.sessions.slice(0, 5)).map((session) => (
+                <div key={session.id} className="rounded-xl border border-border bg-background/60 p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between transition hover:border-primary/30">
+                  <div className="flex items-center gap-3">
+                    <div className={cn(
+                      "h-2 w-2 rounded-full",
+                      session.status === "confirmed" || session.status === "completed" ? "bg-status-validated" :
+                      session.status === "missed" ? "bg-destructive" : "bg-status-pending"
+                    )} />
+                    <div>
+                      <p className="font-medium text-foreground">{formatDateTime(session.scheduled_at)}</p>
+                      <p className="text-sm text-muted-foreground flex items-center gap-2">
+                        {session.duration_minutes ? `${session.duration_minutes} min` : ""}
+                        <span>·</span>
+                        <span className={cn(
+                          "px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase",
+                          session.status === "confirmed" || session.status === "completed" ? "bg-status-validated/10 text-status-validated" :
+                          session.status === "missed" ? "bg-destructive/10 text-destructive" : "bg-status-pending/10 text-status-pending"
+                        )}>
+                          {sessionStatusLabel(session.status)}
+                        </span>
+                      </p>
+                    </div>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex items-center gap-2">
                     <Button variant="secondary" size="sm" onClick={() => onOpenSession(session.id)}>
                       Abrir sessão
                     </Button>
                     <Button variant="outline" size="sm" onClick={() => onOpenProntuario(session.id)}>
                       Nota clínica
                     </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8">
+                          {deletingSessionId === session.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <MoreHorizontal className="h-4 w-4" />}
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleUpdateSessionStatus(session.id, "confirmed")}>
+                          Confirmar presença
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleUpdateSessionStatus(session.id, "missed")}>
+                          Marcar falta
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleUpdateSessionStatus(session.id, "pending")}>
+                          Voltar para pendente
+                        </DropdownMenuItem>
+                        <hr className="my-1 border-border" />
+                        <DropdownMenuItem onClick={() => onOpenSession(session.id)}>
+                          Remarcar / Editar
+                        </DropdownMenuItem>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={() => handleDeleteSession(session.id)}>
+                          <Trash className="mr-2 h-4 w-4" />
+                          Excluir sessão
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </div>
                 </div>
               ))}
+              
+              {detail.sessions.length > 5 && (
+                <Button 
+                  variant="ghost" 
+                  className="w-full text-muted-foreground hover:text-primary" 
+                  onClick={() => setShowAllSessions(!showAllSessions)}
+                >
+                  {showAllSessions ? "Ver menos sessões" : `Ver mais ${detail.sessions.length - 5} sessões...`}
+                </Button>
+              )}
             </div>
           )}
-        </motion.section>
+        </CollapsibleSection>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Documentos</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Atalhos rápidos para os principais documentos do caso e visão do que já foi disponibilizado no portal.
-            </p>
-          </div>
-
+        <CollapsibleSection
+          title="Documentos"
+          subtitle="Atalhos rápidos para os principais documentos do caso e visão do que já foi disponibilizado no portal."
+          isOpen={sectionVisibility.documentos}
+          onToggle={() => toggleSection("documentos")}
+          icon={FileText}
+        >
           <div className="grid gap-3 md:grid-cols-3">
             <Button variant="secondary" onClick={() => void createTemplateDocument("payment-receipt", buildDocumentTitle(detail.patient.name, "Recibo"))} disabled={shortcutLoading === "payment-receipt"} className="justify-start gap-2">
               {shortcutLoading === "payment-receipt" ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileText className="w-4 h-4" />}
@@ -1797,16 +2045,21 @@ export default function PatientDetailPage({
               ))}
             </div>
           )}
+        </CollapsibleSection>
+
+                </div>
+              ))}
+            </div>
+          )}
         </motion.section>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.38 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Contrato assinado</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Visualização rápida do envio, aceite e anexo do contrato terapêutico.
-            </p>
-          </div>
-
+        <CollapsibleSection
+          title="Contrato assinado"
+          subtitle="Visualização rápida do envio, aceite e anexo do contrato terapêutico."
+          isOpen={sectionVisibility.contratos}
+          onToggle={() => toggleSection("contratos")}
+          icon={FileText}
+        >
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Contratos criados</p>
@@ -1862,28 +2115,30 @@ export default function PatientDetailPage({
               ))}
             </div>
           )}
-        </motion.section>
+        </CollapsibleSection>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Diário emocional</h2>
-            <p className="text-sm text-muted-foreground mt-1">Últimos registros do paciente para consulta rápida.</p>
-          </div>
-
+        <CollapsibleSection
+          title="Diário emocional"
+          subtitle="Últimos registros do paciente para consulta rápida."
+          isOpen={sectionVisibility.diario}
+          onToggle={() => toggleSection("diario")}
+          icon={History}
+        >
           {(() => {
-            // Unifica registros do emotional_diary com respostas de formulários que sejam diários (fuzzy match por nome real)
             const diaryEntriesFromForms = (formEntries ?? [])
               .filter((e: any) => {
-                const assignment = activeAssignments.find(a => a.id === e.assignment_id || a.form_id === e.form_id);
+                const assignment = formAssignments.find(a => a.id === e.assignment_id || a.form_id === e.form_id);
                 const formName = normalizeStr(assignment?.form?.name ?? assignment?.form?.title ?? e.form_id ?? "");
-                return formName.includes("diario");
+                const matchesKeyword = ["diario", "humor", "emocao", "emocional", "sentimento"].some(k => formName.includes(k));
+                const hasMoodData = e.data && ((e.data as any).mood !== undefined || (e.data as any).humor !== undefined);
+                return matchesKeyword || hasMoodData;
               })
               .map((e: any) => ({
                 id: e.id,
                 date: e.created_at,
-                mood: e.data?.mood ?? e.data?.humor ?? e.data?.nota ?? 0,
+                mood: e.data?.mood ?? e.data?.humor ?? e.data?.humor_hoje ?? e.data?.nota ?? 0,
                 intensity: e.data?.intensity ?? e.data?.intensidade ?? e.data?.nivel ?? 0,
-                description: e.data?.description ?? e.data?.thoughts ?? e.data?.sentimentos ?? e.data?.relato ?? e.data?.texto ?? e.data?.resposta ?? "",
+                description: e.data?.description ?? e.data?.thoughts ?? e.data?.sentimentos ?? e.data?.relato ?? e.data?.texto ?? e.data?.resposta ?? e.data?.observacoes ?? "",
                 is_from_form: true
               }));
 
@@ -1918,16 +2173,15 @@ export default function PatientDetailPage({
               </div>
             );
           })()}
-        </motion.section>
+        </CollapsibleSection>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Formulários do paciente</h2>
-            <p className="text-sm text-muted-foreground mt-1">
-              Veja o que já foi disponibilizado para este paciente e o histórico de respostas enviadas.
-            </p>
-          </div>
-
+        <CollapsibleSection
+          title="Formulários do paciente"
+          subtitle="Veja o que já foi disponibilizado para este paciente e o histórico de respostas enviadas."
+          isOpen={sectionVisibility.formularios}
+          onToggle={() => toggleSection("formularios")}
+          icon={FileText}
+        >
           <div className="grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Formulários ativos</p>
@@ -2068,31 +2322,31 @@ export default function PatientDetailPage({
               ))}
             </div>
           )}
-        </motion.section>
+        </CollapsibleSection>
 
-        {detail && (
-          <motion.section className="space-y-0" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            <div className="mb-4">
-              <h2 className="font-serif text-2xl text-foreground">Progresso</h2>
-              <p className="text-sm text-muted-foreground mt-1">Objetivos terapêuticos, homework e evolução do tratamento.</p>
-            </div>
-            <PatientProgressTab
-              patientId={patientId}
-              sessionCount={detail.summary.total_sessions}
-              attendanceRate={
-                detail.sessions.length === 0
-                  ? 0
-                  : detail.sessions.filter((s) => s.status === "completed" || s.status === "confirmed").length / 
-                    (detail.sessions.filter((s) => s.status !== "scheduled").length || 1)
-              }
-              weeksInTherapy={
-                detail.sessions.length === 0
-                  ? 0
-                  : Math.max(1, Math.round((Date.now() - new Date(detail.sessions[detail.sessions.length - 1].scheduled_at).getTime()) / (7 * 24 * 60 * 60 * 1000)))
-              }
-            />
-          </motion.section>
-        )}
+        <CollapsibleSection
+          title="Progresso e objetivos"
+          subtitle="Objetivos terapêuticos, homework e evolução do tratamento."
+          isOpen={sectionVisibility.progresso}
+          onToggle={() => toggleSection("progresso")}
+          icon={CalendarPlus}
+        >
+          <PatientProgressTab
+            patientId={patientId}
+            sessionCount={detail.summary.total_sessions}
+            attendanceRate={
+              detail.sessions.length === 0
+                ? 0
+                : detail.sessions.filter((s) => s.status === "completed" || s.status === "confirmed").length / 
+                  (detail.sessions.filter((s) => s.status !== "scheduled").length || 1)
+            }
+            weeksInTherapy={
+              detail.sessions.length === 0
+                ? 0
+                : Math.max(1, Math.round((Date.now() - new Date(detail.sessions[detail.sessions.length - 1].scheduled_at).getTime()) / (7 * 24 * 60 * 60 * 1000)))
+            }
+          />
+        </CollapsibleSection>
 
         <Dialog open={documentDialogOpen} onOpenChange={(open) => !open && closeDocumentPreview()}>
           <DialogContent className="max-h-[92vh] max-w-[min(96vw,1200px)] overflow-hidden p-0">

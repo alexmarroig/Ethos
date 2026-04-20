@@ -267,4 +267,8 @@ export const sessionService = {
   updateSeries: async (seriesId: string, data: { time?: string; duration_minutes?: number }): Promise<ApiResult<{ updated: number }>> => {
     return api.patch<{ updated: number }>(`/sessions/series/${seriesId}`, data);
   },
+  
+  delete: async (id: string): Promise<ApiResult<{ deleted: boolean }>> => {
+    return api.delete<{ deleted: boolean }>(`/sessions/${id}`);
+  },
 };

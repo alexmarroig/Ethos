@@ -123,16 +123,19 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         return;
       }
 
-      const todayData = [...todayRes.data].sort((a, b) => a.time.localeCompare(b.time));
+      const todayData = [...todayRes.data]
+        .filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"))
+        .sort((a, b) => a.time.localeCompare(b.time));
       setTodaySessions(todayData);
 
       if (pendingRes.success) {
         const pendingData = pendingRes.data
           .filter(
             (item) =>
-              item.date < today ||
-              item.clinical_note_status === "draft" ||
-              !item.has_clinical_note,
+              item.event_type !== "block" &&
+              !item.patient_id.startsWith("block-") &&
+              (item.date <= today) && // Only past or today
+              (item.clinical_note_status === "draft" || !item.has_clinical_note)
           )
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
         setPendingSessions(pendingData);
@@ -142,7 +145,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       if (upcomingRes.success) {
         const upcomingData = upcomingRes.data
-          .filter((item) => item.date > today)
+          .filter((item) => item.date > today && item.event_type !== "block" && !item.patient_id.startsWith("block-"))
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
           .slice(0, 6);
         setUpcomingSessions(upcomingData);

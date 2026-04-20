@@ -452,6 +452,11 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                   <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", careStatusTone(patient.care_status))}>
                     {careStatusLabel(patient.care_status)}
                   </span>
+                  {patient.portal_access_created ? (
+                    <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-emerald-600">
+                      Portal ativo
+                    </span>
+                  ) : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-3 text-xs text-muted-foreground">
                   <span>{typeof patient.total_sessions === "number" ? `${patient.total_sessions} sessões` : "Sem sessões"}</span>
