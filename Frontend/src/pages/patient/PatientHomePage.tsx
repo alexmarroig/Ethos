@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Bell, Calendar, CheckCircle2, CreditCard, Loader2 } from "lucide-react";
+import { Calendar, CheckCircle2, CreditCard, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   patientPortalService,
   type PatientFinancialEntry,
-  type PatientNotification,
   type PatientSession,
 } from "@/services/patientPortalService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
@@ -58,37 +57,18 @@ const sessionStatusLabel = (status: string) => {
   }
 };
 
-const notificationLabel = (notification: PatientNotification) => {
-  switch (notification.type) {
-    case "session_reminder":
-      return `Sua sessão é amanhã às ${notification.data.time ?? ""}`;
-    case "payment_due":
-      return `Pagamento de ${notification.data.amount ? formatCurrency(Number(notification.data.amount)) : ""} pendente`;
-    case "document_shared":
-      return `Novo documento disponível: ${notification.data.title ?? ""}`;
-    case "slot_response":
-      return notification.data.status === "confirmed"
-        ? `Sessão de ${notification.data.date ?? ""} às ${notification.data.time ?? ""} confirmada!`
-        : `Solicitação de ${notification.data.date ?? ""} às ${notification.data.time ?? ""} recusada`;
-    default:
-      return "Nova notificação";
-  }
-};
-
 export default function PatientHomePage() {
   const { user } = useAuth();
   const [sessions, setSessions] = useState<PatientSession[]>([]);
   const [financial, setFinancial] = useState<PatientFinancialEntry[]>([]);
-  const [notifications, setNotifications] = useState<PatientNotification[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
   useEffect(() => {
     const load = async () => {
-      const [sessRes, finRes, notifRes] = await Promise.all([
+      const [sessRes, finRes] = await Promise.all([
         patientPortalService.getSessions(),
         patientPortalService.getFinancial(),
-        patientPortalService.getNotifications(),
       ]);
 
       if (!sessRes.success) {
@@ -98,7 +78,6 @@ export default function PatientHomePage() {
       }
 
       if (finRes.success) setFinancial(finRes.data);
-      if (notifRes.success) setNotifications(notifRes.data);
       setLoading(false);
     };
 
@@ -116,15 +95,6 @@ export default function PatientHomePage() {
         ),
       );
     }
-  };
-
-  const dismissNotification = async (id: string) => {
-    await patientPortalService.markNotificationRead(id);
-    setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === id ? { ...notification, read: true } : notification,
-      ),
-    );
   };
 
   if (loading) {
@@ -156,199 +126,165 @@ export default function PatientHomePage() {
     .sort((a, b) => (a.due_date || "").localeCompare(b.due_date || ""))
     .slice(0, 5);
 
-  const unreadNotifications = notifications.filter((notification) => !notification.read);
   const totalPendingValue = pendingPayments.reduce((sum, entry) => sum + entry.amount, 0);
 
   return (
     <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12">
+      <div className="content-container py-6 md:py-10">
+        {/* Header */}
         <motion.header
-          className="mb-8"
+          className="mb-6 flex items-start justify-between gap-4"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">
-            Olá{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
-          </h1>
-          <p className="mt-2 text-muted-foreground">
-            Acompanhe suas próximas sessões e seus pagamentos em um só lugar.
-          </p>
+          <div>
+            <h1 className="font-serif text-2xl font-medium text-foreground md:text-4xl">
+              Olá{user?.name ? `, ${user.name.split(" ")[0]}` : ""}
+            </h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Acompanhe suas sessões e pagamentos.
+            </p>
+          </div>
         </motion.header>
 
-        {unreadNotifications.length > 0 ? (
+        {/* Summary Cards */}
+        <div className="mb-6 grid grid-cols-2 gap-3 md:gap-4">
           <motion.div
-            className="mb-6 space-y-2"
-            initial={{ opacity: 0, y: 8 }}
+            className="session-card"
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.05 }}
           >
-            {unreadNotifications.map((notification) => (
-              <div
-                key={notification.id}
-                className="flex items-start justify-between gap-3 rounded-xl border border-border bg-card px-4 py-3"
-              >
-                <div className="flex items-start gap-2">
-                  <Bell className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                  <p className="text-sm text-foreground">
-                    {notificationLabel(notification)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="shrink-0 text-xs text-muted-foreground hover:text-foreground"
-                  onClick={() => void dismissNotification(notification.id)}
-                >
-                  Dispensar
-                </button>
-              </div>
-            ))}
-          </motion.div>
-        ) : null}
-
-        <div className="mb-6 grid gap-4 md:grid-cols-3">
-          <motion.div className="session-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground md:text-[11px]">
               Próximas sessões
             </p>
-            <p className="mt-3 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.04em] text-foreground md:text-[2rem]">
               {upcomingSessions.length}
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {upcomingSessions.length === 0
-                ? "Nenhuma sessão agendada."
-                : "Sessões já marcadas para os próximos dias."}
+            <p className="mt-1.5 text-xs text-muted-foreground md:text-sm">
+              {upcomingSessions.length === 0 ? "Nenhuma agendada." : "Sessões marcadas."}
             </p>
           </motion.div>
 
-          <motion.div className="session-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Pagamentos pendentes
+          <motion.div
+            className="session-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+          >
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground md:text-[11px]">
+              Pagamentos
             </p>
-            <p className="mt-3 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.04em] text-foreground md:text-[2rem]">
               {pendingPayments.length}
             </p>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-1.5 text-xs text-muted-foreground md:text-sm">
               {pendingPayments.length === 0
-                ? "Nenhum pagamento pendente."
+                ? "Nenhum pendente."
                 : `${formatCurrency(totalPendingValue)} em aberto.`}
-            </p>
-          </motion.div>
-
-          <motion.div className="session-card" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-              Notificações
-            </p>
-            <p className="mt-3 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
-              {unreadNotifications.length}
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              {unreadNotifications.length === 0
-                ? "Nenhuma notificação nova."
-                : "Há atualizações esperando sua leitura."}
             </p>
           </motion.div>
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-2">
-          <div className="space-y-6">
-            <motion.section
-              className="session-card"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-            >
-              <div className="mb-4 flex items-center gap-2">
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-                <h2 className="font-serif text-lg font-medium">Próximas sessões</h2>
-              </div>
+        {/* Content Grid */}
+        <div className="grid gap-4 lg:grid-cols-2 md:gap-6">
+          {/* Upcoming Sessions */}
+          <motion.section
+            className="session-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <Calendar className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-serif text-base font-medium md:text-lg">Próximas sessões</h2>
+            </div>
 
-              {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma sessão agendada.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {upcomingSessions.map((session) => (
-                    <div
-                      key={session.id}
-                      className="rounded-xl border border-border/70 bg-background/70 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {session.scheduled_at
-                              ? formatDateTime(session.scheduled_at)
-                              : `${session.date} ${session.time}`}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {sessionStatusLabel(session.status)}
-                          </p>
-                        </div>
-
-                        {session.confirmed ? (
-                          <span className="flex items-center gap-1 text-xs text-status-validated">
-                            <CheckCircle2 className="h-3.5 w-3.5" />
-                            Confirmada
-                          </span>
-                        ) : (
-                          <Button size="sm" onClick={() => void handleConfirm(session.id)}>
-                            Confirmar
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.section>
-          </div>
-
-          <div className="space-y-6">
-            <motion.section
-              className="session-card"
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-            >
-              <div className="mb-4">
-                <h2 className="font-serif text-lg font-medium">Próximos pagamentos</h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Veja os próximos vencimentos combinados com sua psicóloga.
-                </p>
-              </div>
-
-              {pendingPayments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum pagamento pendente no momento.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  {pendingPayments.map((entry) => (
-                    <div
-                      key={entry.id}
-                      className="rounded-xl border border-border/70 bg-background/70 px-4 py-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium text-foreground">
-                            {entry.description ?? "Sessão de psicoterapia"}
-                          </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            {entry.due_date
-                              ? `Vencimento em ${formatDate(entry.due_date)}`
-                              : "Sem vencimento definido"}
-                          </p>
-                        </div>
-                        <p className="text-sm font-semibold text-foreground">
-                          {formatCurrency(entry.amount)}
+            {upcomingSessions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Nenhuma sessão agendada.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {upcomingSessions.map((session) => (
+                  <div
+                    key={session.id}
+                    className="rounded-xl border border-border/70 bg-background/70 px-3 py-2.5 md:px-4 md:py-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium text-foreground">
+                          {session.scheduled_at
+                            ? formatDateTime(session.scheduled_at)
+                            : `${session.date} ${session.time}`}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {sessionStatusLabel(session.status)}
                         </p>
                       </div>
+
+                      {session.confirmed ? (
+                        <span className="flex shrink-0 items-center gap-1 text-xs text-status-validated">
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          <span className="hidden sm:inline">Confirmada</span>
+                        </span>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="shrink-0 text-xs h-7 px-2.5"
+                          onClick={() => void handleConfirm(session.id)}
+                        >
+                          Confirmar
+                        </Button>
+                      )}
                     </div>
-                  ))}
-                </div>
-              )}
-            </motion.section>
-          </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.section>
+
+          {/* Pending Payments */}
+          <motion.section
+            className="session-card"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+          >
+            <div className="mb-4 flex items-center gap-2">
+              <CreditCard className="h-4 w-4 text-muted-foreground" />
+              <h2 className="font-serif text-base font-medium md:text-lg">Próximos pagamentos</h2>
+            </div>
+
+            {pendingPayments.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                Nenhum pagamento pendente no momento.
+              </p>
+            ) : (
+              <div className="space-y-2.5">
+                {pendingPayments.map((entry) => (
+                  <div
+                    key={entry.id}
+                    className="rounded-xl border border-border/70 bg-background/70 px-3 py-2.5 md:px-4 md:py-3"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-foreground">
+                          {entry.description ?? "Sessão de psicoterapia"}
+                        </p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {entry.due_date
+                            ? `Vencimento ${formatDate(entry.due_date)}`
+                            : "Sem vencimento"}
+                        </p>
+                      </div>
+                      <p className="shrink-0 text-sm font-semibold text-foreground">
+                        {formatCurrency(entry.amount)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.section>
         </div>
       </div>
     </div>

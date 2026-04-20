@@ -1,10 +1,17 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, CheckCircle2, Clock3 } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, Calendar as CalendarIcon, List, ExternalLink, CalendarPlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { patientPortalService, type PatientSession } from "@/services/patientPortalService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { cn } from "@/lib/utils";
+import { generateGoogleLink, generateOutlookLink, downloadICal } from "@/lib/calendarUtils";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = [
@@ -42,6 +49,7 @@ export default function PatientSessionsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -127,182 +135,295 @@ export default function PatientSessionsPage() {
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
-        <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Sessões</h1>
-          <p className="mt-2 text-muted-foreground">Visualize e confirme seus atendimentos.</p>
+        <motion.header className="mb-8 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+          <div>
+            <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Sessões</h1>
+            <p className="mt-2 text-muted-foreground">Visualize e confirme seus atendimentos.</p>
+          </div>
+          
+          <div className="flex items-center rounded-2xl bg-muted/40 p-1 border border-border/50">
+            <button
+              onClick={() => setViewMode("calendar")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all",
+                viewMode === "calendar" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <CalendarIcon className="h-3.5 w-3.5" />
+              Calendário
+            </button>
+            <button
+              onClick={() => setViewMode("list")}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-medium transition-all",
+                viewMode === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+              )}
+            >
+              <List className="h-3.5 w-3.5" />
+              Lista
+            </button>
+          </div>
         </motion.header>
 
-        <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
-          {/* Calendar */}
-          <motion.div
-            className="rounded-[28px] border border-border bg-card p-6 shadow-[0_18px_40px_rgba(23,49,58,0.07)]"
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            {/* Month nav */}
-            <div className="mb-6 flex items-center justify-between">
-              <button onClick={prevMonth} className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background hover:bg-muted transition-colors">
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <h2 className="font-serif text-xl font-medium text-foreground">
-                {MONTHS[viewMonth]} {viewYear}
-              </h2>
-              <button onClick={nextMonth} className="flex h-9 w-9 items-center justify-center rounded-xl border border-border bg-background hover:bg-muted transition-colors">
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
+        {viewMode === "calendar" ? (
+          <div className="grid gap-6 lg:grid-cols-[1fr_380px]">
+            {/* Calendar */}
+            <motion.div
+              className="rounded-[32px] border border-border bg-card p-8 shadow-[0_18px_48px_rgba(0,0,0,0.05)]"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              {/* Month nav */}
+              <div className="mb-8 flex items-center justify-between">
+                <button onClick={prevMonth} className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background hover:bg-muted transition-all active:scale-95 shadow-sm">
+                  <ChevronLeft className="h-5 w-5" />
+                </button>
+                <h2 className="font-serif text-2xl font-medium text-foreground">
+                  {MONTHS[viewMonth]} {viewYear}
+                </h2>
+                <button onClick={nextMonth} className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border bg-background hover:bg-muted transition-all active:scale-95 shadow-sm">
+                  <ChevronRight className="h-5 w-5" />
+                </button>
+              </div>
 
-            {/* Weekday headers */}
-            <div className="mb-2 grid grid-cols-7 text-center">
-              {WEEKDAYS.map((d) => (
-                <p key={d} className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground py-1">{d}</p>
-              ))}
-            </div>
+              <div className="mb-4 grid grid-cols-7 text-center">
+                {WEEKDAYS.map((d) => (
+                  <p key={d} className="text-[11px] font-bold uppercase tracking-[0.2em] text-muted-foreground py-2">{d}</p>
+                ))}
+              </div>
 
-            {/* Days grid */}
-            <div className="grid grid-cols-7 gap-1">
-              {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} />)}
-              {Array.from({ length: daysInMonth }).map((_, i) => {
-                const day = i + 1;
-                const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-                const daySessions = sessionsByDate.get(dateStr) ?? [];
-                const isToday = dateStr === todayStr;
-                const isSelected = dateStr === selectedDay;
-                const hasSessions = daySessions.length > 0;
+              <div className="grid grid-cols-7 gap-2">
+                {Array.from({ length: firstDay }).map((_, i) => <div key={`e${i}`} className="h-16 md:h-24" />)}
+                {Array.from({ length: daysInMonth }).map((_, i) => {
+                  const day = i + 1;
+                  const dateStr = `${viewYear}-${String(viewMonth + 1).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+                  const daySessions = sessionsByDate.get(dateStr) ?? [];
+                  const isToday = dateStr === todayStr;
+                  const isSelected = dateStr === selectedDay;
+                  const hasSessions = daySessions.length > 0;
 
-                return (
-                  <button
-                    key={day}
-                    onClick={() => setSelectedDay(isSelected ? null : dateStr)}
-                    className={cn(
-                      "relative flex flex-col items-center rounded-xl py-2 text-sm transition-all",
-                      isSelected
-                        ? "bg-primary text-primary-foreground font-semibold"
-                        : isToday
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : hasSessions
-                            ? "bg-muted/60 text-foreground hover:bg-muted"
-                            : "text-foreground/70 hover:bg-muted/40",
-                    )}
-                  >
-                    {day}
-                    {hasSessions && (
-                      <span className={cn(
-                        "mt-0.5 flex gap-0.5",
-                      )}>
-                        {daySessions.slice(0, 3).map((s) => (
-                          <span
-                            key={s.id}
-                            className={cn(
-                              "h-1.5 w-1.5 rounded-full",
-                              isSelected ? "bg-primary-foreground/80" : sessionColor(s.status),
-                            )}
-                          />
-                        ))}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Legend */}
-            <div className="mt-5 flex flex-wrap gap-4 border-t border-border pt-4">
-              {[
-                { color: "bg-primary", label: "Agendada" },
-                { color: "bg-emerald-500", label: "Confirmada" },
-                { color: "bg-blue-400", label: "Concluída" },
-                { color: "bg-red-400", label: "Faltou" },
-              ].map(({ color, label }) => (
-                <span key={label} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  <span className={cn("h-2.5 w-2.5 rounded-full", color)} />
-                  {label}
-                </span>
-              ))}
-            </div>
-          </motion.div>
-
-          {/* Side panel */}
-          <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-            {selectedDay ? (
-              <>
-                <h3 className="font-serif text-lg font-medium text-foreground">
-                  {new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
-                </h3>
-                {selectedSessions.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Nenhuma sessão neste dia.</p>
-                ) : (
-                  selectedSessions.map((s) => (
-                    <div key={s.id} className="rounded-2xl border border-border bg-card p-4 shadow-sm space-y-2">
-                      <div className="flex items-center gap-2">
-                        <Clock3 className="h-4 w-4 text-muted-foreground" />
-                        <span className="font-medium text-foreground">
-                          {s.scheduled_at ? formatTime(s.scheduled_at) : s.time}
-                        </span>
-                        <span className={cn(
-                          "ml-auto rounded-full px-2.5 py-0.5 text-xs font-medium",
-                          s.status === "confirmed" || s.confirmed ? "bg-emerald-100 text-emerald-700"
-                            : s.status === "completed" ? "bg-blue-100 text-blue-700"
-                            : s.status === "missed" ? "bg-red-100 text-red-700"
-                            : "bg-amber-100 text-amber-700",
-                        )}>
-                          {sessionStatusLabel(s.status)}
-                        </span>
-                      </div>
-                      {s.confirmed && (
-                        <p className="flex items-center gap-1 text-xs text-emerald-600">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          Presença confirmada
-                        </p>
+                  return (
+                    <button
+                      key={day}
+                      onClick={() => setSelectedDay(isSelected ? null : dateStr)}
+                      className={cn(
+                        "relative flex h-16 md:h-24 flex-col items-center rounded-2xl p-2 text-sm transition-all group",
+                        isSelected
+                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105 z-10"
+                          : isToday
+                            ? "bg-primary/5 text-primary border border-primary/20 font-bold"
+                            : hasSessions
+                              ? "bg-muted/40 text-foreground hover:bg-muted/60 border border-border/50"
+                              : "text-foreground/60 hover:bg-muted/30 border border-transparent hover:border-border/50",
                       )}
+                    >
+                      <span className="text-sm md:text-base font-semibold">{day}</span>
+                      {hasSessions && (
+                        <div className="mt-auto flex flex-col gap-1 w-full overflow-hidden">
+                          {daySessions.slice(0, 2).map((s) => (
+                            <div
+                              key={s.id}
+                              className={cn(
+                                "hidden md:block h-1.5 w-full rounded-full opacity-60",
+                                isSelected ? "bg-primary-foreground" : sessionColor(s.status),
+                              )}
+                            />
+                          ))}
+                          <div className={cn(
+                            "flex justify-center md:hidden gap-0.5",
+                          )}>
+                            {daySessions.map((s) => (
+                              <span key={s.id} className={cn("h-1.5 w-1.5 rounded-full", isSelected ? "bg-primary-foreground" : sessionColor(s.status))} />
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <div className="mt-8 flex flex-wrap gap-6 border-t border-border pt-6">
+                {[
+                  { color: "bg-primary", label: "Agendada" },
+                  { color: "bg-emerald-500", label: "Confirmada" },
+                  { color: "bg-blue-400", label: "Concluída" },
+                  { color: "bg-red-400", label: "Faltou" },
+                ].map(({ color, label }) => (
+                  <span key={label} className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                    <span className={cn("h-3 w-3 rounded-full", color)} />
+                    {label}
+                  </span>
+                ))}
+              </div>
+            </motion.div>
+
+            {/* Side panel */}
+            <motion.div className="space-y-6" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.1 }}>
+              {selectedDay ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-serif text-xl font-medium text-foreground">
+                      {new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
+                    </h3>
+                  </div>
+                  {selectedSessions.length === 0 ? (
+                    <div className="rounded-[24px] border border-dashed border-border py-12 text-center bg-muted/20">
+                      <p className="text-sm text-muted-foreground">Nenhuma sessão neste dia.</p>
+                    </div>
+                  ) : (
+                    selectedSessions.map((s) => (
+                      <div key={s.id} className="rounded-[28px] border border-border bg-card p-6 shadow-sm space-y-5">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                            <Clock3 className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <span className="block text-lg font-semibold text-foreground">
+                              {s.scheduled_at ? formatTime(s.scheduled_at) : s.time}
+                            </span>
+                            <span className={cn(
+                              "text-xs font-medium px-2 py-0.5 rounded-full",
+                              s.status === "confirmed" || s.confirmed ? "bg-emerald-100 text-emerald-700"
+                                : s.status === "completed" ? "bg-blue-100 text-blue-700"
+                                : s.status === "missed" ? "bg-red-100 text-red-700"
+                                : "bg-amber-100 text-amber-700",
+                            )}>
+                              {sessionStatusLabel(s.status)}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-2 pt-2">
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="outline" className="w-full justify-start gap-2 rounded-xl">
+                                <CalendarPlus className="h-4 w-4" />
+                                Exportar para Agenda
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-[200px] rounded-xl">
+                              <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => window.open(generateGoogleLink(s), "_blank")}>
+                                <ExternalLink className="h-3.5 w-3.5" /> Google Agenda
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => window.open(generateOutlookLink(s), "_blank")}>
+                                <ExternalLink className="h-3.5 w-3.5" /> Outlook (Web)
+                              </DropdownMenuItem>
+                              <DropdownMenuItem className="gap-2 cursor-pointer" onClick={() => downloadICal(s)}>
+                                <Download className="h-3.5 w-3.5" /> Baixar iCal (.ics)
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+
+                          {!s.confirmed && s.status !== "completed" && s.status !== "missed" && (
+                            <Button className="w-full rounded-xl" onClick={() => void handleConfirm(s.id)}>
+                              Confirmar Presença
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </>
+              ) : (
+                <>
+                  <h3 className="font-serif text-xl font-medium text-foreground">Próximas sessões</h3>
+                  {upcoming.length === 0 ? (
+                    <div className="rounded-[28px] border border-dashed border-border bg-background/50 py-12 text-center">
+                      <p className="text-sm text-muted-foreground">Nenhuma sessão agendada.</p>
+                    </div>
+                  ) : (
+                    upcoming
+                      .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
+                      .slice(0, 4)
+                      .map((s) => (
+                        <button
+                          key={s.id}
+                          onClick={() => {
+                            if (s.scheduled_at) {
+                              const d = new Date(s.scheduled_at);
+                              setViewYear(d.getFullYear());
+                              setViewMonth(d.getMonth());
+                              setSelectedDay(isoDate(s.scheduled_at));
+                            }
+                          }}
+                          className="w-full group rounded-[28px] border border-border bg-card px-5 py-4 text-left shadow-sm hover:shadow-md hover:bg-muted/30 transition-all active:scale-[0.98]"
+                        >
+                          <div className="flex items-center justify-between">
+                            <p className="text-base font-semibold text-foreground">
+                              {s.scheduled_at
+                                ? new Date(s.scheduled_at).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" })
+                                : s.date}
+                            </p>
+                            <span className={cn(
+                              "h-2.5 w-2.5 rounded-full ring-4 ring-background",
+                              sessionColor(s.status)
+                            )} />
+                          </div>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
+                          </p>
+                        </button>
+                      ))
+                  )}
+                </>
+              )}
+            </motion.div>
+          </div>
+        ) : (
+          <motion.div
+            className="space-y-4 max-w-3xl mx-auto"
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            {sessions.length === 0 ? (
+              <div className="rounded-[32px] border border-dashed border-border py-24 text-center">
+                <p className="text-muted-foreground">Nenhum atendimento encontrado.</p>
+              </div>
+            ) : (
+              sessions
+                .sort((a, b) => (b.scheduled_at ?? "").localeCompare(a.scheduled_at ?? ""))
+                .map((s) => (
+                  <div key={s.id} className="rounded-[24px] border border-border bg-card p-5 flex flex-col md:flex-row md:items-center justify-between gap-4 group hover:border-primary/30 transition-colors">
+                    <div className="flex items-center gap-4">
+                      <div className={cn("h-12 w-12 rounded-2xl flex items-center justify-center text-white", sessionColor(s.status))}>
+                        <CalendarIcon className="h-6 w-6" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-lg text-foreground capitalize">
+                          {s.scheduled_at
+                            ? new Date(s.scheduled_at).toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+                            : s.date}
+                        </h4>
+                        <p className="text-sm text-muted-foreground">
+                          {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                       <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="rounded-xl gap-2">
+                            <CalendarPlus className="h-4 w-4" /> Exportar
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="rounded-xl">
+                          <DropdownMenuItem onClick={() => window.open(generateGoogleLink(s), "_blank")}>Google Agenda</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => window.open(generateOutlookLink(s), "_blank")}>Outlook</DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => downloadICal(s)}>Baixar .ics</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+
                       {!s.confirmed && s.status !== "completed" && s.status !== "missed" && (
-                        <Button size="sm" className="w-full mt-1" onClick={() => void handleConfirm(s.id)}>
-                          Confirmar presença
-                        </Button>
+                        <Button size="sm" className="rounded-xl" onClick={() => void handleConfirm(s.id)}>Confirmar</Button>
                       )}
                     </div>
-                  ))
-                )}
-              </>
-            ) : (
-              <>
-                <h3 className="font-serif text-lg font-medium text-foreground">Próximas sessões</h3>
-                {upcoming.length === 0 ? (
-                  <div className="rounded-2xl border border-dashed border-border bg-background/70 py-8 text-center">
-                    <p className="text-sm text-muted-foreground">Nenhuma sessão agendada.</p>
                   </div>
-                ) : (
-                  upcoming
-                    .sort((a, b) => (a.scheduled_at ?? "").localeCompare(b.scheduled_at ?? ""))
-                    .slice(0, 5)
-                    .map((s) => (
-                      <button
-                        key={s.id}
-                        onClick={() => {
-                          if (s.scheduled_at) {
-                            const d = new Date(s.scheduled_at);
-                            setViewYear(d.getFullYear());
-                            setViewMonth(d.getMonth());
-                            setSelectedDay(isoDate(s.scheduled_at));
-                          }
-                        }}
-                        className="w-full rounded-2xl border border-border bg-card px-4 py-3 text-left shadow-sm hover:bg-muted/50 transition-colors"
-                      >
-                        <p className="text-sm font-medium text-foreground">
-                          {s.scheduled_at
-                            ? new Date(s.scheduled_at).toLocaleDateString("pt-BR", { weekday: "short", day: "numeric", month: "short" })
-                            : s.date}
-                          {" · "}
-                          {s.scheduled_at ? formatTime(s.scheduled_at) : s.time}
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">{sessionStatusLabel(s.status)}</p>
-                      </button>
-                    ))
-                )}
-              </>
+                ))
             )}
           </motion.div>
-        </div>
+        )}
       </div>
     </div>
   );

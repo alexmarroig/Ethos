@@ -24,12 +24,20 @@ import {
   UserCog,
   Users,
   ClipboardList,
+  Bell,
+  X,
+  Loader2,
+  Calendar as CalendarIcon,
+  CreditCard as CreditCardIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
 import BrandWordmark from "@/components/BrandWordmark";
 import { useAppStore } from "@/stores/appStore";
+import { useEffect, useState } from "react";
+import { patientPortalService, type PatientNotification } from "@/services/patientPortalService";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 interface SidebarProps {
   currentPage: string;
@@ -45,31 +53,31 @@ interface NavItem {
 }
 
 const navigation: NavItem[] = [
-  { id: "home", label: "In\u00edcio", icon: Home, roles: ["professional", "admin"] },
-  { id: "agenda", label: "Agenda cl\u00ednica", icon: Calendar, roles: ["professional"] },
+  { id: "home", label: "Início", icon: Home, roles: ["professional", "admin"] },
+  { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
-  { id: "forms", label: "Di\u00e1rio e formul\u00e1rios", icon: ClipboardList, roles: ["professional"] },
+  { id: "forms", label: "Diário e formulários", icon: ClipboardList, roles: ["professional"] },
   { id: "anamnesis", label: "Anamnese", icon: BookOpen, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
-  { id: "reports", label: "Relat\u00f3rios", icon: FileText, roles: ["professional"] },
+  { id: "reports", label: "Relatórios", icon: FileText, roles: ["professional"] },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
   { id: "contracts", label: "Contratos", icon: ScrollText, roles: ["professional"] },
   { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
-  { id: "ethics", label: "\u00c9tica e sigilo", icon: Shield, roles: ["professional"] },
+  { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },
 
-  { id: "patient-home", label: "In\u00edcio", icon: Home, roles: ["patient"] },
-  { id: "patient-sessions", label: "Sess\u00f5es", icon: Calendar, roles: ["patient"] },
+  { id: "patient-home", label: "Início", icon: Home, roles: ["patient"] },
+  { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
   { id: "patient-documents", label: "Documentos", icon: FileText, roles: ["patient"] },
   { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
-  { id: "patient-booking", label: "Agendar sess\u00e3o", icon: CalendarPlus, roles: ["patient"] },
-  { id: "patient-diary", label: "Di\u00e1rio e formul\u00e1rios", icon: ClipboardList, roles: ["patient"] },
+  { id: "patient-booking", label: "Agendar sessão", icon: CalendarPlus, roles: ["patient"] },
+  { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
 
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },
-  { id: "admin-users", label: "Usu\u00e1rios", icon: Users, roles: ["admin"] },
+  { id: "admin-users", label: "Usuários", icon: Users, roles: ["admin"] },
   { id: "admin-testlab", label: "Test Lab", icon: FlaskConical, roles: ["admin"] },
   { id: "admin-tickets", label: "Tickets", icon: TicketCheck, roles: ["admin"] },
-  { id: "diagnostics", label: "Diagn\u00f3stico t\u00e9cnico", icon: Stethoscope, roles: ["admin"], separator: true },
+  { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
@@ -77,6 +85,52 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { resolvedTheme, setTheme } = useTheme();
   const privacyMode = useAppStore((s) => s.privacyMode);
   const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
+  const [notifications, setNotifications] = useState<PatientNotification[]>([]);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  useEffect(() => {
+    if (user?.role !== "patient") return;
+    
+    const loadNotifs = async () => {
+      setLoadingNotifs(true);
+      const res = await patientPortalService.getNotifications();
+      if (res.success) setNotifications(res.data);
+      setLoadingNotifs(false);
+    };
+
+    void loadNotifs();
+    // Refresh notifications every 5 minutes
+    const interval = setInterval(() => void loadNotifs(), 5 * 60000);
+    return () => clearInterval(interval);
+  }, [user?.role]);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const dismissNotification = async (id: string) => {
+    await patientPortalService.markNotificationRead(id);
+    setNotifications((current) =>
+      current.map((n) => (n.id === id ? { ...n, read: true } : n)),
+    );
+  };
+
+  const notificationLabel = (n: PatientNotification) => {
+    switch (n.type) {
+      case "session_reminder": return `Sessão amanhã às ${n.data.time ?? ""}`;
+      case "payment_due": return `Pagamento pendente`;
+      case "document_shared": return `Novo documento: ${n.data.title ?? ""}`;
+      case "slot_response": return `Sessão ${n.data.status === "confirmed" ? "confirmada" : "recusada"}`;
+      default: return "Nova notificação";
+    }
+  };
+
+  const NotificationIcon = (type: string) => {
+    switch (type) {
+      case "session_reminder": return CalendarIcon;
+      case "payment_due": return CreditCardIcon;
+      default: return Bell;
+    }
+  };
 
   const visibleItems = navigation.filter((item) => item.roles.some((role) => hasRole(role)));
 
@@ -91,8 +145,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       : user?.role === "patient"
         ? "Conta paciente"
         : isLikelyFemaleName(user?.name)
-          ? "Psic\u00f3loga"
-          : "Psic\u00f3logo";
+          ? "Psicóloga"
+          : "Psicólogo";
 
   const initials = user?.name
     ? user.name
@@ -141,6 +195,21 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </div>
 
           <div className="flex items-center gap-1.5">
+            {user?.role === "patient" && (
+              <button
+                type="button"
+                onClick={() => setNotifOpen(true)}
+                className="relative flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
+                aria-label="Notificações"
+              >
+                <Bell className="h-4 w-4" />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground animate-in zoom-in">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               type="button"
               onClick={togglePrivacyMode}
@@ -231,6 +300,67 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           </button>
         ) : null}
       </div>
+
+      <Sheet open={notifOpen} onOpenChange={setNotifOpen}>
+        <SheetContent side="right" className="w-full max-w-sm">
+          <SheetHeader className="mb-4">
+            <SheetTitle className="flex items-center gap-2 text-left text-base">
+              <Bell className="h-4 w-4" />
+              Notificações
+              {unreadCount > 0 && (
+                <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary">
+                  {unreadCount} nova{unreadCount !== 1 ? "s" : ""}
+                </span>
+              )}
+            </SheetTitle>
+          </SheetHeader>
+
+          {loadingNotifs && notifications.length === 0 ? (
+            <div className="flex justify-center py-12">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+              <Bell className="h-8 w-8 text-muted-foreground/40" />
+              <p className="text-sm text-muted-foreground">Nenhuma notificação ainda.</p>
+            </div>
+          ) : (
+            <div className="space-y-2 overflow-y-auto max-h-[80vh] pr-1">
+              {notifications.map((n) => {
+                const Icon = NotificationIcon(n.type);
+                return (
+                  <div
+                    key={n.id}
+                    className={cn(
+                      "flex items-start gap-3 rounded-xl border px-3 py-3 transition-colors",
+                      n.read ? "border-border/50 bg-card/50 opacity-60" : "border-border bg-card",
+                    )}
+                  >
+                    <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10">
+                      <Icon className="h-3.5 w-3.5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-foreground leading-snug">{notificationLabel(n)}</p>
+                      <p className="mt-1 text-[10px] text-muted-foreground">
+                        {new Date(n.created_at).toLocaleDateString("pt-BR")}
+                      </p>
+                    </div>
+                    {!n.read && (
+                      <button
+                        type="button"
+                        className="mt-0.5 shrink-0 text-muted-foreground hover:text-foreground"
+                        onClick={() => void dismissNotification(n.id)}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </SheetContent>
+      </Sheet>
     </motion.aside>
   );
 }

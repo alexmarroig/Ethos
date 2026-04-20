@@ -20,6 +20,7 @@ type RawPatient = {
   phone?: string;
   whatsapp?: string;
   birth_date?: string;
+  gender?: "F" | "M";
   address?: string;
   address_street?: string;
   address_number?: string;
@@ -135,6 +136,7 @@ export interface Patient {
   phone?: string;
   whatsapp?: string;
   birth_date?: string;
+  gender?: "F" | "M";
   address?: string;
   address_street?: string;
   address_number?: string;
@@ -224,6 +226,7 @@ function mapPatient(raw: RawPatient): Patient {
     phone: raw.phone,
     whatsapp: raw.whatsapp ?? raw.phone,
     birth_date: raw.birth_date,
+    gender: raw.gender,
     address: raw.address,
     address_street: raw.address_street,
     address_number: raw.address_number,
@@ -293,7 +296,7 @@ function ok<TInput, TOutput>(
   result: ApiResult<TInput>,
   mapper: (value: TInput) => TOutput,
 ): ApiResult<TOutput> {
-  if (!result.success) return result;
+  if (!result.success) return result as unknown as ApiResult<TOutput>;
   return {
     ...result,
     data: mapper(result.data),

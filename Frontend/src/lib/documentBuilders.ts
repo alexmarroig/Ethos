@@ -493,6 +493,7 @@ export const buildClinicalDocumentHtml = (
 };
 
 export const buildContractHtml = (contract: {
+  id?: string;
   psychologist?: { name?: string; email?: string; license?: string };
   patient?: { name?: string; email?: string; document?: string; address?: string };
   terms?: {

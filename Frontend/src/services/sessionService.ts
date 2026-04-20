@@ -169,7 +169,7 @@ export const sessionService = {
       loadPatientsIndex(),
     ]);
 
-    if (!sessionsResult.success) return sessionsResult;
+    if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<Session[]>;
 
     const mapped = sessionsResult.data.items.map((item) => mapSession(item, patients));
     const filtered = mapped.filter((item) => {
@@ -192,7 +192,7 @@ export const sessionService = {
       loadPatientsIndex(),
     ]);
 
-    if (!sessionResult.success) return sessionResult;
+    if (!sessionResult.success) return sessionResult as unknown as ApiResult<Session>;
 
     return {
       ...sessionResult,
@@ -213,7 +213,7 @@ export const sessionService = {
       loadPatientsIndex(),
     ]);
 
-    if (!createResult.success) return createResult;
+    if (!createResult.success) return createResult as unknown as ApiResult<Session>;
 
     return {
       ...createResult,
@@ -228,7 +228,7 @@ export const sessionService = {
       loadPatientsIndex(),
     ]);
 
-    if (!result.success) return result;
+    if (!result.success) return result as unknown as ApiResult<Session>;
 
     return {
       ...result,
@@ -245,7 +245,7 @@ export const sessionService = {
       loadPatientsIndex(),
     ]);
 
-    if (!result.success) return result;
+    if (!result.success) return result as unknown as ApiResult<Session>;
 
     return {
       ...result,
