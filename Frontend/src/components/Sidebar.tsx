@@ -184,9 +184,11 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             <div className="min-w-0 flex-1">
               <BrandWordmark />
               {user ? (
-                <div className="mt-1 min-w-0 space-y-2">
-                  <p className="break-words text-sm leading-snug text-muted-foreground">{user.name}</p>
-                  <span className="inline-flex rounded-full bg-primary/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-primary">
+                <div className="mt-1 min-w-0">
+                  <p className="truncate whitespace-nowrap text-sm font-medium leading-snug text-muted-foreground">
+                    {user.name}
+                  </p>
+                  <span className="mt-2 inline-flex rounded-full bg-primary/[0.08] px-2.5 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-primary">
                     {roleBadge}
                   </span>
                 </div>
@@ -194,7 +196,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 pt-1">
             {user?.role === "patient" && (
               <button
                 type="button"
@@ -202,7 +204,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 className="relative flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
                 aria-label="Notificações"
               >
-                <Bell className="h-4 w-4" />
+                <Bell className="h-4 v-4" />
                 {unreadCount > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground animate-in zoom-in">
                     {unreadCount > 9 ? "9+" : unreadCount}
@@ -210,30 +212,6 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 )}
               </button>
             )}
-            {user?.role !== "patient" && (
-              <button
-                type="button"
-                onClick={togglePrivacyMode}
-                className={cn(
-                  "flex h-10 w-10 items-center justify-center rounded-full border bg-card transition-colors",
-                  privacyMode
-                    ? "border-primary/50 bg-primary/10 text-primary"
-                    : "border-sidebar-border/80 text-sidebar-foreground hover:border-primary/30 hover:text-primary",
-                )}
-                aria-label={privacyMode ? "Desativar modo privacidade" : "Ativar modo privacidade"}
-                title={privacyMode ? "Privacidade ativa — clique para desativar" : "Ocultar nomes e valores"}
-              >
-                {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-              className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
-              aria-label="Alternar tema"
-            >
-              {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
           </div>
         </div>
       </div>
@@ -274,6 +252,33 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       </nav>
 
       <div className="space-y-1 border-t border-sidebar-border/80 px-3 pb-4 pt-3">
+        <div className="flex items-center gap-2 px-2 pb-2">
+          {user?.role !== "patient" && (
+            <button
+              type="button"
+              onClick={togglePrivacyMode}
+              className={cn(
+                "flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border transition-all duration-200 text-xs font-medium",
+                privacyMode
+                  ? "border-primary/40 bg-primary/10 text-primary"
+                  : "border-sidebar-border/60 text-muted-foreground hover:border-primary/30 hover:bg-sidebar-accent hover:text-foreground",
+              )}
+              title={privacyMode ? "Privacidade ativa" : "Modo privacidade"}
+            >
+              {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              {privacyMode ? "Privado" : "Público"}
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+            className="flex h-9 w-12 items-center justify-center rounded-xl border border-sidebar-border/60 text-muted-foreground transition-all duration-200 hover:border-primary/30 hover:bg-sidebar-accent hover:text-foreground"
+            aria-label="Alternar tema"
+          >
+            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+        </div>
+
         <button
           onClick={() => onNavigate("account")}
           className={cn(
