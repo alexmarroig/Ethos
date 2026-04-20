@@ -533,8 +533,14 @@ type PatientAccess = {
   owner_user_id: string;
   patient_user_id: string;
   patient_id: string;
+  patient_email?: string;
+  patient_name?: string;
   permissions: PatientAccessPermissions;
   created_at: string;
+  updated_at?: string;
+  last_credentials_reset_at?: string;
+  last_email_delivery_status?: "sent" | "skipped" | "failed";
+  last_email_delivery_detail?: string;
 };
 
 type EmotionalDiaryEntryInput = {
@@ -927,11 +933,18 @@ const buildPatientSummary = (owner: string, patientId: string): PatientSummary =
 const decoratePatientListItem = (owner: string, patient: Patient) => {
   const hydratedPatient = hydratePatient(patient);
   const summary = buildPatientSummary(owner, patient.id);
+  const portalAccess = Array.from(db.patientAccess.values()).find((item) => {
+    const access = item as PatientAccess;
+    return access.owner_user_id === owner && matchesPatientAccessReference(access, patient.id);
+  }) as PatientAccess | undefined;
+  const portalUser = portalAccess ? db.users.get(portalAccess.patient_user_id) : null;
   return {
     ...hydratedPatient,
     total_sessions: summary.total_sessions,
     next_session: summary.next_session?.scheduled_at,
     last_session: summary.last_session?.scheduled_at,
+    portal_access_created: Boolean(portalAccess),
+    portal_access_email: portalUser?.email ?? portalAccess?.patient_email,
   };
 };
 
@@ -1081,6 +1094,12 @@ export const getPatientDetail = (owner: string, patientId: string) => {
   const patient = getPatient(owner, patientId);
   if (!patient) return null;
 
+  const portalAccess = Array.from(db.patientAccess.values()).find((item) => {
+    const access = item as PatientAccess;
+    return access.owner_user_id === owner && matchesPatientAccessReference(access, patient.id);
+  }) as PatientAccess | undefined;
+  const portalUser = portalAccess ? db.users.get(portalAccess.patient_user_id) : null;
+
   return {
     patient,
     summary: buildPatientSummary(owner, patient.id),
@@ -1088,6 +1107,19 @@ export const getPatientDetail = (owner: string, patientId: string) => {
     documents: listPatientDocuments(owner, patient.id),
     clinical_notes: listPatientClinicalNotes(owner, patient.id),
     emotional_diary: listPatientDiaryEntriesByReference(owner, patient.id),
+    portal_access: portalAccess
+      ? {
+          id: portalAccess.id,
+          patient_user_id: portalAccess.patient_user_id,
+          email: portalUser?.email ?? portalAccess.patient_email,
+          name: portalUser?.name ?? portalAccess.patient_name,
+          created_at: portalAccess.created_at,
+          updated_at: portalAccess.updated_at,
+          last_credentials_reset_at: portalAccess.last_credentials_reset_at,
+          last_email_delivery_status: portalAccess.last_email_delivery_status,
+          last_email_delivery_detail: portalAccess.last_email_delivery_detail,
+        }
+      : null,
     timeline: buildPatientTimeline(owner, patient.id),
   };
 };
@@ -1136,37 +1168,63 @@ export const createPatientAccess = (owner: string, input: {
   patient_email: string;
   patient_name: string;
   patient_password?: string;
+  reset_password?: boolean;
   permissions?: Partial<PatientAccessPermissions>;
 }) => {
   const sameEmail = Array.from(db.users.values()).find((item) => item.email.toLowerCase() === input.patient_email.toLowerCase());
   if (sameEmail && sameEmail.role !== "patient") return { error: "EMAIL_IN_USE" as const };
 
-  const temporaryPassword = input.patient_password || "patient123";
+  const existingAccess = Array.from(db.patientAccess.values()).find((item) => {
+    const access = item as PatientAccess;
+    return access.owner_user_id === owner && access.patient_id === input.patient_id;
+  }) as PatientAccess | undefined;
+
+  const shouldResetPassword = Boolean(input.reset_password || input.patient_password || !existingAccess);
+  const temporaryPassword = shouldResetPassword ? (input.patient_password || "patient123") : undefined;
   const patientUser = sameEmail ?? {
     id: uid(),
     email: input.patient_email,
     name: input.patient_name,
-    password_hash: hashPassword(temporaryPassword),
+    password_hash: hashPassword(temporaryPassword ?? "patient123"),
     role: "patient" as const,
     status: "active" as const,
     created_at: now(),
   };
+  patientUser.email = input.patient_email;
+  patientUser.name = input.patient_name;
+  if (temporaryPassword) {
+    patientUser.password_hash = hashPassword(temporaryPassword);
+  }
   db.users.set(patientUser.id, patientUser);
 
   createPatientIfMissing(owner, input.patient_id);
-  const access: PatientAccess = {
+  const access: PatientAccess = existingAccess ?? {
     id: uid(),
     owner_user_id: owner,
     patient_user_id: patientUser.id,
     patient_id: input.patient_id,
     permissions: {
-      scales: input.permissions?.scales ?? true,
-      diary: input.permissions?.diary ?? true,
-      session_confirmation: input.permissions?.session_confirmation ?? true,
-      async_messages_per_day: input.permissions?.async_messages_per_day ?? 3,
+      scales: true,
+      diary: true,
+      session_confirmation: true,
+      async_messages_per_day: 3,
     },
     created_at: now(),
   };
+  access.patient_user_id = patientUser.id;
+  access.patient_id = input.patient_id;
+  access.patient_email = input.patient_email;
+  access.patient_name = input.patient_name;
+  access.permissions = {
+    scales: input.permissions?.scales ?? access.permissions.scales ?? true,
+    diary: input.permissions?.diary ?? access.permissions.diary ?? true,
+    session_confirmation: input.permissions?.session_confirmation ?? access.permissions.session_confirmation ?? true,
+    async_messages_per_day: input.permissions?.async_messages_per_day ?? access.permissions.async_messages_per_day ?? 3,
+  };
+  access.updated_at = now();
+  if (temporaryPassword) {
+    access.last_credentials_reset_at = now();
+  }
   db.patientAccess.set(access.id, access);
   persistMutation();
   return { access, patientUser, temporaryPassword: input.patient_password ? undefined : temporaryPassword };

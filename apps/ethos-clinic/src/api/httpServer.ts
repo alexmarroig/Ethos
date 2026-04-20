@@ -887,6 +887,7 @@ export const createEthosBackend = () =>
           patient_email: body.patient_email,
           patient_name: body.patient_name,
           patient_password: typeof body.patient_password === "string" ? body.patient_password : undefined,
+          reset_password: body.reset_password === true,
           permissions:
             typeof body.permissions === "object" && body.permissions !== null
               ? {
@@ -909,6 +910,10 @@ export const createEthosBackend = () =>
           status: "failed" as const,
           detail: error instanceof Error ? error.message : "EMAIL_SEND_FAILED",
         }));
+
+        result.access.last_email_delivery_status = emailDelivery.status;
+        result.access.last_email_delivery_detail = "detail" in emailDelivery ? emailDelivery.detail : undefined;
+        schedulePersistDatabase();
 
         return ok(res, requestId, 201, {
           access: result.access,

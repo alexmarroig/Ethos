@@ -54,6 +54,8 @@ type RawPatient = {
   total_sessions?: number;
   last_session?: string;
   next_session?: string;
+  portal_access_created?: boolean;
+  portal_access_email?: string;
 };
 
 type RawPatientSummarySession = {
@@ -77,6 +79,17 @@ type RawPatientDetail = {
   clinical_notes?: unknown[];
   emotional_diary?: unknown[];
   form_entries?: unknown[];
+  portal_access?: {
+    id: string;
+    patient_user_id: string;
+    email?: string;
+    name?: string;
+    created_at: string;
+    updated_at?: string;
+    last_credentials_reset_at?: string;
+    last_email_delivery_status?: "sent" | "skipped" | "failed";
+    last_email_delivery_detail?: string;
+  } | null;
   timeline?: unknown[];
 };
 
@@ -156,6 +169,8 @@ export interface Patient {
   next_session?: string;
   total_sessions?: number;
   created_at?: string;
+  portal_access_created?: boolean;
+  portal_access_email?: string;
 }
 
 export interface PatientDetail {
@@ -166,6 +181,7 @@ export interface PatientDetail {
   clinical_notes: RawPatientDetail["clinical_notes"];
   emotional_diary: RawPatientDetail["emotional_diary"];
   form_entries?: RawPatientDetail["form_entries"];
+  portal_access?: RawPatientDetail["portal_access"];
   timeline: RawPatientDetail["timeline"];
 }
 
@@ -242,6 +258,8 @@ function mapPatient(raw: RawPatient): Patient {
     next_session: raw.next_session,
     total_sessions: raw.total_sessions,
     created_at: raw.created_at,
+    portal_access_created: raw.portal_access_created,
+    portal_access_email: raw.portal_access_email,
   };
 }
 
@@ -266,6 +284,7 @@ function mapPatientDetail(raw: RawPatientDetail): PatientDetail {
     clinical_notes: raw.clinical_notes ?? [],
     emotional_diary: raw.emotional_diary ?? [],
     form_entries: raw.form_entries ?? [],
+    portal_access: raw.portal_access ?? null,
     timeline: raw.timeline ?? [],
   };
 }
@@ -307,6 +326,7 @@ export const patientService = {
     patient_email: string;
     patient_name: string;
     patient_password?: string;
+    reset_password?: boolean;
   }): Promise<ApiResult<PatientAccessResult>> => {
     const result = await api.post<RawPatientAccessResponse>("/patients/access", input);
     return ok(result, (data) => ({
