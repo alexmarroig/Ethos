@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronRight, KeyRound, Loader2, Plus, Search } from "lucide-react";
+import { ChevronRight, KeyRound, Loader2, Plus, Search, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
@@ -229,36 +229,45 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   };
 
   const handleSendAccessEmail = () => {
-    if (!accessPayload) return;
+    const emailToUse = accessPayload?.email || selectedPatient?.portal_access_email || portalEmail.trim();
+    if (!emailToUse) return;
     const subject = encodeURIComponent("Seu acesso ao portal do paciente ETHOS");
     const body = encodeURIComponent(
       [
         `Olá, ${portalName || "paciente"}!`,
         "",
-        "Seu acesso ao portal do paciente ETHOS foi criado.",
+        accessPayload
+          ? "Seu acesso ao portal do paciente ETHOS foi criado/redefinido."
+          : "Aqui estão os detalhes do seu acesso ao portal do paciente ETHOS.",
         "",
-        `Email: ${accessPayload.email}`,
-        accessPayload.password ? `Senha: ${accessPayload.password}` : "",
+        `Email: ${emailToUse}`,
+        accessPayload?.password ? `Senha: ${accessPayload.password}` : "(use a senha cadastrada ou solicite redefinição)",
+        "",
+        "Acesse: https://app.ethos-clinic.com/patient",
       ].filter(Boolean).join("\n"),
     );
-    window.open(`mailto:${portalEmail.trim()}?subject=${subject}&body=${body}`, "_self");
+    window.open(`mailto:${emailToUse}?subject=${subject}&body=${body}`, "_self");
   };
 
   const handleSendAccessWhatsApp = () => {
-    if (!accessPayload) return;
     const patient = patients.find((item) => item.id === selectedPatientId);
     const phone = (patient?.whatsapp ?? patient?.phone ?? "").replace(/\D/g, "");
     if (!phone) {
       toast({ title: "WhatsApp indisponível", description: "Cadastre o WhatsApp do paciente para enviar o acesso.", variant: "destructive" });
       return;
     }
+    const emailToUse = accessPayload?.email || selectedPatient?.portal_access_email || portalEmail.trim();
     const message = [
       `Olá, ${portalName || patient?.name || "paciente"}!`,
       "",
-      "Seu acesso ao portal do paciente ETHOS foi criado.",
+      accessPayload
+        ? "Seu acesso ao portal do paciente ETHOS foi criado/redefinido."
+        : "Aqui estão os detalhes do seu acesso ao portal do paciente ETHOS.",
       "",
-      `Email: ${accessPayload.email}`,
-      accessPayload.password ? `Senha: ${accessPayload.password}` : "",
+      emailToUse ? `Email: ${emailToUse}` : "",
+      accessPayload?.password ? `Senha: ${accessPayload.password}` : "(use a senha cadastrada ou solicite redefinição)",
+      "",
+      "Acesse: https://app.ethos-clinic.com/patient",
     ].filter(Boolean).join("\n");
     window.open(`https://wa.me/55${phone}?text=${encodeURIComponent(message)}`, "_blank", "noopener,noreferrer");
   };
@@ -343,18 +352,26 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
         >
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="font-serif text-xl">
-                  {hasPortalAccess ? "Acesso do paciente" : "Criar acesso do paciente"}
+                <DialogTitle className="font-serif text-xl flex items-center gap-2">
+                  {hasPortalAccess
+                    ? <><ShieldCheck className="w-5 h-5 text-emerald-600" /> Gerenciar acesso ao portal</>
+                    : <><KeyRound className="w-5 h-5" /> Criar acesso ao portal</>
+                  }
                 </DialogTitle>
                 <DialogDescription>
-                  Gere o acesso e depois compartilhe por cópia, email ou WhatsApp.
+                  {hasPortalAccess
+                    ? "Este paciente já tem acesso. Redefina a senha, gere novas credenciais ou envie por email/WhatsApp."
+                    : "Gere as credenciais e compartilhe com o paciente por cópia, email ou WhatsApp."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
               {hasPortalAccess && !accessCredentials && (
-                <div className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-foreground">
-                  <p className="font-medium mb-1">Acesso já criado</p>
-                  <p className="text-muted-foreground">{selectedPatient?.portal_access_email ?? portalEmail}</p>
+                <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 dark:border-emerald-800 dark:bg-emerald-950/20 p-4 text-sm">
+                  <div className="flex items-center gap-2 mb-1">
+                    <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <p className="font-medium text-emerald-700 dark:text-emerald-400">Portal ativo</p>
+                  </div>
+                  <p className="text-muted-foreground text-xs">{selectedPatient?.portal_access_email ?? portalEmail || "Email não registrado"}</p>
                 </div>
               )}
               <div className="space-y-2">
@@ -412,24 +429,50 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                 ) : (
                   <div className="flex w-full flex-wrap justify-end gap-2">
                     {hasPortalAccess ? (
-                      <Button
-                        variant="outline"
-                        onClick={handleResetAccess}
-                        disabled={resetting || patients.length === 0 || !selectedPatientId || !portalName.trim() || !portalEmail.trim()}
-                        className="gap-2"
-                      >
-                        {resetting && <Loader2 className="w-4 h-4 animate-spin" />}
-                        Redefinir acesso
-                      </Button>
-                    ) : null}
+                      <>
+                        <Button
+                          variant="outline"
+                          onClick={handleSendAccessEmail}
+                          disabled={!portalEmail.trim()}
+                          className="gap-2"
+                        >
+                          Enviar por email
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleSendAccessWhatsApp}
+                          className="gap-2"
+                        >
+                          Enviar por WhatsApp
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={handleResetAccess}
+                          disabled={resetting || patients.length === 0 || !selectedPatientId || !portalName.trim() || !portalEmail.trim()}
+                          className="gap-2"
+                        >
+                          {resetting && <Loader2 className="w-4 h-4 animate-spin" />}
+                          Redefinir senha
+                        </Button>
+                        <Button
+                          onClick={handleGrantAccess}
+                          disabled={granting || patients.length === 0 || !selectedPatientId || !portalName.trim() || !portalEmail.trim()}
+                          className="gap-2"
+                        >
+                          {granting && <Loader2 className="w-4 h-4 animate-spin" />}
+                          Gerar novas credenciais
+                        </Button>
+                      </>
+                    ) : (
                     <Button
                       onClick={handleGrantAccess}
                       disabled={granting || patients.length === 0 || !selectedPatientId || !portalName.trim() || !portalEmail.trim()}
                       className="gap-2"
                     >
                       {granting && <Loader2 className="w-4 h-4 animate-spin" />}
-                      {hasPortalAccess ? "Gerar novas credenciais" : "Gerar credenciais"}
+                      Gerar credenciais
                     </Button>
+                    )}
                   </div>
                 )}
               </DialogFooter>
@@ -472,8 +515,18 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
               </button>
 
               <div className="flex items-center gap-2 shrink-0">
-                <Button variant="ghost" size="icon" className="hidden sm:flex" onClick={() => openAccessDialog(patient)} aria-label={patient.portal_access_created ? "Enviar acesso" : "Criar acesso"}>
-                  <KeyRound className="w-4 h-4" strokeWidth={1.5} />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn("hidden sm:flex", patient.portal_access_created && "text-emerald-600 hover:text-emerald-700")}
+                  onClick={() => openAccessDialog(patient)}
+                  aria-label={patient.portal_access_created ? "Gerenciar acesso ao portal" : "Criar acesso ao portal"}
+                  title={patient.portal_access_created ? "Portal ativo — clique para gerenciar" : "Criar acesso ao portal"}
+                >
+                  {patient.portal_access_created
+                    ? <ShieldCheck className="w-4 h-4" strokeWidth={1.5} />
+                    : <KeyRound className="w-4 h-4" strokeWidth={1.5} />
+                  }
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => onOpenPatient(patient.id)} aria-label={`Abrir ficha de ${patient.name}`}>
                   <ChevronRight className="w-5 h-5 text-muted-foreground/70 group-hover:text-muted-foreground transition-colors duration-200" strokeWidth={1.5} />
