@@ -105,7 +105,7 @@ const Testimonials = () => {
           className="text-center"
         >
           <a
-            href={`${APP_URL}/login`}
+            href={APP_URL}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
             style={{
               background: "#2F6F73",

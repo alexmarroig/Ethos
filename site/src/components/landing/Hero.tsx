@@ -112,7 +112,7 @@ const Hero = () => {
               className="flex flex-col sm:flex-row gap-3 mb-12"
             >
               <a
-                href="https://app.ethos-clinic.com/login"
+                href="https://app.ethos-clinic.com"
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-white text-sm transition-all duration-200 hover:opacity-90 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(47,111,115,0.5)]"
                 style={{ background: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}
               >

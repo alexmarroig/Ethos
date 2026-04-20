@@ -58,7 +58,7 @@ const Header = () => {
         {/* CTA DESKTOP */}
         <div className="hidden md:flex items-center gap-3">
           <a
-            href={`${APP_URL}/login`}
+            href={APP_URL}
             className="text-sm font-medium text-[#6B8FA8] hover:text-[#EDF2F7] transition-colors px-4 py-2"
             style={{ fontFamily: "'DM Sans', sans-serif" }}
           >
@@ -66,7 +66,7 @@ const Header = () => {
           </a>
 
           <a
-            href={`${APP_URL}/login`}
+            href={APP_URL}
             className="text-sm font-semibold px-5 py-2 rounded-lg transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
             style={{
               background: "#2F6F73",
@@ -111,14 +111,14 @@ const Header = () => {
 
           <div className="pt-4 space-y-2">
             <a
-              href={`${APP_URL}/login`}
+              href={APP_URL}
               className="block text-center py-2.5 text-sm text-[#EDF2F7] border border-[#1A2D42] rounded-lg hover:border-[#2F6F73] transition-colors"
             >
               Entrar
             </a>
 
             <a
-              href={`${APP_URL}/login`}
+              href={APP_URL}
               className="block text-center py-2.5 text-sm font-semibold rounded-lg text-white"
               style={{ background: "#2F6F73" }}
             >
