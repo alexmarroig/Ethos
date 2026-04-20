@@ -199,7 +199,7 @@
 
   /* Floating action button */
   .fab {
-    @apply fixed bottom-8 right-8 z-50 rounded-full px-6 py-4 font-medium;
+    @apply fixed bottom-[calc(5rem+env(safe-area-inset-bottom))] right-4 z-50 rounded-full px-6 py-4 font-medium md:bottom-8 md:right-8;
     @apply bg-primary text-primary-foreground;
     box-shadow: var(--shadow-medium);
     transition: box-shadow var(--transition-calm), transform var(--transition-calm);

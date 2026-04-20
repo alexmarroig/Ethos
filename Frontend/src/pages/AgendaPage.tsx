@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
 import { Ban, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -98,6 +99,7 @@ function combineDateTime(date: string, time: string) {
 }
 
 const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
+  const isMobile = useIsMobile();
   const { toast } = useToast();
   const { maskName } = usePrivacy();
   const setSessionCache = useAppStore((s) => s.setSessionCache);
@@ -397,12 +399,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     <>
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
-        <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
+        <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">ETHOS Web</p>
-              <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">Agenda clínica</h1>
-              <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Configure sua semana e visualize apenas os dias e horários reais de atendimento.</p>
+              <h1 className="text-2xl font-semibold tracking-[-0.05em] text-foreground md:text-[2.35rem] xl:text-[3.2rem]">Agenda clínica</h1>
+              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[1.02rem]">Configure sua semana e visualize apenas os dias e horários reais de atendimento.</p>
             </div>
 
             <div className="flex flex-wrap gap-2">
@@ -528,7 +530,57 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         {error ? <IntegrationUnavailable message={error.message} requestId={error.requestId} /> : null}
         {loading ? <AgendaGridSkeleton /> : null}
 
-        {!loading && !error ? (
+        {!loading && !error && isMobile ? (
+          <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+            {visibleWeekDays.map((day) => {
+              const daySessions = sessions.filter((s) => (s.date || (s.scheduled_at ? formatDate(new Date(s.scheduled_at)) : "")) === day.key);
+              return (
+                <div key={day.key} className="rounded-2xl border border-border bg-card overflow-hidden">
+                  <div className={cn("flex items-center gap-3 px-4 py-3 border-b border-border", day.isToday && "bg-primary/5")}>
+                    <span className={cn("text-xs uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>{day.long}</span>
+                    <span className={cn("font-serif text-xl text-foreground", day.isToday && "text-primary")}>{formatDayNumber(day.date)}</span>
+                    {day.isToday ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
+                  </div>
+                  {daySessions.length === 0 ? (
+                    <button
+                      type="button"
+                      className="w-full px-4 py-5 text-sm text-muted-foreground/50 text-left hover:bg-muted/30 transition-colors"
+                      onClick={() => { setSessionDialogDefaults({ date: day.key }); setSessionDialogOpen(true); }}
+                    >
+                      Livre — toque para agendar
+                    </button>
+                  ) : (
+                    <div className="divide-y divide-border/60">
+                      {daySessions.map((session) => (
+                        <button
+                          key={session.id}
+                          type="button"
+                          onClick={() => onSessionClick(session.id)}
+                          className={cn(
+                            "w-full px-4 py-3 text-left transition-colors hover:bg-muted/30",
+                            getStatusColor(session.status),
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                              <Clock3 className="h-3.5 w-3.5" />{session.time}
+                            </span>
+                            <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                              {session.event_type === "block" ? "Bloqueio" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </motion.div>
+        ) : null}
+
+        {!loading && !error && !isMobile ? (
           <motion.div className="flex flex-col xl:flex-row gap-4 items-start" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
           <div className="flex-1 min-w-0 overflow-x-auto rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
             <div className="grid" style={{ gridTemplateColumns: `88px repeat(${visibleWeekDays.length}, minmax(140px, 1fr))` }}>

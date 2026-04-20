@@ -310,10 +310,10 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
             <Input type="text" placeholder="Buscar por nome" value={searchQuery} onChange={(event) => setSearchQuery(event.target.value)} className="pl-10 h-11" />
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 sm:flex-row flex-wrap">
             <Dialog open={createOpen} onOpenChange={setCreateOpen}>
               <DialogTrigger asChild>
-                <Button variant="secondary" className="gap-2 h-11">
+                <Button variant="secondary" className="gap-2 h-11 w-full sm:w-auto">
                   <Plus className="w-4 h-4" strokeWidth={1.5} />
                   Novo paciente
                 </Button>
@@ -336,7 +336,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
               </DialogContent>
             </Dialog>
 
-            <Button variant="ghost" className="gap-2 h-11" onClick={() => openAccessDialog()}>
+            <Button variant="ghost" className="gap-2 h-11 w-full sm:w-auto" onClick={() => openAccessDialog()}>
               <KeyRound className="w-4 h-4" strokeWidth={1.5} />
               {hasPortalAccess ? "Enviar acesso" : "Criar acesso"}
             </Button>

@@ -263,7 +263,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       <div className="content-container py-8 md:py-12">
         <Skeleton className="mb-3 h-10 w-40" />
         <Skeleton className="mb-10 h-5 w-80" />
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
           {Array.from({ length: 4 }).map((_, index) => (
             <div key={index} className="session-card space-y-3">
               <Skeleton className="h-4 w-32" />
@@ -298,7 +298,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header
-          className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10"
+          className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
@@ -306,15 +306,15 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">
             ETHOS Web
           </p>
-          <h1 className="max-w-3xl text-balance text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.4rem]">
+          <h1 className="max-w-3xl text-balance text-2xl font-semibold tracking-[-0.05em] text-foreground md:text-[2.35rem] xl:text-[3.4rem]">
             Início
           </h1>
-          <p className="mt-4 max-w-2xl text-[1.05rem] leading-7 text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[1.05rem]">
             Um panorama rápido da clínica para hoje e para os próximos dias.
           </p>
         </motion.header>
 
-        <section className="mb-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="mb-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
           <SummaryCard
             title="Sessões de hoje"
             value={String(todaySessions.length)}
@@ -610,10 +610,10 @@ function SummaryCard({
           {icon}
         </span>
       </div>
-      <p className="mt-5 text-[2.2rem] font-semibold tracking-[-0.04em] text-foreground">
+      <p className="mt-4 text-[1.6rem] font-semibold tracking-[-0.04em] text-foreground md:mt-5 md:text-[2.2rem]">
         {value}
       </p>
-      <p className="mt-2 text-sm leading-6 text-muted-foreground">{description}</p>
+      <p className="mt-1 text-xs leading-5 text-muted-foreground md:mt-2 md:text-sm md:leading-6">{description}</p>
     </motion.div>
   );
 }
@@ -637,13 +637,13 @@ function SectionCard({
       transition={{ duration: 0.4 }}
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">
+        <div className="min-w-0">
+          <h2 className="truncate text-[1.4rem] font-semibold tracking-[-0.03em] text-foreground">
             {title}
           </h2>
         </div>
         {actionLabel && onAction ? (
-          <Button variant="ghost" size="sm" className="text-primary" onClick={onAction}>
+          <Button variant="ghost" size="sm" className="shrink-0 text-primary" onClick={onAction}>
             {actionLabel}
           </Button>
         ) : null}

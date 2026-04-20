@@ -409,7 +409,7 @@ export default function FinancePage() {
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header
-          className="mb-10 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-10 md:py-10"
+          className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
@@ -417,10 +417,10 @@ export default function FinancePage() {
           <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">
             ETHOS Web
           </p>
-          <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">
+          <h1 className="text-2xl font-semibold tracking-[-0.05em] text-foreground md:text-[2.35rem] xl:text-[3.2rem]">
             Financeiro
           </h1>
-          <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">
+          <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[1.02rem]">
             Cobranças, pagamentos e acompanhamento do fluxo financeiro da clínica com visão mais estratégica.
           </p>
         </motion.header>
