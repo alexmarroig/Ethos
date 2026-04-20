@@ -3,11 +3,11 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
   ChevronDown,
+  CheckCircle2,
   Clock,
   Loader2,
-  Send,
-  CheckCircle2,
   Repeat,
+  Send,
   ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -114,7 +114,13 @@ export default function PatientDiaryPage() {
       if (selectedForm?.mode === "single_use") {
         setForms((current) =>
           current.map((form) =>
-            form.id === selectedFormId ? { ...form, can_submit: false, response_count: (form.response_count ?? 0) + 1 } : form,
+            form.id === selectedFormId
+              ? {
+                  ...form,
+                  can_submit: false,
+                  response_count: (form.response_count ?? 0) + 1,
+                }
+              : form,
           ),
         );
       }
@@ -200,7 +206,7 @@ export default function PatientDiaryPage() {
             <div className="border-b border-border px-7 py-6">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="font-serif text-2xl font-medium text-foreground">
-                  {selectedForm?.name}
+                  {selectedForm?.cover?.title || selectedForm?.name}
                 </h2>
                 <span className="rounded-full bg-muted px-2 py-1 text-xs text-muted-foreground">
                   {modeLabel(selectedForm?.mode)}
@@ -209,11 +215,9 @@ export default function PatientDiaryPage() {
                   {selectedForm?.response_count ?? entries.length} resposta(s)
                 </span>
               </div>
-              {selectedForm?.description ? (
-                <p className="mt-1.5 text-sm text-muted-foreground">
-                  {selectedForm.description}
-                </p>
-              ) : null}
+              <p className="mt-1.5 text-sm text-muted-foreground">
+                {selectedForm?.cover?.description || selectedForm?.description}
+              </p>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-1">
                   <Repeat className="h-3.5 w-3.5" />
@@ -273,7 +277,7 @@ export default function PatientDiaryPage() {
                         className="rounded-xl"
                         disabled={submitted || !selectedForm?.can_submit}
                       />
-                    ) : field.type === "select" ? (
+                    ) : field.type === "select" || field.type === "radio" ? (
                       <select
                         value={responses[field.id] ?? ""}
                         onChange={(e) => setResponses((prev) => ({ ...prev, [field.id]: e.target.value }))}
@@ -287,6 +291,35 @@ export default function PatientDiaryPage() {
                           </option>
                         ))}
                       </select>
+                    ) : field.type === "checkbox" ? (
+                      <div className="space-y-2">
+                        {field.options?.map((option) => {
+                          const currentValues = (responses[field.id] ?? "")
+                            .split(" | ")
+                            .map((value) => value.trim())
+                            .filter(Boolean);
+                          const checked = currentValues.includes(option.value);
+                          return (
+                            <label key={option.value} className="flex items-center gap-2 text-sm text-foreground">
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={(e) => {
+                                  const nextValues = e.target.checked
+                                    ? [...currentValues, option.value]
+                                    : currentValues.filter((value) => value !== option.value);
+                                  setResponses((prev) => ({
+                                    ...prev,
+                                    [field.id]: nextValues.join(" | "),
+                                  }));
+                                }}
+                                disabled={submitted || !selectedForm?.can_submit}
+                              />
+                              {option.label}
+                            </label>
+                          );
+                        })}
+                      </div>
                     ) : (
                       <Input
                         value={responses[field.id] ?? ""}
@@ -337,7 +370,7 @@ export default function PatientDiaryPage() {
         </motion.div>
 
         {entries.length > 0 ? (
-          <motion.div className="mt-10 space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
+          <motion.div className="mt-10 space-y-4" initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
             <h2 className="font-serif text-xl font-medium text-foreground">
               Respostas enviadas
             </h2>

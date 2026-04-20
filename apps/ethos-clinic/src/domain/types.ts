@@ -242,7 +242,7 @@ export type FormEntry = Owned & {
   submitted_by?: "patient" | "professional";
 };
 
-export type FormFieldType = "text" | "textarea" | "date" | "select";
+export type FormFieldType = "text" | "textarea" | "date" | "select" | "radio" | "checkbox";
 
 export type FormFieldOption = {
   label: string;
@@ -263,6 +263,10 @@ export type FormTemplate = Owned & {
   description?: string;
   audience: "patient" | "professional";
   active: boolean;
+  cover?: {
+    title?: string;
+    description?: string;
+  };
   fields: FormField[];
 };
 

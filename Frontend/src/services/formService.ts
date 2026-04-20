@@ -5,6 +5,10 @@ export interface Form {
   title?: string;
   name: string;
   description?: string;
+  cover?: {
+    title?: string;
+    description?: string;
+  };
   audience?: "patient" | "professional";
   active?: boolean;
   assignment_id?: string;
@@ -18,7 +22,7 @@ export interface Form {
   fields?: Array<{
     id: string;
     label: string;
-    type: "text" | "textarea" | "date" | "select";
+    type: "text" | "textarea" | "date" | "select" | "radio" | "checkbox";
     placeholder?: string;
     required?: boolean;
     options?: Array<{ label: string; value: string }>;

@@ -2244,7 +2244,7 @@ export const listFormsCatalog = (ownerId?: string, _audience?: string): Array<{ 
   return DEFAULT_FORM_TEMPLATES.map((t) => ({ ...t, name: t.title }));
 };
 
-export const createFormTemplate = (owner: string, data: { title: string; description?: string; audience?: "patient" | "professional"; active?: boolean; fields: FormTemplate["fields"] }): FormTemplate => {
+export const createFormTemplate = (owner: string, data: { title: string; description?: string; audience?: "patient" | "professional"; active?: boolean; cover?: FormTemplate["cover"]; fields: FormTemplate["fields"] }): FormTemplate => {
   const id = uid();
   const item: FormTemplate = {
     id,
@@ -2253,6 +2253,7 @@ export const createFormTemplate = (owner: string, data: { title: string; descrip
     description: data.description,
     audience: data.audience ?? "patient",
     active: data.active ?? true,
+    cover: data.cover,
     fields: data.fields ?? [],
     created_at: now(),
   };
@@ -2261,7 +2262,7 @@ export const createFormTemplate = (owner: string, data: { title: string; descrip
   return item;
 };
 
-export const updateFormTemplate = (owner: string, id: string, data: Partial<Pick<FormTemplate, "title" | "description" | "audience" | "active" | "fields">>): FormTemplate | null => {
+export const updateFormTemplate = (owner: string, id: string, data: Partial<Pick<FormTemplate, "title" | "description" | "audience" | "active" | "cover" | "fields">>): FormTemplate | null => {
   // Also try owner-prefixed key for seeded templates
   const item = db.formTemplates.get(id) ?? db.formTemplates.get(`${owner}:${id.replace(`${owner}:`, "")}`);
   if (!item || item.owner_user_id !== owner) return null;
@@ -2271,6 +2272,7 @@ export const updateFormTemplate = (owner: string, id: string, data: Partial<Pick
     ...(data.description !== undefined && { description: data.description }),
     ...(data.audience !== undefined && { audience: data.audience }),
     ...(data.active !== undefined && { active: data.active }),
+    ...(data.cover !== undefined && { cover: data.cover }),
     ...(data.fields !== undefined && { fields: data.fields }),
   };
   db.formTemplates.set(item.id, updated);
