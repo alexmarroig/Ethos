@@ -371,7 +371,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                     <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0" />
                     <p className="font-medium text-emerald-700 dark:text-emerald-400">Portal ativo</p>
                   </div>
-                  <p className="text-muted-foreground text-xs">{selectedPatient?.portal_access_email ?? portalEmail || "Email não registrado"}</p>
+                  <p className="text-muted-foreground text-xs">{(selectedPatient?.portal_access_email ?? portalEmail) || "Email não registrado"}</p>
                 </div>
               )}
               <div className="space-y-2">
