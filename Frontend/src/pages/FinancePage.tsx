@@ -26,6 +26,7 @@ import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { FinanceCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import { patientService, type Patient } from "@/services/patientService";
 import {
   Dialog,
@@ -99,6 +100,7 @@ function ChartFallback() {
 
 export default function FinancePage() {
   const { toast } = useToast();
+  const { maskCurrency, maskName } = usePrivacy();
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
@@ -442,7 +444,7 @@ export default function FinancePage() {
               </div>
               <div className="rounded-2xl border border-border/70 bg-background/50 px-4 py-3 text-right">
                 <p className="text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Em aberto</p>
-                <p className="mt-2 text-2xl font-semibold text-foreground">{formatCurrency(openAmount)}</p>
+                <p className="mt-2 text-2xl font-semibold text-foreground">{maskCurrency(formatCurrency(openAmount))}</p>
               </div>
             </div>
 
@@ -463,7 +465,7 @@ export default function FinancePage() {
                       {`${segment.count} lançamentos`}
                     </span>
                   </div>
-                  <p className="mt-3 text-2xl font-serif text-foreground">{formatCurrency(segment.amount)}</p>
+                  <p className="mt-3 text-2xl font-serif text-foreground">{maskCurrency(formatCurrency(segment.amount))}</p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
                     <div className={segment.tone} style={{ width: segment.width, height: "100%" }} />
                   </div>
@@ -478,7 +480,7 @@ export default function FinancePage() {
                 <div>
                   <p className="text-sm text-muted-foreground">{"Recebido no mês"}</p>
                   <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
-                    {formatCurrency(summary?.total_per_month ?? 0)}
+                    {maskCurrency(formatCurrency(summary?.total_per_month ?? 0))}
                   </p>
                 </div>
                 <TrendingUp className="h-8 w-8 text-emerald-400" />
@@ -557,7 +559,7 @@ export default function FinancePage() {
                         {statusLabel(entry.status)}
                       </span>
                     </div>
-                    <p className="mt-3 text-xl font-semibold text-foreground">{formatCurrency(entry.amount)}</p>
+                    <p className="mt-3 text-xl font-semibold text-foreground">{maskCurrency(formatCurrency(entry.amount))}</p>
                   </div>
                 ))}
               </div>
@@ -689,7 +691,7 @@ export default function FinancePage() {
                 <button type="button" className="w-full text-left" onClick={() => openEdit(entry)}>
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-base font-semibold text-foreground">{entry.patient_name ?? "Paciente"}</p>
+                      <p className="text-base font-semibold text-foreground">{maskName(entry.patient_name ?? "Paciente")}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
                         {entry.description ?? "Cobran\u00e7a"} ? vencimento {formatDate(entry.due_date)}
                       </p>
@@ -703,7 +705,7 @@ export default function FinancePage() {
                           Vencido
                         </span>
                       ) : null}
-                      <p className="mt-3 text-lg font-semibold text-foreground">{formatCurrency(entry.amount)}</p>
+                      <p className="mt-3 text-lg font-semibold text-foreground">{maskCurrency(formatCurrency(entry.amount))}</p>
                     </div>
                   </div>
                 </button>

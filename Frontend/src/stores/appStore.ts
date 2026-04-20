@@ -54,6 +54,10 @@ interface AppState {
   selectedSessionId: string | null;
   setSelectedPatient: (id: string | null) => void;
   setSelectedSession: (id: string | null) => void;
+
+  // Privacy mode
+  privacyMode: boolean;
+  togglePrivacyMode: () => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -95,6 +99,10 @@ export const useAppStore = create<AppState>()(
       selectedSessionId: null,
       setSelectedPatient: (id) => set({ selectedPatientId: id }),
       setSelectedSession: (id) => set({ selectedSessionId: id }),
+
+      // Privacy mode
+      privacyMode: false,
+      togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
     }),
     {
       name: "ethos-app-store",
@@ -102,6 +110,7 @@ export const useAppStore = create<AppState>()(
         pendingJobs: state.pendingJobs,
         selectedPatientId: state.selectedPatientId,
         selectedSessionId: state.selectedSessionId,
+        privacyMode: state.privacyMode,
       }),
     }
   )

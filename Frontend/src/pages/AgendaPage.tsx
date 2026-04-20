@@ -9,6 +9,7 @@ import { SessionDialog } from "@/components/SessionDialog";
 import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
 import { CLINICAL_BASE_URL } from "@/config/runtime";
 import { readStoredAuthUser } from "@/services/authStorage";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
@@ -98,6 +99,7 @@ function combineDateTime(date: string, time: string) {
 
 const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const { toast } = useToast();
+  const { maskName } = usePrivacy();
   const [currentWeek, setCurrentWeek] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -583,7 +585,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     </span>
                                   </div>
 
-                                  <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.block_title ?? session.patient_name}</p>
+                                  <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
                                   {session.series_id && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                       <Repeat2 className="h-3 w-3" />
@@ -654,7 +656,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                   >
                     <div className="flex items-start justify-between gap-1">
                       <div>
-                        <p className="font-medium leading-tight">{s.patient_name}</p>
+                        <p className="font-medium leading-tight">{maskName(s.patient_name)}</p>
                         <p className="text-xs text-muted-foreground">
                           {new Date(s.suggested_at).toLocaleString("pt-BR", {
                             weekday: "short", day: "2-digit", month: "short",

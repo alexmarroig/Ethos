@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { formatPhone } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { patientService, type Patient } from "@/services/patientService";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PatientCardSkeleton } from "@/components/SkeletonCards";
@@ -66,6 +67,7 @@ const careStatusTone = (status?: Patient["care_status"]) => {
 
 const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   const { toast } = useToast();
+  const { maskName } = usePrivacy();
   const [searchQuery, setSearchQuery] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -266,7 +268,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                   <option value="">Selecione um paciente</option>
                   {patients.map((patient) => (
                     <option key={patient.id} value={patient.id}>
-                      {patient.name}
+                      {maskName(patient.name)}
                     </option>
                   ))}
                 </select>
@@ -309,7 +311,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
               transition={{ duration: 0.4, delay: 0.1 + index * 0.05, ease: [0.25, 0.1, 0.25, 1] }}
             >
               <button className="flex-1 text-left" onClick={() => onOpenPatient(patient.id)}>
-                <h3 className="font-serif text-lg font-medium text-foreground">{patient.name}</h3>
+                <h3 className="font-serif text-lg font-medium text-foreground">{maskName(patient.name)}</h3>
                 {/* Email/phone shown only in patient detail, not in list cards */}
                 <div className="mt-3 flex flex-wrap items-center gap-2">
                   <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.12em]", careStatusTone(patient.care_status))}>

@@ -1,8 +1,9 @@
-import { Home, Calendar, Users, User, FlaskConical, Clipboard, MoreHorizontal, FileText, DollarSign, FileCheck, BookOpen, Shield, HardDrive, LayoutDashboard, Ticket, Activity } from "lucide-react";
+import { Home, Calendar, Users, User, FlaskConical, Clipboard, MoreHorizontal, FileText, DollarSign, FileCheck, BookOpen, Shield, HardDrive, LayoutDashboard, Ticket, Activity, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useAppStore } from "@/stores/appStore";
 
 interface BottomNavProps {
   currentPage: string;
@@ -12,6 +13,8 @@ interface BottomNavProps {
 const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
   const { hasRole } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
+  const privacyMode = useAppStore((s) => s.privacyMode);
+  const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
 
   const handleNav = (id: string) => {
     setMoreOpen(false);
@@ -181,7 +184,21 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       <Sheet open={moreOpen} onOpenChange={setMoreOpen}>
         <SheetContent side="bottom" className="pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           <SheetHeader className="mb-4">
-            <SheetTitle className="text-left text-base">Mais opções</SheetTitle>
+            <div className="flex items-center justify-between">
+              <SheetTitle className="text-left text-base">Mais opções</SheetTitle>
+              <button
+                onClick={togglePrivacyMode}
+                className={cn(
+                  "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors",
+                  privacyMode
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:border-primary/30 hover:text-primary",
+                )}
+              >
+                {privacyMode ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {privacyMode ? "Privacidade ativa" : "Modo privacidade"}
+              </button>
+            </div>
           </SheetHeader>
           <div className="grid grid-cols-3 gap-3">
             {moreItems.map((item) => {

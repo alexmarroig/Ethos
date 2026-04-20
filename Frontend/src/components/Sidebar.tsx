@@ -13,6 +13,8 @@ import {
   Home,
   LogOut,
   Moon,
+  Eye,
+  EyeOff,
   ScrollText,
   Shield,
   Stethoscope,
@@ -27,6 +29,7 @@ import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
 import BrandWordmark from "@/components/BrandWordmark";
+import { useAppStore } from "@/stores/appStore";
 
 interface SidebarProps {
   currentPage: string;
@@ -72,6 +75,8 @@ const navigation: NavItem[] = [
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { user, logout, hasRole } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
+  const privacyMode = useAppStore((s) => s.privacyMode);
+  const togglePrivacyMode = useAppStore((s) => s.togglePrivacyMode);
 
   const visibleItems = navigation.filter((item) => item.roles.some((role) => hasRole(role)));
 
@@ -135,14 +140,30 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
-            aria-label="Alternar tema"
-          >
-            {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={togglePrivacyMode}
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-full border bg-card transition-colors",
+                privacyMode
+                  ? "border-primary/50 bg-primary/10 text-primary"
+                  : "border-sidebar-border/80 text-sidebar-foreground hover:border-primary/30 hover:text-primary",
+              )}
+              aria-label={privacyMode ? "Desativar modo privacidade" : "Ativar modo privacidade"}
+              title={privacyMode ? "Privacidade ativa — clique para desativar" : "Ocultar nomes e valores"}
+            >
+              {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+            </button>
+            <button
+              type="button"
+              onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+              className="flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
+              aria-label="Alternar tema"
+            >
+              {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+            </button>
+          </div>
         </div>
       </div>
 
