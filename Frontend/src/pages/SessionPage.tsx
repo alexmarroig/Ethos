@@ -12,6 +12,7 @@ import { audioService } from "@/services/audioService";
 import { financeService, type FinancialEntry } from "@/services/financeService";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import { startJob } from "@/jobs/jobManager";
 import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
@@ -23,6 +24,7 @@ interface SessionPageProps {
 }
 
 const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) => {
+  const { maskName } = usePrivacy();
   const [notes, setNotes] = useState("");
   const [hasAudio, setHasAudio] = useState(false);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
@@ -250,7 +252,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
         </motion.button>
 
         <motion.header className="mb-10" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl font-medium text-foreground">{session?.patient_name || "Sessão"}</h1>
+          <h1 className="font-serif text-3xl font-medium text-foreground">{maskName(session?.patient_name) || "Sessão"}</h1>
           <div className="mt-2 flex flex-wrap items-center gap-3 text-muted-foreground text-sm">
             <span>{session?.date}</span>
             <span className="w-1 h-1 rounded-full bg-muted-foreground/40" />

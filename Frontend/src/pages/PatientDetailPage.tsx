@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/services/paymentReminderSettings";
 import { buildSessionReminderMessage, readSessionReminderSettings } from "@/services/sessionReminderSettings";
 import { sessionReminderApi } from "@/api/clinical";
@@ -373,6 +374,7 @@ export default function PatientDetailPage({
   const { toast } = useToast();
   const { user } = useAuth();
   const upsertSession = useAppStore((s) => s.upsertSession);
+  const { maskName } = usePrivacy();
   const [detail, setDetail] = useState<PatientDetail | null>(null);
   const [form, setForm] = useState<PatientFormState>(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -1298,7 +1300,7 @@ export default function PatientDetailPage({
           <div className="flex flex-col gap-4 rounded-[2rem] border border-border/80 bg-card px-7 py-8 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:flex-row md:items-start md:justify-between md:px-10 md:py-10">
             <div>
               <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">Paciente</p>
-              <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">{detail.patient.name}</h1>
+              <h1 className="text-[2.35rem] font-semibold tracking-[-0.05em] text-foreground md:text-[3.2rem]">{maskName(detail.patient.name)}</h1>
               <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">Ficha clínica completa do paciente, com visão operacional e atalhos de documentos.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {hasPortalAccess ? (

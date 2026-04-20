@@ -7,6 +7,7 @@ import { anamnesisService, type Anamnesis } from "@/services/anamnesisService";
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import {
   Dialog,
   DialogContent,
@@ -48,6 +49,7 @@ const summarizeContent = (content: Record<string, string>) =>
 
 const AnamnesisPage = () => {
   const { toast } = useToast();
+  const { maskName } = usePrivacy();
   const [records, setRecords] = useState<Anamnesis[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -233,7 +235,7 @@ const AnamnesisPage = () => {
                     <option value="">Selecione o paciente</option>
                     {patients.map((patient) => (
                       <option key={patient.id} value={patient.id}>
-                        {patient.name}
+                        {maskName(patient.name)}
                       </option>
                     ))}
                   </select>

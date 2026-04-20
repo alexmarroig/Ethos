@@ -29,6 +29,7 @@ import {
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import {
   Dialog,
   DialogContent,
@@ -110,6 +111,7 @@ const mapFieldForSave = (field: FormField, index: number): FormField => ({
 
 export default function FormsPage() {
   const { toast } = useToast();
+  const { maskName } = usePrivacy();
   const [forms, setForms] = useState<Form[]>([]);
   const [entries, setEntries] = useState<FormEntry[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -605,7 +607,7 @@ export default function FormsPage() {
                               >
                                 <div className="min-w-0">
                                   <p className="truncate text-sm font-medium text-foreground">
-                                    {patientName}
+                                    {maskName(patientName)}
                                   </p>
                                   <p className="text-xs text-muted-foreground">
                                     {assignmentModeLabel(assignment.mode)} · {assignment.response_count ?? 0} resposta(s)
@@ -677,7 +679,7 @@ export default function FormsPage() {
               <option value="">Todos os pacientes</option>
               {patients.map((patient) => (
                 <option key={patient.id} value={patient.id}>
-                  {patient.name}
+                  {maskName(patient.name)}
                 </option>
               ))}
             </select>
@@ -970,7 +972,7 @@ export default function FormsPage() {
                 <option value="">Selecione o paciente</option>
                 {patients.map((patient) => (
                   <option key={patient.id} value={patient.id}>
-                    {patient.name}
+                    {maskName(patient.name)}
                   </option>
                 ))}
               </select>
@@ -1089,7 +1091,7 @@ export default function FormsPage() {
                 <option value="">Selecione o paciente</option>
                 {patients.map((patient) => (
                   <option key={patient.id} value={patient.id}>
-                    {patient.name}
+                    {maskName(patient.name)}
                   </option>
                 ))}
               </select>

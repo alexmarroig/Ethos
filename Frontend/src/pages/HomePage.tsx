@@ -11,6 +11,7 @@ import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
 import { Button } from "@/components/ui/button";
+import { usePrivacy } from "@/hooks/usePrivacy";
 
 interface HomePageProps {
   onSessionClick: (sessionId: string) => void;
@@ -90,6 +91,7 @@ const getBirthdayBadge = (birthDate?: string) => {
 const SESSION_CACHE_TTL_MS = 60_000;
 
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
+  const { maskName } = usePrivacy();
   const sessionCache = useAppStore((s) => s.sessionCache);
   const sessionCacheAt = useAppStore((s) => s.sessionCacheAt);
   const setSessionCache = useAppStore((s) => s.setSessionCache);
@@ -413,7 +415,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{session.patient_name}</p>
+                          <p className="text-sm font-medium text-foreground">{maskName(session.patient_name)}</p>
                           <p className="text-xs text-muted-foreground">Hoje · {session.time}</p>
                         </div>
                         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -423,7 +425,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                     ) : (
                       <SessionCard
                         key={session.id}
-                        patientName={session.patient_name}
+                        patientName={maskName(session.patient_name)}
                         date="Hoje"
                         time={session.time}
                         status={mapStatus(session)}
@@ -456,7 +458,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
-                          <p className="text-sm font-medium text-foreground">{session.patient_name}</p>
+                          <p className="text-sm font-medium text-foreground">{maskName(session.patient_name)}</p>
                           <p className="text-xs text-muted-foreground">{formatDateLabel(session.date)} · {session.time}</p>
                         </div>
                         <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -466,7 +468,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                     ) : (
                       <CompactRow
                         key={session.id}
-                        title={session.patient_name}
+                        title={maskName(session.patient_name)}
                         subtitle={`${formatDateLabel(session.date)} · ${session.time}`}
                         meta={session.status === "confirmed" ? "Confirmada" : "Agendada"}
                         onClick={() => onSessionClick(session.id)}
@@ -491,7 +493,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                   {pendingSessions.map((session, index) => (
                     <SessionCard
                       key={session.id}
-                      patientName={session.patient_name}
+                      patientName={maskName(session.patient_name)}
                       date={formatDateLabel(session.date)}
                       time={session.time}
                       status={mapStatus(session)}
@@ -520,7 +522,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                   {upcomingPayments.map((entry) => (
                     <CompactRow
                       key={entry.id}
-                      title={entry.patient_name || "Paciente"}
+                      title={maskName(entry.patient_name) || "Paciente"}
                       subtitle={`Vence em ${formatDateLabel(entry.due_date)}`}
                       meta={formatCurrency(entry.amount)}
                     />
@@ -541,7 +543,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                   {pendingPayments.map((entry) => (
                     <CompactRow
                       key={entry.id}
-                      title={entry.patient_name || "Paciente"}
+                      title={maskName(entry.patient_name) || "Paciente"}
                       subtitle={`Vencimento ${formatDateLabel(entry.due_date)}`}
                       meta={formatCurrency(entry.amount)}
                       tone="warning"
@@ -565,7 +567,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                   {birthdayPatients.map((patient) => (
                     <CompactRow
                       key={patient.id}
-                      title={patient.name}
+                      title={maskName(patient.name)}
                       subtitle={`${formatBirthdayLabel(patient.birth_date)}${getBirthdayAge(patient.birth_date) ? ` · Faz ${getBirthdayAge(patient.birth_date)} anos` : ""}`}
                       meta={getBirthdayDistanceLabel(patient.birth_date)}
                       badge={getBirthdayBadge(patient.birth_date)}

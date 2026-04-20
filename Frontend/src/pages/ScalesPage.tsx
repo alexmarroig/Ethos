@@ -10,12 +10,14 @@ import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "rec
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScaleCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
+import { usePrivacy } from "@/hooks/usePrivacy";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
 
 const ScalesPage = () => {
   const { toast } = useToast();
+  const { maskName } = usePrivacy();
   const [scales, setScales] = useState<Scale[]>([]);
   const [records, setRecords] = useState<ScaleRecord[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -154,7 +156,7 @@ const ScalesPage = () => {
                     <option value="">Selecione o paciente</option>
                     {patients.map((patient) => (
                       <option key={patient.id} value={patient.id}>
-                        {patient.name}
+                        {maskName(patient.name)}
                       </option>
                     ))}
                   </select>

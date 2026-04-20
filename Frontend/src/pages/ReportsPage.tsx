@@ -8,6 +8,7 @@ import { ReportWizard } from "@/components/ReportWizard";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { ShareWithPatientButton } from "@/components/ShareWithPatientButton";
 import { KIND_META } from "@/lib/reportBuilders";
+import { usePrivacy } from "@/hooks/usePrivacy";
 
 const TEXT = {
   title: "Relat\u00f3rios",
@@ -37,6 +38,7 @@ const formatDate = (value?: string) =>
     : "Sem data";
 
 export default function ReportsPage() {
+  const { maskName } = usePrivacy();
   const [reports, setReports] = useState<Report[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -155,7 +157,7 @@ export default function ReportsPage() {
 
                           <div>
                             <h3 className="font-serif text-lg font-medium text-foreground">
-                              {patient?.name ?? report.patient_name ?? "Paciente"}
+                              {maskName(patient?.name ?? report.patient_name) || "Paciente"}
                             </h3>
                             <p className="mt-1 text-sm text-muted-foreground">
                               {kindMeta?.label ?? TEXT.genericReport} ? {purposeLabel} ? {formatDate(report.created_at)}
