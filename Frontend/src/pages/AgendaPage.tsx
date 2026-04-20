@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -584,9 +584,14 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                   </div>
 
                                   <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.block_title ?? session.patient_name}</p>
-                                  {session.recurrence && (
-                                    <span className="text-xs opacity-60">
-                                      🔁 {session.recurrence.type === "weekly" ? "semanal" : session.recurrence.type === "biweekly" ? "quinzenal" : "2×sem"}
+                                  {session.series_id && (
+                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                      <Repeat2 className="h-3 w-3" />
+                                      {session.recurrence
+                                        ? session.recurrence.type === "weekly" ? "Semanal"
+                                          : session.recurrence.type === "biweekly" ? "Quinzenal"
+                                          : "2× sem"
+                                        : "Série"}
                                     </span>
                                   )}
 

@@ -1495,6 +1495,47 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { ...session, ...billingResult });
       }
 
+      // DELETE /sessions/series/:series_id — cancel all future sessions in a series
+      const sessionSeriesDelete = url.pathname.match(/^\/sessions\/series\/([^/]+)$/);
+      if (method === "DELETE" && sessionSeriesDelete) {
+        const seriesId = sessionSeriesDelete[1];
+        const toCancel = [...db.sessions.values()].filter(
+          (s) => s.owner === auth.user.id &&
+            s.series_id === seriesId &&
+            (s.status === "scheduled" || s.status === "confirmed")
+        );
+        for (const s of toCancel) db.sessions.delete(s.id);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, { cancelled: toCancel.length });
+      }
+
+      // PATCH /sessions/series/:series_id — update time/duration for all future sessions
+      const sessionSeriesPatch = url.pathname.match(/^\/sessions\/series\/([^/]+)$/);
+      if (method === "PATCH" && sessionSeriesPatch) {
+        const seriesId = sessionSeriesPatch[1];
+        const body = await readJson(req);
+        const newTime: string | undefined = typeof body.time === "string" ? body.time : undefined;
+        const newDuration: number | undefined = typeof body.duration_minutes === "number" ? body.duration_minutes : undefined;
+        const toUpdate = [...db.sessions.values()].filter(
+          (s) => s.owner === auth.user.id &&
+            s.series_id === seriesId &&
+            (s.status === "scheduled" || s.status === "confirmed")
+        );
+        for (const s of toUpdate) {
+          if (newTime) {
+            const dateStr = s.scheduled_at.slice(0, 10);
+            s.scheduled_at = `${dateStr}T${newTime}:00.000Z`;
+          }
+          if (newDuration) s.duration_minutes = newDuration;
+          if (s.recurrence) {
+            if (newTime) s.recurrence.time = newTime;
+            if (newDuration) s.recurrence.duration_minutes = newDuration;
+          }
+        }
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, { updated: toUpdate.length });
+      }
+
       const sessionAudio = url.pathname.match(/^\/sessions\/([^/]+)\/audio$/);
       if (method === "POST" && sessionAudio) {
         const body = await readJson(req);
@@ -2057,6 +2098,16 @@ export const createEthosBackend = () =>
           description: typeof body.description === "string" ? body.description : undefined,
           audience: body.audience === "professional" ? "professional" : "patient",
           active: body.active !== false,
+          cover: body.cover && typeof body.cover === "object"
+            ? {
+                title: typeof (body.cover as Record<string, unknown>).title === "string"
+                  ? String((body.cover as Record<string, unknown>).title)
+                  : undefined,
+                description: typeof (body.cover as Record<string, unknown>).description === "string"
+                  ? String((body.cover as Record<string, unknown>).description)
+                  : undefined,
+              }
+            : undefined,
           fields: body.fields as any,
         });
         return ok(res, requestId, 201, template);
@@ -2070,6 +2121,16 @@ export const createEthosBackend = () =>
           description: typeof body.description === "string" ? body.description : undefined,
           audience: body.audience === "patient" || body.audience === "professional" ? body.audience : undefined,
           active: typeof body.active === "boolean" ? body.active : undefined,
+          cover: body.cover && typeof body.cover === "object"
+            ? {
+                title: typeof (body.cover as Record<string, unknown>).title === "string"
+                  ? String((body.cover as Record<string, unknown>).title)
+                  : undefined,
+                description: typeof (body.cover as Record<string, unknown>).description === "string"
+                  ? String((body.cover as Record<string, unknown>).description)
+                  : undefined,
+              }
+            : undefined,
           fields: Array.isArray(body.fields) ? body.fields as any : undefined,
         });
         if (!template) return error(res, requestId, 404, "NOT_FOUND", "Form not found");

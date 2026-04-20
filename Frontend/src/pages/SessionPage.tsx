@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Wallet } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Repeat2, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -37,6 +37,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   const [showSaved, setShowSaved] = useState(false);
   const [consentOpen, setConsentOpen] = useState(false);
   const [confirmingSession, setConfirmingSession] = useState(false);
+  const [cancellingOrUpdatingSeries, setCancellingOrUpdatingSeries] = useState(false);
   const [linkedEntry, setLinkedEntry] = useState<FinancialEntry | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [paymentDueDate, setPaymentDueDate] = useState("");
@@ -204,6 +205,20 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     });
   };
 
+  const handleCancelSeries = async () => {
+    if (!session?.series_id) return;
+    if (!window.confirm("Cancelar todas as sessões futuras desta série?")) return;
+    setCancellingOrUpdatingSeries(true);
+    const result = await sessionService.cancelSeries(session.series_id);
+    setCancellingOrUpdatingSeries(false);
+    if (!result.success) {
+      toast({ title: "Erro ao cancelar série", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Série cancelada", description: `${result.data.cancelled} sessão(ões) removida(s).` });
+    onBack();
+  };
+
   if (loading) {
     return (
       <div className="content-container py-12">
@@ -252,6 +267,38 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
             ) : null}
           </div>
         </motion.header>
+
+        {session?.series_id && (
+          <motion.div
+            className="mb-8 rounded-2xl border border-primary/20 bg-primary/5 p-5"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+          >
+            <div className="flex items-center gap-2 mb-3">
+              <Repeat2 className="h-4 w-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Sessão recorrente</span>
+              {session.recurrence && (
+                <span className="ml-auto rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                  {session.recurrence.type === "weekly" ? "Semanal" : session.recurrence.type === "biweekly" ? "Quinzenal" : "2× semana"}
+                </span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground mb-4">
+              Esta sessão faz parte de uma série recorrente. Ao cancelar a série, todas as sessões futuras agendadas serão removidas.
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-destructive border-destructive/30 hover:bg-destructive/10"
+              onClick={handleCancelSeries}
+              disabled={cancellingOrUpdatingSeries}
+            >
+              {cancellingOrUpdatingSeries ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+              Cancelar série inteira
+            </Button>
+          </motion.div>
+        )}
 
         <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <h2 className="font-serif text-xl font-medium text-foreground mb-4">Registro da sessão</h2>

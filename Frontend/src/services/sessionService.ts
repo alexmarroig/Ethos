@@ -259,4 +259,12 @@ export const sessionService = {
   getSuggestions: async (weekStart: string): Promise<ApiResult<CalendarSuggestion[]>> => {
     return api.get<CalendarSuggestion[]>(`/sessions/suggestions?week_start=${weekStart}`);
   },
+
+  cancelSeries: async (seriesId: string): Promise<ApiResult<{ cancelled: number }>> => {
+    return api.delete<{ cancelled: number }>(`/sessions/series/${seriesId}`);
+  },
+
+  updateSeries: async (seriesId: string, data: { time?: string; duration_minutes?: number }): Promise<ApiResult<{ updated: number }>> => {
+    return api.patch<{ updated: number }>(`/sessions/series/${seriesId}`, data);
+  },
 };
