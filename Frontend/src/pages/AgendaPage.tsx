@@ -324,8 +324,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
     for (const session of sessions) {
       const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
-      const timeKey = session.time || "00:00";
-      const slotKey = `${dateKey}-${timeKey}`;
+      const [hour] = (session.time || "00:00").split(":");
+      const normalizedTimeKey = `${hour}:00`;
+      const slotKey = `${dateKey}-${normalizedTimeKey}`;
+      
       if (!map.has(slotKey)) continue;
       map.get(slotKey)?.push(session);
     }
