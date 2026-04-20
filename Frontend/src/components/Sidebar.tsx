@@ -210,20 +210,22 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 )}
               </button>
             )}
-            <button
-              type="button"
-              onClick={togglePrivacyMode}
-              className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-full border bg-card transition-colors",
-                privacyMode
-                  ? "border-primary/50 bg-primary/10 text-primary"
-                  : "border-sidebar-border/80 text-sidebar-foreground hover:border-primary/30 hover:text-primary",
-              )}
-              aria-label={privacyMode ? "Desativar modo privacidade" : "Ativar modo privacidade"}
-              title={privacyMode ? "Privacidade ativa — clique para desativar" : "Ocultar nomes e valores"}
-            >
-              {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
+            {user?.role !== "patient" && (
+              <button
+                type="button"
+                onClick={togglePrivacyMode}
+                className={cn(
+                  "flex h-10 w-10 items-center justify-center rounded-full border bg-card transition-colors",
+                  privacyMode
+                    ? "border-primary/50 bg-primary/10 text-primary"
+                    : "border-sidebar-border/80 text-sidebar-foreground hover:border-primary/30 hover:text-primary",
+                )}
+                aria-label={privacyMode ? "Desativar modo privacidade" : "Ativar modo privacidade"}
+                title={privacyMode ? "Privacidade ativa — clique para desativar" : "Ocultar nomes e valores"}
+              >
+                {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            )}
             <button
               type="button"
               onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
