@@ -463,8 +463,18 @@ export default function PatientDetailPage({
     () => formAssignments.filter((assignment) => assignment.active),
     [formAssignments],
   );
+  const formEntries = useMemo(() => {
+    const fromDetail = detail?.form_entries ?? [];
+    const fromService = allFormEntries ?? [];
+    
+    // Merge and remove duplicates by ID
+    const merged = [...fromDetail, ...fromService];
+    const unique = Array.from(new Map(merged.map(item => [((item as any).id), item])).values());
+    return unique;
+  }, [detail?.form_entries, allFormEntries]);
+
   const formEntryGroups = useMemo(() => {
-    const items = allFormEntries;
+    const items = formEntries;
     return items.reduce<Record<string, any[]>>((acc, entry: any) => {
       // Tenta agrupar por assignment_id, se não houver, tenta agrupar pelo form_id original do template
       const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
@@ -1851,11 +1861,12 @@ export default function PatientDetailPage({
           </div>
 
           {(() => {
-            // Unifica registros do emotional_diary com respostas de formulários que sejam diários (fuzzy match)
-            const diaryEntriesFromForms = (allFormEntries ?? [])
+            // Unifica registros do emotional_diary com respostas de formulários que sejam diários (fuzzy match por nome real)
+            const diaryEntriesFromForms = (formEntries ?? [])
               .filter((e: any) => {
-                const name = normalizeStr(e.form_id || "");
-                return name.includes("diario");
+                const assignment = activeAssignments.find(a => a.id === e.assignment_id || a.form_id === e.form_id);
+                const formName = normalizeStr(assignment?.form?.name ?? assignment?.form?.title ?? e.form_id || "");
+                return formName.includes("diario");
               })
               .map((e: any) => ({
                 id: e.id,
@@ -1914,12 +1925,12 @@ export default function PatientDetailPage({
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Respostas recebidas</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{allFormEntries.length}</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{formEntries.length}</p>
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Última resposta</p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                {allFormEntries.length ? formatDateTime((allFormEntries[0] as any).created_at) : "Nenhuma ainda"}
+                {formEntries.length ? formatDateTime((formEntries[0] as any).created_at) : "Nenhuma ainda"}
               </p>
             </div>
           </div>
@@ -2019,13 +2030,13 @@ export default function PatientDetailPage({
             </div>
           )}
 
-          {allFormEntries.length === 0 ? (
+          {formEntries.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
               Nenhum formulário foi respondido ainda.
             </div>
           ) : (
             <div className="space-y-3">
-              {allFormEntries.map((entry: any) => (
+              {formEntries.map((entry: any) => (
                 <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
