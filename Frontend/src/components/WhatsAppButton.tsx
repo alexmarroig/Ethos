@@ -16,7 +16,7 @@ const WhatsAppButton = ({
   variant = "secondary",
   size = "default",
 }: WhatsAppButtonProps) => {
-  const cleanPhone = phone.replace(/\D/g, "");
+  const cleanPhone = phone?.replace(/\D/g, "") ?? "";
   const encodedMessage = encodeURIComponent(message);
   const url = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
 
