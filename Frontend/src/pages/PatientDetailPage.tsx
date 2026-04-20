@@ -1865,7 +1865,7 @@ export default function PatientDetailPage({
             const diaryEntriesFromForms = (formEntries ?? [])
               .filter((e: any) => {
                 const assignment = activeAssignments.find(a => a.id === e.assignment_id || a.form_id === e.form_id);
-                const formName = normalizeStr(assignment?.form?.name ?? assignment?.form?.title ?? e.form_id || "");
+                const formName = normalizeStr(assignment?.form?.name ?? assignment?.form?.title ?? e.form_id ?? "");
                 return formName.includes("diario");
               })
               .map((e: any) => ({
