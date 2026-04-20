@@ -1500,7 +1500,7 @@ export const createEthosBackend = () =>
       if (method === "DELETE" && sessionSeriesDelete) {
         const seriesId = sessionSeriesDelete[1];
         const toCancel = [...db.sessions.values()].filter(
-          (s) => s.owner === auth.user.id &&
+          (s) => s.owner_user_id === auth.user.id &&
             s.series_id === seriesId &&
             (s.status === "scheduled" || s.status === "confirmed")
         );
@@ -1517,7 +1517,7 @@ export const createEthosBackend = () =>
         const newTime: string | undefined = typeof body.time === "string" ? body.time : undefined;
         const newDuration: number | undefined = typeof body.duration_minutes === "number" ? body.duration_minutes : undefined;
         const toUpdate = [...db.sessions.values()].filter(
-          (s) => s.owner === auth.user.id &&
+          (s) => s.owner_user_id === auth.user.id &&
             s.series_id === seriesId &&
             (s.status === "scheduled" || s.status === "confirmed")
         );
