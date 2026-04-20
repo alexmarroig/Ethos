@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
+import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
 import { sessionService, type Session } from "@/services/sessionService";
@@ -110,9 +110,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         .slice(0, 10);
 
       const [todayRes, pendingRes, upcomingRes, financeRes, patientsRes] = await Promise.all([
-        sessionService.list({ from: today, to: today, exclude_blocks: true }),
+        sessionService.list({ from: today, to: today }),
         sessionService.list({ status: "pending", exclude_blocks: true }),
-        sessionService.list({ from: today, to: monthEnd, exclude_blocks: true }),
+        sessionService.list({ from: today, to: monthEnd }),
         financeService.listEntries({ status: "open" }),
         patientService.list(),
       ]);
@@ -124,7 +124,6 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       }
 
       const todayData = [...todayRes.data]
-        .filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"))
         .sort((a, b) => a.time.localeCompare(b.time));
       setTodaySessions(todayData);
 
@@ -145,7 +144,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       if (upcomingRes.success) {
         const upcomingData = upcomingRes.data
-          .filter((item) => item.date > today && item.event_type !== "block" && !item.patient_id.startsWith("block-"))
+          .filter((item) => item.date > today)
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
           .slice(0, 6);
         setUpcomingSessions(upcomingData);
@@ -380,42 +379,74 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                 />
               ) : (
                 <div className="space-y-3">
-                  {todaySessions.map((session, index) => (
-                    <SessionCard
-                      key={session.id}
-                      patientName={session.patient_name}
-                      date="Hoje"
-                      time={session.time}
-                      status={mapStatus(session)}
-                      statusLabel={mapStatusLabel(session)}
-                      onClick={() => onSessionClick(session.id)}
-                      index={index}
-                    />
-                  ))}
+                  {todaySessions.map((session, index) =>
+                    session.event_type === "block" ? (
+                      <div
+                        key={session.id}
+                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5"
+                      >
+                        <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{session.patient_name}</p>
+                          <p className="text-xs text-muted-foreground">Hoje · {session.time}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Bloqueio
+                        </span>
+                      </div>
+                    ) : (
+                      <SessionCard
+                        key={session.id}
+                        patientName={session.patient_name}
+                        date="Hoje"
+                        time={session.time}
+                        status={mapStatus(session)}
+                        statusLabel={mapStatusLabel(session)}
+                        onClick={() => onSessionClick(session.id)}
+                        index={index}
+                      />
+                    )
+                  )}
                 </div>
               )}
             </SectionCard>
 
             <SectionCard
-              title="Próximas sessões"
+              title="Próximas atividades"
               actionLabel={upcomingSessions.length ? "Ver agenda" : undefined}
               onAction={upcomingSessions.length ? () => onNavigate("agenda") : undefined}
             >
               {upcomingSessions.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Nenhuma próxima sessão cadastrada para os próximos dias.
+                  Nenhuma atividade cadastrada para os próximos dias.
                 </p>
               ) : (
                 <div className="space-y-3">
-                  {upcomingSessions.map((session) => (
-                    <CompactRow
-                      key={session.id}
-                      title={session.patient_name}
-                      subtitle={`${formatDateLabel(session.date)} · ${session.time}`}
-                      meta={session.status === "confirmed" ? "Confirmada" : "Agendada"}
-                      onClick={() => onSessionClick(session.id)}
-                    />
-                  ))}
+                  {upcomingSessions.map((session) =>
+                    session.event_type === "block" ? (
+                      <div
+                        key={session.id}
+                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5"
+                      >
+                        <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium text-foreground">{session.patient_name}</p>
+                          <p className="text-xs text-muted-foreground">{formatDateLabel(session.date)} · {session.time}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                          Bloqueio
+                        </span>
+                      </div>
+                    ) : (
+                      <CompactRow
+                        key={session.id}
+                        title={session.patient_name}
+                        subtitle={`${formatDateLabel(session.date)} · ${session.time}`}
+                        meta={session.status === "confirmed" ? "Confirmada" : "Agendada"}
+                        onClick={() => onSessionClick(session.id)}
+                      />
+                    )
+                  )}
                 </div>
               )}
             </SectionCard>
