@@ -114,11 +114,23 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     );
   };
 
+  const translateDocTitle = (raw?: string) => {
+    if (!raw) return "Documento compartilhado";
+    const map: Record<string, string> = {
+      session_report: "Relatório de sessão",
+      longitudinal_record: "Registro longitudinal",
+      contract: "Contrato terapêutico",
+      anamnesis: "Anamnese",
+      informed_consent: "Termo de consentimento",
+    };
+    return map[raw] ?? raw;
+  };
+
   const notificationLabel = (n: PatientNotification) => {
     switch (n.type) {
       case "session_reminder": return `Sessão amanhã às ${n.data.time ?? ""}`;
       case "payment_due": return `Pagamento pendente`;
-      case "document_shared": return `Novo documento: ${n.data.title ?? ""}`;
+      case "document_shared": return `Novo documento: ${translateDocTitle(n.data.title ?? n.data.kind)}`;
       case "slot_response": return `Sessão ${n.data.status === "confirmed" ? "confirmada" : "recusada"}`;
       default: return "Nova notificação";
     }
