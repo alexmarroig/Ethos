@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   Dialog,
   DialogContent,
@@ -73,6 +73,15 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
     );
   };
+
+  useEffect(() => {
+    if (open) {
+      setDate(defaultDate ?? "");
+      setTime(defaultTime ?? "");
+      setEventType("session");
+      setError(null);
+    }
+  }, [open, defaultDate, defaultTime]);
 
   const handleSubmit = async () => {
     setError(null);

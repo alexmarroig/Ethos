@@ -790,9 +790,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     <SessionDialog
       open={sessionDialogOpen}
       onOpenChange={(v) => { setSessionDialogOpen(v); if (!v) setSessionDialogDefaults({}); }}
-      patients={sessions
-        .filter((s, i, arr) => arr.findIndex((x) => x.patient_id === s.patient_id) === i)
-        .map((s) => ({ id: s.patient_id, name: s.patient_name }))}
+      patients={patients}
       defaultDate={sessionDialogDefaults.date}
       defaultTime={sessionDialogDefaults.time}
       onCreated={async () => {

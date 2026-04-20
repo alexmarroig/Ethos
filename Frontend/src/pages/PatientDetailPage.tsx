@@ -25,7 +25,7 @@ import { usePrivacy } from "@/hooks/usePrivacy";
 import { buildPaymentReminderMessage, readPaymentReminderSettings } from "@/services/paymentReminderSettings";
 import { buildSessionReminderMessage, readSessionReminderSettings } from "@/services/sessionReminderSettings";
 import { sessionReminderApi } from "@/api/clinical";
-import { formatPhone } from "@/lib/utils";
+import { formatPhone, cn } from "@/lib/utils";
 import { Switch } from "@/components/ui/switch";
 import {
   Select,
