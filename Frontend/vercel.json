@@ -7,7 +7,7 @@
   "trailingSlash": false,
   "rewrites": [
     {
-      "source": "/((?!assets/|favicon.ico|icon-.*\\.png|manifest.webmanifest|workbox-.*\\.js|sw.js).*)",
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
