@@ -307,8 +307,8 @@ export const patientService = {
   list: async (): Promise<ApiResult<Patient[]>> => {
     const result = await api.get<RawPatient[]>("/patients");
     return ok(result, (items) => items
-      .filter((raw) => !String(raw.id).startsWith("block-") && !(raw.name ?? raw.label ?? "").startsWith("Paciente block-"))
       .map(mapPatient)
+      .filter((p) => !p.id.startsWith("block-") && !p.name.toLowerCase().includes("block-"))
     );
   },
 
