@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
-import { formService, type FormAssignment } from "@/services/formService";
+import { formService, type FormAssignment, type FormEntry } from "@/services/formService";
 import { sessionService } from "@/services/sessionService";
 import { contractsApi, documentsApi } from "@/api/clinical";
 import type { Contract } from "@/api/types";
@@ -330,6 +330,7 @@ export default function PatientDetailPage({
   const [sessionReminderEnabled, setSessionReminderEnabled] = useState(false);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [formAssignments, setFormAssignments] = useState<FormAssignment[]>([]);
+  const [allFormEntries, setAllFormEntries] = useState<FormEntry[]>([]);
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
   const [documentFormValues, setDocumentFormValues] = useState<DocumentFormValues>({});
@@ -344,7 +345,11 @@ export default function PatientDetailPage({
 
   const loadPatient = useCallback(async () => {
     setLoading(true);
-    const result = await patientService.getById(patientId);
+    const [result, entriesResult] = await Promise.all([
+      patientService.getById(patientId),
+      formService.listEntries({ patient_id: patientId }),
+    ]);
+
     if (!result.success) {
       setError({ message: result.error.message, requestId: result.request_id });
       setDetail(null);
@@ -353,6 +358,9 @@ export default function PatientDetailPage({
     }
 
     setDetail(result.data);
+    if (entriesResult.success) {
+      setAllFormEntries(entriesResult.data);
+    }
     setError(null);
     setLoading(false);
   }, [patientId]);
@@ -456,7 +464,7 @@ export default function PatientDetailPage({
     [formAssignments],
   );
   const formEntryGroups = useMemo(() => {
-    const items = detail?.form_entries ?? [];
+    const items = allFormEntries;
     return items.reduce<Record<string, any[]>>((acc, entry: any) => {
       // Tenta agrupar por assignment_id, se não houver, tenta agrupar pelo form_id original do template
       const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
@@ -1844,7 +1852,7 @@ export default function PatientDetailPage({
 
           {(() => {
             // Unifica registros do emotional_diary com respostas de formulários que sejam diários (fuzzy match)
-            const diaryEntriesFromForms = (detail.form_entries ?? [])
+            const diaryEntriesFromForms = (allFormEntries ?? [])
               .filter((e: any) => {
                 const name = normalizeStr(e.form_id || "");
                 return name.includes("diario");
@@ -1906,12 +1914,12 @@ export default function PatientDetailPage({
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Respostas recebidas</p>
-              <p className="mt-2 text-2xl font-semibold text-foreground">{detail.form_entries?.length ?? 0}</p>
+              <p className="mt-2 text-2xl font-semibold text-foreground">{allFormEntries.length}</p>
             </div>
             <div className="rounded-xl border border-border bg-background/40 p-4">
               <p className="text-xs uppercase tracking-wide text-muted-foreground">Última resposta</p>
               <p className="mt-2 text-sm font-medium text-foreground">
-                {detail.form_entries?.length ? formatDateTime((detail.form_entries[0] as any).created_at) : "Nenhuma ainda"}
+                {allFormEntries.length ? formatDateTime((allFormEntries[0] as any).created_at) : "Nenhuma ainda"}
               </p>
             </div>
           </div>
@@ -2011,13 +2019,13 @@ export default function PatientDetailPage({
             </div>
           )}
 
-          {!(detail.form_entries && detail.form_entries.length) ? (
+          {allFormEntries.length === 0 ? (
             <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
               Nenhum formulário foi respondido ainda.
             </div>
           ) : (
             <div className="space-y-3">
-              {detail.form_entries.map((entry: any) => (
+              {allFormEntries.map((entry: any) => (
                 <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
                   <div className="flex items-center justify-between mb-3">
                     <div>
