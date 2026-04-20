@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -385,6 +385,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   };
 
   const getSessionFlags = (session: Session) => {
+    if (session.event_type === "block") return [];
     const flags: string[] = [];
     if ((session.patient_total_sessions ?? 0) <= 1) flags.push("Novo");
     else flags.push("Retorno");
@@ -604,7 +605,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                       {session.time}
                                     </span>
                                     <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                      {session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                                      {session.event_type === "block" ? "Bloqueio" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
                                     </span>
                                   </div>
 
@@ -639,8 +640,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                   </div>
 
                                   <div className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-                                    <UserRound className="h-3.5 w-3.5" />
-                                    {session.duration ? `${session.duration} min` : "Sessão"}
+                                    {session.event_type === "block"
+                                      ? <Ban className="h-3.5 w-3.5" />
+                                      : <UserRound className="h-3.5 w-3.5" />}
+                                    {session.event_type === "block"
+                                      ? (session.duration ? `${session.duration} min` : "Bloqueio")
+                                      : (session.duration ? `${session.duration} min` : "Sessão")}
                                   </div>
                                 </button>
                               );
