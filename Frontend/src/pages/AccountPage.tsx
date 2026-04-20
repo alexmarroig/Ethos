@@ -1,7 +1,7 @@
 ﻿import { useEffect, useRef, useState } from "react";
 import { formatPhone } from "@/lib/utils";
 import { motion } from "framer-motion";
-import { User, CreditCard, Shield, Loader2, ExternalLink, Camera, Wifi, WifiOff, RefreshCw, QrCode, MessageCircle, CheckCircle2 } from "lucide-react";
+import { User, CreditCard, Shield, Loader2, ExternalLink, Camera, WifiOff, RefreshCw, QrCode, MessageCircle, CheckCircle2, Bell, ChevronDown, ChevronUp, Banknote, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -54,7 +54,7 @@ const AccountPage = () => {
   const [templateBody, setTemplateBody] = useState(DEFAULT_CONTRACT_TEMPLATE);
   const [templateSaving, setTemplateSaving] = useState(false);
   const [paymentSettings, setPaymentSettings] = useState(defaultPaymentReminderSettings);
-  const [billingCollapsed, setBillingCollapsed] = useState(false);
+  const [billingCollapsed, setBillingCollapsed] = useState(true);
 
   // Session reminder (backend)
   const [sessionConfig, setSessionConfig] = useState<SessionReminderConfig>({
@@ -62,7 +62,7 @@ const AccountPage = () => {
     hoursBeforeSession: 24,
     template: "Lembrete ETHOS\n\nOlá, {patient_name}! 👋\n\nLembro que temos sessão agendada para {session_date} às {session_time}.\n\nResponda *SIM* para confirmar sua presença.\n\nQualquer dúvida, estou à disposição. Até lá! 🌱",
   });
-  const [sessionCollapsed, setSessionCollapsed] = useState(false);
+  const [sessionCollapsed, setSessionCollapsed] = useState(true);
   const [savingSession, setSavingSession] = useState(false);
 
   // WhatsApp — simplified
@@ -120,11 +120,6 @@ const AccountPage = () => {
     // Load session reminder config from backend
     void sessionReminderApi.getConfig().then((r) => {
       if (r.success && r.data) setSessionConfig(r.data);
-    });
-
-    // Load WhatsApp config from backend
-    void whatsappApi.getConfig().then((r) => {
-      if (r.success && r.data) setWaConfig(r.data);
     });
 
     // Load initial WhatsApp status
@@ -484,212 +479,226 @@ const AccountPage = () => {
           )}
         </motion.section>
 
+        {/* ── Comunicação com pacientes ─────────────────────────────────── */}
         <motion.section
-          className="mt-6 p-6 rounded-xl border border-border bg-card"
+          className="mt-6 rounded-2xl border border-border bg-card overflow-hidden"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.35 }}
         >
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="font-serif text-lg font-medium text-foreground">Cobrança e lembretes</h2>
-            <div className="flex gap-2">
-              {billingCollapsed ? (
-                <Button variant="outline" onClick={() => setBillingCollapsed(false)}>Editar</Button>
-              ) : (
-                <Button onClick={handleSavePaymentSettings}>Salvar configuração</Button>
-              )}
+          {/* Header da seção */}
+          <div className="flex items-center gap-3 px-6 py-5 border-b border-border">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/10">
+              <Bell className="h-4 w-4 text-primary" strokeWidth={1.5} />
+            </div>
+            <div>
+              <h2 className="font-serif text-lg font-medium text-foreground">Comunicação com pacientes</h2>
+              <p className="text-xs text-muted-foreground mt-0.5">Lembretes automáticos via WhatsApp para sessões e cobranças</p>
             </div>
           </div>
-          {billingCollapsed ? (
-            <div className="flex flex-wrap items-center gap-2 text-sm">
-              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
-                <span className="text-muted-foreground">Pagamento:</span>{" "}
-                <span className="font-medium">{paymentSettings.paymentMethodLabel || "—"}</span>
-              </span>
-              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
-                <span className="text-muted-foreground">Destino:</span>{" "}
-                <span className="font-medium">{paymentSettings.paymentDestination || "—"}</span>
-              </span>
-              <span className="rounded-full border border-border bg-background px-3 py-1.5 text-foreground">
-                <span className="text-muted-foreground">Template:</span>{" "}
-                <span className="font-medium truncate max-w-[320px] inline-block align-bottom">
-                  {(paymentSettings.defaultTemplate || "Sem mensagem padrão").slice(0, 72)}
-                  {paymentSettings.defaultTemplate && paymentSettings.defaultTemplate.length > 72 ? "..." : ""}
-                </span>
-              </span>
-            </div>
-          ) : (
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Forma padrão de pagamento</label>
-                <Input
-                  value={paymentSettings.paymentMethodLabel}
-                  onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
-                  placeholder="PIX, transferência..."
-                />
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Chave PIX / dados bancários</label>
-                <Input
-                  value={paymentSettings.paymentDestination}
-                  onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
-                  placeholder="pix@email.com ou dados bancários"
-                />
-              </div>
-              <div className="space-y-2 md:col-span-2">
-                <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete</label>
-                <Textarea
-                  value={paymentSettings.defaultTemplate}
-                  onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
-                  className="min-h-[100px] max-h-[160px] resize-none text-sm"
-                />
-                <p className="text-xs text-muted-foreground">Use as variáveis {'{patient_name}'}, {'{amount}'}, {'{payment_method}'}, {'{payment_destination}'} e {'{preferred_day}'}.</p>
-              </div>
-            </div>
-          )}
-        </motion.section>
 
-        {/* ── Lembrete de sessão ────────────────────────────────────────── */}
-        <motion.section
-          className="mt-6 p-6 rounded-xl border border-border bg-card"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.4 }}
-        >
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <h2 className="font-serif text-lg font-medium text-foreground">Lembrete de sessão</h2>
-            <div className="flex gap-2">
-              {sessionCollapsed ? (
-                <Button variant="outline" onClick={() => setSessionCollapsed(false)}>Editar</Button>
+          {/* ── Bloco 1: WhatsApp ── */}
+          <div className="px-6 py-5 border-b border-border">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/10">
+                  <MessageCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">WhatsApp</p>
+                  <p className="text-xs text-muted-foreground">Canal de envio das mensagens</p>
+                </div>
+              </div>
+              {waStatus === "open" ? (
+                <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
+                  <CheckCircle2 className="w-3 h-3" /> Conectado
+                </span>
+              ) : waStatus === "connecting" ? (
+                <span className="flex items-center gap-1.5 rounded-full bg-yellow-50 px-2.5 py-1 text-xs font-semibold text-yellow-600 dark:bg-yellow-900/30 dark:text-yellow-400">
+                  <Loader2 className="w-3 h-3 animate-spin" /> Conectando…
+                </span>
               ) : (
-                <Button onClick={() => void handleSaveSessionSettings()} disabled={savingSession}>
-                  {savingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  Salvar configuração
+                <span className="flex items-center gap-1.5 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-muted-foreground">
+                  <WifiOff className="w-3 h-3" /> Desconectado
+                </span>
+              )}
+            </div>
+
+            <div className="mt-4">
+              {waStatus !== "open" && !waQR && (
+                <Button className="gap-2 w-full sm:w-auto" onClick={() => void handleWaQuickConnect()} disabled={waConnecting}>
+                  {waConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
+                  {waConnecting ? "Gerando QR code…" : "Conectar WhatsApp"}
                 </Button>
               )}
+              {waQR && (
+                <div className="flex flex-col items-center gap-4 py-6 rounded-2xl border border-border bg-white dark:bg-card/50">
+                  <p className="text-sm font-semibold text-foreground">Escaneie com o WhatsApp do celular</p>
+                  <img src={waQR} alt="QR Code WhatsApp" className="w-56 h-56 object-contain rounded-xl" />
+                  <p className="text-xs text-muted-foreground text-center max-w-xs">
+                    WhatsApp → Aparelhos conectados → Conectar aparelho → Aponte a câmera para o código acima
+                  </p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="w-3 h-3 animate-spin" /> Aguardando conexão…
+                  </div>
+                </div>
+              )}
+              {waStatus === "open" && (
+                <div className="space-y-3">
+                  <div className="flex gap-2">
+                    <Input
+                      value={testPhone}
+                      onChange={(e) => setTestPhone(formatPhone(e.target.value))}
+                      placeholder="Ex: 5511999999999"
+                      className="flex-1 text-sm"
+                    />
+                    <Button variant="outline" className="gap-2 shrink-0" onClick={() => void handleSendTestMessage()} disabled={!testPhone}>
+                      <MessageCircle className="w-4 h-4" />
+                      Enviar teste
+                    </Button>
+                  </div>
+                  <button
+                    className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() => void handleWaQuickConnect()}
+                  >
+                    <RefreshCw className="w-3 h-3" /> Reconectar
+                  </button>
+                </div>
+              )}
             </div>
           </div>
-          {sessionCollapsed ? (
-            <div className="text-sm text-muted-foreground space-y-1">
-              <p>
-                <span className="font-medium text-foreground">Automático:</span>{" "}
-                {sessionConfig.enabled ? `Ativado — ${sessionConfig.hoursBeforeSession}h antes` : "Desativado"}
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-5">
-              <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                <div>
-                  <p className="text-sm font-medium text-foreground">Lembrete automático via WhatsApp</p>
-                  <p className="text-xs text-muted-foreground mt-0.5">O backend envia automaticamente antes de cada sessão aos pacientes com toggle ativado.</p>
+
+          {/* ── Bloco 2: Lembrete de sessão ── */}
+          <div className="border-b border-border">
+            <button
+              className="flex w-full items-center justify-between gap-3 px-6 py-5 text-left"
+              onClick={() => setSessionCollapsed((v) => !v)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <Clock className="h-4 w-4 text-primary" strokeWidth={1.5} />
                 </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Lembrete de sessão</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {sessionConfig.enabled
+                      ? `Ativo · ${sessionConfig.hoursBeforeSession === 24 ? "1 dia antes" : sessionConfig.hoursBeforeSession === 48 ? "2 dias antes" : `${sessionConfig.hoursBeforeSession}h antes`}`
+                      : "Desativado"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 shrink-0">
                 <Switch
                   checked={sessionConfig.enabled}
-                  onCheckedChange={(checked) => setSessionConfig((c) => ({ ...c, enabled: checked }))}
+                  onCheckedChange={(checked) => {
+                    setSessionConfig((c) => ({ ...c, enabled: checked }));
+                    void sessionReminderApi.saveConfig({ ...sessionConfig, enabled: checked });
+                  }}
+                  onClick={(e) => e.stopPropagation()}
                 />
+                {sessionCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronUp className="h-4 w-4 text-muted-foreground" />}
               </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Enviar quantas horas antes da sessão</label>
-                <select
-                  value={sessionConfig.hoursBeforeSession}
-                  onChange={(e) => setSessionConfig((c) => ({ ...c, hoursBeforeSession: Number(e.target.value) }))}
-                  className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-                >
-                  {[1, 2, 4, 8, 12, 24, 48].map((h) => (
-                    <option key={h} value={h}>
-                      {h === 1 ? "1 hora antes" : h < 24 ? `${h} horas antes` : h === 24 ? "1 dia antes" : "2 dias antes"}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-foreground">Mensagem padrão do lembrete de sessão</label>
-                <Textarea
-                  value={sessionConfig.template}
-                  onChange={(e) => setSessionConfig((c) => ({ ...c, template: e.target.value }))}
-                  className="min-h-[120px] max-h-[200px] resize-none text-sm"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Use as variáveis {'{patient_name}'}, {'{session_date}'}, {'{session_time}'} e {'{psychologist_name}'}.
-                  <br />
-                  Ative o lembrete individualmente na ficha de cada paciente.
-                </p>
-              </div>
-            </div>
-          )}
-        </motion.section>
+            </button>
 
-        {/* ── WhatsApp ──────────────────────────────────────────────────── */}
-        <motion.section
-          className="mt-6 p-6 rounded-xl border border-border bg-card"
-          initial={{ opacity: 0, y: 12 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45 }}
-        >
-          <div className="flex items-center gap-3 mb-1">
-            <h2 className="font-serif text-lg font-medium text-foreground">WhatsApp</h2>
-            {waStatus === "open" && (
-              <span className="flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400">
-                <CheckCircle2 className="w-3 h-3" /> Conectado
-              </span>
-            )}
-            {waStatus === "connecting" && (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-yellow-500">
-                <Loader2 className="w-3 h-3 animate-spin" /> Conectando…
-              </span>
-            )}
-            {(waStatus === "close" || waStatus === "unknown") && (
-              <span className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
-                <WifiOff className="w-3 h-3" /> Desconectado
-              </span>
-            )}
-          </div>
-          <p className="text-sm text-muted-foreground mb-5">
-            Conecte seu WhatsApp para enviar lembretes automáticos de sessão e cobrança aos seus pacientes.
-          </p>
-
-          {waStatus !== "open" && !waQR && (
-            <Button className="gap-2 w-full sm:w-auto" onClick={() => void handleWaQuickConnect()} disabled={waConnecting}>
-              {waConnecting ? <Loader2 className="w-4 h-4 animate-spin" /> : <QrCode className="w-4 h-4" />}
-              {waConnecting ? "Gerando QR code…" : "Conectar WhatsApp"}
-            </Button>
-          )}
-
-          {waQR && (
-            <div className="flex flex-col items-center gap-4 py-6 border border-border rounded-2xl bg-white dark:bg-card">
-              <p className="text-sm font-semibold text-gray-800 dark:text-foreground">Abra o WhatsApp no celular e escaneie</p>
-              <img src={waQR} alt="QR Code WhatsApp" className="w-60 h-60 object-contain rounded-xl" />
-              <p className="text-xs text-muted-foreground text-center max-w-xs">
-                WhatsApp → Aparelhos conectados → Conectar aparelho → Aponte a câmera para o código acima
-              </p>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="w-3 h-3 animate-spin" /> Aguardando conexão…
-              </div>
-            </div>
-          )}
-
-          {waStatus === "open" && (
-            <div className="space-y-3">
-              <p className="text-sm text-emerald-600 dark:text-emerald-400 font-medium">
-                ✅ Lembretes automáticos estão ativos para seus pacientes.
-              </p>
-              <div className="flex gap-2 pt-1">
-                <Input
-                  value={testPhone}
-                  onChange={(e) => setTestPhone(formatPhone(e.target.value))}
-                  placeholder="Número para teste (ex: 5511999999999)"
-                  className="flex-1 text-sm"
-                />
-                <Button variant="outline" className="gap-2 shrink-0" onClick={() => void handleSendTestMessage()} disabled={!testPhone}>
-                  <MessageCircle className="w-4 h-4" />
-                  Testar
+            {!sessionCollapsed && (
+              <div className="px-6 pb-5 space-y-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Quando enviar</label>
+                  <select
+                    value={sessionConfig.hoursBeforeSession}
+                    onChange={(e) => setSessionConfig((c) => ({ ...c, hoursBeforeSession: Number(e.target.value) }))}
+                    className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    {[1, 2, 4, 8, 12, 24, 48].map((h) => (
+                      <option key={h} value={h}>
+                        {h === 1 ? "1 hora antes" : h < 24 ? `${h} horas antes` : h === 24 ? "1 dia antes" : "2 dias antes"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Mensagem</label>
+                  <Textarea
+                    value={sessionConfig.template}
+                    onChange={(e) => setSessionConfig((c) => ({ ...c, template: e.target.value }))}
+                    className="min-h-[120px] max-h-[200px] resize-none text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis disponíveis: <code className="rounded bg-muted px-1">{'{patient_name}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{session_date}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{session_time}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{psychologist_name}'}</code>
+                  </p>
+                  <p className="text-xs text-muted-foreground">Ative individualmente na ficha de cada paciente.</p>
+                </div>
+                <Button onClick={() => void handleSaveSessionSettings()} disabled={savingSession} size="sm">
+                  {savingSession ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : null}
+                  Salvar
                 </Button>
               </div>
-              <Button variant="ghost" size="sm" className="gap-1.5 text-muted-foreground" onClick={() => void handleWaQuickConnect()}>
-                <RefreshCw className="w-3.5 h-3.5" /> Reconectar
-              </Button>
-            </div>
-          )}
+            )}
+          </div>
+
+          {/* ── Bloco 3: Lembrete de cobrança ── */}
+          <div>
+            <button
+              className="flex w-full items-center justify-between gap-3 px-6 py-5 text-left"
+              onClick={() => setBillingCollapsed((v) => !v)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+                  <Banknote className="h-4 w-4 text-amber-600 dark:text-amber-400" strokeWidth={1.5} />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Lembrete de cobrança</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {paymentSettings.paymentMethodLabel
+                      ? `${paymentSettings.paymentMethodLabel}${paymentSettings.paymentDestination ? ` · ${paymentSettings.paymentDestination}` : ""}`
+                      : "Não configurado"}
+                  </p>
+                </div>
+              </div>
+              {billingCollapsed ? <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" /> : <ChevronUp className="h-4 w-4 text-muted-foreground shrink-0" />}
+            </button>
+
+            {!billingCollapsed && (
+              <div className="px-6 pb-5 space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Forma de pagamento</label>
+                    <Input
+                      value={paymentSettings.paymentMethodLabel}
+                      onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentMethodLabel: event.target.value }))}
+                      placeholder="PIX, transferência, cartão…"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-foreground">Chave PIX ou dados bancários</label>
+                    <Input
+                      value={paymentSettings.paymentDestination}
+                      onChange={(event) => setPaymentSettings((current) => ({ ...current, paymentDestination: event.target.value }))}
+                      placeholder="pix@email.com"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Mensagem</label>
+                  <Textarea
+                    value={paymentSettings.defaultTemplate}
+                    onChange={(event) => setPaymentSettings((current) => ({ ...current, defaultTemplate: event.target.value }))}
+                    className="min-h-[100px] max-h-[160px] resize-none text-sm"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Variáveis: <code className="rounded bg-muted px-1">{'{patient_name}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{amount}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{payment_method}'}</code>{' '}
+                    <code className="rounded bg-muted px-1">{'{payment_destination}'}</code>
+                  </p>
+                </div>
+                <Button onClick={handleSavePaymentSettings} size="sm">Salvar</Button>
+              </div>
+            )}
+          </div>
         </motion.section>
       </div>
 
