@@ -161,6 +161,12 @@ const formatDateTime = (value?: string | null) =>
       })
     : "Não definido";
 
+const normalizeStr = (str?: string) => 
+  str?.toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim() ?? "";
+
 const formatCurrency = (value?: number) =>
   typeof value === "number"
     ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
@@ -456,10 +462,15 @@ export default function PatientDetailPage({
       const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
       acc[key] = [...(acc[key] ?? []), entry];
       
-      // Fallback: se temos um form_id mas o frontend está procurando pelo assignment_id, 
-      // vinculamos aos dois para garantir que a resposta apareça no bloco do formulário correspondente
-      if (entry.form_id && !entry.assignment_id) {
-         const matchingAssignment = activeAssignments.find(a => a.form_id === entry.form_id || a.form?.name === entry.form_id);
+      // Fallback robusto: se o frontend está procurando pelo assignment_id, mas a resposta só tem form_id
+      // tentamos vincular usando normalização de nomes para garantir que apareça onde deve
+      if (!entry.assignment_id) {
+         const matchingAssignment = activeAssignments.find(a => {
+           const aName = normalizeStr(a.form?.name ?? a.form?.title ?? "");
+           const eName = normalizeStr(entry.form_id); 
+           return a.form_id === entry.form_id || aName === eName || (eName.includes("diario") && aName.includes("diario"));
+         });
+         
          if (matchingAssignment && matchingAssignment.id !== key) {
            acc[matchingAssignment.id] = [...(acc[matchingAssignment.id] ?? []), entry];
          }
@@ -1832,14 +1843,18 @@ export default function PatientDetailPage({
           </div>
 
           {(() => {
+            // Unifica registros do emotional_diary com respostas de formulários que sejam diários (fuzzy match)
             const diaryEntriesFromForms = (detail.form_entries ?? [])
-              .filter((e: any) => e.form_id === "diario-emocional" || e.form_id === "Diário emocional")
+              .filter((e: any) => {
+                const name = normalizeStr(e.form_id || "");
+                return name.includes("diario") && name.includes("emocional");
+              })
               .map((e: any) => ({
                 id: e.id,
                 date: e.created_at,
                 mood: e.data?.mood ?? e.data?.humor ?? 0,
                 intensity: e.data?.intensity ?? e.data?.intensidade ?? 0,
-                description: e.data?.description ?? e.data?.thoughts ?? "",
+                description: e.data?.description ?? e.data?.thoughts ?? e.data?.sentimentos ?? "",
                 is_from_form: true
               }));
 
