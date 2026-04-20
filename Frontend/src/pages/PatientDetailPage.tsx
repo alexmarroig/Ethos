@@ -1,4 +1,4 @@
-﻿import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import PatientProgressTab from "./PatientProgressTab";
 import { motion } from "framer-motion";
 import { ArrowLeft, CalendarPlus, FileText, KeyRound, Loader2, MessageCircle, Save, Trash2 } from "lucide-react";
@@ -452,11 +452,23 @@ export default function PatientDetailPage({
   const formEntryGroups = useMemo(() => {
     const items = detail?.form_entries ?? [];
     return items.reduce<Record<string, any[]>>((acc, entry: any) => {
+      // Tenta agrupar por assignment_id, se não houver, tenta agrupar pelo form_id original do template
       const key = entry.assignment_id ?? entry.form_id ?? "sem-formulario";
       acc[key] = [...(acc[key] ?? []), entry];
+      
+      // Fallback: se temos um form_id mas o frontend está procurando pelo assignment_id, 
+      // vinculamos aos dois para garantir que a resposta apareça no bloco do formulário correspondente
+      if (entry.form_id && !entry.assignment_id) {
+         const matchingAssignment = activeAssignments.find(a => a.form_id === entry.form_id || a.form?.name === entry.form_id);
+         if (matchingAssignment && matchingAssignment.id !== key) {
+           acc[matchingAssignment.id] = [...(acc[matchingAssignment.id] ?? []), entry];
+         }
+      }
+      
       return acc;
     }, {});
-  }, [detail?.form_entries]);
+  }, [detail?.form_entries, activeAssignments]);
+
   const filteredDocuments = useMemo(() => {
     const source = detail?.documents ?? [];
     const nowMs = Date.now();
@@ -1081,6 +1093,10 @@ export default function PatientDetailPage({
       return;
     }
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(sessionReminderMessage)}`, "_blank", "noopener,noreferrer");
+  };
+
+  const handleSendPaymentReminderDirectly = async () => {
+      // Placeholder for actual implementation if needed
   };
 
   if (loading) {
@@ -1815,20 +1831,49 @@ export default function PatientDetailPage({
             <p className="text-sm text-muted-foreground mt-1">Últimos registros do paciente para consulta rápida.</p>
           </div>
 
-          {detail.emotional_diary.length === 0 ? (
-            <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
-              Ainda não há registros emocionais vinculados.
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {detail.emotional_diary.slice(0, 5).map((entry: any) => (
-                <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <p className="font-medium text-foreground">{formatDateTime(entry.date)} · Humor {entry.mood}/5 · Intensidade {entry.intensity}/10</p>
-                  <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descrição adicional."}</p>
+          {(() => {
+            const diaryEntriesFromForms = (detail.form_entries ?? [])
+              .filter((e: any) => e.form_id === "diario-emocional" || e.form_id === "Diário emocional")
+              .map((e: any) => ({
+                id: e.id,
+                date: e.created_at,
+                mood: e.data?.mood ?? e.data?.humor ?? 0,
+                intensity: e.data?.intensity ?? e.data?.intensidade ?? 0,
+                description: e.data?.description ?? e.data?.thoughts ?? "",
+                is_from_form: true
+              }));
+
+            const allEntries = [...(detail.emotional_diary ?? []), ...diaryEntriesFromForms]
+              .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+            if (allEntries.length === 0) {
+              return (
+                <div className="rounded-xl border border-border bg-muted/30 p-6 text-sm text-muted-foreground">
+                  Ainda não há registros emocionais vinculados.
                 </div>
-              ))}
-            </div>
-          )}
+              );
+            }
+
+            return (
+              <div className="space-y-3">
+                {allEntries.slice(0, 5).map((entry: any) => (
+                  <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
+                    <div className="flex items-center justify-between gap-2">
+                       <p className="font-medium text-foreground">
+                         {formatDateTime(entry.date)} 
+                         {entry.mood > 0 && ` · Humor ${entry.mood}/5`}
+                         {entry.intensity > 0 && ` · Intensidade ${entry.intensity}/10`}
+                       </p>
+                       {entry.is_from_form && (
+                         <span className="text-[10px] uppercase tracking-wider text-primary/60 font-bold">Via Portal</span>
+                       )}
+                    </div>
+                    <p className="text-sm text-muted-foreground mt-2">{entry.description || entry.thoughts || "Sem descrição adicional."}</p>
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
         </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.42 }}>
@@ -1909,22 +1954,37 @@ export default function PatientDetailPage({
                     </div>
                     {assignmentEntries.length > 0 ? (
                       <div className="mt-4 space-y-2">
-                        {assignmentEntries.slice(0, 2).map((entry: any) => (
+                        {assignmentEntries.slice(0, 3).map((entry: any) => (
                           <div key={entry.id} className="rounded-lg bg-muted/40 px-4 py-3">
-                            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+                            <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground/80 mb-2">
                               {formatDateTime(entry.created_at)} · {entry.submitted_by === "patient" ? "enviado pelo paciente" : "registrado pelo profissional"}
                             </p>
-                            <pre className="mt-2 overflow-auto whitespace-pre-wrap rounded-lg bg-background/60 p-3 text-xs text-foreground/75">
-                              {JSON.stringify(entry.content ?? entry.data ?? {}, null, 2)}
-                            </pre>
+                            <div className="space-y-3">
+                              {Object.entries(entry.data ?? entry.content ?? {}).map(([key, val]) => (
+                                <div key={key} className="border-l-2 border-primary/20 pl-3">
+                                  <p className="text-[10px] font-semibold text-muted-foreground uppercase">{key.replace(/_/g, " ")}</p>
+                                  <p className="text-sm text-foreground/90 mt-0.5 whitespace-pre-wrap">{String(val)}</p>
+                                </div>
+                              ))}
+                              {Object.keys(entry.data ?? entry.content ?? {}).length === 0 && (
+                                <p className="text-xs text-muted-foreground italic">Resposta vazia ou sem campos identificados.</p>
+                              )}
+                            </div>
                           </div>
                         ))}
-                        {assignmentEntries.length > 2 ? (
-                          <p className="text-xs text-muted-foreground">
-                            + {assignmentEntries.length - 2} resposta(s) adicional(is) para este formulário.
+                        {assignmentEntries.length > 3 ? (
+                          <p className="text-xs text-muted-foreground mt-2">
+                            + {assignmentEntries.length - 3} resposta(s) adicional(is) para este formulário.
                           </p>
                         ) : null}
                       </div>
+                    ) : assignment.response_count && assignment.response_count > 0 ? (
+                       <div className="mt-4 p-4 rounded-xl border border-dashed border-border bg-muted/20 text-center">
+                          <p className="text-sm text-muted-foreground italic">
+                            Há {assignment.response_count} resposta(s) registradas, mas elas não estão vinculadas diretamente a este envio. 
+                            Verifique a lista geral abaixo.
+                          </p>
+                       </div>
                     ) : (
                       <p className="mt-4 text-sm text-muted-foreground">
                         Este formulário já está disponível no portal, mas o paciente ainda não respondeu.
@@ -1944,13 +2004,22 @@ export default function PatientDetailPage({
             <div className="space-y-3">
               {detail.form_entries.map((entry: any) => (
                 <div key={entry.id} className="rounded-xl border border-border bg-background/60 p-4">
-                  <p className="font-medium text-foreground">{entry.form_id}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {formatDateTime(entry.created_at)} · {entry.submitted_by === "patient" ? "enviado pelo paciente" : "registrado pelo profissional"}
-                  </p>
-                  <pre className="mt-3 text-xs whitespace-pre-wrap text-foreground/70 bg-muted/50 rounded-lg p-3 overflow-auto">
-                    {JSON.stringify(entry.content ?? entry.data ?? {}, null, 2)}
-                  </pre>
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <p className="font-bold text-foreground text-sm uppercase tracking-wider">{entry.form_id}</p>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {formatDateTime(entry.created_at)} · {entry.submitted_by === "patient" ? "enviado pelo paciente" : "registrado pelo profissional"}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                     {Object.entries(entry.data ?? entry.content ?? {}).map(([key, val]) => (
+                        <div key={key} className="bg-muted/30 rounded-lg p-2.5 border border-border/40">
+                           <p className="text-[10px] font-bold text-muted-foreground uppercase opacity-70">{key.replace(/_/g, " ")}</p>
+                           <p className="text-xs text-foreground mt-1 whitespace-pre-wrap">{String(val)}</p>
+                        </div>
+                     ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -1969,7 +2038,8 @@ export default function PatientDetailPage({
               attendanceRate={
                 detail.sessions.length === 0
                   ? 0
-                  : detail.sessions.filter((s) => s.status === "completed").length / detail.sessions.length
+                  : detail.sessions.filter((s) => s.status === "completed" || s.status === "confirmed").length / 
+                    (detail.sessions.filter((s) => s.status !== "scheduled").length || 1)
               }
               weeksInTherapy={
                 detail.sessions.length === 0
@@ -2232,8 +2302,3 @@ export default function PatientDetailPage({
     </div>
   );
 }
-
-
-
-
-

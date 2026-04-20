@@ -25,18 +25,24 @@ const SUSPICIOUS_PATTERNS = [
 ];
 
 const SUSPICIOUS_LINE_PATTERNS = [
-  /In\?cio/g,
-  /Relat\?rios/g,
-  /Sess\?es/g,
-  /Configura\?es/g,
-  /Cobran\?a/g,
-  /cl\?nica/g,
-  /Di\?rio/g,
-  /formul\?rios/gi,
-  /n\?o/g,
-  /pr\?ximo/g,
-  /pr\?ximos/g,
-  /conte\?do/g,
+  /\bIn\?cio\b/g,
+  /\bRelat\?rios\b/g,
+  /\bSess\?es\b/g,
+  /\bConfigura\?es\b/g,
+  /\bCobran\?a\b/g,
+  /\bcl\?nica\b/g,
+  /\bcl\?nico\b/g,
+  /\bDi\?rio\b/g,
+  /\bformul\?rios\b/gi,
+  /\bn\?o\b/g,
+  /\bpr\?ximo\b/g,
+  /\bpr\?ximos\b/g,
+  /\bconte\?do\b/g,
+  /\bA\?o\b/g,
+  /\bedi\?o\b/g,
+  /\brefer\?ncia\b/g,
+  /\bevolu\?o\b/g,
+  /\bpend\?ncia\b/g,
 ];
 
 const IGNORE_FILE_PATTERNS = [
