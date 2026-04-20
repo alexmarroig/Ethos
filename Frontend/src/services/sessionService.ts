@@ -129,7 +129,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
   return {
     id: String(raw.id),
     patient_id: raw.patient_id,
-    patient_name: raw.event_type === "block"
+    patient_name: (raw.event_type === "block" || raw.patient_id?.startsWith("block-"))
       ? (raw.block_title ?? "Bloqueio")
       : (raw.patient_name ?? patient?.name ?? "Paciente"),
     patient_total_sessions: patient?.total_sessions,
@@ -146,7 +146,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
     recurrence: raw.recurrence,
     series_id: raw.series_id,
     is_series_anchor: raw.is_series_anchor,
-    event_type: raw.event_type,
+    event_type: raw.event_type ?? (raw.patient_id?.startsWith("block-") ? "block" : "session"),
     block_title: raw.block_title,
   };
 }

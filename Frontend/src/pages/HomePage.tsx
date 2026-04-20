@@ -163,7 +163,12 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       if (allSessionsData.success) {
         const upcomingData = allSessionsData.data
-          .filter((item) => item.date > today)
+          .filter(
+            (item) =>
+              item.date > today &&
+              item.event_type !== "block" &&
+              !item.patient_id.startsWith("block-"),
+          )
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
           .slice(0, 6);
         setUpcomingSessions(upcomingData);
