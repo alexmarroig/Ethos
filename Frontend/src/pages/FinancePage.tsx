@@ -63,7 +63,7 @@ const emptyEntryForm: EntryFormState = {
   due_date: "",
   status: "open",
   notes: "",
-  description: "Sessão de psicoterapia",
+  description: "Sess\u00e3o de psicoterapia",
 };
 
 const formatCurrency = (value: number) =>
@@ -328,7 +328,7 @@ export default function FinancePage() {
     setCreateOpen(false);
     setNewPatientId("");
     setNewEntry(emptyEntryForm);
-    toast({ title: "Cobrança criada" });
+    toast({ title: "Cobran\u00e7a criada" });
     setCreating(false);
   };
 
@@ -340,7 +340,7 @@ export default function FinancePage() {
       due_date: toInputDate(entry.due_date),
       status: entry.status,
       notes: entry.notes ?? "",
-      description: entry.description ?? "Sessão de psicoterapia",
+      description: entry.description ?? "Sess\u00e3o de psicoterapia",
     });
     setEditOpen(true);
   };
@@ -459,7 +459,9 @@ export default function FinancePage() {
                     <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", segment.chip)}>
                       {segment.label}
                     </span>
-                    <span className="text-xs text-muted-foreground">{segment.count} lançamentos</span>
+                    <span className="text-xs text-muted-foreground">
+                      {`${segment.count} lançamentos`}
+                    </span>
                   </div>
                   <p className="mt-3 text-2xl font-serif text-foreground">{formatCurrency(segment.amount)}</p>
                   <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
@@ -474,7 +476,7 @@ export default function FinancePage() {
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-muted-foreground">Recebido no mês</p>
+                  <p className="text-sm text-muted-foreground">{"Recebido no mês"}</p>
                   <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
                     {formatCurrency(summary?.total_per_month ?? 0)}
                   </p>
@@ -485,7 +487,7 @@ export default function FinancePage() {
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-muted-foreground">Sessões pagas</p>
+                  <p className="text-sm text-muted-foreground">{"Sessões pagas"}</p>
                   <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
                     {summary?.paid_sessions ?? 0}
                   </p>
@@ -496,7 +498,7 @@ export default function FinancePage() {
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-sm text-muted-foreground">Pendências</p>
+                  <p className="text-sm text-muted-foreground">{"Pendências"}</p>
                   <p className="mt-2 text-[2rem] font-semibold tracking-[-0.04em] text-foreground">
                     {summary?.pending_sessions ?? 0}
                   </p>
@@ -505,14 +507,16 @@ export default function FinancePage() {
               </div>
             </div>
             <div className="rounded-[1.5rem] border border-border bg-card p-5 shadow-[0_18px_44px_-30px_rgba(15,23,42,0.18)]">
-              <p className="text-sm text-muted-foreground">Ação rápida</p>
+              <p className="text-sm text-muted-foreground">{"Ação rápida"}</p>
               <p className="mt-2 text-base font-medium text-foreground">
                 {recentOpenThisMonth > 0
-                  ? `${recentOpenThisMonth} pendência(s) surgiram neste mês.`
-                  : "Nenhuma nova pendência no mês atual."}
+                  ? `${recentOpenThisMonth} pend\u00eancia(s) surgiram neste m\u00eas.`
+                  : "Nenhuma nova pend\u00eancia no m\u00eas atual."}
               </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                Priorize os vencimentos mais próximos e compartilhe cobranças no portal do paciente quando fizer sentido.
+                {
+                  "Priorize os vencimentos mais próximos e compartilhe cobranças no portal do paciente quando fizer sentido."
+                }
               </p>
             </div>
           </div>
@@ -527,13 +531,17 @@ export default function FinancePage() {
           <div className="rounded-[1.6rem] border border-border bg-card p-6">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">Vencimentos prioritários</h3>
-                <p className="text-sm text-muted-foreground">Os próximos pagamentos que merecem atenção.</p>
+                <h3 className="text-lg font-semibold text-foreground">{"Vencimentos prioritários"}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {"Os próximos pagamentos que merecem atenção."}
+                </p>
               </div>
               <ArrowUpRight className="h-5 w-5 text-primary/70" />
             </div>
             {nextDueEntries.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Nenhum próximo vencimento pendente registrado.</p>
+              <p className="text-sm text-muted-foreground">
+                {"Nenhum próximo vencimento pendente registrado."}
+              </p>
             ) : (
               <div className="space-y-3">
                 {nextDueEntries.map((entry) => (
@@ -542,7 +550,7 @@ export default function FinancePage() {
                       <div>
                         <p className="font-medium text-foreground">{entry.patient_name ?? "Paciente"}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
-                          {entry.description ?? "Cobrança clínica"} · vence em {formatDate(entry.due_date)}
+                          {entry.description ?? "Cobran\u00e7a cl\u00ednica"} ? vence em {formatDate(entry.due_date)}
                         </p>
                       </div>
                       <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusColor(entry.status))}>
@@ -560,7 +568,9 @@ export default function FinancePage() {
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-lg font-semibold text-foreground">Pacientes com maior volume</h3>
-                <p className="text-sm text-muted-foreground">Quem mais concentrou lançamentos no período.</p>
+                <p className="text-sm text-muted-foreground">
+                  {"Quem mais concentrou lançamentos no período."}
+                </p>
               </div>
             </div>
             {topPatients.length === 0 ? (
@@ -580,14 +590,14 @@ export default function FinancePage() {
             <DialogTrigger asChild>
               <Button variant="secondary" size="sm" className="gap-2">
                 <Plus className="h-4 w-4" strokeWidth={1.5} />
-                Lançar cobrança
+                {"Lançar cobrança"}
               </Button>
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle className="font-serif text-xl">Nova cobrança</DialogTitle>
+                <DialogTitle className="font-serif text-xl">Nova cobran\u00e7a</DialogTitle>
                 <DialogDescription>
-                  Registre um novo lançamento financeiro para o paciente e acompanhe o status depois.
+                  {"Registre um novo lançamento financeiro para o paciente e acompanhe o status depois."}
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4">
@@ -613,10 +623,12 @@ export default function FinancePage() {
                     <option value="paid">Pago</option>
                   </select>
                 </div>
-                <Input placeholder="Descrição da cobrança" value={newEntry.description} onChange={(event) => setNewEntry((current) => ({ ...current, description: event.target.value }))} />
-                <Textarea placeholder="Observações internas" value={newEntry.notes} onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
+                <Input placeholder="Descri\u00e7\u00e3o da cobran\u00e7a" value={newEntry.description} onChange={(event) => setNewEntry((current) => ({ ...current, description: event.target.value }))} />
+                <Textarea placeholder="Observa\u00e7\u00f5es internas" value={newEntry.notes} onChange={(event) => setNewEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
                 {patients.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Cadastre um paciente antes de lançar a cobrança.</p>
+                  <p className="text-sm text-muted-foreground">
+                    {"Cadastre um paciente antes de lançar a cobrança."}
+                  </p>
                 ) : null}
               </div>
               <DialogFooter>
@@ -648,7 +660,7 @@ export default function FinancePage() {
             <AlertCircle className="h-5 w-5 shrink-0 text-destructive" />
             <div className="flex-1">
               <span className="font-semibold text-destructive">
-                {financialSummary.overdue_count} {financialSummary.overdue_count === 1 ? "cobrança vencida" : "cobranças vencidas"}
+                {financialSummary.overdue_count} {financialSummary.overdue_count === 1 ? "cobran\u00e7a vencida" : "cobran\u00e7as vencidas"}
               </span>
               <span className="text-muted-foreground">
                 {" · "}
@@ -669,7 +681,7 @@ export default function FinancePage() {
           {filteredEntries.length === 0 ? (
             <div className="py-12 text-center">
               <DollarSign className="mx-auto mb-3 h-10 w-10 text-muted-foreground/30" />
-              <p className="text-sm text-muted-foreground">Nenhum lançamento financeiro ainda.</p>
+              <p className="text-sm text-muted-foreground">{"Nenhum lançamento financeiro ainda."}</p>
             </div>
           ) : (
             filteredEntries.map((entry) => (
@@ -679,7 +691,7 @@ export default function FinancePage() {
                     <div>
                       <p className="text-base font-semibold text-foreground">{entry.patient_name ?? "Paciente"}</p>
                       <p className="mt-1 text-sm text-muted-foreground">
-                        {entry.description ?? "Cobrança"} · vencimento {formatDate(entry.due_date)}
+                        {entry.description ?? "Cobran\u00e7a"} ? vencimento {formatDate(entry.due_date)}
                       </p>
                     </div>
                     <div className="text-right flex flex-col items-end gap-1">
@@ -704,12 +716,12 @@ export default function FinancePage() {
                     <ShareWithPatientButton type="financial/entries" id={entry.id} shared={(entry as FinancialEntry & { shared_with_patient?: boolean }).shared_with_patient ?? false} />
                     <WhatsAppButton
                       phoneNumber=""
-                      message={`Olá! Gostaria de lembrar que existe um pagamento combinado no valor de ${formatCurrency(entry.amount)} com vencimento em ${formatDate(entry.due_date)}.`}
+                      message={`Ol\u00e1! Gostaria de lembrar que existe um pagamento combinado no valor de ${formatCurrency(entry.amount)} com vencimento em ${formatDate(entry.due_date)}.`}
                       label="Lembrar no WhatsApp"
                     />
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {entry.payment_method ? `Forma de pagamento: ${entry.payment_method}` : "Forma de pagamento não definida"}
+                    {entry.payment_method ? `Forma de pagamento: ${entry.payment_method}` : "Forma de pagamento n\u00e3o definida"}
                   </p>
                 </div>
               </div>
@@ -720,9 +732,9 @@ export default function FinancePage() {
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
           <DialogContent>
             <DialogHeader>
-              <DialogTitle className="font-serif text-xl">Editar lançamento</DialogTitle>
+              <DialogTitle className="font-serif text-xl">Editar lan\u00e7amento</DialogTitle>
               <DialogDescription>
-                Ajuste valor, status, vencimento e observações desse lançamento.
+                {"Ajuste valor, status, vencimento e observações desse lançamento."}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -737,8 +749,8 @@ export default function FinancePage() {
                   <option value="paid">Pago</option>
                 </select>
               </div>
-              <Input placeholder="Descrição" value={editEntry.description} onChange={(event) => setEditEntry((current) => ({ ...current, description: event.target.value }))} />
-              <Textarea placeholder="Observações" value={editEntry.notes} onChange={(event) => setEditEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
+              <Input placeholder="Descri\u00e7\u00e3o" value={editEntry.description} onChange={(event) => setEditEntry((current) => ({ ...current, description: event.target.value }))} />
+              <Textarea placeholder="Observa\u00e7\u00f5es" value={editEntry.notes} onChange={(event) => setEditEntry((current) => ({ ...current, notes: event.target.value }))} className="min-h-[96px]" />
             </div>
             <DialogFooter>
               <Button onClick={handleSaveEntry} disabled={savingEntry || !editEntry.amount} className="gap-2">

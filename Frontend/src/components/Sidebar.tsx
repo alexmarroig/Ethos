@@ -94,7 +94,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         .replace(/\(.*?\)/g, "")
         .trim()
         .split(/\s+/)
-        .filter((part) => /^[A-Za-z?-??-??-?]/.test(part))
+        .filter((part) => /^[A-Za-z\u00c0-\u00d6\u00d8-\u00f6\u00f8-\u00ff]/.test(part))
         .slice(0, 2)
         .map((part) => part.charAt(0).toUpperCase())
         .join("")

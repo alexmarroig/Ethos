@@ -45,6 +45,37 @@ const supportsStructuredEditor = (templateId?: string) =>
   templateId === "psychological-certificate" ||
   templateId === "payment-receipt";
 
+const templateDisplayName = (template?: Pick<DocumentTemplate, "id" | "name" | "title"> | null) => {
+  if (!template) return "Documento";
+  switch (template.id) {
+    case "attendance-declaration":
+      return "Declaração";
+    case "psychological-certificate":
+      return "Atestado psicológico";
+    case "payment-receipt":
+      return "Recibo";
+    case "clinical-record":
+      return "Prontuário Psicológico";
+    case "therapy-contract":
+      return "Contrato terapêutico";
+    case "psychological-report":
+      return "Relatório psicológico";
+    default:
+      return template.name ?? template.title ?? "Documento";
+  }
+};
+
+const documentDisplayTitle = (
+  document?: Pick<Document, "title" | "template_id"> | null,
+  template?: Pick<DocumentTemplate, "id" | "name" | "title"> | null,
+) => {
+  if (!document) return "Documento";
+  const title = document.title ?? "";
+  if (!title.includes("?")) return title || "Documento";
+  const prefix = templateDisplayName(template ?? (document.template_id ? { id: document.template_id } as DocumentTemplate : null));
+  return title.replace(/^[^-\n]+/, prefix);
+};
+
 const stripHtmlToText = (html: string) =>
   html
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -226,7 +257,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
     const patient = patients.find((item) => item.id === patientId);
     const template = templates.find((item) => item.id === templateId);
     if (patient && template) {
-      setTitle(`${template.name ?? template.title ?? "Documento"} - ${patient.name}`);
+      setTitle(`${templateDisplayName(template)} - ${patient.name}`);
     }
   }, [patientId, templateId, dialogOpen, patients, templates]);
 
@@ -238,7 +269,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
     const template = templates.find((item) => item.id === templateId);
     const patientName = patient?.name ?? "Paciente";
     const docTitle =
-      title.trim() || `${template?.name ?? template?.title ?? "Documento"} - ${patientName}`;
+      title.trim() || `${templateDisplayName(template)} - ${patientName}`;
 
     const result = await documentsApi.create({
       patient_id: patientId,
@@ -298,7 +329,6 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
 
     setPreviewDoc({ ...result.data, versions_count: 1 });
     setPreviewHtml(generatedHtml);
-    setEditableHtml(generatedHtml);
 
     toast({ title: `${docTitle} criado com sucesso` });
   };
@@ -607,7 +637,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <h3 className="text-[1.15rem] font-semibold tracking-[-0.02em] text-foreground">
-                          {template.name ?? template.title ?? "Template"}
+                          {templateDisplayName(template)}
                         </h3>
                         {template.description ? (
                           <p className="mt-1 text-sm text-muted-foreground">{template.description}</p>
@@ -673,7 +703,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
                     </span>
                   </div>
                   <p className="mt-3 text-sm text-muted-foreground">
-                    Template: {templates.find((t) => t.id === document.template_id)?.name ?? templates.find((t) => t.id === document.template_id)?.title ?? document.template_id ?? "n/a"} · versões: {document.versions_count ?? 0}
+                    Template: {templateDisplayName(templates.find((t) => t.id === document.template_id) ?? null)} · versões: {document.versions_count ?? 0}
                   </p>
                   <div className="mt-4 flex flex-wrap gap-2">
                     <Button
@@ -754,7 +784,12 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
       <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => { if (!open) closePreview(); }}>
         <DialogContent className="max-w-6xl">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{previewDoc?.title ?? "Documento"}</DialogTitle>
+            <DialogTitle className="font-serif text-xl">
+              {documentDisplayTitle(
+                previewDoc,
+                templates.find((template) => template.id === previewDoc?.template_id) ?? null,
+              )}
+            </DialogTitle>
             <DialogDescription>
               Visualize o documento, faça ajustes e salve novas versões quando precisar.
             </DialogDescription>
@@ -934,275 +969,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
             </div>
           ) : (
             <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">Nenhuma vers?o dispon?vel para este documento.</p>
-            </div>
-          )}
-          <DialogFooter className="flex flex-wrap justify-between gap-2">
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="gap-2" onClick={handlePrint} disabled={!previewHtml}>
-                <Printer className="h-4 w-4" />
-                PDF
-              </Button>
-              <Button variant="outline" className="gap-2" onClick={handleDownloadDoc} disabled={!previewHtml && !livePreviewHtml}>
-                <Download className="h-4 w-4" />
-                DOC
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  const html = editMode ? livePreviewHtml : previewHtml;
-                  if (!html) return;
-                  openHtmlInNewTab(html);
-                }}
-                disabled={!previewHtml && !livePreviewHtml}
-              >
-                <ExternalLink className="h-4 w-4" />
-                Abrir em nova aba
-              </Button>
-              <Button
-                variant="outline"
-                className="gap-2"
-                onClick={() => {
-                  const patient = patients.find((item) => item.id === previewDoc?.patient_id);
-                  const patientPhone = patient?.whatsapp || patient?.phone;
-                  const message = encodeURIComponent(
-                    `Ol? ${patient?.name || ""}! Segue seu documento cl?nico. Qualquer d?vida, estou ? disposi??o.`,
-                  );
-                  const url = patientPhone
-                    ? `https://wa.me/55${patientPhone.replace(/\D/g, "")}?text=${message}`
-                    : `https://wa.me/?text=${message}`;
-                  window.open(url, "_blank", "noopener,noreferrer");
-                }}
-                disabled={!previewDoc}
-              >
-                <Send className="h-4 w-4" />
-                WhatsApp
-              </Button>
-            </div>
-
-            <div className="flex gap-2">
-              {editMode ? (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setDocumentFormValues({});
-                      setFreeTextContent(stripHtmlToText(previewHtml));
-                      setEditMode(false);
-                    }}
-                  >
-                    Cancelar edi??o
-                  </Button>
-                  <Button
-                    onClick={() => void handleSaveEditedVersion()}
-                    disabled={savingVersion || !(editMode ? livePreviewHtml : previewHtml).trim()}
-                    className="gap-2"
-                  >
-                    {savingVersion ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                    Salvar vers?o
-                  </Button>
-                </>
-              ) : null}
-              {previewDoc ? (
-                <ShareWithPatientButton
-                  type="documents"
-                  id={previewDoc.id}
-                  shared={(previewDoc as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false}
-                />
-              ) : null}
-              <Button variant="secondary" onClick={closePreview}>
-                Fechar
-              </Button>
-            </div>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={Boolean(previewDoc)} onOpenChange={(open) => { if (!open) closePreview(); }}>
-        <DialogContent className="max-w-6xl">
-          <DialogHeader>
-            <DialogTitle className="font-serif text-xl">{previewDoc?.title ?? "Documento"}</DialogTitle>
-            <DialogDescription>
-              Visualize o documento, faça ajustes e salve novas versões quando precisar.
-            </DialogDescription>
-          </DialogHeader>
-          {previewLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : previewHtml ? (
-            <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-              <iframe
-                title="Preview do documento"
-                srcDoc={editMode ? livePreviewHtml : previewHtml}
-                className="h-[70vh] w-full rounded-lg border border-border bg-white"
-              />
-
-              {editMode ? (
-                <div className="flex h-[70vh] flex-col rounded-lg border border-border bg-background">
-                  <div className="border-b border-border px-4 py-3">
-                    <p className="font-medium text-foreground">Editar conteúdo</p>
-                    <p className="text-sm text-muted-foreground">
-                      {supportsStructuredEditor(previewTemplateId)
-                        ? "Atualize os campos estruturados e acompanhe a prévia ao lado."
-                        : "Edite o conteúdo principal do documento em texto livre e salve uma nova versão."}
-                    </p>
-                  </div>
-                  <div className="flex-1 p-4">
-                    {supportsStructuredEditor(previewTemplateId) ? (
-                      <div className="space-y-4 overflow-auto pr-1">
-                        {previewTemplateId === "payment-receipt" ? (
-                          <>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-foreground">Valor</label>
-                              <Input
-                                value={documentFormValues.amount ?? ""}
-                                onChange={(event) => updateDocumentFormValue("amount", event.target.value)}
-                                placeholder="200,00"
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-foreground">Forma de pagamento</label>
-                              <Input
-                                value={documentFormValues.payment_method ?? documentFormValues.paymentMethod ?? ""}
-                                onChange={(event) => updateDocumentFormValue("payment_method", event.target.value)}
-                                placeholder="PIX, cartão, dinheiro..."
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-foreground">Tipo de serviço</label>
-                              <select
-                                value={documentFormValues.service_type ?? documentFormValues.serviceType ?? "session"}
-                                onChange={(event) => updateDocumentFormValue("service_type", event.target.value)}
-                                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                              >
-                                <option value="session">Sessão de psicoterapia</option>
-                                <option value="evaluation">Avaliação psicológica</option>
-                                <option value="other">Outro</option>
-                              </select>
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Data do atendimento</label>
-                                <Input
-                                  value={documentFormValues.attendance_date ?? documentFormValues.attendanceDate ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("attendance_date", event.target.value)}
-                                  placeholder="13/04/2026"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Data do documento</label>
-                                <Input
-                                  value={documentFormValues.date_label ?? documentFormValues.dateLabel ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
-                                  placeholder="13/04/2026"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
-
-                        {previewTemplateId === "attendance-declaration" ? (
-                          <>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Data do atendimento</label>
-                                <Input
-                                  value={documentFormValues.attendance_date ?? documentFormValues.attendanceDate ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("attendance_date", event.target.value)}
-                                  placeholder="13/04/2026"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Horário</label>
-                                <Input
-                                  value={documentFormValues.attendance_time ?? documentFormValues.attendanceTime ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("attendance_time", event.target.value)}
-                                  placeholder="14:00"
-                                />
-                              </div>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-medium text-foreground">Data do documento</label>
-                              <Input
-                                value={documentFormValues.date_label ?? documentFormValues.dateLabel ?? ""}
-                                onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
-                                placeholder="13/04/2026"
-                              />
-                            </div>
-                          </>
-                        ) : null}
-
-                        {previewTemplateId === "psychological-certificate" ? (
-                          <>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Início do período</label>
-                                <Input
-                                  value={documentFormValues.period_start ?? documentFormValues.periodStart ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("period_start", event.target.value)}
-                                  placeholder="13/04/2026"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Fim do período</label>
-                                <Input
-                                  value={documentFormValues.period_end ?? documentFormValues.periodEnd ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("period_end", event.target.value)}
-                                  placeholder="20/04/2026"
-                                />
-                              </div>
-                            </div>
-                            <div className="grid gap-4 md:grid-cols-2">
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">CID</label>
-                                <Input
-                                  value={documentFormValues.cid_code ?? documentFormValues.cidCode ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("cid_code", event.target.value)}
-                                  placeholder="Opcional"
-                                />
-                              </div>
-                              <div className="space-y-2">
-                                <label className="text-sm font-medium text-foreground">Data do documento</label>
-                                <Input
-                                  value={documentFormValues.date_label ?? documentFormValues.dateLabel ?? ""}
-                                  onChange={(event) => updateDocumentFormValue("date_label", event.target.value)}
-                                  placeholder="13/04/2026"
-                                />
-                              </div>
-                            </div>
-                          </>
-                        ) : null}
-                      </div>
-                    ) : (
-                      <Textarea
-                        value={freeTextContent}
-                        onChange={(event) => setFreeTextContent(event.target.value)}
-                        className="h-full min-h-full resize-none text-sm leading-6"
-                        placeholder="Escreva ou ajuste o conteúdo principal do documento..."
-                      />
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <div className="flex h-[70vh] flex-col justify-between rounded-lg border border-border bg-muted/20 p-5">
-                  <div>
-                    <p className="font-medium text-foreground">Edição de versões</p>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Clique em editar para ajustar o conteúdo desse documento e salvar uma nova versão.
-                    </p>
-                  </div>
-                  <Button variant="outline" className="gap-2" onClick={() => setEditMode(true)}>
-                    <FilePenLine className="h-4 w-4" />
-                    {supportsStructuredEditor(previewTemplateId) ? "Editar em modo guiado" : "Editar conteúdo"}
-                  </Button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="py-12 text-center">
-              <p className="text-sm text-muted-foreground">Nenhuma vers?o dispon?vel para este documento.</p>
+              <p className="text-sm text-muted-foreground">Nenhuma versão disponível para este documento.</p>
             </div>
           )}
           <DialogFooter className="flex flex-wrap justify-between gap-2">
@@ -1286,6 +1053,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
     </div>
   );
 };

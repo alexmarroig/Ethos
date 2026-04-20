@@ -19,27 +19,27 @@ const CRP_REGEX = /^\d{2}\/\d{4,6}$/;
 
 const SPECIALTY_OPTIONS = [
   "Ansiedade",
-  "Depressao",
+  "Depressão",
   "Luto",
   "Relacionamentos",
-  "Dependencia quimica",
+  "Dependência química",
   "Transtornos alimentares",
   "Trauma",
   "Burnout",
   "Terapia de casal",
   "Terapia familiar",
-  "Infancia e adolescencia",
-  "Orientacao parental",
-  "Neurodivergencias",
+  "Infância e adolescência",
+  "Orientação parental",
+  "Neurodivergências",
   "Outros",
 ];
 
 const APPROACH_OPTIONS = [
   "Terapia Cognitivo-Comportamental (TCC)",
-  "Psicanalise",
+  "Psicanálise",
   "Humanista-Existencial",
-  "Sistemica/Familiar",
-  "Analise do Comportamento",
+  "Sistêmica/Familiar",
+  "Análise do Comportamento",
   "ACT",
   "Gestalt-terapia",
   "Junguiana",
@@ -278,7 +278,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
           <div className="mx-auto flex justify-center">
             <BrandWordmark textClassName="text-4xl font-medium tracking-tight" />
           </div>
-          <p className="mt-2 text-muted-foreground text-sm">Plataforma clinica para atendimento real</p>
+          <p className="mt-2 text-muted-foreground text-sm">Plataforma clínica para atendimento real</p>
         </motion.div>
 
         <AnimatePresence mode="wait">
@@ -472,7 +472,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
               </div>
 
               <div className="space-y-3">
-                <label className="text-sm font-medium text-foreground">Abordagem clinica</label>
+                <label className="text-sm font-medium text-foreground">Abordagem clínica</label>
                 <div className="flex flex-wrap gap-2">
                   {APPROACH_OPTIONS.map((option) => (
                     <button

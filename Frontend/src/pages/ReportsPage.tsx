@@ -158,8 +158,7 @@ export default function ReportsPage() {
                               {patient?.name ?? report.patient_name ?? "Paciente"}
                             </h3>
                             <p className="mt-1 text-sm text-muted-foreground">
-                              {kindMeta?.label ?? TEXT.genericReport} · {purposeLabel} ·{" "}
-                              {formatDate(report.created_at)}
+                              {kindMeta?.label ?? TEXT.genericReport} ? {purposeLabel} ? {formatDate(report.created_at)}
                             </p>
                           </div>
                         </div>
@@ -181,8 +180,7 @@ export default function ReportsPage() {
                         type="reports"
                         id={report.id}
                         shared={
-                          (report as unknown as { shared_with_patient?: boolean })
-                            .shared_with_patient ?? false
+                          (report as unknown as { shared_with_patient?: boolean }).shared_with_patient ?? false
                         }
                         onToggle={(shared) =>
                           setReports((prev) =>

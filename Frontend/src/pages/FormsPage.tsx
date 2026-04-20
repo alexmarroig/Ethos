@@ -548,10 +548,10 @@ export default function FormsPage() {
         </motion.section>
       </div>
 
-      <Dialog open={!!editingForm} onOpenChange={(open) => { if (!open) closeEdit(); }}>
+      <Dialog open={creatingForm || !!editingForm} onOpenChange={(open) => { if (!open) closeEdit(); }}>
         <DialogContent className="max-h-[85vh] max-w-2xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle className="font-serif text-xl">Editar modelo</DialogTitle>
+            <DialogTitle className="font-serif text-xl">{creatingForm ? "Novo modelo" : "Editar modelo"}</DialogTitle>
             <DialogDescription>
               Ajuste a estrutura do formulário antes de disponibilizar para os pacientes.
             </DialogDescription>
