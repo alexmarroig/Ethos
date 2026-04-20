@@ -306,7 +306,10 @@ function ok<TInput, TOutput>(
 export const patientService = {
   list: async (): Promise<ApiResult<Patient[]>> => {
     const result = await api.get<RawPatient[]>("/patients");
-    return ok(result, (items) => items.map(mapPatient));
+    return ok(result, (items) => items
+      .map(mapPatient)
+      .filter((p) => !p.id.startsWith("block-") && !p.name.toLowerCase().includes("block-"))
+    );
   },
 
   getById: async (id: string): Promise<ApiResult<PatientDetail>> => {
