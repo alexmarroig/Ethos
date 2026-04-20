@@ -717,7 +717,7 @@ export default function FinancePage() {
                     </Button>
                     <ShareWithPatientButton type="financial/entries" id={entry.id} shared={(entry as FinancialEntry & { shared_with_patient?: boolean }).shared_with_patient ?? false} />
                     <WhatsAppButton
-                      phoneNumber=""
+                      phone=""
                       message={`Ol\u00e1! Gostaria de lembrar que existe um pagamento combinado no valor de ${formatCurrency(entry.amount)} com vencimento em ${formatDate(entry.due_date)}.`}
                       label="Lembrar no WhatsApp"
                     />

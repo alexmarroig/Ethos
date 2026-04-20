@@ -68,10 +68,13 @@ const Index = () => {
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    if (!isAuthenticated && !isLoading) {
+  };
+
+  useEffect(() => {
+    if (!showSplash && !isAuthenticated && !isLoading) {
       setShowLogin(true);
     }
-  };
+  }, [showSplash, isAuthenticated, isLoading]);
 
   const handleLoginSuccess = () => {
     setShowLogin(false);
