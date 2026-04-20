@@ -58,7 +58,7 @@ const Platforms = () => {
             </motion.p>
 
             <motion.a
-              href="https://ethos-frontend-rho.vercel.app/login"
+              href="https://app.ethos-clinic.com/login"
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               initial={{ opacity: 0 }}

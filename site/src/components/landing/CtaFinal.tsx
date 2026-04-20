@@ -51,7 +51,7 @@ const CtaFinal = () => {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <motion.a
-              href="https://ethos-frontend-rho.vercel.app/login"
+              href="https://app.ethos-clinic.com/login"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
               className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-semibold text-white text-base"
