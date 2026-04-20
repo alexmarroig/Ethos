@@ -4,6 +4,7 @@ import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-r
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
 import { sessionService, type Session } from "@/services/sessionService";
+import { useAppStore } from "@/stores/appStore";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
 import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
@@ -85,7 +86,13 @@ const getBirthdayBadge = (birthDate?: string) => {
   return null;
 };
 
+// Cache TTL: 60 seconds — if cache is fresh, skip session API calls
+const SESSION_CACHE_TTL_MS = 60_000;
+
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
+  const sessionCache = useAppStore((s) => s.sessionCache);
+  const sessionCacheAt = useAppStore((s) => s.sessionCacheAt);
+  const setSessionCache = useAppStore((s) => s.setSessionCache);
   const [todaySessions, setTodaySessions] = useState<Session[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
   const [pendingSessions, setPendingSessions] = useState<Session[]>([]);
@@ -109,21 +116,33 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         .toISOString()
         .slice(0, 10);
 
-      const [todayRes, pendingRes, upcomingRes, financeRes, patientsRes] = await Promise.all([
-        sessionService.list({ from: today, to: today }),
+      // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
+      const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
+
+      const [allSessionsData, pendingRes, financeRes, patientsRes] = await Promise.all([
+        cacheIsFresh
+          ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
+          : sessionService.list({ from: today, to: monthEnd }).then((r) => {
+              if (r.success) setSessionCache(r.data);
+              return r;
+            }),
         sessionService.list({ status: "pending", exclude_blocks: true }),
-        sessionService.list({ from: today, to: monthEnd }),
         financeService.listEntries({ status: "open" }),
         patientService.list(),
       ]);
 
-      if (!todayRes.success) {
-        setError({ message: todayRes.error.message, requestId: todayRes.request_id });
+      // Alias for compat with rest of the function
+      const todayRes = allSessionsData;
+      const upcomingRes = allSessionsData;
+
+      if (!allSessionsData.success) {
+        setError({ message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões", requestId: (allSessionsData as any).request_id ?? "" });
         setLoading(false);
         return;
       }
 
-      const todayData = [...todayRes.data]
+      const todayData = [...allSessionsData.data]
+        .filter((item) => item.date === today)
         .sort((a, b) => a.time.localeCompare(b.time));
       setTodaySessions(todayData);
 
@@ -142,8 +161,8 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setPendingSessions([]);
       }
 
-      if (upcomingRes.success) {
-        const upcomingData = upcomingRes.data
+      if (allSessionsData.success) {
+        const upcomingData = allSessionsData.data
           .filter((item) => item.date > today)
           .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
           .slice(0, 6);
@@ -196,7 +215,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
     };
 
     void load();
-  }, []);
+  // Re-run when session cache updates so the home page reflects changes instantly
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCacheAt]);
 
   useEffect(() => {
     financeService.getFinancialSummary().then((res) => {

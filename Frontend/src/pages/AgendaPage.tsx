@@ -13,6 +13,7 @@ import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
 import { patientService, type Patient } from "@/services/patientService";
+import { useAppStore } from "@/stores/appStore";
 import {
   Dialog,
   DialogContent,
@@ -99,6 +100,9 @@ function combineDateTime(date: string, time: string) {
 const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const { toast } = useToast();
   const { maskName } = usePrivacy();
+  const setSessionCache = useAppStore((s) => s.setSessionCache);
+  const upsertSession = useAppStore((s) => s.upsertSession);
+  const removeSessionFromStore = useAppStore((s) => s.removeSession);
   const [currentWeek, setCurrentWeek] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -196,6 +200,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         setError({ message: result.error.message, requestId: result.request_id });
       } else {
         setSessions(result.data);
+        setSessionCache(result.data); // sync global store
         setError(null);
       }
       setLoading(false);
@@ -230,6 +235,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     }
 
     setSessions((prev) => [...prev, result.data]);
+    upsertSession(result.data); // sync global store
     setDialogOpen(false);
     setNewPatientId("");
     setNewDate("");
@@ -248,14 +254,15 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       return;
     }
 
-    // After a move, we re-fetch the entire week to ensure all virtual fields
-    // and sync with other lists (like clinical notes indicators) are fresh.
+    // After a move, re-fetch the week so clinical note indicators are fresh.
     const refreshResult = await sessionService.list(weekWindow);
     if (refreshResult.success) {
       setSessions(refreshResult.data);
+      setSessionCache(refreshResult.data); // sync global store
     } else {
-      // Fallback to local update if re-fetch fails
+      // Fallback to local update
       setSessions((current) => current.map((session) => (session.id === sessionId ? result.data : session)));
+      upsertSession(result.data); // sync global store
     }
 
     const displayName = result.data.event_type === "block"
@@ -283,6 +290,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     setSessions((current) =>
       current.map((s) => (s.id === session.id ? result.data : s)),
     );
+    upsertSession(result.data); // sync global store
 
     const data = result.data as Session & {
       pending_billing?: boolean;
@@ -732,7 +740,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       defaultTime={sessionDialogDefaults.time}
       onCreated={async () => {
         const result = await sessionService.list(weekWindow);
-        if (result.success) setSessions(result.data);
+        if (result.success) {
+          setSessions(result.data);
+          setSessionCache(result.data); // sync global store
+        }
       }}
     />
 

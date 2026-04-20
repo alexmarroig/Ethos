@@ -39,11 +39,17 @@ import { useAuth } from "@/contexts/AuthContext";
 import { patientService, type PatientDetail } from "@/services/patientService";
 import { formService, type FormAssignment, type FormEntry } from "@/services/formService";
 import { sessionService } from "@/services/sessionService";
+import { useAppStore } from "@/stores/appStore";
 import { contractsApi, documentsApi } from "@/api/clinical";
 import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -366,6 +372,7 @@ export default function PatientDetailPage({
 }: PatientDetailPageProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const upsertSession = useAppStore((s) => s.upsertSession);
   const [detail, setDetail] = useState<PatientDetail | null>(null);
   const [form, setForm] = useState<PatientFormState>(emptyForm);
   const [loading, setLoading] = useState(true);
@@ -416,19 +423,6 @@ export default function PatientDetailPage({
   const [lastCepLookup, setLastCepLookup] = useState("");
   const [documentFilter, setDocumentFilter] = useState<"all" | "portal" | "recent">("all");
   const [formFilter, setFormFilter] = useState<"all" | "with_response" | "without_response" | "recent">("all");
-
-  const sessionStats = useMemo(() => {
-    const sessions = detail?.sessions ?? [];
-    return {
-      total: sessions.length,
-      confirmed: sessions.filter((s: any) => s.status === "confirmed" || s.status === "completed").length,
-      missed: sessions.filter((s: any) => s.status === "missed").length,
-      pending: sessions.filter((s: any) => s.status === "pending").length,
-      presenceRate: sessions.length > 0
-        ? Math.round((sessions.filter((s: any) => s.status === "confirmed" || s.status === "completed").length / (sessions.filter((s: any) => s.status !== "pending").length || 1)) * 100)
-        : 100
-    };
-  }, [detail?.sessions]);
 
   const handleUpdateSessionStatus = async (sessionId: string, status: "pending" | "confirmed" | "missed" | "completed") => {
     const result = await sessionService.updateStatus(sessionId, status);
@@ -878,6 +872,7 @@ export default function PatientDetailPage({
       return;
     }
 
+    upsertSession(result.data); // sync global store instantly
     setCreatingSession(false);
     setSessionDialogOpen(false);
     setSessionDate("");
@@ -1559,30 +1554,6 @@ export default function PatientDetailPage({
           </div>
         </motion.section>
 
-        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
-          <div>
-            <h2 className="font-serif text-2xl text-foreground">Cobrança</h2>
-            <p className="text-sm text-muted-foreground mt-1">Modelo de cobrança e frequência clínica de referência.</p>
-          </div>
-          <div className="grid gap-4 md:grid-cols-2">
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Tipo de cobrança</label>
-              <select
-                value={form.billing_mode}
-                onChange={(event) => updateForm("billing_mode", event.target.value as "per_session" | "package")}
-                className="flex h-11 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-              >
-                <option value="per_session">Sessão avulsa</option>
-                <option value="package">Pacote</option>
-              </select>
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground">Frequência semanal</label>
-              <select
-                value={form.weekly_frequency}
-                onChange={(event) => updateForm("weekly_frequency", event.target.value)}
-        </CollapsibleSection>
-
         <CollapsibleSection
           title="Observações e faturamento"
           subtitle="Histórico clínico, anotações de sessões e configurações de cobrança."
@@ -1716,8 +1687,23 @@ export default function PatientDetailPage({
                 </p>
               </div>
               <Switch
+                checked={sessionReminderEnabled}
+                onCheckedChange={async (checked: boolean) => {
+                  setSessionReminderEnabled(checked);
+                  const result = await sessionReminderApi.setPatientEnabled(patientId, checked);
+                  if (!result.success) {
+                    setSessionReminderEnabled(!checked);
+                    toast({
+                      title: "Erro ao atualizar lembrete",
+                      description: result.error.message,
+                      variant: "destructive",
+                    });
+                  }
+                }}
+              />
+            </div>
           </div>
-        </motion.section>
+        </CollapsibleSection>
 
         <CollapsibleSection
           title="Psiquiatria e emergência"
@@ -2046,12 +2032,6 @@ export default function PatientDetailPage({
             </div>
           )}
         </CollapsibleSection>
-
-                </div>
-              ))}
-            </div>
-          )}
-        </motion.section>
 
         <CollapsibleSection
           title="Contrato assinado"

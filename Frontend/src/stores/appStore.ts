@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import type { Session } from "@/services/sessionService";
 
 /* ------------------------------------------------------------------ */
 /*  Service connectivity                                               */
@@ -58,6 +59,13 @@ interface AppState {
   // Privacy mode
   privacyMode: boolean;
   togglePrivacyMode: () => void;
+
+  // Sessions global cache (shared across pages for instant sync)
+  sessionCache: Session[];
+  sessionCacheAt: number; // timestamp of last full fetch
+  setSessionCache: (sessions: Session[]) => void;
+  upsertSession: (session: Session) => void;
+  removeSession: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -103,6 +111,23 @@ export const useAppStore = create<AppState>()(
       // Privacy mode
       privacyMode: false,
       togglePrivacyMode: () => set((s) => ({ privacyMode: !s.privacyMode })),
+
+      // Sessions global cache
+      sessionCache: [],
+      sessionCacheAt: 0,
+      setSessionCache: (sessions) =>
+        set({ sessionCache: sessions, sessionCacheAt: Date.now() }),
+      upsertSession: (session) =>
+        set((s) => {
+          const exists = s.sessionCache.some((x) => x.id === session.id);
+          return {
+            sessionCache: exists
+              ? s.sessionCache.map((x) => (x.id === session.id ? session : x))
+              : [...s.sessionCache, session],
+          };
+        }),
+      removeSession: (id) =>
+        set((s) => ({ sessionCache: s.sessionCache.filter((x) => x.id !== id) })),
     }),
     {
       name: "ethos-app-store",
@@ -111,6 +136,7 @@ export const useAppStore = create<AppState>()(
         selectedPatientId: state.selectedPatientId,
         selectedSessionId: state.selectedSessionId,
         privacyMode: state.privacyMode,
+        // sessionCache is intentionally NOT persisted — always fresh from API
       }),
     }
   )
