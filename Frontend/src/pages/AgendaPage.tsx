@@ -483,7 +483,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             <button onClick={() => setCurrentWeek((value) => value - 1)} className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary">
               <ChevronLeft className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             </button>
-            <div className="min-w-[220px] text-center">
+            <div className="min-w-[140px] sm:min-w-[220px] text-center">
               <p className="text-sm font-medium text-foreground">{getWeekLabel()}</p>
               <p className="text-xs text-muted-foreground">{formatWeekRange(weekStart)}</p>
             </div>
@@ -492,7 +492,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             </button>
           </div>
 
-          <div className="hidden xl:flex items-center gap-4 text-xs text-muted-foreground">
+          <div className="hidden lg:flex items-center gap-4 text-xs text-muted-foreground">
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-status-validated"></span>Confirmada</span>
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-status-pending"></span>Pendente</span>
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-destructive"></span>Faltou</span>
@@ -503,9 +503,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         {loading ? <AgendaGridSkeleton /> : null}
 
         {!loading && !error ? (
-          <motion.div className="flex gap-4 items-start" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-          <div className="flex-1 overflow-hidden rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
-            <div className="grid" style={{ gridTemplateColumns: `88px repeat(${visibleWeekDays.length}, minmax(160px, 1fr))` }}>
+          <motion.div className="flex flex-col xl:flex-row gap-4 items-start" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
+          <div className="flex-1 min-w-0 overflow-x-auto rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
+            <div className="grid" style={{ gridTemplateColumns: `88px repeat(${visibleWeekDays.length}, minmax(140px, 1fr))` }}>
               <div className="border-b border-r border-border bg-muted/30 p-4" />
               {visibleWeekDays.map((day) => (
                 <div key={day.key} className={cn("border-b border-border p-4", day.isToday && "bg-primary/5")}>
@@ -626,7 +626,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
 
           {suggestions.filter((s) => !dismissedSuggestions.has(`${s.patient_id}-${s.suggested_at}`)).length > 0 && (
-            <div className="w-60 shrink-0 space-y-3 border-l pl-4 pt-2">
+            <div className="w-full xl:w-60 xl:shrink-0 space-y-3 xl:border-l xl:pl-4 xl:pt-2 border-t xl:border-t-0 pt-4 xl:pt-2">
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>Próxima semana</span>

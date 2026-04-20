@@ -397,7 +397,7 @@ const AvailabilitySettingsPage = () => {
           </p>
         </motion.header>
 
-        <div className="flex gap-6 items-start">
+        <div className="flex flex-col lg:flex-row gap-6 items-start">
           {/* Weekly grid */}
           <motion.div
             className="flex-1 min-w-0"
@@ -548,7 +548,7 @@ const AvailabilitySettingsPage = () => {
           </motion.div>
 
           {/* Side panel */}
-          <div className="w-72 shrink-0 space-y-4">
+          <div className="w-full lg:w-72 lg:shrink-0 space-y-4">
             <AnimatePresence mode="wait">
               {draft ? (
                 <BlockPanel

@@ -329,10 +329,9 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
                 </div>
               </button>
 
-              <div className="flex items-center gap-2">
-                <Button variant="ghost" size="sm" className="gap-2" onClick={() => openAccessDialog(patient)}>
+              <div className="flex items-center gap-2 shrink-0">
+                <Button variant="ghost" size="icon" className="hidden sm:flex" onClick={() => openAccessDialog(patient)} aria-label="Criar acesso">
                   <KeyRound className="w-4 h-4" strokeWidth={1.5} />
-                  Criar acesso
                 </Button>
                 <Button variant="ghost" size="icon" onClick={() => onOpenPatient(patient.id)} aria-label={`Abrir ficha de ${patient.name}`}>
                   <ChevronRight className="w-5 h-5 text-muted-foreground/70 group-hover:text-muted-foreground transition-colors duration-200" strokeWidth={1.5} />
