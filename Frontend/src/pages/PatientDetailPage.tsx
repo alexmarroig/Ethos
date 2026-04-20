@@ -138,7 +138,7 @@ const emptyForm: PatientFormState = {
   payment_timing: "after",
   preferred_payment_day: "",
   billing_reminder_days: 0,
-  billing_auto_charge: false,
+  billing_auto_charge: true,
 };
 
 const formatDate = (value?: string | null) =>
@@ -1492,15 +1492,25 @@ export default function PatientDetailPage({
               </Select>
             </div>
 
-            <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="flex items-start justify-between rounded-lg border p-3 gap-3">
               <div className="space-y-0.5">
                 <Label className="text-sm font-medium">Cobrança automática</Label>
                 <p className="text-xs text-muted-foreground">
-                  Cria lançamento ao concluir cada sessão
+                  Cria lançamento financeiro automaticamente ao marcar a sessão como "Concluída"
                 </p>
+                {!form.billing_auto_charge && form.session_price && (
+                  <p className="text-xs text-amber-500 mt-1">
+                    ⚠️ Desativada — cobranças não serão geradas automaticamente
+                  </p>
+                )}
+                {!form.session_price && (
+                  <p className="text-xs text-amber-500 mt-1">
+                    ⚠️ Defina o valor por sessão para ativar a cobrança automática
+                  </p>
+                )}
               </div>
               <Switch
-                checked={form.billing_auto_charge ?? false}
+                checked={form.billing_auto_charge ?? true}
                 onCheckedChange={(checked: boolean) => updateForm("billing_auto_charge", checked)}
               />
             </div>

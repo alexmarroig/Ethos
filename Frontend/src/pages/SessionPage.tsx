@@ -363,6 +363,11 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
                 </span>
               ) : null}
             </div>
+            {!linkedEntry && (
+              <div className="rounded-lg bg-muted/50 border border-border/50 px-3 py-2.5 text-xs text-muted-foreground">
+                💡 <strong>Cobrança automática:</strong> se o valor de sessão estiver configurado no perfil do paciente e a cobrança automática estiver ativa, o lançamento é gerado ao marcar a sessão como <strong>"Concluída"</strong> na Agenda. Ou registre manualmente abaixo.
+              </div>
+            )}
 
             <div className="grid gap-4 md:grid-cols-3">
               <Input type="number" step="0.01" placeholder="Valor da sessão" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} />
