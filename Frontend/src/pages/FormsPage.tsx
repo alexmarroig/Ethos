@@ -119,6 +119,7 @@ export default function FormsPage() {
 
   const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
   const [filterPatient, setFilterPatient] = useState("");
+  const [deletingEntryId, setDeletingEntryId] = useState<string | null>(null);
 
   const [editingForm, setEditingForm] = useState<Form | null>(null);
   const [creatingForm, setCreatingForm] = useState(false);
@@ -193,6 +194,19 @@ export default function FormsPage() {
     setEditCoverTitle("");
     setEditCoverDesc("");
     setEditFields([]);
+  };
+
+  const handleDeleteEntry = async (entryId: string) => {
+    setDeletingEntryId(entryId);
+    const result = await formService.deleteEntry(entryId);
+    setDeletingEntryId(null);
+    if (result.success) {
+      setEntries((current) => current.filter((entry) => entry.id !== entryId));
+      if (expandedEntryId === entryId) setExpandedEntryId(null);
+      toast({ title: "Resposta removida" });
+    } else {
+      toast({ title: "Erro ao remover resposta", variant: "destructive" });
+    }
   };
 
   const openEdit = (form: Form) => {
@@ -682,27 +696,42 @@ export default function FormsPage() {
 
                 return (
                   <div key={entry.id} className="session-card">
-                    <button
-                      className="flex w-full items-start justify-between gap-3 text-left"
-                      onClick={() => setExpandedEntryId(expanded ? null : entry.id)}
-                    >
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {patientNames.get(entry.patient_id) ?? "Paciente"}
-                          <span className="font-normal text-muted-foreground">
-                            {" "}· {form?.name ?? entry.form_id}
-                          </span>
-                        </p>
-                        <p className="mt-0.5 text-xs text-muted-foreground">
-                          {formatDate(entry.created_at)}
-                        </p>
-                      </div>
-                      {expanded ? (
-                        <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      ) : (
-                        <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
-                      )}
-                    </button>
+                    <div className="flex w-full items-start justify-between gap-3">
+                      <button
+                        className="flex flex-1 items-start justify-between gap-3 text-left min-w-0"
+                        onClick={() => setExpandedEntryId(expanded ? null : entry.id)}
+                      >
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium text-foreground">
+                            {patientNames.get(entry.patient_id) ?? "Paciente"}
+                            <span className="font-normal text-muted-foreground">
+                              {" "}· {form?.name ?? entry.form_id}
+                            </span>
+                          </p>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            {formatDate(entry.created_at)}
+                          </p>
+                        </div>
+                        {expanded ? (
+                          <ChevronDown className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        className="mt-0.5 shrink-0 text-muted-foreground hover:text-destructive transition-colors"
+                        onClick={() => void handleDeleteEntry(entry.id)}
+                        disabled={deletingEntryId === entry.id}
+                        aria-label="Remover resposta"
+                      >
+                        {deletingEntryId === entry.id ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-3.5 w-3.5" />
+                        )}
+                      </button>
+                    </div>
 
                     <AnimatePresence initial={false}>
                       {expanded ? (

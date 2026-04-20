@@ -7,8 +7,7 @@ import { cn } from "@/lib/utils";
 import { sessionService, type Session, type CalendarSuggestion } from "@/services/sessionService";
 import { SessionDialog } from "@/components/SessionDialog";
 import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
-import { CLINICAL_BASE_URL } from "@/config/runtime";
-import { readStoredAuthUser } from "@/services/authStorage";
+import { financeService } from "@/services/financeService";
 import { usePrivacy } from "@/hooks/usePrivacy";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
@@ -114,6 +113,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     suggestedAmount: number;
     suggestedDueDate: string;
     patientId: string;
+    sessionId: string;
   } | null>(null);
 
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
@@ -248,7 +248,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       return;
     }
 
-    setSessions((current) => current.map((session) => (session.id === sessionId ? result.data : session)));
+    // After a move, we re-fetch the entire week to ensure all virtual fields
+    // and sync with other lists (like clinical notes indicators) are fresh.
+    const refreshResult = await sessionService.list(weekWindow);
+    if (refreshResult.success) {
+      setSessions(refreshResult.data);
+    } else {
+      // Fallback to local update if re-fetch fails
+      setSessions((current) => current.map((session) => (session.id === sessionId ? result.data : session)));
+    }
+
     toast({
       title: "Sessão remarcada",
       description: `${result.data.patient_name} agora está em ${new Date(scheduledAt).toLocaleString("pt-BR", {
@@ -285,6 +294,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         suggestedAmount: data.suggested_amount ?? 0,
         suggestedDueDate: data.suggested_due_date ?? new Date().toISOString().slice(0, 10),
         patientId: session.patient_id,
+        sessionId: session.id,
       });
     }
   };
@@ -731,21 +741,13 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         suggestedDueDate={billingDialog.suggestedDueDate}
         onConfirm={async () => {
           try {
-            const token = readStoredAuthUser()?.token;
-            await fetch(`${CLINICAL_BASE_URL}/financial/entry`, {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                ...(token ? { Authorization: `Bearer ${token}` } : {}),
-              },
-              body: JSON.stringify({
-                patient_id: billingDialog.patientId,
-                type: "receivable",
-                amount: billingDialog.suggestedAmount,
-                due_date: billingDialog.suggestedDueDate,
-                status: "open",
-                description: "Sessão clínica",
-              }),
+            await financeService.createEntry({
+              patient_id: billingDialog.patientId,
+              session_id: billingDialog.sessionId,
+              amount: billingDialog.suggestedAmount,
+              due_date: billingDialog.suggestedDueDate,
+              status: "open",
+              description: "Sessão de psicoterapia",
             });
           } catch (e) {
             console.error(e);

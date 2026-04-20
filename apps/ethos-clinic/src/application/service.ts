@@ -2395,6 +2395,14 @@ export const createFormEntry = (
   return item;
 };
 
+export const deleteFormEntry = (owner: string, entryId: string): boolean => {
+  const entry = db.forms.get(entryId);
+  if (!entry || entry.owner_user_id !== owner) return false;
+  db.forms.delete(entryId);
+  schedulePersistDatabase();
+  return true;
+};
+
 export const listFormEntries = (owner: string, filters?: { patient_id?: string; form_id?: string; assignment_id?: string }) =>
   byOwner(db.forms.values(), owner)
     .filter((item) => (!filters?.patient_id || item.patient_id === filters.patient_id)

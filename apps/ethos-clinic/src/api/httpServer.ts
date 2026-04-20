@@ -79,6 +79,7 @@ import {
   listFormsCatalog,
   listFormAssignments,
   listFormEntries,
+  deleteFormEntry,
   listPatientAssignedForms,
   listPatientFormEntries,
   deleteFormTemplate,
@@ -2157,6 +2158,13 @@ export const createEthosBackend = () =>
         const items = listFormEntries(auth.user.id, { patient_id: patientId, form_id: formId });
         recordProntuarioAudit(auth.user.id, "ACCESS", "form_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      const formEntryById = url.pathname.match(/^\/forms\/entries\/([^/]+)$/);
+      if (method === "DELETE" && formEntryById) {
+        const deleted = deleteFormEntry(auth.user.id, formEntryById[1]);
+        if (!deleted) return error(res, requestId, 404, "NOT_FOUND", "Form entry not found");
+        return ok(res, requestId, 200, { deleted: true });
       }
 
       if (method === "GET" && url.pathname === "/forms/assignments") {

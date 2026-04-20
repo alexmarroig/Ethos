@@ -128,6 +128,9 @@ export const formService = {
   deleteTemplate: async (formId: string): Promise<ApiResult<{ deleted: boolean }>> =>
     api.delete<{ deleted: boolean }>(`/forms/${formId}`),
 
+  deleteEntry: async (entryId: string): Promise<ApiResult<{ deleted: boolean }>> =>
+    api.delete<{ deleted: boolean }>(`/forms/entries/${entryId}`),
+
   listAssignments: async (filters?: { patient_id?: string; form_id?: string; active?: boolean }): Promise<ApiResult<FormAssignment[]>> => {
     const params = new URLSearchParams();
     if (filters?.patient_id) params.set("patient_id", filters.patient_id);
