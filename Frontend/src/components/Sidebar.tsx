@@ -204,7 +204,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
                 className="relative flex h-10 w-10 items-center justify-center rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
                 aria-label="Notificações"
               >
-                <Bell className="h-4 v-4" />
+                <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
                   <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground animate-in zoom-in">
                     {unreadCount > 9 ? "9+" : unreadCount}

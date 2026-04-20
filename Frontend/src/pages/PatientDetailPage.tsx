@@ -1847,14 +1847,14 @@ export default function PatientDetailPage({
             const diaryEntriesFromForms = (detail.form_entries ?? [])
               .filter((e: any) => {
                 const name = normalizeStr(e.form_id || "");
-                return name.includes("diario") && name.includes("emocional");
+                return name.includes("diario");
               })
               .map((e: any) => ({
                 id: e.id,
                 date: e.created_at,
-                mood: e.data?.mood ?? e.data?.humor ?? 0,
-                intensity: e.data?.intensity ?? e.data?.intensidade ?? 0,
-                description: e.data?.description ?? e.data?.thoughts ?? e.data?.sentimentos ?? "",
+                mood: e.data?.mood ?? e.data?.humor ?? e.data?.nota ?? 0,
+                intensity: e.data?.intensity ?? e.data?.intensidade ?? e.data?.nivel ?? 0,
+                description: e.data?.description ?? e.data?.thoughts ?? e.data?.sentimentos ?? e.data?.relato ?? e.data?.texto ?? e.data?.resposta ?? "",
                 is_from_form: true
               }));
 
