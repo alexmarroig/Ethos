@@ -3,7 +3,7 @@ import { clinicalContract } from "./contracts/clinical.contract";
 import { createHttpClient } from "./httpClient";
 
 const getEnv = (key: "CONTROL_API_BASE_URL" | "CLINICAL_API_BASE_URL", fallback: string) => {
-  const fromVite = import.meta.env[key];
+  const fromVite = typeof import !== "undefined" && import.meta && import.meta.env && import.meta.env[key];
   return typeof fromVite === "string" && fromVite.trim().length > 0 ? fromVite : fallback;
 };
 

@@ -37,7 +37,7 @@ const formatDate = (value?: string) =>
       })
     : "Sem data";
 
-export default function ReportsPage() {
+export default function ReportsPage({ embedded = false }: { embedded?: boolean }) {
   const { maskName } = usePrivacy();
   const [reports, setReports] = useState<Report[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -99,16 +99,16 @@ export default function ReportsPage() {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12">
+    <div className={embedded ? "" : "min-h-screen"}>
+      <div className={embedded ? "" : "content-container py-8 md:py-12"}>
         <motion.header
           className="mb-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
         >
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">
+          {!embedded && <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">
             {TEXT.title}
-          </h1>
+          </h1>}
           <p className="mt-2 text-muted-foreground">{TEXT.summary}</p>
         </motion.header>
 

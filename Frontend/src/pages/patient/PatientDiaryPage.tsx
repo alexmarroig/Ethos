@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+const DreamDiaryPage = lazy(() => import("@/pages/patient/DreamDiaryPage"));
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BookOpen,
@@ -46,6 +47,7 @@ const FORM_ICONS = ["📝", "💭", "🌱", "⭐", "🔍", "💡", "🎯", "🌊
 
 export default function PatientDiaryPage() {
   const { toast } = useToast();
+  const [activeTab, setActiveTab] = useState<"diary" | "dreams">("diary");
   const [forms, setForms] = useState<Form[]>([]);
   const [selectedFormId, setSelectedFormId] = useState("");
   const [responses, setResponses] = useState<Record<string, string>>({});
@@ -286,9 +288,32 @@ export default function PatientDiaryPage() {
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Diário e formulários</h1>
           <p className="mt-2 text-muted-foreground">Preencha os formulários que sua psicóloga disponibilizou.</p>
+          {/* Tab bar */}
+          <div className="mt-6 flex gap-2 border-b border-border">
+            {([["diary", "Formulários"], ["dreams", "Diário dos Sonhos"]] as const).map(([tab, label]) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-2.5 px-1 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </motion.header>
 
-        {/* Form cards selector */}
+        {activeTab === "dreams" && (
+          <Suspense fallback={<div className="flex items-center gap-3 py-12 text-muted-foreground"><div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" /><span className="text-sm">Carregando...</span></div>}>
+            <DreamDiaryPage embedded />
+          </Suspense>
+        )}
+
+        {activeTab === "diary" && <>{/* Form cards selector */}
         {forms.length > 1 && (
           <motion.div
             className="mb-6 flex gap-3 overflow-x-auto pb-2"
@@ -622,6 +647,7 @@ export default function PatientDiaryPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        </>}
       </div>
     </div>
   );

@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+const AnamnesisPage = lazy(() => import("@/pages/AnamnesisPage"));
 import {
   ArrowDown,
   ArrowUp,
@@ -112,6 +113,7 @@ const mapFieldForSave = (field: FormField, index: number): FormField => ({
 export default function FormsPage() {
   const { toast } = useToast();
   const { maskName } = usePrivacy();
+  const [activeTab, setActiveTab] = useState<"forms" | "anamnesis">("forms");
   const [forms, setForms] = useState<Form[]>([]);
   const [entries, setEntries] = useState<FormEntry[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -522,15 +524,38 @@ export default function FormsPage() {
 
   return (
     <div className="min-h-screen">
-      <div className="content-container space-y-10 py-8 md:py-12">
+      <div className="content-container space-y-8 py-8 md:py-12">
         <motion.header initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Formulários</h1>
+          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Formulários e anamnese</h1>
           <p className="mt-2 text-muted-foreground">
-            Crie modelos, personalize perguntas, disponibilize para pacientes específicos e acompanhe as respostas.
+            Formulários personalizados, registros de anamnese e respostas dos pacientes.
           </p>
+          {/* Tab bar */}
+          <div className="mt-6 flex gap-2 border-b border-border">
+            {(["forms", "anamnesis"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-2.5 px-1 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "forms" ? "Formulários" : "Anamnese"}
+              </button>
+            ))}
+          </div>
         </motion.header>
 
-        <motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
+        {activeTab === "anamnesis" ? (
+          <Suspense fallback={<div className="flex items-center gap-3 py-12 text-muted-foreground"><div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" /><span className="text-sm">Carregando...</span></div>}>
+            <AnamnesisPage embedded />
+          </Suspense>
+        ) : null}
+
+        {activeTab === "forms" && <><motion.section initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <div className="mb-4 flex items-center justify-between gap-3">
             <h2 className="font-serif text-lg font-medium text-foreground">
               Modelos de formulário
@@ -766,7 +791,7 @@ export default function FormsPage() {
               })}
             </div>
           )}
-        </motion.section>
+        </motion.section></>}
       </div>
 
       <Dialog open={creatingForm || !!editingForm} onOpenChange={(open) => { if (!open) closeEdit(); }}>

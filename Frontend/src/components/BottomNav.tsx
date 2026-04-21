@@ -25,8 +25,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
     const items = [
       { id: "patient-home", label: "Início", icon: Home },
       { id: "patient-sessions", label: "Sessões", icon: Calendar },
-      { id: "patient-dream-diary", label: "Sonhos", icon: Moon },
-      { id: "patient-diary", label: "Formulários", icon: Clipboard },
+      { id: "patient-diary", label: "Diário", icon: Clipboard },
       { id: "account", label: "Conta", icon: User },
     ];
     return (

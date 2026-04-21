@@ -473,7 +473,14 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                         key={session.id}
                         title={maskName(session.patient_name)}
                         subtitle={`${formatDateLabel(session.date)} · ${session.time}`}
-                        meta={session.status === "confirmed" ? "Confirmada" : "Agendada"}
+                        meta={
+                          session.status === "confirmed" ? "Confirmada"
+                          : session.status === "cancelled_with_notice" ? "Cancelado c/ aviso"
+                          : session.status === "cancelled_no_show" ? "Cancelado s/ aviso"
+                          : session.status === "rescheduled_by_patient" ? "Remarcado"
+                          : session.status === "rescheduled_by_psychologist" ? "Remarcado p/ psicólogo"
+                          : "Agendada"
+                        }
                         onClick={() => onSessionClick(session.id)}
                       />
                     )

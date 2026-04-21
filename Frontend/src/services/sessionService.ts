@@ -28,7 +28,7 @@ type RawSession = {
   patient_name?: string;
   duration_minutes?: number;
   duration?: number;
-  status: "scheduled" | "confirmed" | "pending" | "missed" | "completed";
+  status: "scheduled" | "confirmed" | "pending" | "missed" | "completed" | "cancelled_with_notice" | "cancelled_no_show" | "rescheduled_by_patient" | "rescheduled_by_psychologist";
   has_audio?: boolean;
   has_transcription?: boolean;
   has_clinical_note?: boolean;
@@ -57,7 +57,7 @@ export interface Session {
   date: string;
   time: string;
   duration?: number;
-  status: "confirmed" | "pending" | "missed" | "completed";
+  status: "confirmed" | "pending" | "missed" | "completed" | "cancelled_with_notice" | "cancelled_no_show" | "rescheduled_by_patient" | "rescheduled_by_psychologist";
   has_audio?: boolean;
   has_transcription?: boolean;
   has_clinical_note?: boolean;
@@ -121,7 +121,8 @@ function formatDateParts(raw: RawSession) {
 }
 
 function mapStatus(status: RawSession["status"]): Session["status"] {
-  return status === "scheduled" ? "pending" : status;
+  if (status === "scheduled") return "pending";
+  return status;
 }
 
 function mapSession(raw: RawSession, patients: Patient[]): Session {
@@ -229,7 +230,7 @@ export const sessionService = {
     };
   },
 
-  updateStatus: async (id: string, status: "pending" | "confirmed" | "missed" | "completed"): Promise<ApiResult<Session>> => {
+  updateStatus: async (id: string, status: Session["status"]): Promise<ApiResult<Session>> => {
     const rawStatus = status === "pending" ? "scheduled" : status;
     const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}/status`, { status: rawStatus }),

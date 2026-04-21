@@ -158,15 +158,30 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     toast({ title: "Sessão confirmada", description: "Marcada como confirmada pelo paciente." });
   };
 
-  const statusLabel = session?.status === "pending"
-    ? "Pendente de confirmação"
-    : session?.status === "confirmed"
-    ? "Confirmada pelo paciente"
-    : session?.status === "completed"
-    ? "Sessão concluída"
-    : session?.status === "missed"
-    ? "Paciente faltou"
-    : session?.status ?? "Sessão";
+  const handleChangeStatus = async (newStatus: Session["status"]) => {
+    if (!session) return;
+    const result = await sessionService.updateStatus(session.id, newStatus);
+    if (!result.success) {
+      toast({ title: "Erro ao atualizar status", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    setSession(result.data);
+    toast({ title: "Status atualizado" });
+  };
+
+  const statusLabel = (() => {
+    switch (session?.status) {
+      case "pending": return "Pendente de confirmação";
+      case "confirmed": return "Confirmada pelo paciente";
+      case "completed": return "Sessão concluída";
+      case "missed": return "Paciente faltou";
+      case "cancelled_with_notice": return "Cancelado com aviso";
+      case "cancelled_no_show": return "Cancelado sem aviso";
+      case "rescheduled_by_patient": return "Remarcado pelo paciente";
+      case "rescheduled_by_psychologist": return "Remarcado pelo psicólogo";
+      default: return session?.status ?? "Sessão";
+    }
+  })();
 
   const handleSavePayment = async (markAsPaid = false) => {
     if (!session || !paymentAmount.trim()) {
@@ -259,13 +274,34 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
             <span>{session?.time}</span>
           </div>
           <div className="mt-3 flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-status-pending" />
+            <span className={`w-2 h-2 rounded-full ${
+              session?.status === "confirmed" || session?.status === "completed" ? "bg-status-validated"
+              : session?.status === "missed" || session?.status === "cancelled_no_show" ? "bg-destructive"
+              : session?.status === "cancelled_with_notice" ? "bg-orange-400"
+              : session?.status === "rescheduled_by_patient" || session?.status === "rescheduled_by_psychologist" ? "bg-blue-400"
+              : "bg-status-pending"
+            }`} />
             <span className="text-sm text-muted-foreground">{statusLabel}</span>
             {session?.status === "pending" ? (
               <Button variant="outline" size="sm" className="ml-2 gap-2" onClick={handleConfirmSession} disabled={confirmingSession}>
                 {confirmingSession ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                 Confirmado pelo paciente
               </Button>
+            ) : null}
+            {session && !["completed"].includes(session.status) ? (
+              <select
+                className="ml-2 rounded-md border border-border bg-background px-2 py-1 text-xs text-muted-foreground"
+                value={session.status}
+                onChange={(e) => void handleChangeStatus(e.target.value as Session["status"])}
+              >
+                <option value="pending">Pendente</option>
+                <option value="confirmed">Confirmada</option>
+                <option value="missed">Faltou</option>
+                <option value="cancelled_with_notice">Cancelado com aviso</option>
+                <option value="cancelled_no_show">Cancelado sem aviso</option>
+                <option value="rescheduled_by_patient">Remarcado pelo paciente</option>
+                <option value="rescheduled_by_psychologist">Remarcado pelo psicólogo</option>
+              </select>
             ) : null}
           </div>
         </motion.header>

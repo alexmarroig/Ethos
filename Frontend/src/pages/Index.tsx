@@ -128,9 +128,17 @@ const Index = () => {
   };
 
   const handleNavigate = (page: string) => {
-    setCurrentPage(page as Page);
+    // Redirect merged pages to their new unified home
+    const redirects: Record<string, string> = {
+      anamnesis: "forms",
+      reports: "documents",
+      contracts: "documents",
+      "patient-dream-diary": "patient-diary",
+    };
+    const resolved = redirects[page] ?? page;
+    setCurrentPage(resolved as Page);
     setSelectedSessionId(null);
-    if (page !== "patient-detail") {
+    if (resolved !== "patient-detail") {
       setSelectedPatientId(null);
     }
   };

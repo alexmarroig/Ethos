@@ -372,6 +372,20 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     return `Semana ${currentWeek > 0 ? "+" : ""}${currentWeek}`;
   };
 
+  const getStatusLabel = (status: Session["status"]) => {
+    switch (status) {
+      case "pending": return "Pendente";
+      case "confirmed": return "Confirmada";
+      case "completed": return "Concluída";
+      case "missed": return "Faltou";
+      case "cancelled_with_notice": return "Cancelado c/ aviso";
+      case "cancelled_no_show": return "Cancelado s/ aviso";
+      case "rescheduled_by_patient": return "Remarcado";
+      case "rescheduled_by_psychologist": return "Remarcado pelo psicólogo";
+      default: return "Sessão";
+    }
+  };
+
   const getStatusColor = (status: Session["status"]) => {
     switch (status) {
       case "completed":
@@ -380,7 +394,13 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       case "pending":
         return "border-status-pending/30 bg-status-pending/10 text-foreground";
       case "missed":
+      case "cancelled_no_show":
         return "border-destructive/30 bg-destructive/10 text-foreground";
+      case "cancelled_with_notice":
+        return "border-orange-400/30 bg-orange-400/10 text-foreground";
+      case "rescheduled_by_patient":
+      case "rescheduled_by_psychologist":
+        return "border-blue-400/30 bg-blue-400/10 text-foreground";
       default:
         return "border-border bg-secondary text-foreground";
     }
@@ -536,6 +556,8 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-status-validated"></span>Confirmada</span>
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-status-pending"></span>Pendente</span>
             <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-destructive"></span>Faltou</span>
+            <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-orange-400"></span>Cancelado</span>
+            <span className="inline-flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full bg-blue-400"></span>Remarcado</span>
           </div>
         </motion.div>
 
@@ -584,7 +606,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                 </span>
                               )}
                               <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                {session.event_type === "block" ? "Tarefa" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                                {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
                               </span>
                             </div>
                           </div>
@@ -682,7 +704,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                         </span>
                                       )}
                                       <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                        {session.event_type === "block" ? "Tarefa" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                                        {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
                                       </span>
                                     </div>
                                   </div>

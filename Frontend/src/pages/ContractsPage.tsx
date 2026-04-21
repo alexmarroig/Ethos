@@ -167,7 +167,7 @@ const createEmptyEditor = (templateId = "", templateBody = fallbackContractTempl
   content: templateBody,
 });
 
-const ContractsPage = () => {
+const ContractsPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const [contracts, setContracts] = useState<Contract[]>([]);
@@ -515,10 +515,10 @@ const ContractsPage = () => {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12">
+    <div className={embedded ? "" : "min-h-screen"}>
+      <div className={embedded ? "" : "content-container py-8 md:py-12"}>
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Contratos</h1>
+          {!embedded && <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Contratos</h1>}
           <p className="mt-2 text-muted-foreground">Modelos editáveis, preenchimento automático e envio por email ou WhatsApp.</p>
         </motion.header>
 

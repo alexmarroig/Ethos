@@ -25,7 +25,7 @@ export interface Session {
   date: string;
   time: string;
   duration?: number;
-  status: "confirmed" | "pending" | "missed" | "completed";
+  status: "confirmed" | "pending" | "missed" | "completed" | "cancelled_with_notice" | "cancelled_no_show" | "rescheduled_by_patient" | "rescheduled_by_psychologist";
   has_audio?: boolean;
   has_transcription?: boolean;
   has_clinical_note?: boolean;

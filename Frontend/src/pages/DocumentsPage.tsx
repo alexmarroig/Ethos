@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+const ReportsPage = lazy(() => import("@/pages/ReportsPage"));
+const ContractsPage = lazy(() => import("@/pages/ContractsPage"));
 import { motion } from "framer-motion";
 import {
   Download,
@@ -163,6 +165,7 @@ interface DocumentsPageProps {
 const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
+  const [activeTab, setActiveTab] = useState<"documents" | "reports" | "contracts">("documents");
   const [documents, setDocuments] = useState<Document[]>([]);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -609,11 +612,39 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
             Documentos
           </h1>
           <p className="mt-4 max-w-2xl text-[1.02rem] leading-7 text-muted-foreground">
-            Modelos padronizados e documentos vinculados aos pacientes.
+            Documentos, relatórios clínicos e contratos terapêuticos em um só lugar.
           </p>
+          {/* Tab bar */}
+          <div className="mt-6 flex gap-2 border-b border-border">
+            {(["documents", "reports", "contracts"] as const).map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveTab(tab)}
+                className={`pb-2.5 px-1 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                  activeTab === tab
+                    ? "border-primary text-foreground"
+                    : "border-transparent text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {tab === "documents" ? "Documentos" : tab === "reports" ? "Relatórios" : "Contratos"}
+              </button>
+            ))}
+          </div>
         </motion.header>
 
-        <motion.section
+        {activeTab === "reports" && (
+          <Suspense fallback={<div className="flex items-center gap-3 py-12 text-muted-foreground"><div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" /><span className="text-sm">Carregando...</span></div>}>
+            <ReportsPage embedded />
+          </Suspense>
+        )}
+        {activeTab === "contracts" && (
+          <Suspense fallback={<div className="flex items-center gap-3 py-12 text-muted-foreground"><div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" /><span className="text-sm">Carregando...</span></div>}>
+            <ContractsPage embedded />
+          </Suspense>
+        )}
+
+        {activeTab === "documents" && <><motion.section
           className="mb-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
@@ -729,7 +760,7 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
               ))}
             </div>
           )}
-        </motion.section>
+        </motion.section></>}
       </div>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

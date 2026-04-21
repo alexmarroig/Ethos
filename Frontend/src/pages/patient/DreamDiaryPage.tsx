@@ -73,7 +73,7 @@ const STEPS = [
 
 type View = "list" | "form";
 
-export default function DreamDiaryPage() {
+export default function DreamDiaryPage({ embedded = false }: { embedded?: boolean }) {
   const { toast } = useToast();
   const [view, setView] = useState<View>("list");
   const [entries, setEntries] = useState<DreamDiaryEntry[]>([]);
@@ -148,8 +148,8 @@ export default function DreamDiaryPage() {
   /* ─── render list ─────────────────────────────────────── */
   if (view === "list") {
     return (
-      <div className="min-h-screen">
-        <div className="content-container py-8 md:py-12">
+      <div className={embedded ? "" : "min-h-screen"}>
+        <div className={embedded ? "" : "content-container py-8 md:py-12"}>
           {/* header */}
           <motion.header
             className="mb-8"
@@ -162,9 +162,9 @@ export default function DreamDiaryPage() {
                   <Moon className="h-5 w-5" />
                 </div>
                 <div>
-                  <h1 className="font-serif text-2xl font-medium text-foreground md:text-3xl">
+                  {!embedded && <h1 className="font-serif text-2xl font-medium text-foreground md:text-3xl">
                     Diário dos sonhos
-                  </h1>
+                  </h1>}
                   <p className="text-sm text-muted-foreground">
                     Registre e reflita sobre seus sonhos.
                   </p>
@@ -308,8 +308,8 @@ export default function DreamDiaryPage() {
   const progress = ((step + 1) / STEPS.length) * 100;
 
   return (
-    <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12 max-w-2xl">
+    <div className={embedded ? "" : "min-h-screen"}>
+      <div className={embedded ? "max-w-2xl" : "content-container py-8 md:py-12 max-w-2xl"}>
         {/* back + progress */}
         <motion.div
           className="mb-6"

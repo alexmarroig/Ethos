@@ -31,6 +31,10 @@ const sessionStatusLabel = (status: string) => {
     case "missed": return "Faltou";
     case "pending":
     case "scheduled": return "Agendada";
+    case "cancelled_with_notice": return "Cancelado c/ aviso";
+    case "cancelled_no_show": return "Cancelado s/ aviso";
+    case "rescheduled_by_patient": return "Remarcado";
+    case "rescheduled_by_psychologist": return "Remarcado p/ psicólogo";
     default: return "Sessão";
   }
 };
@@ -39,7 +43,11 @@ const sessionColor = (status: string) => {
   switch (status) {
     case "confirmed": return "bg-emerald-500";
     case "completed": return "bg-blue-400";
-    case "missed": return "bg-red-400";
+    case "missed":
+    case "cancelled_no_show": return "bg-red-400";
+    case "cancelled_with_notice": return "bg-orange-400";
+    case "rescheduled_by_patient":
+    case "rescheduled_by_psychologist": return "bg-sky-400";
     default: return "bg-primary";
   }
 };

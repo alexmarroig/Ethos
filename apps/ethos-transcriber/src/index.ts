@@ -1,3 +1,8 @@
+import { TranscriptionJob } from "@ethos/shared";
+import { respond, jobEmitter } from "./events";
+import { convertToWav, runFasterWhisper } from "./whisper";
+import * as fs from "fs";
+
 const processJob = async (job: TranscriptionJob & { audioPath: string }) => {
   respond({ type: "job_update", payload: { ...job, status: "running", progress: 0.1 } });
 
@@ -33,11 +38,11 @@ const processJob = async (job: TranscriptionJob & { audioPath: string }) => {
   } finally {
     // limpa wav temporário
     if (wavPath) {
-      await fs.unlink(wavPath).catch(() => {});
+      await fs.promises.unlink(wavPath).catch(() => {});
     }
 
     // limpa arquivo original
-    await fs.unlink(job.audioPath).catch(() => {});
+    await fs.promises.unlink(job.audioPath).catch(() => {});
 
     jobEmitter.emit("next");
   }

@@ -101,6 +101,13 @@ const AccountPage = () => {
     void loadTemplates();
   }, []);
 
+  const isProfileIncomplete = user?.role === "professional";
+  const hasCRP = user?.crp;
+  const hasSpecialty = user?.specialty;
+  const hasClinicalApproach = user?.clinical_approach;
+
+  const isProfileComplete = hasCRP && hasSpecialty && hasClinicalApproach;
+
   useEffect(() => {
     setProfile({
       name: user?.name ?? "",
@@ -439,7 +446,7 @@ const AccountPage = () => {
             ) : null}
           </div>
 
-          {!isCloudAuthenticated ? (
+{!isCloudAuthenticated ? (
             <p className="text-sm text-muted-foreground mb-4">
               Conecte-se ao plano cloud para gerenciar sua assinatura.
             </p>
@@ -741,4 +748,3 @@ const AccountPage = () => {
 };
 
 export default AccountPage;
-

@@ -1,5 +1,20 @@
 import { useEffect, useState } from "react";
 
+interface IEthosAPI {
+  transcription: {
+    onMessage: (callback: (msg: any) => void) => () => void;
+  };
+  crypto: {
+    decrypt: (data: string) => Promise<string>;
+  };
+}
+
+declare global {
+  interface Window {
+    ethos: IEthosAPI;
+  }
+}
+
 export function TranscriptionViewer() {
   const [jobs, setJobs] = useState<any[]>([]);
   const [texts, setTexts] = useState<Record<string, string>>({});

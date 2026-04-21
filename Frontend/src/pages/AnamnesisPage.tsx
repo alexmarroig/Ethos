@@ -47,7 +47,7 @@ const summarizeContent = (content: Record<string, string>) =>
     .map(([key, value]) => `${fieldLabels[key] ?? key}: ${value}`)
     .join(" • ");
 
-const AnamnesisPage = () => {
+const AnamnesisPage = ({ embedded = false }: { embedded?: boolean }) => {
   const { toast } = useToast();
   const { maskName } = usePrivacy();
   const [records, setRecords] = useState<Anamnesis[]>([]);
@@ -180,17 +180,17 @@ const AnamnesisPage = () => {
   }
 
   return (
-    <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12">
+    <div className={embedded ? "" : "min-h-screen"}>
+      <div className={embedded ? "" : "content-container py-8 md:py-12"}>
         <motion.header
           className="mb-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.5 }}
         >
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">
+          {!embedded && <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">
             Anamnese
-          </h1>
+          </h1>}
           <p className="mt-2 text-muted-foreground">
             Coleta inicial do caso com histórico pessoal, familiar e psiquiátrico.
           </p>

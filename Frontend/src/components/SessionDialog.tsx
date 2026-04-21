@@ -1,10 +1,11 @@
-import { useState, useEffect, useMemo } from "react";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -19,14 +20,11 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { sessionService, type RecurrenceRule } from "@/services/sessionService";
-import { Monitor, Building2 } from "lucide-react";
 
 interface Patient {
   id: string;
   name: string;
 }
-
-export type EventType = "session" | "block";
 
 interface SessionDialogProps {
   open: boolean;
@@ -34,10 +32,10 @@ interface SessionDialogProps {
   patients: Patient[];
   defaultDate?: string;
   defaultTime?: string;
-  defaultEventType?: EventType;
   onCreated: () => void;
 }
 
+type EventType = "session" | "task";
 type RecurrenceType = "weekly" | "2x-week" | "biweekly";
 type DayName = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 
@@ -52,10 +50,20 @@ const DAY_LABELS: Record<DayName, string> = {
 const ALL_DAYS: DayName[] = ["monday", "tuesday", "wednesday", "thursday", "friday"];
 
 function recurrenceSummary(type: RecurrenceType, days: DayName[], time: string): string {
-  const dayLabel = days.map((d) => DAY_LABELS[d]).join(" e ");
+  const dayLabel = days.map((day) => DAY_LABELS[day]).join(" e ");
   if (type === "weekly") return `Toda ${dayLabel} às ${time}`;
   if (type === "biweekly") return `A cada 2 semanas, ${dayLabel} às ${time}`;
   return `2× semana, ${dayLabel} às ${time}`;
+}
+
+function calculateEndTime(startTime: string, durationMinutes: number): string {
+  if (!startTime) return "";
+  const [hours, minutes] = startTime.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return "";
+  const totalMinutes = (hours * 60) + minutes + Math.max(durationMinutes || 0, 0);
+  const endHours = Math.floor((totalMinutes % (24 * 60)) / 60);
+  const endMinutes = totalMinutes % 60;
+  return `${String(endHours).padStart(2, "0")}:${String(endMinutes).padStart(2, "0")}`;
 }
 
 export function SessionDialog({
@@ -64,25 +72,25 @@ export function SessionDialog({
   patients,
   defaultDate,
   defaultTime,
-  defaultEventType = "session",
-  onCreated
+  onCreated,
 }: SessionDialogProps) {
-  const [eventType, setEventType] = useState<EventType>(defaultEventType);
+  const [eventType, setEventType] = useState<EventType>("session");
   const [patientId, setPatientId] = useState("");
   const [date, setDate] = useState(defaultDate ?? "");
   const [time, setTime] = useState(defaultTime ?? "");
   const [duration, setDuration] = useState(50);
-  const [locationType, setLocationType] = useState<"remote" | "presencial">("remote");
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("weekly");
   const [selectedDays, setSelectedDays] = useState<DayName[]>(["monday"]);
-  const [blockTitle, setBlockTitle] = useState("");
+  const [taskTitle, setTaskTitle] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const endTime = calculateEndTime(time, duration);
+
   const toggleDay = (day: DayName) => {
     setSelectedDays((prev) =>
-      prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day],
+      prev.includes(day) ? prev.filter((value) => value !== day) : [...prev, day],
     );
   };
 
@@ -90,36 +98,43 @@ export function SessionDialog({
     if (open) {
       setDate(defaultDate ?? "");
       setTime(defaultTime ?? "");
-      setEventType(defaultEventType || "session");
+      setDuration(50);
+      setEventType("session");
+      setPatientId("");
+      setRecurring(false);
+      setSelectedDays(["monday"]);
+      setTaskTitle("");
       setError(null);
     }
-  }, [open, defaultDate, defaultTime, defaultEventType]);
-
-  const endTime = useMemo(() => {
-    if (!time || !duration) return "";
-    try {
-      const [hours, minutes] = time.split(":").map(Number);
-      const dateObj = new Date();
-      dateObj.setHours(hours, minutes, 0, 0);
-      const end = new Date(dateObj.getTime() + duration * 60000);
-      return end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
-    } catch {
-      return "";
-    }
-  }, [time, duration]);
+  }, [open, defaultDate, defaultTime]);
 
   const handleSubmit = async () => {
     setError(null);
-    if (!date || !time) { setError("Data e horário são obrigatórios"); return; }
-    if (eventType === "session" && !patientId) { setError("Selecione um paciente"); return; }
-    if (eventType === "block" && !blockTitle.trim()) { setError("Título é obrigatório"); return; }
+
+    if (!date || !time) {
+      setError("Data e horário são obrigatórios.");
+      return;
+    }
+    if (eventType === "session" && !patientId) {
+      setError("Selecione um paciente.");
+      return;
+    }
+    if (eventType === "task" && !taskTitle.trim()) {
+      setError("Informe o título da tarefa.");
+      return;
+    }
 
     const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
 
     let recurrence: RecurrenceRule | undefined;
     if (eventType === "session" && recurring) {
       const activeDays = recurrenceType === "2x-week" ? selectedDays.slice(0, 2) : [selectedDays[0]];
-      recurrence = { type: recurrenceType, days: activeDays, time, duration_minutes: duration };
+      recurrence = {
+        type: recurrenceType,
+        days: activeDays,
+        time,
+        duration_minutes: duration,
+      };
     }
 
     setLoading(true);
@@ -129,167 +144,176 @@ export function SessionDialog({
         scheduled_at: scheduledAt,
         duration_minutes: duration,
         recurrence,
-        event_type: eventType,
-        block_title: eventType === "block" ? blockTitle.trim() : undefined,
-        location_type: eventType === "session" ? locationType : undefined,
+        event_type: eventType === "session" ? "session" : "other",
+        block_title: eventType === "task" ? taskTitle.trim() : undefined,
       });
-      if (!result.success) { setError("Erro ao criar. Tente novamente."); return; }
+
+      if (!result.success) {
+        setError("Erro ao criar a entrada. Tente novamente.");
+        return;
+      }
+
       onCreated();
       onOpenChange(false);
-      setPatientId(""); setDate(defaultDate ?? ""); setTime(defaultTime ?? "");
-      setRecurring(false); setBlockTitle(""); setEventType("session");
     } finally {
       setLoading(false);
     }
   };
 
   const submitLabel =
-    eventType === "block" ? "Salvar tarefa" :
-    recurring ? "Iniciar série recorrente" : "Agendar sessão";
+    eventType === "task"
+      ? "Salvar tarefa"
+      : recurring
+        ? "Iniciar série recorrente"
+        : "Agendar sessão";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-lg">
+      <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>{eventType === "session" ? "Agendar Sessão" : "Adicionar Tarefa"}</DialogTitle>
+          <DialogTitle>Nova entrada na agenda</DialogTitle>
+          <DialogDescription>
+            Agende uma sessão terapêutica ou reserve um horário para uma tarefa da sua rotina.
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          {eventType === "session" && (
+          <div className="grid grid-cols-2 gap-2">
+            {(["session", "task"] as EventType[]).map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setEventType(type)}
+                className={cn(
+                  "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                  eventType === type
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground hover:border-foreground",
+                )}
+              >
+                {type === "session" ? "🧠 Sessão" : "🗂️ Tarefa"}
+              </button>
+            ))}
+          </div>
+
+          {eventType === "session" ? (
             <div className="space-y-1.5">
               <Label>Paciente</Label>
               <Select value={patientId} onValueChange={setPatientId}>
-                <SelectTrigger><SelectValue placeholder="Selecionar paciente..." /></SelectTrigger>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecionar paciente..." />
+                </SelectTrigger>
                 <SelectContent>
-                  {patients.map((p) => (
-                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  {patients.map((patient) => (
+                    <SelectItem key={patient.id} value={patient.id}>
+                      {patient.name}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-          )}
-
-          {eventType === "block" && (
+          ) : (
             <div className="space-y-1.5">
-              <Label>Título da Tarefa</Label>
-              <Input value={blockTitle} onChange={(e) => setBlockTitle(e.target.value)} placeholder="Ex: Academia, Estudar, Almoço..." />
+              <Label>Título da tarefa</Label>
+              <Input
+                value={taskTitle}
+                onChange={(event) => setTaskTitle(event.target.value)}
+                placeholder="Ex.: Estudar, supervisão, almoço, reunião..."
+              />
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div className="grid gap-3 sm:grid-cols-[1fr_130px_130px_130px]">
             <div className="space-y-1.5">
               <Label>Data</Label>
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <Input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
             </div>
             <div className="space-y-1.5">
-              <Label>Horário de Início</Label>
-              <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
+              <Label>Horário inicial</Label>
+              <Input type="time" value={time} onChange={(event) => setTime(event.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label>Duração (min)</Label>
-              <div className="relative">
-                <Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={15} step={5} />
-                {endTime && (
-                  <span className="absolute -bottom-5 right-0 text-[10px] text-muted-foreground whitespace-nowrap">
-                    Finaliza às {endTime}
-                  </span>
-                )}
-              </div>
+              <Input
+                type="number"
+                value={duration}
+                onChange={(event) => setDuration(Number(event.target.value))}
+                min={15}
+                step={5}
+              />
             </div>
-          </div>
-
-          {eventType === "session" && (
             <div className="space-y-1.5">
-              <Label>Tipo de Sessão</Label>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLocationType("remote")}
-                  className={cn(
-                    "flex flex-1 items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
-                    locationType === "remote"
-                      ? "bg-primary/10 border-primary text-primary"
-                      : "bg-background border-border hover:border-foreground"
-                  )}
-                >
-                  <Monitor className="h-4 w-4" />
-                  Remoto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLocationType("presencial")}
-                  className={cn(
-                    "flex flex-1 items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
-                    locationType === "presencial"
-                      ? "bg-primary/10 border-primary text-primary"
-                      : "bg-background border-border hover:border-foreground"
-                  )}
-                >
-                  <Building2 className="h-4 w-4" />
-                  Presencial
-                </button>
-              </div>
+              <Label>Horário final</Label>
+              <Input value={endTime} readOnly disabled className="opacity-80" />
             </div>
-          )}
-
-          <div className={cn("flex items-center justify-between rounded-lg border p-3", eventType !== "session" && "mt-4")}>
-            <div>
-              <p className="text-sm font-medium">Repetir semanalmente</p>
-              <p className="text-xs text-muted-foreground">Próxima gerada automaticamente</p>
-            </div>
-            <Switch checked={recurring} onCheckedChange={setRecurring} />
           </div>
 
-          {recurring && (
-            <div className="space-y-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-2">
-              <div className="flex gap-2">
-                {(["weekly", "2x-week", "biweekly"] as RecurrenceType[]).map((rt) => (
-                  <button
-                    key={rt}
-                    onClick={() => setRecurrenceType(rt)}
-                    className={cn(
-                      "flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
-                      recurrenceType === rt
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-muted-foreground border-border hover:border-foreground",
-                    )}
-                  >
-                    {rt === "weekly" ? "Semanal" : rt === "2x-week" ? "2× semana" : "Quinzenal"}
-                  </button>
-                ))}
+          {eventType === "session" ? (
+            <>
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div>
+                  <p className="text-sm font-medium">Sessão recorrente</p>
+                  <p className="text-xs text-muted-foreground">Próxima sessão gerada automaticamente</p>
+                </div>
+                <Switch checked={recurring} onCheckedChange={setRecurring} />
               </div>
 
-              <div className="flex gap-1.5">
-                {ALL_DAYS.map((day) => (
-                  <button
-                    key={day}
-                    onClick={() => recurrenceType === "2x-week" ? toggleDay(day) : setSelectedDays([day])}
-                    className={cn(
-                      "flex-1 rounded-md border py-1 text-xs font-medium transition-colors",
-                      selectedDays.includes(day)
-                        ? "bg-primary text-primary-foreground border-primary"
-                        : "bg-background text-muted-foreground border-border hover:border-foreground",
-                    )}
-                  >
-                    {DAY_LABELS[day]}
-                  </button>
-                ))}
-              </div>
+              {recurring ? (
+                <div className="space-y-3 rounded-lg border p-3">
+                  <div className="flex gap-2">
+                    {(["weekly", "2x-week", "biweekly"] as RecurrenceType[]).map((type) => (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => setRecurrenceType(type)}
+                        className={cn(
+                          "flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-colors",
+                          recurrenceType === type
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground hover:border-foreground",
+                        )}
+                      >
+                        {type === "weekly" ? "Semanal" : type === "2x-week" ? "2× semana" : "Quinzenal"}
+                      </button>
+                    ))}
+                  </div>
 
-              {selectedDays.length > 0 && time && (
-                <p className="text-xs text-muted-foreground">
-                  {recurrenceSummary(recurrenceType, selectedDays, time)}
-                </p>
-              )}
-            </div>
-          )}
+                  <div className="flex gap-1.5">
+                    {ALL_DAYS.map((day) => (
+                      <button
+                        key={day}
+                        type="button"
+                        onClick={() => (recurrenceType === "2x-week" ? toggleDay(day) : setSelectedDays([day]))}
+                        className={cn(
+                          "flex-1 rounded-md border py-1 text-xs font-medium transition-colors",
+                          selectedDays.includes(day)
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "border-border bg-background text-muted-foreground hover:border-foreground",
+                        )}
+                      >
+                        {DAY_LABELS[day]}
+                      </button>
+                    ))}
+                  </div>
 
-          {error && <p className="text-sm text-destructive">{error}</p>}
+                  {selectedDays.length > 0 && time ? (
+                    <p className="text-xs text-muted-foreground">
+                      {recurrenceSummary(recurrenceType, selectedDays, time)}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </>
+          ) : null}
+
+          {error ? <p className="text-sm text-destructive">{error}</p> : null}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={loading} className="px-8">
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancelar
+          </Button>
+          <Button onClick={handleSubmit} disabled={loading}>
             {loading ? "Salvando..." : submitLabel}
           </Button>
         </DialogFooter>

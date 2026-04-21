@@ -15,7 +15,7 @@ const isElectronRenderer =
   typeof (window as any).process === "object" &&
   (window as any).process?.type === "renderer";
 
-if (!isElectronRenderer && import.meta.env.PROD && "serviceWorker" in navigator) {
+if (!isElectronRenderer && (typeof import !== "undefined" && import.meta && import.meta.env && import.meta.env.PROD) && "serviceWorker" in navigator) {
   window.addEventListener("load", () => {
     navigator.serviceWorker.register("/service-worker.js").catch(() => {
       // opcional: console.warn("SW registration failed", err);
