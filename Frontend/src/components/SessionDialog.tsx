@@ -18,6 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Monitor, Building2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sessionService, type RecurrenceRule } from "@/services/sessionService";
 
@@ -32,6 +33,7 @@ interface SessionDialogProps {
   patients: Patient[];
   defaultDate?: string;
   defaultTime?: string;
+  defaultEventType?: EventType;
   onCreated: () => void;
 }
 
@@ -72,13 +74,15 @@ export function SessionDialog({
   patients,
   defaultDate,
   defaultTime,
+  defaultEventType,
   onCreated,
 }: SessionDialogProps) {
-  const [eventType, setEventType] = useState<EventType>("session");
+  const [eventType, setEventType] = useState<EventType>(defaultEventType ?? "session");
   const [patientId, setPatientId] = useState("");
   const [date, setDate] = useState(defaultDate ?? "");
   const [time, setTime] = useState(defaultTime ?? "");
   const [duration, setDuration] = useState(50);
+  const [locationType, setLocationType] = useState<"remote" | "presencial">("remote");
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("weekly");
   const [selectedDays, setSelectedDays] = useState<DayName[]>(["monday"]);
@@ -99,14 +103,15 @@ export function SessionDialog({
       setDate(defaultDate ?? "");
       setTime(defaultTime ?? "");
       setDuration(50);
-      setEventType("session");
+      setEventType(defaultEventType ?? "session");
       setPatientId("");
+      setLocationType("remote");
       setRecurring(false);
       setSelectedDays(["monday"]);
       setTaskTitle("");
       setError(null);
     }
-  }, [open, defaultDate, defaultTime]);
+  }, [open, defaultDate, defaultTime, defaultEventType]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -146,6 +151,7 @@ export function SessionDialog({
         recurrence,
         event_type: eventType === "session" ? "session" : "other",
         block_title: eventType === "task" ? taskTitle.trim() : undefined,
+        location_type: eventType === "session" ? locationType : undefined,
       });
 
       if (!result.success) {
@@ -197,20 +203,54 @@ export function SessionDialog({
           </div>
 
           {eventType === "session" ? (
-            <div className="space-y-1.5">
-              <Label>Paciente</Label>
-              <Select value={patientId} onValueChange={setPatientId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar paciente..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients.map((patient) => (
-                    <SelectItem key={patient.id} value={patient.id}>
-                      {patient.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label>Paciente</Label>
+                <Select value={patientId} onValueChange={setPatientId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecionar paciente..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {patients.map((patient) => (
+                      <SelectItem key={patient.id} value={patient.id}>
+                        {patient.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Modalidade</Label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setLocationType("remote")}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                      locationType === "remote"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-foreground",
+                    )}
+                  >
+                    <Monitor className="h-4 w-4" />
+                    Remoto
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setLocationType("presencial")}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                      locationType === "presencial"
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-background text-muted-foreground hover:border-foreground",
+                    )}
+                  >
+                    <Building2 className="h-4 w-4" />
+                    Presencial
+                  </button>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="space-y-1.5">

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { Ban, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2, CalendarPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
-  const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'block' }>({});
+  const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'task' }>({});
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -506,11 +506,11 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                   Agendar sessão
                 </Button>
                 <Button variant="outline" className="gap-2" onClick={() => {
-                  setSessionDialogDefaults({ eventType: 'block' });
+                  setSessionDialogDefaults({ eventType: 'task' });
                   setSessionDialogOpen(true);
                 }}>
                   <CalendarPlus className="w-4 h-4" strokeWidth={1.5} />
-                  Outra tarefa
+                  Agendar tarefas
                 </Button>
               </div>
             </div>
@@ -846,7 +846,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       patients={patients}
       defaultDate={sessionDialogDefaults.date}
       defaultTime={sessionDialogDefaults.time}
-      defaultEventType={sessionDialogDefaults.eventType}
+      defaultEventType={sessionDialogDefaults.eventType as 'session' | 'task' | undefined}
       onCreated={async () => {
         const result = await sessionService.list(weekWindow);
         if (result.success) {

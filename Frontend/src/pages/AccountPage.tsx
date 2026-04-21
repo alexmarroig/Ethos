@@ -101,13 +101,6 @@ const AccountPage = () => {
     void loadTemplates();
   }, []);
 
-  const isProfileIncomplete = user?.role === "professional";
-  const hasCRP = user?.crp;
-  const hasSpecialty = user?.specialty;
-  const hasClinicalApproach = user?.clinical_approach;
-
-  const isProfileComplete = hasCRP && hasSpecialty && hasClinicalApproach;
-
   useEffect(() => {
     setProfile({
       name: user?.name ?? "",

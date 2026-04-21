@@ -1,4 +1,4 @@
-import { api, type ApiResult, ok } from "./apiClient";
+import { api, type ApiResult } from "./apiClient";
 
 export type ClinicalSynthesis = {
   id: string;
@@ -10,6 +10,17 @@ export type ClinicalSynthesis = {
   version: number;
   is_stale?: boolean;
 };
+
+function ok<TInput, TOutput>(
+  result: ApiResult<TInput>,
+  mapper: (value: TInput) => TOutput,
+): ApiResult<TOutput> {
+  if (!result.success) return result;
+  return {
+    ...result,
+    data: mapper(result.data),
+  };
+}
 
 export const clinicalSynthesisService = {
   get: async (patientId: string): Promise<ApiResult<ClinicalSynthesis | null>> => {

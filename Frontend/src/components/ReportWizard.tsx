@@ -551,9 +551,7 @@ export function ReportWizard({ open, onOpenChange, patients, initialPatientId, e
                     onClick={() => {
                       setState((prev) => ({
                         ...prev,
-                        sourceText: synthesis.content + "
-
-" + prev.sourceText
+                        sourceText: `${synthesis.content}\n\n${prev.sourceText}`,
                       }));
                       toast({ title: "Síntese importada", description: "O estado clínico atual foi adicionado como base para o relatório." });
                     }}
