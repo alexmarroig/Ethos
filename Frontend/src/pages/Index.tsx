@@ -1,6 +1,7 @@
 import { Suspense, useEffect, useState, lazy } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
+import LogoRevealSplash from "@/components/LogoRevealSplash";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
 import RoleGate from "@/components/RoleGate";
@@ -59,6 +60,7 @@ function PageFallback() {
 
 const Index = () => {
   const [showSplash, setShowSplash] = useState(true);
+  const [showLogoReveal, setShowLogoReveal] = useState(false);
   const [showLogin, setShowLogin] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
@@ -68,13 +70,18 @@ const Index = () => {
 
   const handleSplashComplete = () => {
     setShowSplash(false);
+    setShowLogoReveal(true);
+  };
+
+  const handleLogoRevealComplete = () => {
+    setShowLogoReveal(false);
   };
 
   useEffect(() => {
-    if (!showSplash && !isAuthenticated && !isLoading) {
+    if (!showSplash && !showLogoReveal && !isAuthenticated && !isLoading) {
       setShowLogin(true);
     }
-  }, [showSplash, isAuthenticated, isLoading]);
+  }, [showSplash, showLogoReveal, isAuthenticated, isLoading]);
 
   const handleLoginSuccess = () => {
     setShowLogin(false);
@@ -255,9 +262,10 @@ const Index = () => {
   return (
     <>
       <AnimatePresence>{showSplash && <SplashScreen onComplete={handleSplashComplete} />}</AnimatePresence>
+      <AnimatePresence>{!showSplash && showLogoReveal && <LogoRevealSplash onComplete={handleLogoRevealComplete} />}</AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && showLogin && !isAuthenticated && (
+        {!showSplash && !showLogoReveal && showLogin && !isAuthenticated && (
           <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
             <LoginPage onLoginSuccess={handleLoginSuccess} />
           </motion.div>
@@ -265,7 +273,7 @@ const Index = () => {
       </AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && !showLogin && isAuthenticated && (
+        {!showSplash && !showLogoReveal && !showLogin && isAuthenticated && (
           <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}>
             <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
             <main className={cn("pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0", !isMobile && "md:pl-64")}>
