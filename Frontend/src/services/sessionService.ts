@@ -39,6 +39,7 @@ type RawSession = {
   is_series_anchor?: boolean;
   event_type?: "session" | "block" | "other";
   block_title?: string;
+  location_type?: "remote" | "presencial";
 };
 
 type RawPaginatedSessions = {
@@ -68,6 +69,7 @@ export interface Session {
   is_series_anchor?: boolean;
   event_type?: "session" | "block" | "other";
   block_title?: string;
+  location_type?: "remote" | "presencial";
 }
 
 export interface SessionTranscript {
@@ -130,7 +132,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
     id: String(raw.id),
     patient_id: raw.patient_id,
     patient_name: (raw.event_type === "block" || raw.patient_id?.startsWith("block-"))
-      ? (raw.block_title ?? "Bloqueio")
+      ? (raw.block_title ?? "Tarefa")
       : (raw.patient_name ?? patient?.name ?? "Paciente"),
     patient_total_sessions: patient?.total_sessions,
     date,
@@ -148,6 +150,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
     is_series_anchor: raw.is_series_anchor,
     event_type: raw.event_type ?? (raw.patient_id?.startsWith("block-") ? "block" : "session"),
     block_title: raw.block_title,
+    location_type: raw.location_type,
   };
 }
 
@@ -211,6 +214,7 @@ export const sessionService = {
     recurrence?: RecurrenceRule;
     event_type?: "session" | "block" | "other";
     block_title?: string;
+    location_type?: "remote" | "presencial";
   }): Promise<ApiResult<Session>> => {
     const [createResult, patients] = await Promise.all([
       api.post<RawSession>("/sessions", data),
@@ -242,7 +246,12 @@ export const sessionService = {
 
   update: async (
     id: string,
-    data: Partial<{ patient_id: string; scheduled_at: string; duration_minutes?: number }>
+    data: Partial<{
+      patient_id: string;
+      scheduled_at: string;
+      duration_minutes?: number;
+      location_type?: "remote" | "presencial"
+    }>
   ): Promise<ApiResult<Session>> => {
     const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}`, data),
@@ -268,7 +277,11 @@ export const sessionService = {
     return api.delete<{ cancelled: number }>(`/sessions/series/${seriesId}`);
   },
 
-  updateSeries: async (seriesId: string, data: { time?: string; duration_minutes?: number }): Promise<ApiResult<{ updated: number }>> => {
+  updateSeries: async (seriesId: string, data: {
+    time?: string;
+    duration_minutes?: number;
+    location_type?: "remote" | "presencial"
+  }): Promise<ApiResult<{ updated: number }>> => {
     return api.patch<{ updated: number }>(`/sessions/series/${seriesId}`, data);
   },
   
