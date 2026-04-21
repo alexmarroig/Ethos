@@ -42,6 +42,7 @@ const readAvatarDataUrl = (file: File) =>
 
 const AccountPage = () => {
   const { user, isCloudAuthenticated, updateProfile } = useAuth();
+  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
   const { subscription, fetchSubscription } = useEntitlements();
   const { toast } = useToast();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
@@ -109,7 +110,6 @@ const AccountPage = () => {
       rg: user?.rg ?? "",
       cpf: user?.cpf ?? "",
       gender: user?.gender ?? ("" as "F" | "M" | ""),
-  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
       specialty: user?.specialty ?? "",
       clinical_approach: user?.clinical_approach ?? "",
     });

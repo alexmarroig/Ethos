@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import {
   Dialog,
   DialogContent,
@@ -19,11 +19,14 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { sessionService, type RecurrenceRule } from "@/services/sessionService";
+import { Monitor, Building2 } from "lucide-react";
 
 interface Patient {
   id: string;
   name: string;
 }
+
+export type EventType = "session" | "block";
 
 interface SessionDialogProps {
   open: boolean;
@@ -31,10 +34,10 @@ interface SessionDialogProps {
   patients: Patient[];
   defaultDate?: string;
   defaultTime?: string;
+  defaultEventType?: EventType;
   onCreated: () => void;
 }
 
-type EventType = "session" | "block" | "other";
 type RecurrenceType = "weekly" | "2x-week" | "biweekly";
 type DayName = "monday" | "tuesday" | "wednesday" | "thursday" | "friday";
 
@@ -55,12 +58,21 @@ function recurrenceSummary(type: RecurrenceType, days: DayName[], time: string):
   return `2× semana, ${dayLabel} às ${time}`;
 }
 
-export function SessionDialog({ open, onOpenChange, patients, defaultDate, defaultTime, onCreated }: SessionDialogProps) {
-  const [eventType, setEventType] = useState<EventType>("session");
+export function SessionDialog({
+  open,
+  onOpenChange,
+  patients,
+  defaultDate,
+  defaultTime,
+  defaultEventType = "session",
+  onCreated
+}: SessionDialogProps) {
+  const [eventType, setEventType] = useState<EventType>(defaultEventType);
   const [patientId, setPatientId] = useState("");
   const [date, setDate] = useState(defaultDate ?? "");
   const [time, setTime] = useState(defaultTime ?? "");
   const [duration, setDuration] = useState(50);
+  const [locationType, setLocationType] = useState<"remote" | "presencial">("remote");
   const [recurring, setRecurring] = useState(false);
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("weekly");
   const [selectedDays, setSelectedDays] = useState<DayName[]>(["monday"]);
@@ -78,16 +90,29 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
     if (open) {
       setDate(defaultDate ?? "");
       setTime(defaultTime ?? "");
-      setEventType("session");
+      setEventType(defaultEventType || "session");
       setError(null);
     }
-  }, [open, defaultDate, defaultTime]);
+  }, [open, defaultDate, defaultTime, defaultEventType]);
+
+  const endTime = useMemo(() => {
+    if (!time || !duration) return "";
+    try {
+      const [hours, minutes] = time.split(":").map(Number);
+      const dateObj = new Date();
+      dateObj.setHours(hours, minutes, 0, 0);
+      const end = new Date(dateObj.getTime() + duration * 60000);
+      return end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    } catch {
+      return "";
+    }
+  }, [time, duration]);
 
   const handleSubmit = async () => {
     setError(null);
     if (!date || !time) { setError("Data e horário são obrigatórios"); return; }
     if (eventType === "session" && !patientId) { setError("Selecione um paciente"); return; }
-    if (eventType === "block" && !blockTitle.trim()) { setError("Título do bloqueio é obrigatório"); return; }
+    if (eventType === "block" && !blockTitle.trim()) { setError("Título é obrigatório"); return; }
 
     const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
 
@@ -106,6 +131,7 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
         recurrence,
         event_type: eventType,
         block_title: eventType === "block" ? blockTitle.trim() : undefined,
+        location_type: eventType === "session" ? locationType : undefined,
       });
       if (!result.success) { setError("Erro ao criar. Tente novamente."); return; }
       onCreated();
@@ -118,34 +144,17 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
   };
 
   const submitLabel =
-    eventType === "block" ? "Salvar bloqueio" :
+    eventType === "block" ? "Salvar tarefa" :
     recurring ? "Iniciar série recorrente" : "Agendar sessão";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Nova entrada na agenda</DialogTitle>
+          <DialogTitle>{eventType === "session" ? "Agendar Sessão" : "Adicionar Tarefa"}</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="flex gap-2">
-            {(["session", "block", "other"] as EventType[]).map((t) => (
-              <button
-                key={t}
-                onClick={() => setEventType(t)}
-                className={cn(
-                  "flex-1 rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                  eventType === t
-                    ? "bg-primary text-primary-foreground border-primary"
-                    : "bg-background text-muted-foreground border-border hover:border-foreground",
-                )}
-              >
-                {t === "session" ? "🧠 Sessão" : t === "block" ? "⊘ Bloqueio" : "📋 Outro"}
-              </button>
-            ))}
-          </div>
-
           {eventType === "session" && (
             <div className="space-y-1.5">
               <Label>Paciente</Label>
@@ -162,38 +171,77 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
 
           {eventType === "block" && (
             <div className="space-y-1.5">
-              <Label>Título</Label>
-              <Input value={blockTitle} onChange={(e) => setBlockTitle(e.target.value)} placeholder="Ex: Almoço, Reunião..." />
+              <Label>Título da Tarefa</Label>
+              <Input value={blockTitle} onChange={(e) => setBlockTitle(e.target.value)} placeholder="Ex: Academia, Estudar, Almoço..." />
             </div>
           )}
 
-          <div className="flex gap-3">
-            <div className="flex-1 space-y-1.5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <div className="space-y-1.5">
               <Label>Data</Label>
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
-            <div className="w-28 space-y-1.5">
-              <Label>Horário</Label>
+            <div className="space-y-1.5">
+              <Label>Horário de Início</Label>
               <Input type="time" value={time} onChange={(e) => setTime(e.target.value)} />
             </div>
-            <div className="w-24 space-y-1.5">
+            <div className="space-y-1.5">
               <Label>Duração (min)</Label>
-              <Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={15} step={5} />
+              <div className="relative">
+                <Input type="number" value={duration} onChange={(e) => setDuration(Number(e.target.value))} min={15} step={5} />
+                {endTime && (
+                  <span className="absolute -bottom-5 right-0 text-[10px] text-muted-foreground whitespace-nowrap">
+                    Finaliza às {endTime}
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 
           {eventType === "session" && (
-            <div className="flex items-center justify-between rounded-lg border p-3">
-              <div>
-                <p className="text-sm font-medium">Sessão recorrente</p>
-                <p className="text-xs text-muted-foreground">Próxima gerada automaticamente</p>
+            <div className="space-y-1.5">
+              <Label>Tipo de Sessão</Label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLocationType("remote")}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
+                    locationType === "remote"
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-background border-border hover:border-foreground"
+                  )}
+                >
+                  <Monitor className="h-4 w-4" />
+                  Remoto
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLocationType("presencial")}
+                  className={cn(
+                    "flex flex-1 items-center justify-center gap-2 rounded-md border p-3 text-sm font-medium transition-all",
+                    locationType === "presencial"
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "bg-background border-border hover:border-foreground"
+                  )}
+                >
+                  <Building2 className="h-4 w-4" />
+                  Presencial
+                </button>
               </div>
-              <Switch checked={recurring} onCheckedChange={setRecurring} />
             </div>
           )}
 
-          {eventType === "session" && recurring && (
-            <div className="space-y-3 rounded-lg border p-3">
+          <div className={cn("flex items-center justify-between rounded-lg border p-3", eventType !== "session" && "mt-4")}>
+            <div>
+              <p className="text-sm font-medium">Repetir semanalmente</p>
+              <p className="text-xs text-muted-foreground">Próxima gerada automaticamente</p>
+            </div>
+            <Switch checked={recurring} onCheckedChange={setRecurring} />
+          </div>
+
+          {recurring && (
+            <div className="space-y-3 rounded-lg border p-3 animate-in fade-in slide-in-from-top-2">
               <div className="flex gap-2">
                 {(["weekly", "2x-week", "biweekly"] as RecurrenceType[]).map((rt) => (
                   <button
@@ -241,7 +289,7 @@ export function SessionDialog({ open, onOpenChange, patients, defaultDate, defau
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancelar</Button>
-          <Button onClick={handleSubmit} disabled={loading}>
+          <Button onClick={handleSubmit} disabled={loading} className="px-8">
             {loading ? "Salvando..." : submitLabel}
           </Button>
         </DialogFooter>
