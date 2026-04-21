@@ -1880,8 +1880,8 @@ export default function PatientDetailPage({
                     <span className="text-amber-500 font-medium">Conteúdo desatualizado (novas notas disponíveis)</span>
                   )}
                 </div>
-                {synthesis?.last_updated && (
-                  <span>Última atualização: {new Date(synthesis.last_updated).toLocaleString('pt-BR')}</span>
+                {synthesis?.updated_at && (
+                  <span>Última atualização: {new Date(synthesis.updated_at).toLocaleString('pt-BR')}</span>
                 )}
               </div>
             </div>

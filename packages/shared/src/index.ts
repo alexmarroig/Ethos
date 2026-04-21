@@ -119,8 +119,3 @@
     onTranscriptionError: (handler: (message: string) => void) => () => void;
   }
 
-  declare global {
-    interface Window {
-      ethos: IEthosAPI;
-    }
-  }

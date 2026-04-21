@@ -876,7 +876,7 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && synthesisByPatientId) {
-        const body = await readJson(req).catch(() => ({}));
+        const body: any = await readJson(req).catch(() => ({}));
         const data = await refreshClinicalSynthesis(auth.user.id, synthesisByPatientId[1], {
           sessionsLimit: typeof body.sessionsLimit === "number" ? body.sessionsLimit : 5,
           force: body.force === true
@@ -885,7 +885,7 @@ export const createEthosBackend = () =>
       }
 
       if (method === "PATCH" && synthesisByPatientId) {
-        const body = await readJson(req);
+        const body: any = await readJson(req);
         if (typeof body.content !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "content string required");
         const data = updateClinicalSynthesis(auth.user.id, synthesisByPatientId[1], body.content);
         if (!data) return error(res, requestId, 404, "NOT_FOUND", "Synthesis not found");
