@@ -221,12 +221,6 @@ const createSessionForUser = (user: User) => {
   });
   user.last_seen_at = now();
 
-  const session = db.sessions.get(note.session_id);
-  if (session) {
-    refreshClinicalSynthesis(owner, session.patient_id).catch(err => {
-      console.error("Async synthesis refresh failed:", err);
-    });
-  }
   persistMutation();
 
   return { user: sanitizeAuthUser(user), token };
@@ -2111,7 +2105,7 @@ export const getClinicalSynthesis = (owner: string, patientId: string) => {
 
   const notes = listClinicalNotes(owner, { patientId });
   const latestNoteDate = notes[0]?.created_at;
-  const is_stale = latestNoteDate && synthesis.last_updated < latestNoteDate;
+  const is_stale = latestNoteDate && synthesis.updated_at < latestNoteDate;
 
   return { ...synthesis, is_stale };
 };
@@ -2130,7 +2124,7 @@ export const refreshClinicalSynthesis = async (owner: string, patientId: string,
   const sessionIds = sessions.map(s => s.id);
   const allNotes = listClinicalNotes(owner, { patientId });
   const relevantNotes = allNotes.filter(n => sessionIds.includes(n.session_id));
-  const reports = listPatientDocuments(owner, patientId).filter(d => d.kind === "session_report" || d.kind === "psychological_report").slice(0, 3) as unknown as ClinicalReport[];
+  const reports = listPatientDocuments(owner, patientId).filter(d =>  (d as any).kind === "session_report" ||  (d as any).kind === "psychological_report").slice(0, 3) as unknown as ClinicalReport[];
 
 
   let existing = Array.from(db.clinicalSyntheses.values()).find(
@@ -2156,7 +2150,6 @@ export const refreshClinicalSynthesis = async (owner: string, patientId: string,
   if (synthesis) {
     synthesis.content = content;
     synthesis.based_on_sessions = sessionIds;
-    synthesis.last_updated = now();
     synthesis.version += 1;
     synthesis.updated_at = now();
   } else {
@@ -2166,7 +2159,6 @@ export const refreshClinicalSynthesis = async (owner: string, patientId: string,
       patient_id: patientId,
       content,
       based_on_sessions: sessionIds,
-      last_updated: now(),
       version: 1,
       created_at: now(),
       updated_at: now(),
@@ -2185,7 +2177,6 @@ export const updateClinicalSynthesis = (owner: string, patientId: string, conten
   if (!synthesis) return null;
 
   synthesis.content = content;
-  synthesis.last_updated = now();
   synthesis.version += 1;
   synthesis.updated_at = now();
 

@@ -360,7 +360,7 @@ export type ClinicalSynthesis = Owned & {
   content: string;
   based_on_sessions: UUID[];
   date_range?: string;
-  last_updated: string;
+  updated_at: string;
   version: number;
 };
 export type ClinicalDocumentVersion = Owned & {

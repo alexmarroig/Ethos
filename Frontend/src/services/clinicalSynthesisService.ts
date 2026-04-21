@@ -6,7 +6,7 @@ export type ClinicalSynthesis = {
   content: string;
   based_on_sessions: string[];
   date_range?: string;
-  last_updated: string;
+  updated_at: string;
   version: number;
   is_stale?: boolean;
 };
