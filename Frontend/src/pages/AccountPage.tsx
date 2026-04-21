@@ -41,8 +41,8 @@ const readAvatarDataUrl = (file: File) =>
   });
 
 const AccountPage = () => {
-  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
   const { user, isCloudAuthenticated, updateProfile } = useAuth();
+  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
   const { subscription, fetchSubscription } = useEntitlements();
   const { toast } = useToast();
   const [loadingCheckout, setLoadingCheckout] = useState(false);
