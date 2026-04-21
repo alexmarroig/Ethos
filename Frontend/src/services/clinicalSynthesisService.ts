@@ -1,4 +1,4 @@
-import { api, type ApiResult, ok } from "./apiClient";
+import { api, type ApiResult } from "./apiClient";
 
 export type ClinicalSynthesis = {
   id: string;
@@ -14,16 +14,16 @@ export type ClinicalSynthesis = {
 export const clinicalSynthesisService = {
   get: async (patientId: string): Promise<ApiResult<ClinicalSynthesis | null>> => {
     const result = await api.get<ClinicalSynthesis | null>(`/patients/${patientId}/synthesis`);
-    return ok(result, (data) => data);
+    return result;
   },
 
   refresh: async (patientId: string, sessionsLimit = 5, force = false): Promise<ApiResult<ClinicalSynthesis>> => {
     const result = await api.post<ClinicalSynthesis>(`/patients/${patientId}/synthesis`, { sessionsLimit, force });
-    return ok(result, (data) => data);
+    return result;
   },
 
   update: async (patientId: string, content: string): Promise<ApiResult<ClinicalSynthesis>> => {
     const result = await api.patch<ClinicalSynthesis>(`/patients/${patientId}/synthesis`, { content });
-    return ok(result, (data) => data);
+    return result;
   },
 };

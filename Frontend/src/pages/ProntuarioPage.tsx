@@ -288,9 +288,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
               onClick={() => {
                 setContent(prev => ({
                   ...prev,
-                  evolucao: synthesis.content + "
-
-" + prev.evolucao
+                  evolucao: synthesis.content + "\n\n" + prev.evolucao
                 }));
                 toast({ title: "Síntese importada", description: "O histórico clínico consolidado foi adicionado à evolução." });
               }}

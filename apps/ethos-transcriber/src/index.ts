@@ -1,3 +1,13 @@
+import { TranscriptionJob } from "@ethos/shared";
+import { promises as fs } from "node:fs";
+import { EventEmitter } from "node:events";
+
+// These are provided by the transcriber runtime or defined elsewhere
+declare const jobEmitter: EventEmitter;
+declare function respond(msg: any): void;
+declare function convertToWav(audioPath: string): Promise<string>;
+declare function runFasterWhisper(job: TranscriptionJob, wavPath: string): Promise<any>;
+
 const processJob = async (job: TranscriptionJob & { audioPath: string }) => {
   respond({ type: "job_update", payload: { ...job, status: "running", progress: 0.1 } });
 

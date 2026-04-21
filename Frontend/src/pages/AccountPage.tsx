@@ -100,6 +100,8 @@ const AccountPage = () => {
     void loadTemplates();
   }, []);
 
+  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
+
   useEffect(() => {
     setProfile({
       name: user?.name ?? "",
@@ -109,7 +111,6 @@ const AccountPage = () => {
       rg: user?.rg ?? "",
       cpf: user?.cpf ?? "",
       gender: user?.gender ?? ("" as "F" | "M" | ""),
-  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
       specialty: user?.specialty ?? "",
       clinical_approach: user?.clinical_approach ?? "",
     });
