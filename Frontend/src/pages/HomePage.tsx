@@ -1,3 +1,4 @@
+import { cn } from "@/lib/utils";
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
@@ -16,6 +17,7 @@ import { usePrivacy } from "@/hooks/usePrivacy";
 interface HomePageProps {
   onSessionClick: (sessionId: string) => void;
   onNavigate: (page: string) => void;
+  onPatientClick?: (patientId: string) => void;
 }
 
 const formatCurrency = (value: number) =>
@@ -324,6 +326,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                 : "Nenhuma sessão agendada hoje"
             }
             icon={<Clock3 className="h-4 w-4" />}
+            onClick={() => onNavigate("agenda")}
           />
           <SummaryCard
             title="Próximas sessões"
@@ -334,6 +337,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                 : "Sem novas sessões no mês"
             }
             icon={<CalendarPlus className="h-4 w-4" />}
+            onClick={() => onNavigate("agenda")}
           />
           <SummaryCard
             title="Pagamentos pendentes"
@@ -344,6 +348,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                 : "Nenhum atraso financeiro"
             }
             icon={<AlertCircle className="h-4 w-4" />}
+            onClick={() => onNavigate("finance")}
           />
           <SummaryCard
             title="Aniversariantes do mês"
@@ -354,6 +359,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                 : "Sem aniversários neste mês"
             }
             icon={<Gift className="h-4 w-4" />}
+            onClick={() => onNavigate("patients")}
           />
         </section>
 
@@ -406,7 +412,8 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                     session.event_type === "block" ? (
                       <div
                         key={session.id}
-                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5"
+                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => onNavigate("agenda")}
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
@@ -449,7 +456,8 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                     session.event_type === "block" ? (
                       <div
                         key={session.id}
-                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5"
+                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => onNavigate("agenda")}
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
                         <div className="min-w-0 flex-1">
@@ -520,6 +528,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                       title={maskName(entry.patient_name) || "Paciente"}
                       subtitle={`Vence em ${formatDateLabel(entry.due_date)}`}
                       meta={formatCurrency(entry.amount)}
+                      onClick={() => onNavigate("finance")}
                     />
                   ))}
                 </div>
@@ -542,6 +551,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                       subtitle={`Vencimento ${formatDateLabel(entry.due_date)}`}
                       meta={formatCurrency(entry.amount)}
                       tone="warning"
+                      onClick={() => onNavigate("finance")}
                     />
                   ))}
                 </div>
@@ -567,6 +577,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                       meta={getBirthdayDistanceLabel(patient.birth_date)}
                       badge={getBirthdayBadge(patient.birth_date)}
                       stackedMeta
+                      onClick={() => onPatientClick?.(patient.id)}
                     />
                   ))}
                 </div>
