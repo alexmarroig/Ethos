@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Edit, FileCheck, Download, FileText, File, Loader2, MessageSquare, Send } from "lucide-react";
+import { ArrowLeft, Brain, Edit, FileCheck, Download, FileText, File, Loader2, MessageSquare, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -13,6 +13,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
+import { sessionService } from "@/services/sessionService";
+import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
 import { clinicalNoteService, ClinicalNote } from "@/services/clinicalNoteService";
 import { buildClinicalNoteExportHtml, downloadWordFromHtml, openDataUrlInNewTab, exportService } from "@/services/exportService";
 import { privateCommentsApi } from "@/api/clinical";
@@ -43,6 +45,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
   const [saving, setSaving] = useState(false);
   const [showSaved, setShowSaved] = useState(false);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
+  const [synthesis, setSynthesis] = useState<ClinicalSynthesis | null>(null);
   const [content, setContent] = useState<ProntuarioContent>({
     queixa_principal: "",
     observacoes_clinicas: "",
@@ -65,6 +68,12 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
       }
 
       const notes = res.data;
+      const sessionRes = await sessionService.getById(sessionId);
+      if (sessionRes.success) {
+        clinicalSynthesisService.get(sessionRes.data.patient_id).then(r => {
+          if (r.success) setSynthesis(r.data);
+        });
+      }
       if (notes.length > 0) {
         const latest = notes[notes.length - 1];
         setNoteId(latest.id);
@@ -271,6 +280,25 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
           initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
         >
           <div className="content-container flex flex-wrap gap-3">
+          {synthesis && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 border-primary/20 hover:bg-primary/5"
+              onClick={() => {
+                setContent(prev => ({
+                  ...prev,
+                  evolucao: synthesis.content + "
+
+" + prev.evolucao
+                }));
+                toast({ title: "Síntese importada", description: "O histórico clínico consolidado foi adicionado à evolução." });
+              }}
+            >
+              <Brain className="w-4 h-4 text-primary" strokeWidth={1.5} />
+              Importar Síntese Clínica
+            </Button>
+          )}
             {status === "draft" ? (
               <>
                 {isEditing && (

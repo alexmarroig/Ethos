@@ -38,7 +38,7 @@ import {
   requestPasswordReset,
   resetPasswordWithToken,
   updatePatient,
-  createReport,
+  createReport, getClinicalSynthesis, refreshClinicalSynthesis, updateClinicalSynthesis,
   getReport,
   createScaleRecord,
   createSession,
@@ -854,6 +854,30 @@ export const createEthosBackend = () =>
             name: body.name.trim(),
           }),
         );
+      }
+
+
+      const synthesisByPatientId = url.pathname.match(/^\/patients\/([^/]+)\/synthesis$/);
+      if (method === "GET" && synthesisByPatientId) {
+        const data = getClinicalSynthesis(auth.user.id, synthesisByPatientId[1]);
+        return ok(res, requestId, 200, data);
+      }
+
+      if (method === "POST" && synthesisByPatientId) {
+        const body = await readJson(req).catch(() => ({}));
+        const data = await refreshClinicalSynthesis(auth.user.id, synthesisByPatientId[1], {
+          sessionsLimit: typeof body.sessionsLimit === "number" ? body.sessionsLimit : 5,
+          force: body.force === true
+        });
+        return ok(res, requestId, 200, data);
+      }
+
+      if (method === "PATCH" && synthesisByPatientId) {
+        const body = await readJson(req);
+        if (typeof body.content !== "string") return error(res, requestId, 422, "VALIDATION_ERROR", "content string required");
+        const data = updateClinicalSynthesis(auth.user.id, synthesisByPatientId[1], body.content);
+        if (!data) return error(res, requestId, 404, "NOT_FOUND", "Synthesis not found");
+        return ok(res, requestId, 200, data);
       }
 
       const patientById = url.pathname.match(/^\/patients\/([^/]+)$/);
