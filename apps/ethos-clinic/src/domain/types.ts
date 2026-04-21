@@ -2,7 +2,15 @@
 
 export type Role = "admin" | "user" | "assistente" | "supervisor" | "patient";
 export type UserStatus = "invited" | "active" | "disabled";
-export type SessionStatus = "scheduled" | "confirmed" | "missed" | "completed";
+export type SessionStatus =
+  | "scheduled"
+  | "confirmed"
+  | "missed"
+  | "completed"
+  | "cancelled_with_notice"
+  | "cancelled_no_show"
+  | "rescheduled_by_patient"
+  | "rescheduled_by_psychologist";
 export type ClinicalNoteStatus = "draft" | "validated";
 
 export type ClinicalNoteStructuredData = {
@@ -320,6 +328,22 @@ export type EmotionalDiaryEntry = Owned & {
 export type PatientAsyncMessage = Owned & {
   patient_id: string;
   message: string;
+};
+
+export type DreamDiaryEntry = Owned & {
+  patient_id: string;
+  dream_date: string;           // data que o sonho ocorreu (YYYY-MM-DD)
+  title?: string;               // título/resumo curto opcional
+  narrative: string;            // narrativa do sonho
+  emotions: string[];           // emoções durante o sonho
+  emotional_intensity: 1 | 2 | 3 | 4 | 5;
+  physical_sensations?: string; // sensações físicas percebidas
+  characters?: string;          // personagens/figuras presentes
+  setting?: string;             // ambiente/cenário
+  patient_interpretation?: string; // interpretação do próprio paciente
+  associations?: string;        // "isso me lembrou de..."
+  is_recurring: boolean;        // sonho recorrente?
+  wake_state: "tranquilo" | "agitado" | "confuso" | "assustado" | "neutro";
 };
 
 export type SupportedScaleType = "PHQ-9" | "GAD-7";

@@ -32,6 +32,7 @@ const PatientMessagesPage = lazyRetry(() => import("@/pages/patient/PatientMessa
 const PatientDocumentsPage = lazyRetry(() => import("@/pages/patient/PatientDocumentsPage"));
 const PatientPaymentsPage = lazyRetry(() => import("@/pages/patient/PatientPaymentsPage"));
 const PatientBookingPage = lazyRetry(() => import("@/pages/patient/PatientBookingPage"));
+const DreamDiaryPage = lazyRetry(() => import("@/pages/patient/DreamDiaryPage"));
 const AvailabilitySettingsPage = lazyRetry(() => import("@/pages/AvailabilitySettingsPage"));
 const AdminDashboard = lazyRetry(() => import("@/pages/admin/AdminDashboard"));
 const AdminUsersPage = lazyRetry(() => import("@/pages/admin/AdminUsersPage"));
@@ -44,7 +45,7 @@ type Page =
   | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "account" | "backup"
   | "contracts"
   | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
-  | "patient-documents" | "patient-payments" | "patient-booking"
+  | "patient-documents" | "patient-payments" | "patient-booking" | "patient-dream-diary"
   | "availability"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
   | "diagnostics";
@@ -235,6 +236,8 @@ const Index = () => {
         return <PatientPaymentsPage />;
       case "patient-booking":
         return <PatientBookingPage />;
+      case "patient-dream-diary":
+        return <DreamDiaryPage />;
       case "availability":
         return <AvailabilitySettingsPage />;
       case "admin-dashboard":

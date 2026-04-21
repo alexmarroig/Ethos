@@ -1,4 +1,4 @@
-import { Home, Calendar, Users, User, FlaskConical, Clipboard, MoreHorizontal, FileText, DollarSign, FileCheck, BookOpen, Shield, HardDrive, LayoutDashboard, Ticket, Activity, Eye, EyeOff } from "lucide-react";
+import { Home, Calendar, Users, User, FlaskConical, Clipboard, MoreHorizontal, FileText, DollarSign, FileCheck, BookOpen, Shield, HardDrive, LayoutDashboard, Ticket, Activity, Eye, EyeOff, Moon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useState } from "react";
@@ -25,6 +25,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
     const items = [
       { id: "patient-home", label: "Início", icon: Home },
       { id: "patient-sessions", label: "Sessões", icon: Calendar },
+      { id: "patient-dream-diary", label: "Sonhos", icon: Moon },
       { id: "patient-diary", label: "Formulários", icon: Clipboard },
       { id: "account", label: "Conta", icon: User },
     ];

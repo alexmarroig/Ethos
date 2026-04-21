@@ -43,17 +43,16 @@ const formatCurrency = (value: number) =>
 
 const sessionStatusLabel = (status: string) => {
   switch (status) {
-    case "confirmed":
-      return "Confirmada";
-    case "completed":
-      return "Concluída";
-    case "missed":
-      return "Faltou";
+    case "confirmed": return "Confirmada";
+    case "completed": return "Concluída";
+    case "missed": return "Faltou";
     case "pending":
-    case "scheduled":
-      return "Agendada";
-    default:
-      return "Sessão";
+    case "scheduled": return "Agendada";
+    case "cancelled_with_notice": return "Cancelado c/ aviso";
+    case "cancelled_no_show": return "Cancelado s/ aviso";
+    case "rescheduled_by_patient": return "Remarcado";
+    case "rescheduled_by_psychologist": return "Remarcado p/ psicólogo";
+    default: return "Sessão";
   }
 };
 

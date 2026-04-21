@@ -23,6 +23,7 @@ import type {
   NotificationSchedule,
   NotificationTemplate,
   EmotionalDiaryEntry,
+  DreamDiaryEntry,
   PatientAsyncMessage,
   Patient,
   SessionToken,
@@ -102,6 +103,7 @@ export const db = {
   anonymizedCases: new Map<string, Record<string, unknown>>(),
   retentionPolicies: new Map<string, Record<string, unknown>>(),
   patientDiaryEntries: new Map<string, EmotionalDiaryEntry>(),
+  dreamDiary: new Map<string, DreamDiaryEntry>(),
   patientMessages: new Map<string, PatientAsyncMessage>(),
   localEntitlements: new Map<string, LocalEntitlementSnapshot>(),
   scaleTemplates: new Map<string, ScaleTemplate>(),
@@ -153,6 +155,7 @@ type PersistedDatabaseState = {
   documentTemplates: DocumentTemplate[];
   patientAccess: Array<Record<string, unknown>>;
   patientDiaryEntries: EmotionalDiaryEntry[];
+  dreamDiary: DreamDiaryEntry[];
   localEntitlements: LocalEntitlementSnapshot[];
   patientNotifications: PatientNotification[];
   availabilityBlocks: AvailabilityBlock[];
@@ -210,6 +213,7 @@ const loadPersistedDatabase = () => {
     restoreMap(db.documentTemplates, snapshot.documentTemplates, (item) => item.id);
     restoreMap(db.patientAccess, snapshot.patientAccess, (item) => String((item as { id?: string }).id ?? uid()));
     restoreMap(db.patientDiaryEntries, snapshot.patientDiaryEntries, (item) => item.id);
+    restoreMap(db.dreamDiary, snapshot.dreamDiary, (item) => item.id);
     restoreMap(db.localEntitlements, snapshot.localEntitlements, (item) => item.user_id);
     restoreMap(db.patientNotifications, snapshot.patientNotifications, (item) => item.id);
     restoreMap(db.availabilityBlocks, snapshot.availabilityBlocks, (item) => item.id);
@@ -255,6 +259,7 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   documentTemplates: Array.from(db.documentTemplates.values()).filter((item) => item.owner_user_id !== "system"),
   patientAccess: Array.from(db.patientAccess.values()),
   patientDiaryEntries: Array.from(db.patientDiaryEntries.values()),
+  dreamDiary: Array.from(db.dreamDiary.values()),
   localEntitlements: Array.from(db.localEntitlements.values()),
   patientNotifications: Array.from(db.patientNotifications.values()),
   availabilityBlocks: Array.from(db.availabilityBlocks.values()),

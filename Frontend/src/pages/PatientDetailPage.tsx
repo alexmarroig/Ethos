@@ -12,7 +12,9 @@ import {
   KeyRound,
   Loader2,
   MessageCircle,
+  Moon,
   MoreHorizontal,
+  RotateCcw,
   Save,
   Trash,
   Trash2,
@@ -43,6 +45,8 @@ import { formService, type FormAssignment, type FormEntry } from "@/services/for
 import { sessionService } from "@/services/sessionService";
 import { useAppStore } from "@/stores/appStore";
 import { contractsApi, documentsApi } from "@/api/clinical";
+import { api } from "@/services/apiClient";
+import type { DreamDiaryEntry } from "@/services/patientPortalService";
 import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
 import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
@@ -297,15 +301,15 @@ const buildDocumentTitle = (patientName: string, label: string) => `${label} - $
 const sessionStatusLabel = (status?: string) => {
   switch (status) {
     case "scheduled":
-      return "Agendado";
-    case "confirmed":
-      return "Confirmado";
-    case "completed":
-      return "Concluído";
-    case "missed":
-      return "Faltou";
-    default:
-      return status ?? "Não definido";
+    case "pending": return "Agendado";
+    case "confirmed": return "Confirmado";
+    case "completed": return "Concluído";
+    case "missed": return "Faltou";
+    case "cancelled_with_notice": return "Cancelado c/ aviso";
+    case "cancelled_no_show": return "Cancelado s/ aviso";
+    case "rescheduled_by_patient": return "Remarcado";
+    case "rescheduled_by_psychologist": return "Remarcado p/ psicólogo";
+    default: return status ?? "Não definido";
   }
 };
 
@@ -409,6 +413,10 @@ export default function PatientDetailPage({
   const [allFormEntries, setAllFormEntries] = useState<FormEntry[]>([]);
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
+  const [dreamDiaryEntries, setDreamDiaryEntries] = useState<DreamDiaryEntry[]>([]);
+  const [dreamDiaryLoading, setDreamDiaryLoading] = useState(false);
+  const [dreamDiaryLoaded, setDreamDiaryLoaded] = useState(false);
+
   const [sectionVisibility, setSectionVisibility] = useState<Record<string, boolean>>({
     observacoes: true,
     sessoes: true,
@@ -416,6 +424,7 @@ export default function PatientDetailPage({
     contratos: true,
     diario: true,
     formularios: true,
+    sonhos: false,
     progresso: true,
     evolucao: true,
     objetivos: true,
@@ -500,7 +509,19 @@ export default function PatientDetailPage({
   };
 
   const toggleSection = (section: string) => {
-    setSectionVisibility(prev => ({ ...prev, [section]: !prev[section] }));
+    setSectionVisibility(prev => {
+      const newVal = !prev[section];
+      if (section === "sonhos" && newVal && !dreamDiaryLoaded) {
+        void (async () => {
+          setDreamDiaryLoading(true);
+          const result = await api.get<DreamDiaryEntry[]>(`/patients/${patientId}/dream-diary`);
+          setDreamDiaryLoading(false);
+          setDreamDiaryLoaded(true);
+          if (result.success) setDreamDiaryEntries(result.data);
+        })();
+      }
+      return { ...prev, [section]: newVal };
+    });
   };
 
   const loadPatient = useCallback(async () => {
@@ -2402,6 +2423,125 @@ export default function PatientDetailPage({
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </CollapsibleSection>
+
+        <CollapsibleSection
+          title="Diário dos sonhos"
+          subtitle="Registros do diário de sonhos enviados pelo paciente."
+          isOpen={sectionVisibility.sonhos}
+          onToggle={() => toggleSection("sonhos")}
+          icon={Moon}
+        >
+          {dreamDiaryLoading ? (
+            <div className="flex items-center gap-3 py-6 text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              <span className="text-sm">Carregando diário...</span>
+            </div>
+          ) : dreamDiaryEntries.length === 0 ? (
+            <p className="py-6 text-sm text-muted-foreground text-center">
+              Nenhum sonho registrado pelo paciente ainda.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {dreamDiaryEntries.map((entry) => {
+                const EMOTION_LABELS: Record<string, string> = {
+                  medo:"Medo",alegria:"Alegria",tristeza:"Tristeza",ansiedade:"Ansiedade",
+                  paz:"Paz",raiva:"Raiva",confusao:"Confusão",nostalgia:"Nostalgia",
+                  euforia:"Euforia",culpa:"Culpa",amor:"Amor",solidao:"Solidão",
+                };
+                const WAKE_LABELS: Record<string, string> = {
+                  tranquilo:"Tranquilo",agitado:"Agitado",confuso:"Confuso",assustado:"Assustado",neutro:"Neutro",
+                };
+                return (
+                  <div key={entry.id} className="rounded-2xl border border-border bg-background p-5 space-y-3">
+                    {/* header */}
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Moon className="h-4 w-4 text-indigo-400" />
+                        <span className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">
+                          {new Date(entry.dream_date + "T12:00:00").toLocaleDateString("pt-BR", { day: "2-digit", month: "long", year: "numeric" })}
+                        </span>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] text-muted-foreground">
+                          Acord. {WAKE_LABELS[entry.wake_state] ?? entry.wake_state}
+                        </span>
+                        {entry.is_recurring && (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                            <RotateCcw className="h-2.5 w-2.5" /> Recorrente
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground">
+                          {"★".repeat(entry.emotional_intensity)}{"☆".repeat(5 - entry.emotional_intensity)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {entry.title && (
+                      <p className="font-serif text-base font-medium text-foreground">{entry.title}</p>
+                    )}
+
+                    {/* narrative */}
+                    <div>
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Narrativa</p>
+                      <p className="text-sm text-foreground leading-relaxed">{entry.narrative}</p>
+                    </div>
+
+                    {/* emotions */}
+                    {entry.emotions.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {entry.emotions.map((e) => (
+                          <span key={e} className="rounded-full bg-indigo-500/10 px-2.5 py-1 text-[11px] font-medium text-indigo-600 dark:text-indigo-300">
+                            {EMOTION_LABELS[e] ?? e}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* detail fields */}
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      {entry.physical_sensations && (
+                        <div>
+                          <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Sensações físicas</p>
+                          <p className="text-sm text-foreground">{entry.physical_sensations}</p>
+                        </div>
+                      )}
+                      {entry.characters && (
+                        <div>
+                          <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Personagens</p>
+                          <p className="text-sm text-foreground">{entry.characters}</p>
+                        </div>
+                      )}
+                      {entry.setting && (
+                        <div>
+                          <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Cenário</p>
+                          <p className="text-sm text-foreground">{entry.setting}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* patient interpretation */}
+                    {entry.patient_interpretation && (
+                      <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 px-4 py-3">
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-widest text-amber-600 dark:text-amber-400">
+                          Interpretação do paciente
+                        </p>
+                        <p className="text-sm text-foreground leading-relaxed">{entry.patient_interpretation}</p>
+                      </div>
+                    )}
+
+                    {/* associations */}
+                    {entry.associations && (
+                      <div>
+                        <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">Isso lembrou de...</p>
+                        <p className="text-sm text-foreground">{entry.associations}</p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           )}
         </CollapsibleSection>

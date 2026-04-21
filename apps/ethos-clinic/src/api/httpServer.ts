@@ -1233,6 +1233,73 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, listPatientSlotRequests(access));
       }
 
+      // Patient portal: dream diary
+      if (method === "POST" && url.pathname === "/patient/dream-diary") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const body = await readJson(req);
+        const { dream_date, narrative, emotions, emotional_intensity, title, physical_sensations, characters, setting, patient_interpretation, associations, is_recurring, wake_state } = body;
+        if (typeof dream_date !== "string" || typeof narrative !== "string" || !Array.isArray(emotions) || typeof emotional_intensity !== "number") {
+          return error(res, requestId, 422, "VALIDATION_ERROR", "dream_date, narrative, emotions[], emotional_intensity required");
+        }
+        const entry: import("../domain/types").DreamDiaryEntry = {
+          id: uid(),
+          owner_user_id: access.owner_user_id,
+          patient_id: access.patient_id,
+          dream_date,
+          title: typeof title === "string" ? title : undefined,
+          narrative,
+          emotions,
+          emotional_intensity: emotional_intensity as 1 | 2 | 3 | 4 | 5,
+          physical_sensations: typeof physical_sensations === "string" ? physical_sensations : undefined,
+          characters: typeof characters === "string" ? characters : undefined,
+          setting: typeof setting === "string" ? setting : undefined,
+          patient_interpretation: typeof patient_interpretation === "string" ? patient_interpretation : undefined,
+          associations: typeof associations === "string" ? associations : undefined,
+          is_recurring: is_recurring === true,
+          wake_state: ["tranquilo","agitado","confuso","assustado","neutro"].includes(wake_state) ? wake_state : "neutro",
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
+        db.dreamDiary.set(entry.id, entry);
+        schedulePersistDatabase();
+        return ok(res, requestId, 201, entry);
+      }
+
+      if (method === "GET" && url.pathname === "/patient/dream-diary") {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const entries = Array.from(db.dreamDiary.values())
+          .filter((e) => e.owner_user_id === access.owner_user_id && e.patient_id === access.patient_id)
+          .sort((a, b) => b.dream_date.localeCompare(a.dream_date));
+        return ok(res, requestId, 200, entries);
+      }
+
+      if (method === "DELETE" && url.pathname.match(/^\/patient\/dream-diary\/([^/]+)$/)) {
+        if (!requireRole(res, requestId, "patient", auth.user.role)) return;
+        const access = requirePatientAccess(res, requestId, auth.user.id);
+        if (!access) return;
+        const id = url.pathname.split("/").pop()!;
+        const entry = db.dreamDiary.get(id);
+        if (!entry || entry.patient_id !== access.patient_id) return error(res, requestId, 404, "NOT_FOUND", "Entry not found");
+        db.dreamDiary.delete(id);
+        schedulePersistDatabase();
+        return ok(res, requestId, 200, { deleted: true });
+      }
+
+      // Psychologist: read patient dream diary
+      const psychDreamDiaryMatch = url.pathname.match(/^\/patients\/([^/]+)\/dream-diary$/);
+      if (method === "GET" && psychDreamDiaryMatch) {
+        if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
+        const patientId = psychDreamDiaryMatch[1];
+        const entries = Array.from(db.dreamDiary.values())
+          .filter((e) => e.owner_user_id === auth.user.id && e.patient_id === patientId)
+          .sort((a, b) => b.dream_date.localeCompare(a.dream_date));
+        return ok(res, requestId, 200, entries);
+      }
+
       // Psychologist: availability blocks
       if (method === "GET" && url.pathname === "/availability") {
         if (!requireClinicalAccess(res, requestId, auth.user.role)) return;
@@ -1526,7 +1593,7 @@ export const createEthosBackend = () =>
       if (method === "PATCH" && sessionStatus) {
         const body = await readJson(req);
         const status = body.status as SessionStatus;
-        if (!["scheduled", "confirmed", "missed", "completed"].includes(status)) {
+        if (!["scheduled", "confirmed", "missed", "completed", "cancelled_with_notice", "cancelled_no_show", "rescheduled_by_patient", "rescheduled_by_psychologist"].includes(status)) {
           return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid status");
         }
         const session = patchSessionStatus(auth.user.id, sessionStatus[1], status);

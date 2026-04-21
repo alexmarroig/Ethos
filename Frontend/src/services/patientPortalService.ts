@@ -82,6 +82,26 @@ export interface SlotRequest {
   created_at: string;
 }
 
+export interface DreamDiaryEntry {
+  id: string;
+  patient_id: string;
+  dream_date: string;
+  title?: string;
+  narrative: string;
+  emotions: string[];
+  emotional_intensity: 1 | 2 | 3 | 4 | 5;
+  physical_sensations?: string;
+  characters?: string;
+  setting?: string;
+  patient_interpretation?: string;
+  associations?: string;
+  is_recurring: boolean;
+  wake_state: "tranquilo" | "agitado" | "confuso" | "assustado" | "neutro";
+  created_at: string;
+}
+
+export type DreamDiaryEntryPayload = Omit<DreamDiaryEntry, "id" | "patient_id" | "created_at">;
+
 const builtInFormFields: Record<string, NonNullable<Form["fields"]>> = {
   "emotion-diary": [
     {
@@ -310,6 +330,10 @@ export const patientPortalService = {
     api.post<SlotRequest>("/patient/slot-request", data),
 
   getSlotRequests: () => api.get<SlotRequest[]>("/patient/slot-requests"),
+
+  getDreamDiary: () => api.get<DreamDiaryEntry[]>("/patient/dream-diary"),
+  createDreamDiaryEntry: (data: DreamDiaryEntryPayload) => api.post<DreamDiaryEntry>("/patient/dream-diary", data),
+  deleteDreamDiaryEntry: (id: string) => api.delete<{ deleted: boolean }>(`/patient/dream-diary/${id}`),
 };
 
 export const shareApi = {
