@@ -1,3 +1,4 @@
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -25,6 +26,7 @@ const JobRehydrator = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <GoogleOAuthProvider clientId="83150950956-5avv08g9dsds5fpm7dfd9ui6rptn8uu2.apps.googleusercontent.com">
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AuthProvider>
         <EntitlementsProvider>
@@ -48,6 +50,7 @@ const App = () => (
         </EntitlementsProvider>
       </AuthProvider>
     </ThemeProvider>
+      </GoogleOAuthProvider>
   </QueryClientProvider>
 );
 

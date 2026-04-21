@@ -811,3 +811,8 @@ if (persistenceEnabled) {
   process.once("exit", persistDatabaseNow);
 }
 
+
+export const ensureEmailUnique = (email: string, userId: string) => {
+  const existing = Array.from(db.users.values()).find(u => u.email.toLowerCase() === email.toLowerCase() && u.id !== userId);
+  return !existing;
+};

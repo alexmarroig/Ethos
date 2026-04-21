@@ -35,6 +35,7 @@ interface AuthContextType {
   isLoading: boolean;
   isCloudAuthenticated: boolean;
   login: (email: string, password: string) => Promise<boolean>;
+  loginWithGoogle: (credential: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
   updateProfile: (payload: Partial<User>) => Promise<boolean>;
   logout: () => void;
@@ -236,6 +237,20 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return false;
   };
+  const loginWithGoogle = async (credential: string): Promise<boolean> => {
+    const result = await authService.loginWithGoogle(credential);
+    if (result.success) {
+      persistUser(
+        normalizeUser({
+          ...result.data.user,
+          token: result.data.token,
+        }),
+        false
+      );
+      return true;
+    }
+    return false;
+  };
 
   const refreshUser = async () => {
     if (!user?.token) return;
@@ -286,6 +301,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isLoading,
         isCloudAuthenticated,
         login,
+        loginWithGoogle,
         refreshUser,
         updateProfile,
         logout: doLogout,

@@ -87,6 +87,7 @@ import {
   listSessionClinicalNotes,
   listTemplates,
   login,
+  loginWithGoogle,
   logout,
   paginate,
   patchSessionStatus,
@@ -705,6 +706,17 @@ export const createEthosBackend = () =>
         if (!session) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid credentials");
         return ok(res, requestId, 200, { user: session.user, token: session.token });
       }
+      if (method === "POST" && url.pathname === "/auth/google") {
+        const body = await readJson(req);
+        const googleToken = String(body.credential ?? "");
+        if (!googleToken) return error(res, requestId, 422, "VALIDATION_ERROR", "Google credential is required");
+
+        const session = await loginWithGoogle(googleToken);
+        if (!session) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid Google token");
+
+        return ok(res, requestId, 200, { user: session.user, token: session.token });
+      }
+
 
       if (method === "POST" && url.pathname === "/auth/register") {
         const body = await readJson(req);

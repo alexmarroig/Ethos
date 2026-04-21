@@ -109,6 +109,7 @@ const AccountPage = () => {
       rg: user?.rg ?? "",
       cpf: user?.cpf ?? "",
       gender: user?.gender ?? ("" as "F" | "M" | ""),
+  const isProfileIncomplete = user?.role === "professional" && !(user.crp && user.specialty && user.clinical_approach);
       specialty: user?.specialty ?? "",
       clinical_approach: user?.clinical_approach ?? "",
     });
@@ -338,6 +339,17 @@ const AccountPage = () => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
         >
+        {isProfileIncomplete && (
+          <div className="mb-6 p-4 rounded-lg bg-primary/10 border border-primary/20 text-primary flex items-start gap-3">
+            <div className="mt-0.5">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-medium text-sm">Complete seu perfil</p>
+              <p className="text-xs opacity-90 mt-0.5">Para liberar todas as funcionalidades do ETHOS, preencha seus dados profissionais (CRP, Especialidade e Abordagem) abaixo.</p>
+            </div>
+          </div>
+        )}
           <div className="flex flex-col gap-6 md:flex-row md:items-start">
             <div className="flex items-center gap-4">
               {profile.avatar_url ? (

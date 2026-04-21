@@ -10,7 +10,8 @@
     "test": "node scripts/run-tests.js"
   },
   "dependencies": {
-    "@neondatabase/serverless": "^0.10.4"
+    "@neondatabase/serverless": "^0.10.4",
+    "google-auth-library": "^10.6.2"
   },
   "devDependencies": {
     "@types/node": "^22.19.17",

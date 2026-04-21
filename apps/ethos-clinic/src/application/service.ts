@@ -3168,3 +3168,40 @@ export const listSuggestions = (owner: string, weekStart: string): CalendarSugge
 
   return suggestions;
 };
+
+export const loginWithGoogle = async (googleToken: string) => {
+  const { verifyGoogleToken } = await import("../infra/googleAuth");
+  const payload = await verifyGoogleToken(googleToken);
+  if (!payload) return null;
+
+  let user = Array.from(db.users.values()).find((u) => u.email.toLowerCase() === payload.email?.toLowerCase());
+
+  if (!user) {
+    // Create new user via Google
+    user = {
+      id: uid(),
+      email: payload.email!,
+      name: payload.name || 'Usuário Google',
+      avatar_url: payload.picture,
+      role: 'professional',
+      status: 'active',
+      created_at: now(),
+      updated_at: now(),
+    } as unknown as User;
+    db.users.set(user.id, user);
+    grantClinicalEntitlements(user.id);
+    persistMutation();
+  } else {
+    // Update existing user avatar if not set
+    if (!user.avatar_url && payload.picture) {
+      user.avatar_url = payload.picture;
+      persistMutation();
+    }
+  }
+
+  return createSessionForUser(user);
+};
+
+export const checkProfileComplete = (user: User) => {
+  return !!(user.crp && user.specialty && user.clinical_approach);
+};
