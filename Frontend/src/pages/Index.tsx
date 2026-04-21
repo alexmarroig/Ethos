@@ -192,7 +192,7 @@ const Index = () => {
   const renderPageContent = () => {
     switch (currentPage) {
       case "home":
-        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} />;
+        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} onPatientClick={handleOpenPatient} />;
       case "session":
         return <SessionPage sessionId={selectedSessionId!} onBack={handleBackFromSession} onOpenProntuario={handleOpenProntuario} />;
       case "prontuario":
@@ -255,7 +255,7 @@ const Index = () => {
           </div>
         );
       default:
-        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} />;
+        return <HomePage onSessionClick={handleSessionClick} onNavigate={handleNavigate} onPatientClick={handleOpenPatient} />;
     }
   };
 
