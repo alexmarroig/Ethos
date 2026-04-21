@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { Ban, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { Ban, ChevronLeft, ChevronRight, Clock3, Loader2, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2, CalendarPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -125,7 +125,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
-  const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string }>({});
+  const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'block' }>({});
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -268,7 +268,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     }
 
     const displayName = result.data.event_type === "block"
-      ? (result.data.block_title ?? "Bloqueio")
+      ? (result.data.block_title ?? "Tarefa")
       : result.data.patient_name;
     toast({
       title: result.data.event_type === "block" ? "Bloqueio remarcado" : "Sessão remarcada",
@@ -477,10 +477,22 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                 </DialogContent>
               </Dialog>
 
-              <Button variant="secondary" className="gap-2" onClick={() => setSessionDialogOpen(true)}>
-                <Plus className="w-4 h-4" strokeWidth={1.5} />
-                Agendar sessão
-              </Button>
+              <div className="flex gap-2">
+                <Button variant="secondary" className="gap-2" onClick={() => {
+                  setSessionDialogDefaults({ eventType: 'session' });
+                  setSessionDialogOpen(true);
+                }}>
+                  <Plus className="w-4 h-4" strokeWidth={1.5} />
+                  Agendar sessão
+                </Button>
+                <Button variant="outline" className="gap-2" onClick={() => {
+                  setSessionDialogDefaults({ eventType: 'block' });
+                  setSessionDialogOpen(true);
+                }}>
+                  <CalendarPlus className="w-4 h-4" strokeWidth={1.5} />
+                  Outra tarefa
+                </Button>
+              </div>
             </div>
           </div>
         </motion.header>
@@ -565,9 +577,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                             <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                               <Clock3 className="h-3.5 w-3.5" />{session.time}
                             </span>
-                            <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                              {session.event_type === "block" ? "Bloqueio" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              {session.event_type === "session" && session.location_type && (
+                                <span className="text-muted-foreground">
+                                  {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                                </span>
+                              )}
+                              <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                                {session.event_type === "block" ? "Tarefa" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                              </span>
+                            </div>
                           </div>
                           <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
                         </button>
@@ -656,9 +675,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                       <Clock3 className="h-3.5 w-3.5" />
                                       {session.time}
                                     </span>
-                                    <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                      {session.event_type === "block" ? "Bloqueio" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
-                                    </span>
+                                    <div className="flex items-center gap-1.5">
+                                      {session.event_type === "session" && session.location_type && (
+                                        <span className="text-muted-foreground">
+                                          {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                                        </span>
+                                      )}
+                                      <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                                        {session.event_type === "block" ? "Tarefa" : session.status === "pending" ? "Pendente" : session.status === "confirmed" ? "Confirmada" : session.status === "completed" ? "Concluída" : "Faltou"}
+                                      </span>
+                                    </div>
                                   </div>
 
                                   <p className="line-clamp-2 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
@@ -693,11 +719,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
                                   <div className="mt-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
                                     {session.event_type === "block"
-                                      ? <Ban className="h-3.5 w-3.5" />
+                                      ? <CalendarPlus className="h-3.5 w-3.5" />
                                       : <UserRound className="h-3.5 w-3.5" />}
                                     {session.event_type === "block"
-                                      ? (session.duration ? `${session.duration} min` : "Bloqueio")
+                                      ? (session.duration ? `${session.duration} min` : "Tarefa")
                                       : (session.duration ? `${session.duration} min` : "Sessão")}
+                                    {session.event_type === "session" && session.location_type && (
+                                      <span className="ml-1 opacity-70">
+                                        · {session.location_type === "remote" ? "Remoto" : "Presencial"}
+                                      </span>
+                                    )}
                                   </div>
                                 </button>
                               );
@@ -793,6 +824,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       patients={patients}
       defaultDate={sessionDialogDefaults.date}
       defaultTime={sessionDialogDefaults.time}
+      defaultEventType={sessionDialogDefaults.eventType}
       onCreated={async () => {
         const result = await sessionService.list(weekWindow);
         if (result.success) {
