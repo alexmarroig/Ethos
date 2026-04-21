@@ -354,6 +354,15 @@ export type ClinicalDocument = Owned & {
   shared_at?: string;
 };
 
+
+export type ClinicalSynthesis = Owned & {
+  patient_id: UUID;
+  content: string;
+  based_on_sessions: UUID[];
+  date_range?: string;
+  last_updated: string;
+  version: number;
+};
 export type ClinicalDocumentVersion = Owned & {
   document_id: UUID;
   version: number;
