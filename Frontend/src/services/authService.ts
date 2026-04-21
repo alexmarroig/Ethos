@@ -25,6 +25,9 @@ export interface RegisterPayload {
 }
 
 export const authService = {
+  loginWithGoogle: (credential: string): Promise<ApiResult<LoginResponse>> =>
+    api.post<LoginResponse>("/auth/google", { credential }),
+
   login: (email: string, password: string): Promise<ApiResult<LoginResponse>> =>
     api.post<LoginResponse>("/auth/login", { email, password }),
 

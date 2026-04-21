@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import BrandWordmark from "@/components/BrandWordmark";
 
+import { GoogleLoginButton } from "@/components/GoogleLoginButton";
 interface LoginPageProps {
   onLoginSuccess: () => void;
 }
@@ -79,7 +80,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const { toast } = useToast();
 
   const normalizedCrp = useMemo(() => signup.crp.replace(/\s+/g, ""), [signup.crp]);
@@ -151,6 +152,34 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     setIsLoading(false);
   };
 
+
+  const handleGoogleLogin = async (credential: string) => {
+    setIsLoading(true);
+    try {
+      const success = await loginWithGoogle(credential);
+      if (success) {
+        toast({
+          title: "Bem-vindo!",
+          description: "Login realizado com sucesso.",
+        });
+        onLoginSuccess();
+      } else {
+        toast({
+          title: "Erro no login",
+          description: "Não foi possível autenticar com o Google. Verifique se o e-mail já está em uso.",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Erro inesperado",
+        description: "Tente novamente em alguns instantes.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleRecovery = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!EMAIL_REGEX.test(recoveryEmail.trim())) {
@@ -596,6 +625,17 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                   "Entrar"
                 )}
               </Button>
+
+              <div className="relative">
+                <div className="absolute inset-0 flex items-center">
+                  <span className="w-full border-t border-border" />
+                </div>
+                <div className="relative flex justify-center text-xs uppercase">
+                  <span className="bg-background px-2 text-muted-foreground">Ou continue com</span>
+                </div>
+              </div>
+
+              <GoogleLoginButton onSuccess={handleGoogleLogin} isLoading={isLoading} />
 
               <div className="text-center text-xs text-muted-foreground space-y-2">
                 <p>

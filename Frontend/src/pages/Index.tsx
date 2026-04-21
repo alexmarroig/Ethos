@@ -63,7 +63,7 @@ const Index = () => {
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
-  const { isAuthenticated, isLoading, hasRole } = useAuth();
+  const { user, isAuthenticated, isLoading, hasRole } = useAuth();
   const isMobile = useIsMobile();
 
   const handleSplashComplete = () => {
@@ -80,6 +80,15 @@ const Index = () => {
     setShowLogin(false);
   };
 
+
+  useEffect(() => {
+    if (isAuthenticated && user && user.role === "professional") {
+      const isComplete = !!(user.crp && user.specialty && user.clinical_approach);
+      if (!isComplete && currentPage !== "account") {
+        setCurrentPage("account");
+      }
+    }
+  }, [isAuthenticated, user, currentPage]);
   const handleSessionClick = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("session");
