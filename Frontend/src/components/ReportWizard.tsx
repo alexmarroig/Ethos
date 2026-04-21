@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  Brain,
   ArrowLeft,
   ArrowRight,
   Check,
@@ -19,6 +20,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
 import { reportService, type Report, type ReportKind } from "@/services/reportService";
 import { patientService, type Patient } from "@/services/patientService";
 import { sessionService, type Session } from "@/services/sessionService";
@@ -96,6 +98,7 @@ export function ReportWizard({ open, onOpenChange, patients, initialPatientId, e
   const [patientDetail, setPatientDetail] = useState<Patient | null>(null);
   const [saving, setSaving] = useState(false);
   const [improving, setImproving] = useState(false);
+  const [synthesis, setSynthesis] = useState<ClinicalSynthesis | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [attendanceType, setAttendanceType] = useState(ATTENDANCE_TYPES[0]);
 
@@ -127,6 +130,9 @@ export function ReportWizard({ open, onOpenChange, patients, initialPatientId, e
 
   // Reset when dialog opens/closes
   useEffect(() => {
+    clinicalSynthesisService.get(state.patient_id).then(r => {
+      if (r.success) setSynthesis(r.data);
+    });
     if (open) {
       setState(initialState());
       setIsFullscreen(false);
@@ -537,6 +543,25 @@ export function ReportWizard({ open, onOpenChange, patients, initialPatientId, e
                   >
                     {improving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4 text-sky-500" />}
                     Melhorar com IA
+                {synthesis && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 h-9 border-primary/20 hover:bg-primary/5"
+                    onClick={() => {
+                      setState((prev) => ({
+                        ...prev,
+                        sourceText: synthesis.content + "
+
+" + prev.sourceText
+                      }));
+                      toast({ title: "Síntese importada", description: "O estado clínico atual foi adicionado como base para o relatório." });
+                    }}
+                  >
+                    <Brain className="w-4 h-4 text-primary" strokeWidth={1.5} />
+                    Usar Síntese Clínica
+                  </Button>
+                )}
                   </Button>
                 </div>
                 <Textarea

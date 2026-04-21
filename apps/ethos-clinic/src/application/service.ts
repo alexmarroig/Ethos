@@ -20,6 +20,7 @@ import {
 import {
   generateClinicalNote,
 } from "./ai/clinicalNoteGenerator";
+import { generateClinicalSynthesis } from "./ai/clinicalSynthesisGenerator";
 import type {
   AnamnesisResponse,
   AvailabilityBlock,
@@ -29,6 +30,7 @@ import type {
   ClinicalDocumentVersion,
   ClinicalNote,
   ClinicalReport,
+  ClinicalSynthesis,
   ClinicalSession,
   DocumentTemplate,
   EmotionalDiaryEntry,
@@ -218,7 +220,15 @@ const createSessionForUser = (user: User) => {
     expires_at: new Date(Date.now() + DAY_MS).toISOString(),
   });
   user.last_seen_at = now();
+
+  const session = db.sessions.get(note.session_id);
+  if (session) {
+    refreshClinicalSynthesis(owner, session.patient_id).catch(err => {
+      console.error("Async synthesis refresh failed:", err);
+    });
+  }
   persistMutation();
+
   return { user: sanitizeAuthUser(user), token };
 };
 
@@ -2092,12 +2102,109 @@ export const updateClinicalNote = (
   return hydrateClinicalNote(owner, note);
 };
 
+
+export const getClinicalSynthesis = (owner: string, patientId: string) => {
+  const synthesis = Array.from(db.clinicalSyntheses.values()).find(
+    (s) => s.owner_user_id === owner && s.patient_id === patientId
+  );
+  if (!synthesis) return null;
+
+  const notes = listClinicalNotes(owner, { patientId });
+  const latestNoteDate = notes[0]?.created_at;
+  const is_stale = latestNoteDate && synthesis.last_updated < latestNoteDate;
+
+  return { ...synthesis, is_stale };
+};
+
+export const refreshClinicalSynthesis = async (owner: string, patientId: string, options: { sessionsLimit?: number; force?: boolean } = {}) => {
+  const patient = getPatient(owner, patientId);
+  if (!patient) throw new Error("Patient not found");
+
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const allSessions = listPatientSessionsByReference(owner, patientId).filter(s => s.status === "completed");
+
+  const sessions = allSessions
+    .filter(s => s.scheduled_at >= thirtyDaysAgo)
+    .slice(0, options.sessionsLimit ?? 5);
+
+  const sessionIds = sessions.map(s => s.id);
+  const allNotes = listClinicalNotes(owner, { patientId });
+  const relevantNotes = allNotes.filter(n => sessionIds.includes(n.session_id));
+  const reports = listPatientDocuments(owner, patientId).filter(d => d.kind === "session_report" || d.kind === "psychological_report").slice(0, 3) as unknown as ClinicalReport[];
+
+
+  let existing = Array.from(db.clinicalSyntheses.values()).find(
+    (s) => s.owner_user_id === owner && s.patient_id === patientId
+  );
+
+  // Optimization: If the sessions are exactly the same, don't re-generate
+  if (existing && JSON.stringify(existing.based_on_sessions) === JSON.stringify(sessionIds) && !options.force) {
+    return existing;
+  }
+
+  const content = await generateClinicalSynthesis({
+    sessions,
+    notes: relevantNotes,
+    reports,
+    observations: patient.notes ? [patient.notes] : []
+  });
+
+  let synthesis = Array.from(db.clinicalSyntheses.values()).find(
+    (s) => s.owner_user_id === owner && s.patient_id === patientId
+  );
+
+  if (synthesis) {
+    synthesis.content = content;
+    synthesis.based_on_sessions = sessionIds;
+    synthesis.last_updated = now();
+    synthesis.version += 1;
+    synthesis.updated_at = now();
+  } else {
+    synthesis = {
+      id: uid(),
+      owner_user_id: owner,
+      patient_id: patientId,
+      content,
+      based_on_sessions: sessionIds,
+      last_updated: now(),
+      version: 1,
+      created_at: now(),
+      updated_at: now(),
+    };
+    db.clinicalSyntheses.set(synthesis.id, synthesis);
+  }
+
+  persistMutation();
+  return synthesis;
+};
+
+export const updateClinicalSynthesis = (owner: string, patientId: string, content: string) => {
+  const synthesis = Array.from(db.clinicalSyntheses.values()).find(
+    (s) => s.owner_user_id === owner && s.patient_id === patientId
+  );
+  if (!synthesis) return null;
+
+  synthesis.content = content;
+  synthesis.last_updated = now();
+  synthesis.version += 1;
+  synthesis.updated_at = now();
+
+  persistMutation();
+  return synthesis;
+};
+
 export const validateClinicalNote = (owner: string, noteId: string) => {
   const note = getByOwner(db.clinicalNotes, owner, noteId);
   if (!note) return null;
   note.status = "validated";
   note.validated_at = now();
   addTelemetry({ user_id: owner, event_type: "NOTE_VALIDATED" });
+  const session = db.sessions.get(note.session_id);
+  if (session) {
+    refreshClinicalSynthesis(owner, session.patient_id).catch(err => {
+      console.error("Async synthesis refresh failed:", err);
+    });
+  }
   persistMutation();
   return hydrateClinicalNote(owner, note);
 };

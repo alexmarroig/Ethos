@@ -7,6 +7,7 @@ import type {
   AudioRecord,
   ClinicalNote,
   ClinicalReport,
+  ClinicalSynthesis,
   ClinicalSession,
   ClinicalDocument,
   ClinicalDocumentVersion,
@@ -84,6 +85,7 @@ export const db = {
   transcripts: new Map<string, Transcript>(),
   clinicalNotes: new Map<string, ClinicalNote>(),
   reports: new Map<string, ClinicalReport>(),
+  clinicalSyntheses: new Map<string, ClinicalSynthesis>(),
   anamnesis: new Map<string, AnamnesisResponse>(),
   scales: new Map<string, ScaleRecord>(),
   forms: new Map<string, FormEntry>(),
@@ -138,6 +140,7 @@ type PersistedDatabaseState = {
   transcripts: Transcript[];
   clinicalNotes: ClinicalNote[];
   reports: ClinicalReport[];
+  clinicalSyntheses: ClinicalSynthesis[];
   anamnesis: AnamnesisResponse[];
   scales: ScaleRecord[];
   forms: FormEntry[];
@@ -194,6 +197,7 @@ const loadPersistedDatabase = () => {
     restoreMap(db.transcripts, snapshot.transcripts, (item) => item.id);
     restoreMap(db.clinicalNotes, snapshot.clinicalNotes, (item) => item.id);
     restoreMap(db.reports, snapshot.reports, (item) => item.id);
+    restoreMap(db.clinicalSyntheses, snapshot.clinicalSyntheses, (item) => item.id);
     restoreMap(db.anamnesis, snapshot.anamnesis, (item) => item.id);
     restoreMap(db.scales, snapshot.scales, (item) => item.id);
     restoreMap(db.forms, snapshot.forms, (item) => item.id);
@@ -238,6 +242,7 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   transcripts: Array.from(db.transcripts.values()),
   clinicalNotes: Array.from(db.clinicalNotes.values()),
   reports: Array.from(db.reports.values()),
+  clinicalSyntheses: Array.from(db.clinicalSyntheses.values()),
   anamnesis: Array.from(db.anamnesis.values()),
   scales: Array.from(db.scales.values()),
   forms: Array.from(db.forms.values()),

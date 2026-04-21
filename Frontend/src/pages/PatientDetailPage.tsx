@@ -1,7 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import PatientProgressTab from "./PatientProgressTab";
 import { motion } from "framer-motion";
 import {
+  Sparkles,
   ArrowLeft,
   CalendarPlus,
   ChevronDown,
@@ -44,6 +45,8 @@ import { useAppStore } from "@/stores/appStore";
 import { contractsApi, documentsApi } from "@/api/clinical";
 import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
+import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
+import { ClinicalSynthesisCard } from "@/components/ClinicalSynthesisCard";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
   Dialog,
@@ -379,6 +382,9 @@ export default function PatientDetailPage({
   const [form, setForm] = useState<PatientFormState>(emptyForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [synthesis, setSynthesis] = useState<ClinicalSynthesis | null>(null);
+  const [loadingSynthesis, setLoadingSynthesis] = useState(false);
+  const evolucaoRef = useRef<HTMLDivElement>(null);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [creatingSession, setCreatingSession] = useState(false);
@@ -411,6 +417,7 @@ export default function PatientDetailPage({
     diario: true,
     formularios: true,
     progresso: true,
+    evolucao: true,
     objetivos: true,
     homework: true,
   });
@@ -423,6 +430,35 @@ export default function PatientDetailPage({
   const [deletingDocumentId, setDeletingDocumentId] = useState<string | null>(null);
   const [lookingUpCep, setLookingUpCep] = useState(false);
   const [lastCepLookup, setLastCepLookup] = useState("");
+  const loadSynthesis = useCallback(async () => {
+    const result = await clinicalSynthesisService.get(patientId);
+    if (result.success) {
+      setSynthesis(result.data);
+    }
+  }, [patientId]);
+
+  const handleRefreshSynthesis = async () => {
+    setLoadingSynthesis(true);
+    const result = await clinicalSynthesisService.refresh(patientId, 5, true);
+    setLoadingSynthesis(false);
+    if (result.success) {
+      setSynthesis(result.data);
+      toast({ title: "Síntese atualizada", description: "O estado clínico foi consolidado com sucesso." });
+    } else {
+      toast({ title: "Erro ao atualizar síntese", variant: "destructive" });
+    }
+  };
+
+  const handleUpdateSynthesisContent = async (newContent: string) => {
+    const result = await clinicalSynthesisService.update(patientId, newContent);
+    if (result.success) {
+      setSynthesis(result.data);
+      toast({ title: "Alterações salvas" });
+    } else {
+      toast({ title: "Erro ao salvar alterações", variant: "destructive" });
+    }
+  };
+
   const [documentFilter, setDocumentFilter] = useState<"all" | "portal" | "recent">("all");
   const [formFilter, setFormFilter] = useState<"all" | "with_response" | "without_response" | "recent">("all");
 
@@ -491,10 +527,11 @@ export default function PatientDetailPage({
 
   useEffect(() => {
     void loadPatient();
+    void loadSynthesis();
     void sessionReminderApi.getPatientEnabled(patientId).then((r) => {
       if (r.success) setSessionReminderEnabled(r.data.enabled);
     });
-  }, [loadPatient, patientId]);
+  }, [loadPatient, loadSynthesis, patientId]);
 
   useEffect(() => {
     const loadContracts = async () => {
@@ -1788,7 +1825,70 @@ export default function PatientDetailPage({
           </div>
         </CollapsibleSection>
 
-        <CollapsibleSection
+
+        <div ref={evolucaoRef}>
+          <CollapsibleSection
+            title="Evolução Clínica"
+            subtitle="Síntese integrada do estado atual, temas recorrentes e padrões observados."
+            isOpen={sectionVisibility.evolucao}
+            onToggle={() => toggleSection("evolucao")}
+            icon={Brain}
+          >
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground uppercase tracking-wider font-semibold">
+                  <Sparkles className="w-3 h-3 text-primary" />
+                  Gerado por IA
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleRefreshSynthesis}
+                  disabled={loadingSynthesis}
+                  className="h-8 gap-2"
+                >
+                  <RefreshCw className={cn("w-3 h-3", loadingSynthesis && "animate-spin")} />
+                  {synthesis ? "Atualizar síntese" : "Gerar síntese"}
+                </Button>
+              </div>
+
+              <div className="relative group">
+                <Textarea
+                  value={synthesis?.content ?? ""}
+                  onChange={(e) => {
+                    const newContent = e.target.value;
+                    setSynthesis(prev => prev ? { ...prev, content: newContent } : null);
+                  }}
+                  onBlur={(e) => handleUpdateSynthesisContent(e.target.value)}
+                  placeholder="Nenhuma síntese clínica gerada ainda. Clique em 'Gerar síntese' para consolidar o histórico do paciente."
+                  className="min-h-[350px] bg-background/30 font-serif text-[1.05rem] leading-relaxed resize-none p-6 border-primary/10"
+                />
+                {!synthesis && !loadingSynthesis && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-background/50 backdrop-blur-[1px] rounded-md border border-dashed border-border">
+                    <Button variant="ghost" onClick={handleRefreshSynthesis} className="gap-2">
+                      <Sparkles className="w-4 h-4 text-primary" />
+                      Começar análise integrada
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between text-[11px] text-muted-foreground px-1">
+                <div className="flex items-center gap-4">
+                  <span>Versão {synthesis?.version ?? 0}</span>
+                  {synthesis?.is_stale && (
+                    <span className="text-amber-500 font-medium">Conteúdo desatualizado (novas notas disponíveis)</span>
+                  )}
+                </div>
+                {synthesis?.last_updated && (
+                  <span>Última atualização: {new Date(synthesis.last_updated).toLocaleString('pt-BR')}</span>
+                )}
+              </div>
+            </div>
+          </CollapsibleSection>
+        </div>
+
+<CollapsibleSection
           title="Histórico de sessões"
           subtitle="Sessões registradas e acesso rápido ao prontuário."
           isOpen={sectionVisibility.sessoes}
