@@ -238,22 +238,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setUpcomingSessions([]);
         setPendingPayments([]);
         setUpcomingPayments([]);
-      }
-
-      const birthdays = patients
-        .filter((patient) => {
-          if (!patient.birth_date) return false;
-          const [, month] = patient.birth_date.split("-").map(Number);
-          return month === todayDate.getMonth() + 1;
-        })
-        .sort(
-          (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
-        )
-        .slice(0, 8);
-      setBirthdayPatients(birthdays);
-
-      setError(null);
-      setLoading(false);
+      });
     };
 
     void load();

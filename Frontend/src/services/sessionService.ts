@@ -182,7 +182,7 @@ function mapSession(raw: RawSession, patientsIndex: Map<string, Patient>): Sessi
 }
 
 export const sessionService = {
-  list: async (filters?: SessionFilters, patientsIndex?: Patient[]): Promise<ApiResult<Session[]>> => {
+  listPage: async (filters?: SessionFilters, patients?: Patient[]): Promise<ApiResult<PaginatedData<Session>>> => {
     const params = new URLSearchParams();
     params.set("page", String(filters?.page ?? 1));
     params.set("page_size", String(filters?.page_size ?? 100));
@@ -196,12 +196,12 @@ export const sessionService = {
 
     const [sessionsResult, patientsIndex] = await Promise.all([
       api.get<RawPaginatedSessions>(`/sessions?${qs}`),
-      resolvePatientsIndex(patientsIndex),
+      resolvePatientsIndex(patients),
     ]);
 
     if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<PaginatedData<Session>>;
 
-    const mapped = sessionsResult.data.items.map((item) => mapSession(item, patients));
+    const mapped = sessionsResult.data.items.map((item) => mapSession(item, patientsIndex));
 
     return {
       ...sessionsResult,
@@ -215,8 +215,8 @@ export const sessionService = {
     };
   },
 
-  list: async (filters?: SessionFilters): Promise<ApiResult<Session[]>> => {
-    const result = await sessionService.listPage(filters);
+  list: async (filters?: SessionFilters, patients?: Patient[]): Promise<ApiResult<Session[]>> => {
+    const result = await sessionService.listPage(filters, patients);
     if (!result.success) return result as unknown as ApiResult<Session[]>;
     return {
       ...result,
