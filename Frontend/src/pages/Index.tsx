@@ -1,44 +1,75 @@
-import { Suspense, useEffect, useState, lazy } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import LogoRevealSplash from "@/components/LogoRevealSplash";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
 import RoleGate from "@/components/RoleGate";
-import HomePage from "@/pages/HomePage";
-import SessionPage from "@/pages/SessionPage";
-import AgendaPage from "@/pages/AgendaPage";
-import PatientsPage from "@/pages/PatientsPage";
-import PatientDetailPage from "@/pages/PatientDetailPage";
-import EthicsPage from "@/pages/EthicsPage";
 import LoginPage from "@/pages/LoginPage";
-import ProntuarioPage from "@/pages/ProntuarioPage";
-import FormsPage from "@/pages/FormsPage";
-import AnamnesisPage from "@/pages/AnamnesisPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { lazyRetry } from "@/lib/lazyRetry";
+import { ENABLE_INTRO_SPLASH } from "@/config/runtime";
 
-const ReportsPage = lazyRetry(() => import("@/pages/ReportsPage"));
-const FinancePage = lazyRetry(() => import("@/pages/FinancePage"));
-const DocumentsPage = lazyRetry(() => import("@/pages/DocumentsPage"));
-const AccountPage = lazyRetry(() => import("@/pages/AccountPage"));
-const BackupPage = lazyRetry(() => import("@/pages/BackupPage"));
-const ContractsPage = lazyRetry(() => import("@/pages/ContractsPage"));
-const PatientHomePage = lazyRetry(() => import("@/pages/patient/PatientHomePage"));
-const PatientSessionsPage = lazyRetry(() => import("@/pages/patient/PatientSessionsPage"));
-const PatientDiaryPage = lazyRetry(() => import("@/pages/patient/PatientDiaryPage"));
-const PatientMessagesPage = lazyRetry(() => import("@/pages/patient/PatientMessagesPage"));
-const PatientDocumentsPage = lazyRetry(() => import("@/pages/patient/PatientDocumentsPage"));
-const PatientPaymentsPage = lazyRetry(() => import("@/pages/patient/PatientPaymentsPage"));
-const PatientBookingPage = lazyRetry(() => import("@/pages/patient/PatientBookingPage"));
-const DreamDiaryPage = lazyRetry(() => import("@/pages/patient/DreamDiaryPage"));
-const AvailabilitySettingsPage = lazyRetry(() => import("@/pages/AvailabilitySettingsPage"));
-const AdminDashboard = lazyRetry(() => import("@/pages/admin/AdminDashboard"));
-const AdminUsersPage = lazyRetry(() => import("@/pages/admin/AdminUsersPage"));
-const AdminTestLab = lazyRetry(() => import("@/pages/admin/AdminTestLab"));
-const AdminTicketsPage = lazyRetry(() => import("@/pages/admin/AdminTicketsPage"));
-const DiagnosticsPage = lazyRetry(() => import("@/pages/DiagnosticsPage"));
+const importHomePage = () => import("@/pages/HomePage");
+const importSessionPage = () => import("@/pages/SessionPage");
+const importAgendaPage = () => import("@/pages/AgendaPage");
+const importPatientsPage = () => import("@/pages/PatientsPage");
+const importPatientDetailPage = () => import("@/pages/PatientDetailPage");
+const importEthicsPage = () => import("@/pages/EthicsPage");
+const importProntuarioPage = () => import("@/pages/ProntuarioPage");
+const importFormsPage = () => import("@/pages/FormsPage");
+const importAnamnesisPage = () => import("@/pages/AnamnesisPage");
+const importReportsPage = () => import("@/pages/ReportsPage");
+const importFinancePage = () => import("@/pages/FinancePage");
+const importDocumentsPage = () => import("@/pages/DocumentsPage");
+const importAccountPage = () => import("@/pages/AccountPage");
+const importBackupPage = () => import("@/pages/BackupPage");
+const importContractsPage = () => import("@/pages/ContractsPage");
+const importPatientHomePage = () => import("@/pages/patient/PatientHomePage");
+const importPatientSessionsPage = () => import("@/pages/patient/PatientSessionsPage");
+const importPatientDiaryPage = () => import("@/pages/patient/PatientDiaryPage");
+const importPatientMessagesPage = () => import("@/pages/patient/PatientMessagesPage");
+const importPatientDocumentsPage = () => import("@/pages/patient/PatientDocumentsPage");
+const importPatientPaymentsPage = () => import("@/pages/patient/PatientPaymentsPage");
+const importPatientBookingPage = () => import("@/pages/patient/PatientBookingPage");
+const importDreamDiaryPage = () => import("@/pages/patient/DreamDiaryPage");
+const importAvailabilitySettingsPage = () => import("@/pages/AvailabilitySettingsPage");
+const importAdminDashboard = () => import("@/pages/admin/AdminDashboard");
+const importAdminUsersPage = () => import("@/pages/admin/AdminUsersPage");
+const importAdminTestLab = () => import("@/pages/admin/AdminTestLab");
+const importAdminTicketsPage = () => import("@/pages/admin/AdminTicketsPage");
+const importDiagnosticsPage = () => import("@/pages/DiagnosticsPage");
+
+const HomePage = lazyRetry(importHomePage);
+const SessionPage = lazyRetry(importSessionPage);
+const AgendaPage = lazyRetry(importAgendaPage);
+const PatientsPage = lazyRetry(importPatientsPage);
+const PatientDetailPage = lazyRetry(importPatientDetailPage);
+const EthicsPage = lazyRetry(importEthicsPage);
+const ProntuarioPage = lazyRetry(importProntuarioPage);
+const FormsPage = lazyRetry(importFormsPage);
+const AnamnesisPage = lazyRetry(importAnamnesisPage);
+const ReportsPage = lazyRetry(importReportsPage);
+const FinancePage = lazyRetry(importFinancePage);
+const DocumentsPage = lazyRetry(importDocumentsPage);
+const AccountPage = lazyRetry(importAccountPage);
+const BackupPage = lazyRetry(importBackupPage);
+const ContractsPage = lazyRetry(importContractsPage);
+const PatientHomePage = lazyRetry(importPatientHomePage);
+const PatientSessionsPage = lazyRetry(importPatientSessionsPage);
+const PatientDiaryPage = lazyRetry(importPatientDiaryPage);
+const PatientMessagesPage = lazyRetry(importPatientMessagesPage);
+const PatientDocumentsPage = lazyRetry(importPatientDocumentsPage);
+const PatientPaymentsPage = lazyRetry(importPatientPaymentsPage);
+const PatientBookingPage = lazyRetry(importPatientBookingPage);
+const DreamDiaryPage = lazyRetry(importDreamDiaryPage);
+const AvailabilitySettingsPage = lazyRetry(importAvailabilitySettingsPage);
+const AdminDashboard = lazyRetry(importAdminDashboard);
+const AdminUsersPage = lazyRetry(importAdminUsersPage);
+const AdminTestLab = lazyRetry(importAdminTestLab);
+const AdminTicketsPage = lazyRetry(importAdminTicketsPage);
+const DiagnosticsPage = lazyRetry(importDiagnosticsPage);
 
 type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
@@ -59,19 +90,25 @@ function PageFallback() {
   );
 }
 
+const prefetchByRole: Record<"professional" | "patient" | "admin", Array<() => Promise<unknown>>> = {
+  professional: [importHomePage, importAgendaPage, importPatientsPage],
+  patient: [importPatientHomePage, importPatientSessionsPage, importPatientDiaryPage],
+  admin: [importAdminDashboard, importAdminUsersPage, importAdminTicketsPage],
+};
+
 const Index = () => {
-  const [showSplash, setShowSplash] = useState(true);
-  const [showLogoReveal, setShowLogoReveal] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => ENABLE_INTRO_SPLASH);
+  const [showLogoReveal, setShowLogoReveal] = useState(() => ENABLE_INTRO_SPLASH);
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const { user, isAuthenticated, isLoading, hasRole } = useAuth();
   const isMobile = useIsMobile();
+  const visibleStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const visibilityReportedRef = useRef(false);
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    setShowLogoReveal(true);
   };
 
   const handleLogoRevealComplete = () => {
@@ -79,15 +116,36 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (!showSplash && !showLogoReveal && !isAuthenticated && !isLoading) {
-      setShowLogin(true);
+    if (!ENABLE_INTRO_SPLASH || isAuthenticated) {
+      setShowSplash(false);
+      setShowLogoReveal(false);
+      return;
     }
-  }, [showSplash, showLogoReveal, isAuthenticated, isLoading]);
 
-  const handleLoginSuccess = () => {
-    setShowLogin(false);
-  };
+    if (!isLoading) {
+      setShowSplash(false);
+      setShowLogoReveal(false);
+      return;
+    }
 
+    setShowSplash(true);
+    setShowLogoReveal(true);
+  }, [isAuthenticated, isLoading]);
+
+  useEffect(() => {
+    const loginOrAppVisible = !isLoading && (isAuthenticated || !isAuthenticated);
+    if (!loginOrAppVisible || visibilityReportedRef.current) return;
+
+    visibilityReportedRef.current = true;
+    const elapsedMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - visibleStartRef.current;
+
+    if (elapsedMs > 800) {
+      console.warn(`[perf] time-to-login-visible acima da meta: ${Math.round(elapsedMs)}ms (alvo <= 800ms)`);
+      return;
+    }
+
+    console.info(`[perf] time-to-login-visible: ${Math.round(elapsedMs)}ms`);
+  }, [isLoading, isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated && user && user.role === "professional") {
@@ -97,6 +155,7 @@ const Index = () => {
       }
     }
   }, [isAuthenticated, user, currentPage]);
+
   const handleSessionClick = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("session");
@@ -128,7 +187,6 @@ const Index = () => {
   };
 
   const handleNavigate = (page: string) => {
-    // Redirect merged pages to their new unified home
     const redirects: Record<string, string> = {
       anamnesis: "forms",
       reports: "documents",
@@ -276,20 +334,20 @@ const Index = () => {
       <AnimatePresence>{!showSplash && showLogoReveal && <LogoRevealSplash onComplete={handleLogoRevealComplete} />}</AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && !showLogoReveal && showLogin && !isAuthenticated && (
-          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-            <LoginPage onLoginSuccess={handleLoginSuccess} />
+        {!isLoading && !isAuthenticated && (
+          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+            <LoginPage onLoginSuccess={() => undefined} />
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && !showLogoReveal && !showLogin && isAuthenticated && (
-          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}>
+        {!isLoading && isAuthenticated && (
+          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
             <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
             <main className={cn("pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0", !isMobile && "md:pl-64")}>
               <AnimatePresence mode="wait">
-                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}>
+                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}>
                   <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
                 </motion.div>
               </AnimatePresence>

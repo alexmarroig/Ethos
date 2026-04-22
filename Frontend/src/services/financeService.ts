@@ -1,5 +1,6 @@
 import { api, type ApiResult } from "./apiClient";
-import { patientService, type Patient } from "./patientService";
+import { type Patient } from "./patientService";
+import { resolvePatientsIndex } from "./patientIndexCache";
 
 type RawFinancialEntry = {
   id: string;
@@ -73,30 +74,6 @@ export interface FinancialSummary {
   due_soon_count: number;
 }
 
-export interface FinanceListFilters {
-  patient_id?: string;
-  session_id?: string;
-  status?: string;
-  due_from?: string;
-  due_to?: string;
-  page?: number;
-  page_size?: number;
-  cursor?: string;
-}
-
-export interface PaginatedData<T> {
-  items: T[];
-  page: number;
-  page_size: number;
-  total: number;
-  next_cursor?: string | null;
-}
-
-async function loadPatientsIndex() {
-  const patientsResult = await patientService.list();
-  return patientsResult.success ? patientsResult.data : [];
-}
-
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
@@ -120,7 +97,7 @@ export const financeService = {
         notes: data.notes,
         description: data.description ?? "Sessão de psicoterapia",
       }),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -145,7 +122,7 @@ export const financeService = {
   ): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
       api.patch<RawFinancialEntry>(`/financial/entries/${entryId}`, data),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -156,7 +133,10 @@ export const financeService = {
     };
   },
 
-  listEntriesPage: async (filters?: FinanceListFilters): Promise<ApiResult<PaginatedData<FinancialEntry>>> => {
+  listEntries: async (filters?: {
+    patient_id?: string;
+    status?: string;
+  }, patientsIndex?: Patient[]): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
     params.set("page", String(filters?.page ?? 1));
     params.set("page_size", String(filters?.page_size ?? 100));
@@ -170,7 +150,7 @@ export const financeService = {
 
     const [result, patients] = await Promise.all([
       api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`),
-      loadPatientsIndex(),
+      resolvePatientsIndex(patientsIndex),
     ]);
 
     if (!result.success) return result;
@@ -209,7 +189,7 @@ export const financeService = {
         total_per_month: number;
         entries: RawFinancialEntry[];
       }>("/finance"),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;

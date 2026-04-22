@@ -7,7 +7,8 @@ import FloatingActionButton, { SessionState } from "@/components/FloatingActionB
 import { sessionService, type Session } from "@/services/sessionService";
 import { useAppStore } from "@/stores/appStore";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
-import { patientService, type Patient } from "@/services/patientService";
+import { type Patient } from "@/services/patientService";
+import { getPatientsIndex } from "@/services/patientIndexCache";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
@@ -120,26 +121,27 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
       const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
 
-      const [todayRes, pendingRes, financeSummaryRes] = await Promise.all([
+      const patientsPromise = getPatientsIndex();
+      const allSessionsPromise = patientsPromise.then((patients) => (
         cacheIsFresh
-          ? Promise.resolve({
-              success: true as const,
-              data: sessionCache.filter((item) => item.date === today).slice(0, 10),
-              request_id: "cache",
+          ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
+          : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
+              if (r.success) setSessionCache(r.data);
+              return r;
             })
-          : sessionService.list({
-              from: today,
-              to: today,
-              exclude_blocks: true,
-              page_size: 10,
-            }),
-        sessionService.list({
-          status: "pending",
-          exclude_blocks: true,
-          to: today,
-          page_size: 20,
-        }),
-        financeService.getFinancialSummary(),
+      ));
+      const pendingSessionsPromise = patientsPromise.then((patients) =>
+        sessionService.list({ status: "pending", exclude_blocks: true }, patients),
+      );
+      const financePromise = patientsPromise.then((patients) =>
+        financeService.listEntries({ status: "open" }, patients),
+      );
+
+      const [patients, allSessionsData, pendingRes, financeRes] = await Promise.all([
+        patientsPromise,
+        allSessionsPromise,
+        pendingSessionsPromise,
+        financePromise,
       ]);
       if (!todayRes.success) {
         setError({ message: (todayRes as any).error?.message ?? "Erro ao carregar sessões", requestId: (todayRes as any).request_id ?? "" });
@@ -234,8 +236,22 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setUpcomingSessions([]);
         setPendingPayments([]);
         setUpcomingPayments([]);
-        setBirthdayPatients([]);
-      });
+      }
+
+      const birthdays = patients
+        .filter((patient) => {
+          if (!patient.birth_date) return false;
+          const [, month] = patient.birth_date.split("-").map(Number);
+          return month === todayDate.getMonth() + 1;
+        })
+        .sort(
+          (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+        )
+        .slice(0, 8);
+      setBirthdayPatients(birthdays);
+
+      setError(null);
+      setLoading(false);
     };
 
     void load();

@@ -34,6 +34,7 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
   isCloudAuthenticated: boolean;
+  isValidatingSession: boolean;
   login: (email: string, password: string) => Promise<boolean>;
   loginWithGoogle: (credential: string) => Promise<boolean>;
   refreshUser: () => Promise<void>;
@@ -93,6 +94,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isCloudAuthenticated, setIsCloudAuthenticated] = useState(false);
+  const [isValidatingSession, setIsValidatingSession] = useState(false);
   const loggingOut = useRef(false);
 
   const doLogout = () => {
@@ -100,6 +102,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     loggingOut.current = true;
     setUser(null);
     setIsCloudAuthenticated(false);
+    setIsValidatingSession(false);
     localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
     localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
     localStorage.removeItem(WEB_CLOUD_AUTH_KEY);
@@ -123,6 +126,24 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   useEffect(() => {
+    const validateSessionInBackground = async (restoredUser: User) => {
+      if (!restoredUser.token) return;
+
+      setIsValidatingSession(true);
+      try {
+        const check = await localEntitlementsApi.get();
+        if (!check.success && check.status === 401) {
+          void Promise.resolve().then(() => {
+            doLogout();
+          });
+        }
+      } catch {
+        // Offline/transient network issues should not interrupt local session.
+      } finally {
+        setIsValidatingSession(false);
+      }
+    };
+
     const restore = async () => {
       const params = new URLSearchParams(window.location.search);
       const tokenFromUrl = params.get("token");
@@ -170,17 +191,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
             }
 
             setIsCloudAuthenticated(localStorage.getItem(WEB_CLOUD_AUTH_KEY) === "true");
-
-            if (restoredUser.token) {
-              const check = await localEntitlementsApi.get();
-              if (!check.success && check.status === 401) {
-                doLogout();
-                setIsLoading(false);
-                return;
-              }
-            }
-
             setUser(restoredUser);
+            setIsLoading(false);
+            queueMicrotask(() => {
+              void validateSessionInBackground(restoredUser);
+            });
+            return;
           } catch {
             localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
             localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
@@ -300,6 +316,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
         isAuthenticated: !!user,
         isLoading,
         isCloudAuthenticated,
+        isValidatingSession,
         login,
         loginWithGoogle,
         refreshUser,
