@@ -1,5 +1,6 @@
 import { api, type ApiResult } from "./apiClient";
-import { patientService, type Patient } from "./patientService";
+import { type Patient } from "./patientService";
+import { resolvePatientsIndex } from "./patientIndexCache";
 
 type RawFinancialEntry = {
   id: string;
@@ -72,11 +73,6 @@ export interface FinancialSummary {
   due_soon_count: number;
 }
 
-async function loadPatientsIndex() {
-  const patientsResult = await patientService.list();
-  return patientsResult.success ? patientsResult.data : [];
-}
-
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
@@ -100,7 +96,7 @@ export const financeService = {
         notes: data.notes,
         description: data.description ?? "Sessão de psicoterapia",
       }),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -125,7 +121,7 @@ export const financeService = {
   ): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
       api.patch<RawFinancialEntry>(`/financial/entries/${entryId}`, data),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -139,7 +135,7 @@ export const financeService = {
   listEntries: async (filters?: {
     patient_id?: string;
     status?: string;
-  }): Promise<ApiResult<FinancialEntry[]>> => {
+  }, patientsIndex?: Patient[]): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
     params.set("page", "1");
     params.set("page_size", "100");
@@ -149,7 +145,7 @@ export const financeService = {
 
     const [result, patients] = await Promise.all([
       api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`),
-      loadPatientsIndex(),
+      resolvePatientsIndex(patientsIndex),
     ]);
 
     if (!result.success) return result;
@@ -173,7 +169,7 @@ export const financeService = {
         total_per_month: number;
         entries: RawFinancialEntry[];
       }>("/finance"),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
