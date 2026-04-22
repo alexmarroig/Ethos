@@ -18,25 +18,25 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       // 0.4s — halo emerges
       haloControls.start({
         opacity: [0, 0.3],
-        transition: { duration: 1.2, ease: "easeOut" },
+        transition: { duration: 0.24, ease: "easeOut" },
       });
 
-      // 4.0s — single light pulse
+      // quick pulse
       setTimeout(() => {
         haloControls.start({
           opacity: [0.3, 0.5, 0.3],
-          transition: { duration: 1.5, ease: "easeInOut" },
+          transition: { duration: 0.2, ease: "easeInOut" },
         });
-      }, 4000);
+      }, 200);
 
-      // 5.0s — dissolve everything
+      // dissolve everything quickly
       setTimeout(async () => {
         await containerControls.start({
           opacity: 0,
-          transition: { duration: 1, ease: "easeInOut" },
+          transition: { duration: 0.24, ease: "easeInOut" },
         });
         onComplete();
-      }, 5000);
+      }, 420);
     };
 
     sequence();
@@ -91,7 +91,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
               strokeDasharray={CIRCUMFERENCE}
               initial={{ strokeDashoffset: CIRCUMFERENCE, opacity: 0.3 }}
               animate={{ strokeDashoffset: 0 }}
-              transition={{ delay: 1.2, duration: 1.8, ease: "easeInOut" }}
+              transition={{ delay: 0.05, duration: 0.3, ease: "easeInOut" }}
               style={{ opacity: 0.3 }}
             />
           </svg>
@@ -106,7 +106,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
               style={{ color: letter === "E" ? "#2F6F73" : "#e8e4df", letterSpacing: "0.05em" }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.8 + i * 0.15, duration: 0.6, ease: "easeOut" }}
+              transition={{ delay: 0.04 + i * 0.03, duration: 0.2, ease: "easeOut" }}
             >
               {letter}
             </motion.span>
@@ -119,7 +119,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           style={{ color: "#a09a92" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: 2.2, duration: 0.8, ease: "easeOut" }}
+          transition={{ delay: 0.2, duration: 0.2, ease: "easeOut" }}
         >
           Prática clínica. Com cuidado.
         </motion.p>
@@ -135,7 +135,7 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           }}
           initial={{ scaleX: 0 }}
           animate={{ scaleX: 1 }}
-          transition={{ delay: 2.8, duration: 2, ease: "easeInOut" }}
+          transition={{ delay: 0.22, duration: 0.25, ease: "easeInOut" }}
         />
       </div>
     </motion.div>

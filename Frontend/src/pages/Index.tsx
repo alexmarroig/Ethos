@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useState, lazy } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import LogoRevealSplash from "@/components/LogoRevealSplash";
@@ -18,6 +18,7 @@ import AnamnesisPage from "@/pages/AnamnesisPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { lazyRetry } from "@/lib/lazyRetry";
+import { ENABLE_INTRO_SPLASH } from "@/config/runtime";
 
 const ReportsPage = lazyRetry(() => import("@/pages/ReportsPage"));
 const FinancePage = lazyRetry(() => import("@/pages/FinancePage"));
@@ -60,18 +61,18 @@ function PageFallback() {
 }
 
 const Index = () => {
-  const [showSplash, setShowSplash] = useState(true);
-  const [showLogoReveal, setShowLogoReveal] = useState(false);
-  const [showLogin, setShowLogin] = useState(false);
+  const [showSplash, setShowSplash] = useState(() => ENABLE_INTRO_SPLASH);
+  const [showLogoReveal, setShowLogoReveal] = useState(() => ENABLE_INTRO_SPLASH);
   const [currentPage, setCurrentPage] = useState<Page>("home");
   const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const { user, isAuthenticated, isLoading, hasRole } = useAuth();
   const isMobile = useIsMobile();
+  const visibleStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
+  const visibilityReportedRef = useRef(false);
 
   const handleSplashComplete = () => {
     setShowSplash(false);
-    setShowLogoReveal(true);
   };
 
   const handleLogoRevealComplete = () => {
@@ -79,15 +80,36 @@ const Index = () => {
   };
 
   useEffect(() => {
-    if (!showSplash && !showLogoReveal && !isAuthenticated && !isLoading) {
-      setShowLogin(true);
+    if (!ENABLE_INTRO_SPLASH || isAuthenticated) {
+      setShowSplash(false);
+      setShowLogoReveal(false);
+      return;
     }
-  }, [showSplash, showLogoReveal, isAuthenticated, isLoading]);
 
-  const handleLoginSuccess = () => {
-    setShowLogin(false);
-  };
+    if (!isLoading) {
+      setShowSplash(false);
+      setShowLogoReveal(false);
+      return;
+    }
 
+    setShowSplash(true);
+    setShowLogoReveal(true);
+  }, [isAuthenticated, isLoading]);
+
+  useEffect(() => {
+    const loginOrAppVisible = !isLoading && (isAuthenticated || !isAuthenticated);
+    if (!loginOrAppVisible || visibilityReportedRef.current) return;
+
+    visibilityReportedRef.current = true;
+    const elapsedMs = (typeof performance !== "undefined" ? performance.now() : Date.now()) - visibleStartRef.current;
+
+    if (elapsedMs > 800) {
+      console.warn(`[perf] time-to-login-visible acima da meta: ${Math.round(elapsedMs)}ms (alvo <= 800ms)`);
+      return;
+    }
+
+    console.info(`[perf] time-to-login-visible: ${Math.round(elapsedMs)}ms`);
+  }, [isLoading, isAuthenticated]);
 
   useEffect(() => {
     if (isAuthenticated && user && user.role === "professional") {
@@ -97,6 +119,7 @@ const Index = () => {
       }
     }
   }, [isAuthenticated, user, currentPage]);
+
   const handleSessionClick = (sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("session");
@@ -128,7 +151,6 @@ const Index = () => {
   };
 
   const handleNavigate = (page: string) => {
-    // Redirect merged pages to their new unified home
     const redirects: Record<string, string> = {
       anamnesis: "forms",
       reports: "documents",
@@ -276,20 +298,20 @@ const Index = () => {
       <AnimatePresence>{!showSplash && showLogoReveal && <LogoRevealSplash onComplete={handleLogoRevealComplete} />}</AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && !showLogoReveal && showLogin && !isAuthenticated && (
-          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-            <LoginPage onLoginSuccess={handleLoginSuccess} />
+        {!isLoading && !isAuthenticated && (
+          <motion.div key="login" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }}>
+            <LoginPage onLoginSuccess={() => undefined} />
           </motion.div>
         )}
       </AnimatePresence>
 
       <AnimatePresence>
-        {!showSplash && !showLogoReveal && !showLogin && isAuthenticated && (
-          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}>
+        {!isLoading && isAuthenticated && (
+          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
             <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
             <main className={cn("pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0", !isMobile && "md:pl-64")}>
               <AnimatePresence mode="wait">
-                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}>
+                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}>
                   <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
                 </motion.div>
               </AnimatePresence>
