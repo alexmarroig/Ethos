@@ -1,6 +1,6 @@
 ﻿import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Repeat2, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Plus, Repeat2, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
@@ -9,13 +9,14 @@ import ConsentModal from "@/components/ConsentModal";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { sessionService, Session } from "@/services/sessionService";
 import { audioService } from "@/services/audioService";
-import { financeService, type FinancialEntry } from "@/services/financeService";
+import { financeService, type FinancialEntry, type FinancialPackage } from "@/services/financeService";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePrivacy } from "@/hooks/usePrivacy";
 import { startJob } from "@/jobs/jobManager";
 import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
+import { PackageModal } from "@/components/finance/PackageModal";
 
 interface SessionPageProps {
   sessionId: string;
@@ -45,6 +46,9 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   const [paymentDueDate, setPaymentDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [packages, setPackages] = useState<FinancialPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -85,11 +89,22 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   }, [sessionId]);
 
   useEffect(() => {
+    if (!session?.patient_id) return;
+    const loadPackages = async () => {
+      const result = await financeService.listPackages({ patient_id: session.patient_id });
+      if (!result.success) return;
+      setPackages(result.data);
+    };
+    void loadPackages();
+  }, [session?.patient_id]);
+
+  useEffect(() => {
     const loadLinkedPayment = async () => {
       const result = await financeService.listEntries({ session_id: sessionId, page_size: 1 });
       if (!result.success) return;
       const entry = result.data.find((item) => item.session_id === sessionId) ?? null;
       setLinkedEntry(entry);
+      setSelectedPackageId(entry?.package_id ?? "");
       setPaymentAmount(entry ? String(entry.amount) : "");
       setPaymentDueDate(entry?.due_date ? new Date(entry.due_date).toISOString().slice(0, 10) : "");
       setPaymentMethod(entry?.payment_method ?? "");
@@ -196,6 +211,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       amount: Number(paymentAmount),
       due_date: paymentDueDate ? new Date(`${paymentDueDate}T12:00:00`).toISOString() : undefined,
       payment_method: paymentMethod || undefined,
+      package_id: selectedPackageId || undefined,
       status: markAsPaid ? ("paid" as const) : ("open" as const),
       paid_at: markAsPaid ? new Date().toISOString() : undefined,
       description: "Sessão de psicoterapia",
@@ -216,6 +232,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setPaymentAmount(String(result.data.amount));
     setPaymentDueDate(result.data.due_date ? new Date(result.data.due_date).toISOString().slice(0, 10) : "");
     setPaymentMethod(result.data.payment_method ?? "");
+    setSelectedPackageId(result.data.package_id ?? "");
     toast({
       title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "Cobrança atualizada" : "Cobrança registrada",
       description: markAsPaid ? "A sessão ficou quitada no financeiro." : "O pagamento desta sessão foi vinculado ao financeiro.",
@@ -259,6 +276,14 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   return (
     <div className="min-h-screen pb-32">
       <ConsentModal isOpen={consentOpen} onClose={() => setConsentOpen(false)} onConfirm={handleConsentConfirm} />
+      {session ? (
+        <PackageModal
+          open={packageModalOpen}
+          patientId={session.patient_id}
+          onOpenChange={setPackageModalOpen}
+          onCreated={(pkg) => setPackages((current) => [pkg, ...current])}
+        />
+      ) : null}
 
       <div className="content-container py-6 md:py-8">
         <motion.button onClick={onBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors duration-200 mb-8" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
@@ -412,6 +437,25 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
               <Input type="date" value={paymentDueDate} onChange={(event) => setPaymentDueDate(event.target.value)} />
               <Input placeholder="Forma de pagamento" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} />
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-10 min-w-[260px] rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedPackageId}
+                onChange={(event) => setSelectedPackageId(event.target.value)}
+              >
+                <option value="">Sem pacote</option>
+                {packages
+                  .filter((item) => item.sessions_remaining > 0 || item.id === selectedPackageId)
+                  .map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.quantity} sessões · saldo {pkg.sessions_remaining} · R$ {pkg.total_amount.toFixed(2)}
+                    </option>
+                  ))}
+              </select>
+              <Button type="button" variant="outline" size="icon" onClick={() => setPackageModalOpen(true)} title="Inserir pacote">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => void handleSavePayment(false)} disabled={paymentSaving || !paymentAmount.trim()}>
@@ -443,4 +487,3 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 };
 
 export default SessionPage;
-

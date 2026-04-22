@@ -292,6 +292,7 @@ export type FormAssignment = Owned & {
 export type FinancialEntry = Owned & {
   patient_id: string;
   session_id?: string;
+  package_id?: string;
   type: "receivable" | "payable";
   amount: number;
   due_date: string;
@@ -303,6 +304,23 @@ export type FinancialEntry = Owned & {
   shared_with_patient?: boolean;
   shared_at?: string;
   reminder_sent_at?: string;
+};
+
+export type FinancialPackage = Owned & {
+  patient_id: string;
+  quantity: number;
+  total_amount: number;
+  sessions_remaining: number;
+  status: "active" | "consumed";
+};
+
+export type FinancialPackageConsumption = Owned & {
+  package_id: string;
+  patient_id: string;
+  session_id?: string;
+  financial_entry_id?: string;
+  consumed_at: string;
+  note?: string;
 };
 
 export type PatientTimelineItem = {
@@ -568,5 +586,4 @@ export type SessionReminderConfig = {
   hoursBeforeSession: number;
   template: string;
 };
-
 
