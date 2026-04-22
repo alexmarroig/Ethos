@@ -24,6 +24,7 @@ import {
   createClinicalNoteDraft,
   createContract,
   createDocument,
+  createFinancialPackage,
   deleteDocument,
   createFinancialEntry,
   createFormEntry,
@@ -72,6 +73,8 @@ import {
   listObservabilityAlerts,
   listPatientAccessibleDiaryEntries,
   listPatientAccessibleDocuments,
+  listFinancialPackageConsumptions,
+  listFinancialPackages,
   listClinicalNotes,
   listPatientSessions,
   listPatients,
@@ -2394,6 +2397,7 @@ export const createEthosBackend = () =>
               status: (body.status as "open" | "paid") ?? "open",
               payment_method: typeof body.payment_method === "string" ? body.payment_method : undefined,
               paid_at: typeof body.paid_at === "string" ? body.paid_at : undefined,
+              package_id: typeof body.package_id === "string" ? body.package_id : undefined,
               notes: typeof body.notes === "string" ? body.notes : undefined,
               description: String(body.description ?? ""),
             }),
@@ -2409,6 +2413,7 @@ export const createEthosBackend = () =>
           status: body.status === "open" || body.status === "paid" ? body.status : undefined,
           payment_method: typeof body.payment_method === "string" ? body.payment_method : undefined,
           paid_at: typeof body.paid_at === "string" ? body.paid_at : undefined,
+          package_id: typeof body.package_id === "string" ? body.package_id : undefined,
           notes: typeof body.notes === "string" ? body.notes : undefined,
           description: typeof body.description === "string" ? body.description : undefined,
         });
@@ -2429,6 +2434,34 @@ export const createEthosBackend = () =>
         const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
         recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
+      }
+
+      if (method === "POST" && url.pathname === "/financial/packages") {
+        const body = await readJson(req);
+        const patientId = String(body.patient_id ?? "");
+        if (!patientId) return error(res, requestId, 422, "VALIDATION_ERROR", "patient_id required");
+        const item = createFinancialPackage(auth.user.id, {
+          patient_id: patientId,
+          quantity: Number(body.quantity ?? 0),
+          total_amount: Number(body.total_amount ?? 0),
+        });
+        return ok(res, requestId, 201, item);
+      }
+
+      if (method === "GET" && url.pathname === "/financial/packages") {
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        const items = listFinancialPackages(auth.user.id, patientId);
+        return ok(res, requestId, 200, items);
+      }
+
+      if (method === "GET" && url.pathname === "/financial/package-consumptions") {
+        const packageId = url.searchParams.get("package_id") ?? undefined;
+        const patientId = url.searchParams.get("patient_id") ?? undefined;
+        const items = listFinancialPackageConsumptions(auth.user.id, {
+          package_id: packageId,
+          patient_id: patientId,
+        });
+        return ok(res, requestId, 200, items);
       }
 
       if (method === "GET" && url.pathname === "/finance") {
@@ -2786,5 +2819,3 @@ export const createEthosBackend = () =>
       );
     }
   });
-
-
