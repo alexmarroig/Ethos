@@ -10,7 +10,11 @@ export const GoogleLoginButton = ({ onSuccess, isLoading }: GoogleLoginButtonPro
   const { toast } = useToast();
 
   return (
-    <div className="w-full flex justify-center">
+    <div
+      className={`flex min-h-11 w-full justify-center overflow-visible ${
+        isLoading ? "pointer-events-none opacity-60" : ""
+      }`}
+    >
       <GoogleLogin
         onSuccess={(credentialResponse) => {
           if (credentialResponse.credential) {
@@ -25,11 +29,14 @@ export const GoogleLoginButton = ({ onSuccess, isLoading }: GoogleLoginButtonPro
           });
         }}
         useOneTap
-        theme="filled_blue"
-        shape="pill"
+        type="standard"
+        theme="outline"
+        size="large"
+        shape="rectangular"
+        logo_alignment="left"
         locale="pt-BR"
         text="continue_with"
-        width="320"
+        width="400"
       />
     </div>
   );
