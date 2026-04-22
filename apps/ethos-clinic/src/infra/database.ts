@@ -12,6 +12,8 @@ import type {
   ClinicalDocument,
   ClinicalDocumentVersion,
   FinancialEntry,
+  FinancialPackage,
+  FinancialPackageConsumption,
   FormEntry,
   FormAssignment,
   FormTemplate,
@@ -93,6 +95,8 @@ export const db = {
   formAssignments: new Map<string, FormAssignment>(),
   formTemplates: new Map<string, FormTemplate>(),
   financial: new Map<string, FinancialEntry>(),
+  financialPackages: new Map<string, FinancialPackage>(),
+  financialPackageConsumptions: new Map<string, FinancialPackageConsumption>(),
   jobs: new Map<string, Job>(),
   documents: new Map<string, ClinicalDocument>(),
   documentVersions: new Map<string, ClinicalDocumentVersion>(),
@@ -149,6 +153,8 @@ type PersistedDatabaseState = {
   formAssignments: FormAssignment[];
   formTemplates: FormTemplate[];
   financial: FinancialEntry[];
+  financialPackages?: FinancialPackage[];
+  financialPackageConsumptions?: FinancialPackageConsumption[];
   jobs: Job[];
   documents: ClinicalDocument[];
   documentVersions: ClinicalDocumentVersion[];
@@ -207,6 +213,8 @@ const loadPersistedDatabase = () => {
     restoreMap(db.formAssignments, snapshot.formAssignments, (item) => item.id);
     restoreMap(db.formTemplates, snapshot.formTemplates, (item) => item.id);
     restoreMap(db.financial, snapshot.financial, (item) => item.id);
+    restoreMap(db.financialPackages, snapshot.financialPackages, (item) => item.id);
+    restoreMap(db.financialPackageConsumptions, snapshot.financialPackageConsumptions, (item) => item.id);
     restoreMap(db.jobs, snapshot.jobs, (item) => item.id);
     restoreMap(db.documents, snapshot.documents, (item) => item.id);
     restoreMap(db.documentVersions, snapshot.documentVersions, (item) => item.id);
@@ -253,6 +261,8 @@ const buildPersistedSnapshot = (): PersistedDatabaseState => ({
   formAssignments: Array.from(db.formAssignments.values()),
   formTemplates: Array.from(db.formTemplates.values()).filter((item) => item.owner_user_id !== "system"),
   financial: Array.from(db.financial.values()),
+  financialPackages: Array.from(db.financialPackages.values()),
+  financialPackageConsumptions: Array.from(db.financialPackageConsumptions.values()),
   jobs: Array.from(db.jobs.values()),
   documents: Array.from(db.documents.values()),
   documentVersions: Array.from(db.documentVersions.values()),
