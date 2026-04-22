@@ -178,6 +178,22 @@ export interface FinancialEntriesPage {
   next_cursor?: string | null;
 }
 
+export interface CashflowMonth {
+  monthKey: string;
+  monthLabel: string;
+  receivedRevenue: number;
+  pendingRevenue: number;
+  totalRevenue: number;
+  paidExpenses: number;
+  pendingExpenses: number;
+  monthlyResult: number;
+}
+
+export interface CashflowFilters {
+  fromMonth?: string;
+  toMonth?: string;
+}
+
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
@@ -394,6 +410,85 @@ export const financeService = {
     };
   },
 
+  getMonthlyCashflow: async (
+    filters?: CashflowFilters,
+  ): Promise<ApiResult<CashflowMonth[]>> => {
+    const allEntries: FinancialEntry[] = [];
+    let nextCursor: string | undefined;
+    let page = 1;
+    let total = 0;
+
+    do {
+      const result = await financeService.listEntriesPage({
+        page,
+        page_size: 200,
+        cursor: nextCursor,
+      });
+
+      if (!result.success) return result;
+
+      allEntries.push(...result.data.items);
+      total = result.data.total;
+      nextCursor = result.data.next_cursor ?? undefined;
+      page += 1;
+    } while (nextCursor || allEntries.length < total);
+
+    const buckets = new Map<string, CashflowMonth>();
+    const fromMonthDate = filters?.fromMonth
+      ? new Date(`${filters.fromMonth}-01T00:00:00`)
+      : null;
+    const toMonthDate = filters?.toMonth
+      ? new Date(`${filters.toMonth}-01T00:00:00`)
+      : null;
+
+    allEntries.forEach((entry) => {
+      const sourceDate = entry.due_date ?? entry.paid_at ?? entry.created_at;
+      const date = new Date(sourceDate);
+      if (Number.isNaN(date.getTime())) return;
+
+      const monthDate = new Date(date.getFullYear(), date.getMonth(), 1);
+      if (fromMonthDate && monthDate < fromMonthDate) return;
+      if (toMonthDate && monthDate > toMonthDate) return;
+
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+      const current = buckets.get(monthKey) ?? {
+        monthKey,
+        monthLabel: monthDate.toLocaleDateString("pt-BR", {
+          month: "short",
+          year: "numeric",
+        }),
+        receivedRevenue: 0,
+        pendingRevenue: 0,
+        totalRevenue: 0,
+        paidExpenses: 0,
+        pendingExpenses: 0,
+        monthlyResult: 0,
+      };
+
+      const isExpense = entry.amount < 0;
+      const absoluteAmount = Math.abs(entry.amount);
+
+      if (isExpense) {
+        if (entry.status === "paid") current.paidExpenses += absoluteAmount;
+        else current.pendingExpenses += absoluteAmount;
+      } else if (entry.status === "paid") {
+        current.receivedRevenue += absoluteAmount;
+      } else {
+        current.pendingRevenue += absoluteAmount;
+      }
+
+      current.totalRevenue = current.receivedRevenue + current.pendingRevenue;
+      current.monthlyResult =
+        current.totalRevenue - (current.paidExpenses + current.pendingExpenses);
+      buckets.set(monthKey, current);
+    });
+
+    return {
+      success: true,
+      status: 200,
+      data: Array.from(buckets.values()).sort((left, right) =>
+        left.monthKey.localeCompare(right.monthKey),
+      ),
   revertPayment: async (
     entryId: string,
     data?: {

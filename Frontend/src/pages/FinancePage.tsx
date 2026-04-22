@@ -15,7 +15,9 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { CashflowTable } from "@/components/finance/CashflowTable";
 import {
+  type CashflowMonth,
   financeService,
   type FinancialEntry,
   type FinancialSummary,
@@ -107,6 +109,7 @@ export default function FinancePage() {
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [cashflowByMonth, setCashflowByMonth] = useState<CashflowMonth[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
@@ -148,6 +151,9 @@ export default function FinancePage() {
     void loadEntries(true);
     financeService.getFinancialSummary().then((result) => {
       if (result.success) setFinancialSummary(result.data);
+    }).catch(() => {});
+    financeService.getMonthlyCashflow().then((result) => {
+      if (result.success) setCashflowByMonth(result.data);
     }).catch(() => {});
   }, []);
 
@@ -670,6 +676,15 @@ export default function FinancePage() {
               </div>
             )}
           </div>
+        </motion.section>
+
+        <motion.section
+          className="mb-6"
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.12 }}
+        >
+          <CashflowTable rows={cashflowByMonth} formatCurrency={formatCurrency} />
         </motion.section>
 
         <motion.div className="mb-6 flex flex-wrap gap-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
