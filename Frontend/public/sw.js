@@ -13,10 +13,6 @@ self.addEventListener("activate", (event) => {
     (async () => {
       await clearCaches();
       await self.registration.unregister();
-      const clients = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
-      for (const client of clients) {
-        client.navigate(client.url);
-      }
     })(),
   );
 });
