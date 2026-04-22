@@ -16,6 +16,8 @@ import {
   MoreHorizontal,
   RotateCcw,
   Save,
+  Brain,
+  RefreshCw,
   Trash,
   Trash2,
   User,

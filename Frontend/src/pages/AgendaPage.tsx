@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2, CalendarPlus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -505,13 +505,6 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                   <Plus className="w-4 h-4" strokeWidth={1.5} />
                   Agendar sessão
                 </Button>
-                <Button variant="outline" className="gap-2" onClick={() => {
-                  setSessionDialogDefaults({ eventType: 'task' });
-                  setSessionDialogOpen(true);
-                }}>
-                  <CalendarPlus className="w-4 h-4" strokeWidth={1.5} />
-                  Agendar tarefas
-                </Button>
               </div>
             </div>
           </div>
@@ -847,6 +840,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       defaultDate={sessionDialogDefaults.date}
       defaultTime={sessionDialogDefaults.time}
       defaultEventType={sessionDialogDefaults.eventType as 'session' | 'task' | undefined}
+      allowTaskType={false}
       onCreated={async () => {
         const result = await sessionService.list(weekWindow);
         if (result.success) {

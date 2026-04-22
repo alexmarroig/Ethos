@@ -34,6 +34,7 @@ interface SessionDialogProps {
   defaultDate?: string;
   defaultTime?: string;
   defaultEventType?: EventType;
+  allowTaskType?: boolean;
   onCreated: () => void;
 }
 
@@ -76,6 +77,7 @@ export function SessionDialog({
   defaultTime,
   defaultEventType,
   onCreated,
+  allowTaskType = true,
 }: SessionDialogProps) {
   const [eventType, setEventType] = useState<EventType>(defaultEventType ?? "session");
   const [patientId, setPatientId] = useState("");
@@ -103,7 +105,8 @@ export function SessionDialog({
       setDate(defaultDate ?? "");
       setTime(defaultTime ?? "");
       setDuration(50);
-      setEventType(defaultEventType ?? "session");
+      const initialEventType = defaultEventType ?? "session";
+      setEventType(allowTaskType ? initialEventType : "session");
       setPatientId("");
       setLocationType("remote");
       setRecurring(false);
@@ -111,7 +114,7 @@ export function SessionDialog({
       setTaskTitle("");
       setError(null);
     }
-  }, [open, defaultDate, defaultTime, defaultEventType]);
+  }, [open, defaultDate, defaultTime, defaultEventType, allowTaskType]);
 
   const handleSubmit = async () => {
     setError(null);
@@ -179,28 +182,32 @@ export function SessionDialog({
         <DialogHeader>
           <DialogTitle>Nova entrada na agenda</DialogTitle>
           <DialogDescription>
-            Agende uma sessão terapêutica ou reserve um horário para uma tarefa da sua rotina.
+            {allowTaskType
+              ? "Agende uma sessão terapêutica ou reserve um horário para uma tarefa da sua rotina."
+              : "Agende uma sessão terapêutica para sua agenda clínica."}
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
-          <div className="grid grid-cols-2 gap-2">
-            {(["session", "task"] as EventType[]).map((type) => (
-              <button
-                key={type}
-                type="button"
-                onClick={() => setEventType(type)}
-                className={cn(
-                  "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
-                  eventType === type
-                    ? "border-primary bg-primary text-primary-foreground"
-                    : "border-border bg-background text-muted-foreground hover:border-foreground",
-                )}
-              >
-                {type === "session" ? "🧠 Sessão" : "🗂️ Tarefa"}
-              </button>
-            ))}
-          </div>
+          {allowTaskType ? (
+            <div className="grid grid-cols-2 gap-2">
+              {(["session", "task"] as EventType[]).map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setEventType(type)}
+                  className={cn(
+                    "rounded-md border px-3 py-2 text-sm font-medium transition-colors",
+                    eventType === type
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:border-foreground",
+                  )}
+                >
+                  {type === "session" ? "🧠 Sessão" : "🗂️ Tarefa"}
+                </button>
+              ))}
+            </div>
+          ) : null}
 
           {eventType === "session" ? (
             <div className="space-y-3">
