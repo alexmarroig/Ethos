@@ -1,12 +1,15 @@
-﻿import { useMemo, useState } from "react";
+﻿import { GoogleOAuthProvider } from "@react-oauth/google";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import BrandWordmark from "@/components/BrandWordmark";
+import { prefetchHomeQueries } from "@/hooks/useDomainQueries";
 
 import { GoogleLoginButton } from "@/components/GoogleLoginButton";
 interface LoginPageProps {
@@ -68,6 +71,7 @@ const choiceButtonClass = (selected: boolean) =>
   }`;
 
 const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
+  const prefersReducedMotion = useReducedMotion();
   const [mode, setMode] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -80,6 +84,9 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const [isGoogleSdkReady, setIsGoogleSdkReady] = useState(false);
+  const [googleSdkTimedOut, setGoogleSdkTimedOut] = useState(false);
+  const [googleSdkFailed, setGoogleSdkFailed] = useState(false);
   const { login, loginWithGoogle } = useAuth();
   const { toast } = useToast();
 
@@ -140,6 +147,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     const success = await login(email.trim(), password);
 
     if (success) {
+      void prefetchHomeQueries(queryClient);
       onLoginSuccess();
     } else {
       toast({
@@ -158,6 +166,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     try {
       const success = await loginWithGoogle(credential);
       if (success) {
+        void prefetchHomeQueries(queryClient);
         toast({
           title: "Bem-vindo!",
           description: "Login realizado com sucesso.",
@@ -290,19 +299,44 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     setSignup(initialSignup);
   };
 
+  const googleSdkMessage = (() => {
+    if (googleSdkFailed) {
+      return "Login com Google indisponível no momento. Use email e senha e tente novamente mais tarde.";
+    }
+    if (googleSdkTimedOut) {
+      return "Carregando login com Google... você já pode entrar com email e senha.";
+    }
+    return "Preparando login com Google...";
+  })();
+
+  useEffect(() => {
+    if (mode !== "login" || isGoogleSdkReady || googleSdkFailed) {
+      setGoogleSdkTimedOut(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setGoogleSdkTimedOut(true);
+    }, 2500);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [googleSdkFailed, isGoogleSdkReady, mode]);
+
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
       <motion.div
         className="w-full max-w-2xl"
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: prefersReducedMotion ? 8 : 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: prefersReducedMotion ? 0.25 : 0.6, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <motion.div
           className="text-center mb-12"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: prefersReducedMotion ? 4 : 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: prefersReducedMotion ? 0.2 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
         >
           <div className="mx-auto flex justify-center">
             <BrandWordmark textClassName="text-4xl font-medium tracking-tight" />
@@ -310,14 +344,14 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
           <p className="mt-2 text-muted-foreground text-sm">Plataforma clínica para atendimento real</p>
         </motion.div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={!prefersReducedMotion}>
           {mode === "recovery" ? (
             <motion.div
               key="recovery"
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: prefersReducedMotion ? 8 : 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
               className="mx-auto max-w-md"
             >
               {recoverySent ? (
@@ -395,10 +429,10 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
               key="signup"
               onSubmit={handleSignup}
               className="space-y-5"
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: prefersReducedMotion ? 8 : 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -566,8 +600,8 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
               className="mx-auto max-w-md space-y-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
             >
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
@@ -635,7 +669,26 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                 </div>
               </div>
 
-              <GoogleLoginButton onSuccess={handleGoogleLogin} isLoading={isLoading} />
+              <GoogleOAuthProvider
+                clientId="83150950956-5avv08g9dsds5fpm7dfd9ui6rptn8uu2.apps.googleusercontent.com"
+                onScriptLoadSuccess={() => {
+                  setIsGoogleSdkReady(true);
+                  setGoogleSdkFailed(false);
+                  setGoogleSdkTimedOut(false);
+                }}
+                onScriptLoadError={() => {
+                  setGoogleSdkFailed(true);
+                  setIsGoogleSdkReady(false);
+                }}
+              >
+                {isGoogleSdkReady ? (
+                  <GoogleLoginButton onSuccess={handleGoogleLogin} isLoading={isLoading} />
+                ) : (
+                  <div className="rounded-xl border border-border px-4 py-3 text-center text-sm text-muted-foreground">
+                    {googleSdkMessage}
+                  </div>
+                )}
+              </GoogleOAuthProvider>
 
               <div className="text-center text-xs text-muted-foreground space-y-2">
                 <p>
@@ -674,4 +727,3 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 };
 
 export default LoginPage;
-

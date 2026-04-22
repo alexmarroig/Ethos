@@ -109,6 +109,9 @@ export default function FinancePage() {
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [filterStatus, setFilterStatus] = useState<"all" | "open" | "paid">("all");
   const [filterOverdue, setFilterOverdue] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [loadingMore, setLoadingMore] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -130,23 +133,48 @@ export default function FinancePage() {
   }, []);
 
   useEffect(() => {
-    void loadEntries();
+    void loadEntries(true);
     financeService.getFinancialSummary().then((result) => {
       if (result.success) setFinancialSummary(result.data);
     }).catch(() => {});
   }, []);
 
-  async function loadEntries() {
-    setLoading(true);
-    const result = await financeService.getSummary();
-    if (!result.success) {
-      setError({ message: result.error.message, requestId: result.request_id });
+  useEffect(() => {
+    setEntries([]);
+    setNextCursor(null);
+    setCurrentPage(1);
+    void loadEntries(true);
+  }, [filterStatus]);
+
+  async function loadEntries(reset = false) {
+    if (reset) setLoading(true);
+    else setLoadingMore(true);
+
+    const [summaryResult, listResult] = await Promise.all([
+      financeService.getSummary(),
+      financeService.listEntriesPage({
+        status: filterStatus === "all" ? undefined : filterStatus,
+        page: reset ? 1 : currentPage + 1,
+        page_size: 30,
+        cursor: reset ? undefined : (nextCursor ?? undefined),
+      }),
+    ]);
+
+    if (summaryResult.success) {
+      setSummary(summaryResult.data);
+    }
+
+    if (!listResult.success) {
+      setError({ message: listResult.error.message, requestId: listResult.request_id });
     } else {
-      setSummary(result.data);
-      setEntries(result.data.entries);
+      setEntries((current) => (reset ? listResult.data.items : [...current, ...listResult.data.items]));
+      setCurrentPage(listResult.data.page);
+      setNextCursor(listResult.data.next_cursor ?? null);
       setError(null);
     }
+
     setLoading(false);
+    setLoadingMore(false);
   }
 
   const isOverdue = (entry: FinancialEntry) => {
@@ -158,16 +186,10 @@ export default function FinancePage() {
     return due < today;
   };
 
-  const filteredEntries = useMemo(() => {
-    let result =
-      filterStatus === "all"
-        ? entries
-        : entries.filter((entry) => entry.status === filterStatus);
-    if (filterOverdue) {
-      result = result.filter((entry) => isOverdue(entry));
-    }
-    return result;
-  }, [entries, filterStatus, filterOverdue]);
+  const filteredEntries = useMemo(
+    () => (filterOverdue ? entries.filter((entry) => isOverdue(entry)) : entries),
+    [entries, filterOverdue],
+  );
 
   const paidEntries = useMemo(
     () => entries.filter((entry) => entry.status === "paid"),
@@ -729,6 +751,20 @@ export default function FinancePage() {
               </div>
             ))
           )}
+
+          {nextCursor ? (
+            <div className="pt-2">
+              <Button
+                variant="outline"
+                className="w-full gap-2"
+                disabled={loadingMore}
+                onClick={() => void loadEntries(false)}
+              >
+                {loadingMore ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                {loadingMore ? "Carregando mais lançamentos..." : "Carregar mais lançamentos"}
+              </Button>
+            </div>
+          ) : null}
         </motion.div>
 
         <Dialog open={editOpen} onOpenChange={setEditOpen}>
