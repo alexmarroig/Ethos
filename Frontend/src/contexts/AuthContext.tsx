@@ -100,19 +100,22 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   const doLogout = () => {
     if (loggingOut.current) return;
     loggingOut.current = true;
-    setUser(null);
-    setIsCloudAuthenticated(false);
-    setIsValidatingSession(false);
-    localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
-    localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
-    localStorage.removeItem(WEB_CLOUD_AUTH_KEY);
-    clearControlToken();
+
+    const doCleanup = () => {
+      setUser(null);
+      setIsCloudAuthenticated(false);
+      setIsValidatingSession(false);
+      localStorage.removeItem(WEB_AUTH_STORAGE_KEY);
+      localStorage.removeItem(WEB_AUTH_EXPIRY_KEY);
+      localStorage.removeItem(WEB_CLOUD_AUTH_KEY);
+      clearControlToken();
+      loggingOut.current = false;
+    };
+
     authService
       .logout()
       .catch(() => {})
-      .finally(() => {
-        loggingOut.current = false;
-      });
+      .finally(doCleanup);
   };
 
   useEffect(() => {
@@ -133,9 +136,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
       try {
         const check = await localEntitlementsApi.get();
         if (!check.success && check.status === 401) {
-          void Promise.resolve().then(() => {
-            doLogout();
-          });
+          if (!loggingOut.current) {
+            void Promise.resolve().then(() => {
+              doLogout();
+            });
+          }
         }
       } catch {
         // Offline/transient network issues should not interrupt local session.
