@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
@@ -13,12 +13,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
 import { Button } from "@/components/ui/button";
 import { usePrivacy } from "@/hooks/usePrivacy";
-import {
-  useFinancialEntries,
-  useFinancialSummary,
-  usePatients,
-  useSessions,
-} from "@/hooks/useDomainQueries";
 
 interface HomePageProps {
   onSessionClick: (sessionId: string) => void;
@@ -116,6 +110,8 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       const todayDate = new Date();
       const today = todayDate.toISOString().slice(0, 10);
+      const monthEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+      const monthEnd = monthEndDate.toISOString().slice(0, 10);
       const upcomingWindowEndDate = new Date(todayDate);
       upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
       const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
@@ -145,13 +141,18 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         pendingSessionsPromise,
         financePromise,
       ]);
-      if (!todayRes.success) {
-        setError({ message: (todayRes as any).error?.message ?? "Erro ao carregar sessões", requestId: (todayRes as any).request_id ?? "" });
+      if (!allSessionsData.success) {
+        setError({
+          message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões",
+          requestId: (allSessionsData as any).request_id ?? "",
+        });
         setLoading(false);
         return;
       }
 
-      const todayData = [...todayRes.data].sort((a, b) => a.time.localeCompare(b.time));
+      const todayData = [...allSessionsData.data]
+        .filter((session) => session.date === today)
+        .sort((a, b) => a.time.localeCompare(b.time));
       setTodaySessions(todayData);
 
       if (pendingRes.success) {
@@ -169,7 +170,20 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setPendingSessions([]);
       }
 
-      if (financeSummaryRes.success) setFinancialSummary(financeSummaryRes.data);
+      if (financeRes.success) {
+        const overdue = financeRes.data.filter(
+          (entry) => (entry.due_date ?? "").slice(0, 10) < today,
+        );
+        setFinancialSummary({
+          total_income: 0,
+          total_pending: financeRes.data.reduce((sum, entry) => sum + entry.amount, 0),
+          overdue_total: overdue.reduce((sum, entry) => sum + entry.amount, 0),
+          paid_count: 0,
+          overdue_count: overdue.length,
+        });
+      } else {
+        setFinancialSummary(null);
+      }
 
       setError(null);
       setLoading(false);
@@ -188,8 +202,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           due_to: upcomingWindowEnd,
           page_size: 40,
         }),
-        patientService.list(),
-      ]).then(([upcomingRes, financeRes, patientsRes]) => {
+      ]).then(([upcomingRes, financeRes]) => {
         if (upcomingRes.success) {
           setSessionCache(upcomingRes.data);
           setUpcomingSessions(
@@ -219,26 +232,21 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           setUpcomingPayments([]);
         }
 
-        if (patientsRes.success) {
-          const birthdays = patientsRes.data
-            .filter((patient) => {
-              if (!patient.birth_date) return false;
-              const [, month] = patient.birth_date.split("-").map(Number);
-              return month === todayDate.getMonth() + 1;
-            })
-            .sort(
-              (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
-            )
-            .slice(0, 8);
-          setBirthdayPatients(birthdays);
-        } else {
-          setBirthdayPatients([]);
-        }
       }).catch(() => {
         setUpcomingSessions([]);
         setPendingPayments([]);
         setUpcomingPayments([]);
       });
+
+      const birthdays = patients
+        .filter((patient) => {
+          if (!patient.birth_date) return false;
+          const [, month] = patient.birth_date.split("-").map(Number);
+          return month === todayDate.getMonth() + 1;
+        })
+        .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
+        .slice(0, 8);
+      setBirthdayPatients(birthdays);
     };
 
     void load();
@@ -300,14 +308,17 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
     );
   }
 
-  if (criticalError) {
+  if (error) {
     return (
       <div className="min-h-screen">
         <div className="content-container py-12">
           <h1 className="mb-8 font-serif text-3xl font-medium text-foreground md:text-4xl">
             Início
           </h1>
-          <IntegrationUnavailable message={criticalError.message ?? "Erro ao carregar sessões"} requestId="" />
+          <IntegrationUnavailable
+            message={error.message ?? "Erro ao carregar sessões"}
+            requestId={error.requestId}
+          />
         </div>
       </div>
     );
