@@ -125,8 +125,21 @@ function mapStatus(status: RawSession["status"]): Session["status"] {
   return status;
 }
 
-function mapSession(raw: RawSession, patients: Patient[]): Session {
-  const patient = patients.find((item) => item.id === raw.patient_id || item.external_id === raw.patient_id);
+function buildPatientsIndex(patients: Patient[]): Map<string, Patient> {
+  const patientsIndex = new Map<string, Patient>();
+
+  for (const patient of patients) {
+    patientsIndex.set(patient.id, patient);
+    if (patient.external_id) {
+      patientsIndex.set(patient.external_id, patient);
+    }
+  }
+
+  return patientsIndex;
+}
+
+function mapSession(raw: RawSession, patientsIndex: Map<string, Patient>): Session {
+  const patient = patientsIndex.get(raw.patient_id);
   const { date, time, scheduled_at } = formatDateParts(raw);
 
   return {
@@ -157,7 +170,7 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
 
 async function loadPatientsIndex() {
   const patientsResult = await patientService.list();
-  return patientsResult.success ? patientsResult.data : [];
+  return patientsResult.success ? buildPatientsIndex(patientsResult.data) : new Map<string, Patient>();
 }
 
 export const sessionService = {
@@ -172,14 +185,14 @@ export const sessionService = {
     if (filters?.exclude_blocks) params.set("exclude_blocks", "true");
     const qs = params.toString();
 
-    const [sessionsResult, patients] = await Promise.all([
+    const [sessionsResult, patientsIndex] = await Promise.all([
       api.get<RawPaginatedSessions>(`/sessions?${qs}`),
       loadPatientsIndex(),
     ]);
 
     if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<Session[]>;
 
-    const mapped = sessionsResult.data.items.map((item) => mapSession(item, patients));
+    const mapped = sessionsResult.data.items.map((item) => mapSession(item, patientsIndex));
     const filtered = mapped.filter((item) => {
       if (filters?.from && item.date < filters.from) return false;
       if (filters?.to && item.date > filters.to) return false;
@@ -195,7 +208,7 @@ export const sessionService = {
   },
 
   getById: async (id: string): Promise<ApiResult<Session>> => {
-    const [sessionResult, patients] = await Promise.all([
+    const [sessionResult, patientsIndex] = await Promise.all([
       api.get<RawSession>(`/sessions/${id}`),
       loadPatientsIndex(),
     ]);
@@ -204,7 +217,7 @@ export const sessionService = {
 
     return {
       ...sessionResult,
-      data: mapSession(sessionResult.data, patients),
+      data: mapSession(sessionResult.data, patientsIndex),
     };
   },
 
@@ -217,7 +230,7 @@ export const sessionService = {
     block_title?: string;
     location_type?: "remote" | "presencial";
   }): Promise<ApiResult<Session>> => {
-    const [createResult, patients] = await Promise.all([
+    const [createResult, patientsIndex] = await Promise.all([
       api.post<RawSession>("/sessions", data),
       loadPatientsIndex(),
     ]);
@@ -226,13 +239,13 @@ export const sessionService = {
 
     return {
       ...createResult,
-      data: mapSession(createResult.data, patients),
+      data: mapSession(createResult.data, patientsIndex),
     };
   },
 
   updateStatus: async (id: string, status: Session["status"]): Promise<ApiResult<Session>> => {
     const rawStatus = status === "pending" ? "scheduled" : status;
-    const [result, patients] = await Promise.all([
+    const [result, patientsIndex] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}/status`, { status: rawStatus }),
       loadPatientsIndex(),
     ]);
@@ -241,7 +254,7 @@ export const sessionService = {
 
     return {
       ...result,
-      data: mapSession(result.data, patients),
+      data: mapSession(result.data, patientsIndex),
     };
   },
 
@@ -254,7 +267,7 @@ export const sessionService = {
       location_type?: "remote" | "presencial"
     }>
   ): Promise<ApiResult<Session>> => {
-    const [result, patients] = await Promise.all([
+    const [result, patientsIndex] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}`, data),
       loadPatientsIndex(),
     ]);
@@ -263,7 +276,7 @@ export const sessionService = {
 
     return {
       ...result,
-      data: mapSession(result.data, patients),
+      data: mapSession(result.data, patientsIndex),
     };
   },
 
