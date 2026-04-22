@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2 } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Plus, Repeat2, Settings2, Sparkles, UserRound, X, Monitor, Building2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
