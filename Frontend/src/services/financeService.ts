@@ -74,6 +74,25 @@ export interface FinancialSummary {
   due_soon_count: number;
 }
 
+export interface FinanceListFilters {
+  page?: number;
+  page_size?: number;
+  cursor?: string;
+  patient_id?: string;
+  session_id?: string;
+  status?: string;
+  due_from?: string;
+  due_to?: string;
+}
+
+export interface FinancialEntriesPage {
+  items: FinancialEntry[];
+  page: number;
+  page_size: number;
+  total: number;
+  next_cursor?: string | null;
+}
+
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
@@ -133,10 +152,10 @@ export const financeService = {
     };
   },
 
-  listEntries: async (filters?: {
-    patient_id?: string;
-    status?: string;
-  }, patientsIndex?: Patient[]): Promise<ApiResult<FinancialEntry[]>> => {
+  listEntriesPage: async (
+    filters?: FinanceListFilters,
+    patientsIndex?: Patient[],
+  ): Promise<ApiResult<FinancialEntriesPage>> => {
     const params = new URLSearchParams();
     params.set("page", String(filters?.page ?? 1));
     params.set("page_size", String(filters?.page_size ?? 100));
