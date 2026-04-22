@@ -1,12 +1,14 @@
 ﻿import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { authService } from "@/services/authService";
 import BrandWordmark from "@/components/BrandWordmark";
+import { prefetchHomeQueries } from "@/hooks/useDomainQueries";
 
 import { GoogleLoginButton } from "@/components/GoogleLoginButton";
 interface LoginPageProps {
@@ -80,6 +82,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
+  const queryClient = useQueryClient();
   const { login, loginWithGoogle } = useAuth();
   const { toast } = useToast();
 
@@ -140,6 +143,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     const success = await login(email.trim(), password);
 
     if (success) {
+      void prefetchHomeQueries(queryClient);
       onLoginSuccess();
     } else {
       toast({
@@ -158,6 +162,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     try {
       const success = await loginWithGoogle(credential);
       if (success) {
+        void prefetchHomeQueries(queryClient);
         toast({
           title: "Bem-vindo!",
           description: "Login realizado com sucesso.",
@@ -674,4 +679,3 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
 };
 
 export default LoginPage;
-
