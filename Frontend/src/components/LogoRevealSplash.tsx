@@ -1,4 +1,4 @@
-import { motion } from "framer-motion";
+import { motion, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
 
 interface LogoRevealSplashProps {
@@ -8,10 +8,12 @@ interface LogoRevealSplashProps {
 const LETTERS = ["E", "T", "H", "O", "S"];
 
 const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
+  const prefersReducedMotion = useReducedMotion();
+
   useEffect(() => {
     const timer = window.setTimeout(onComplete, 420);
     return () => window.clearTimeout(timer);
-  }, [onComplete]);
+  }, [onComplete, prefersReducedMotion]);
 
   return (
     <motion.div
@@ -31,6 +33,19 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
         animate={{ opacity: [0, 0.92, 0.58], scale: [0.62, 1.08, 1] }}
         transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
       />
+      {!prefersReducedMotion ? (
+        <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_0%,rgba(255,214,130,0.04)_46%,transparent_62%)]" />
+      ) : null}
+
+      {!prefersReducedMotion ? (
+        <motion.div
+          aria-hidden="true"
+          className="absolute h-[32rem] w-[32rem] rounded-full bg-[#f2bb55]/15 blur-[86px] md:h-[46rem] md:w-[46rem]"
+          initial={{ opacity: 0, scale: 0.62 }}
+          animate={{ opacity: [0, 0.92, 0.58], scale: [0.62, 1.08, 1] }}
+          transition={{ duration: 1.65, ease: [0.22, 1, 0.36, 1] }}
+        />
+      ) : null}
 
       <motion.section
         className="relative z-10 flex flex-col items-center px-6"
@@ -61,8 +76,9 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
                 className="inline-block bg-[linear-gradient(115deg,#6e4b16_0%,#d79735_24%,#fff0ae_48%,#f2bd54_68%,#8c5b19_100%)] bg-[length:260%_100%] bg-clip-text text-transparent"
                 style={{
                   WebkitTextStroke: "0.7px rgba(255, 231, 166, 0.34)",
-                  filter:
-                    "drop-shadow(0 0 12px rgba(246, 197, 91, 0.62)) drop-shadow(0 0 34px rgba(246, 197, 91, 0.34))",
+                  filter: prefersReducedMotion
+                    ? "none"
+                    : "drop-shadow(0 0 12px rgba(246, 197, 91, 0.62)) drop-shadow(0 0 34px rgba(246, 197, 91, 0.34))",
                 }}
                 variants={{
                   hidden: { opacity: 0, y: 18, scale: 0.96 },
@@ -73,14 +89,18 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
                   duration: 0.18,
                   ease: [0.16, 1, 0.3, 1],
                 }}
-                animate={{
-                  backgroundPosition: ["-180% center", "55% center", "220% center"],
-                  textShadow: [
-                    "0 0 0 rgba(247, 201, 110, 0)",
-                    "0 0 22px rgba(247, 201, 110, 0.9), 0 0 70px rgba(247, 201, 110, 0.36)",
-                    "0 0 10px rgba(247, 201, 110, 0.48), 0 0 30px rgba(247, 201, 110, 0.22)",
-                  ],
-                }}
+                animate={
+                  prefersReducedMotion
+                    ? undefined
+                    : {
+                        backgroundPosition: ["-180% center", "55% center", "220% center"],
+                        textShadow: [
+                          "0 0 0 rgba(247, 201, 110, 0)",
+                          "0 0 22px rgba(247, 201, 110, 0.9), 0 0 70px rgba(247, 201, 110, 0.36)",
+                          "0 0 10px rgba(247, 201, 110, 0.48), 0 0 30px rgba(247, 201, 110, 0.22)",
+                        ],
+                      }
+                }
               >
                 {letter}
               </motion.span>

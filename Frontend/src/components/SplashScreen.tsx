@@ -1,4 +1,4 @@
-import { motion, useAnimation } from "framer-motion";
+import { motion, useAnimation, useReducedMotion } from "framer-motion";
 import { useEffect } from "react";
 
 interface SplashScreenProps {
@@ -12,6 +12,7 @@ const CIRCUMFERENCE = 2 * Math.PI * CIRCLE_RADIUS;
 const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const containerControls = useAnimation();
   const haloControls = useAnimation();
+  const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
     const sequence = async () => {
@@ -39,8 +40,11 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       }, 420);
     };
 
-    sequence();
-  }, [onComplete, containerControls, haloControls]);
+    return () => {
+      window.clearTimeout(pulseTimer);
+      window.clearTimeout(finishTimer);
+    };
+  }, [onComplete, containerControls, haloControls, prefersReducedMotion]);
 
   return (
     <motion.div
@@ -49,31 +53,34 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
       initial={{ opacity: 1 }}
       animate={containerControls}
     >
-      {/* Film grain overlay */}
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          opacity: 0.04,
-          backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
-          backgroundRepeat: "repeat",
-          backgroundSize: "128px 128px",
-        }}
-      />
+      {!prefersReducedMotion ? (
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            opacity: 0.04,
+            backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E")`,
+            backgroundRepeat: "repeat",
+            backgroundSize: "128px 128px",
+          }}
+        />
+      ) : null}
 
       {/* Radial halo */}
-      <motion.div
-        className="absolute"
-        style={{
-          width: 500,
-          height: 500,
-          background: "radial-gradient(circle, hsl(210 15% 25% / 0.3) 0%, transparent 70%)",
-          top: "50%",
-          left: "50%",
-          transform: "translate(-50%, -50%)",
-        }}
-        initial={{ opacity: 0 }}
-        animate={haloControls}
-      />
+      {!prefersReducedMotion ? (
+        <motion.div
+          className="absolute"
+          style={{
+            width: 500,
+            height: 500,
+            background: "radial-gradient(circle, hsl(210 15% 25% / 0.3) 0%, transparent 70%)",
+            top: "50%",
+            left: "50%",
+            transform: "translate(-50%, -50%)",
+          }}
+          initial={{ opacity: 0 }}
+          animate={haloControls}
+        />
+      ) : null}
 
       {/* Center content */}
       <div className="relative z-10 flex flex-col items-center">
