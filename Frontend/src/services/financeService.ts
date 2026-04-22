@@ -6,6 +6,7 @@ type RawFinancialEntry = {
   id: string;
   patient_id: string;
   session_id?: string;
+  package_id?: string;
   amount: number;
   payment_method?: string;
   status: "paid" | "open" | "exempt" | "package";
@@ -39,6 +40,7 @@ export interface FinancialEntry {
   patient_id: string;
   patient_name?: string;
   session_id?: string;
+  package_id?: string;
   amount: number;
   payment_method?: string;
   status: "paid" | "open" | "exempt" | "package";
@@ -67,6 +69,32 @@ export interface FinanceSummary {
   entries: FinancialEntry[];
 }
 
+type RawFinancialPackage = {
+  id: string;
+  patient_id: string;
+  quantity: number;
+  total_amount: number;
+  sessions_remaining: number;
+  status: "active" | "consumed";
+  created_at: string;
+};
+
+export interface FinancialPackage extends RawFinancialPackage {
+  patient_name?: string;
+}
+
+export interface FinancialPackageConsumption {
+  id: string;
+  package_id: string;
+  patient_id: string;
+  patient_name?: string;
+  session_id?: string;
+  financial_entry_id?: string;
+  consumed_at: string;
+  note?: string;
+  created_at: string;
+}
+
 function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
   const patient = patients.find(
     (item) => item.id === raw.patient_id || item.external_id === raw.patient_id,
@@ -77,6 +105,7 @@ function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
     patient_id: raw.patient_id,
     patient_name: patient?.name,
     session_id: raw.session_id,
+    package_id: raw.package_id,
     amount: raw.amount,
     payment_method: raw.payment_method,
     status: raw.status,
@@ -127,6 +156,7 @@ export const financeService = {
   createEntry: async (data: {
     patient_id: string;
     session_id?: string;
+    package_id?: string;
     amount: number;
     payment_method?: string;
     due_date?: string;
@@ -148,6 +178,7 @@ export const financeService = {
       api.post<RawFinancialEntry>("/financial/entry", {
         patient_id: data.patient_id,
         session_id: data.session_id,
+        package_id: data.package_id,
         amount: data.amount,
         payment_method: data.payment_method,
         status: data.status ?? "open",
@@ -177,6 +208,60 @@ export const financeService = {
     };
   },
 
+  createPackage: async (data: {
+    patient_id: string;
+    quantity: number;
+    total_amount: number;
+  }): Promise<ApiResult<FinancialPackage>> => {
+    const [result, patients] = await Promise.all([
+      api.post<RawFinancialPackage>("/financial/packages", data),
+      resolvePatientsIndex(),
+    ]);
+    if (!result.success) return result;
+    const patient = patients.find((item) => item.id === result.data.patient_id || item.external_id === result.data.patient_id);
+    return { ...result, data: { ...result.data, patient_name: patient?.name } };
+  },
+
+  listPackages: async (filters?: { patient_id?: string }): Promise<ApiResult<FinancialPackage[]>> => {
+    const params = new URLSearchParams();
+    if (filters?.patient_id) params.set("patient_id", filters.patient_id);
+    const suffix = params.toString();
+    const [result, patients] = await Promise.all([
+      api.get<RawFinancialPackage[]>(`/financial/packages${suffix ? `?${suffix}` : ""}`),
+      resolvePatientsIndex(),
+    ]);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: result.data.map((pkg) => ({
+        ...pkg,
+        patient_name: patients.find((item) => item.id === pkg.patient_id || item.external_id === pkg.patient_id)?.name,
+      })),
+    };
+  },
+
+  listPackageConsumptions: async (filters?: {
+    package_id?: string;
+    patient_id?: string;
+  }): Promise<ApiResult<FinancialPackageConsumption[]>> => {
+    const params = new URLSearchParams();
+    if (filters?.package_id) params.set("package_id", filters.package_id);
+    if (filters?.patient_id) params.set("patient_id", filters.patient_id);
+    const suffix = params.toString();
+    const [result, patients] = await Promise.all([
+      api.get<FinancialPackageConsumption[]>(`/financial/package-consumptions${suffix ? `?${suffix}` : ""}`),
+      resolvePatientsIndex(),
+    ]);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: result.data.map((item) => ({
+        ...item,
+        patient_name: patients.find((p) => p.id === item.patient_id || p.external_id === item.patient_id)?.name,
+      })),
+    };
+  },
+
   updateEntry: async (
     entryId: string,
     data: Partial<{
@@ -185,6 +270,7 @@ export const financeService = {
       due_date?: string;
       status: "open" | "paid" | "exempt" | "package";
       paid_at?: string;
+      package_id?: string;
       notes?: string;
       description?: string;
       is_exempt?: boolean;

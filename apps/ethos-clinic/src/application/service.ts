@@ -35,6 +35,8 @@ import type {
   DocumentTemplate,
   EmotionalDiaryEntry,
   FinancialEntry,
+  FinancialPackage,
+  FinancialPackageConsumption,
   FormEntry,
   FormAssignment,
   FormAssignmentMode,
@@ -220,13 +222,6 @@ const createSessionForUser = (user: User) => {
     expires_at: new Date(Date.now() + DAY_MS).toISOString(),
   });
   user.last_seen_at = now();
-
-  const session = db.sessions.get(note.session_id);
-  if (session) {
-    refreshClinicalSynthesis(owner, session.patient_id).catch(err => {
-      console.error("Async synthesis refresh failed:", err);
-    });
-  }
   persistMutation();
 
   return { user: sanitizeAuthUser(user), token };
@@ -2539,9 +2534,59 @@ export const listPatientAssignedForms = (access: PatientAccess) =>
 export const listPatientFormEntries = (access: PatientAccess, formId?: string) =>
   listFormEntriesForPatient(access.owner_user_id, access.patient_id, formId);
 
+const consumeFinancialPackageSessionInternal = (
+  owner: string,
+  payload: {
+    package_id: string;
+    session_id?: string;
+    financial_entry_id?: string;
+    note?: string;
+    consumed_at?: string;
+  },
+): FinancialPackageConsumption | undefined => {
+  const pkg = getByOwner(db.financialPackages, owner, payload.package_id);
+  if (!pkg || pkg.sessions_remaining <= 0) return undefined;
+
+  const nextPackage: FinancialPackage = {
+    ...pkg,
+    sessions_remaining: pkg.sessions_remaining - 1,
+    status: pkg.sessions_remaining - 1 <= 0 ? "consumed" : "active",
+  };
+  db.financialPackages.set(nextPackage.id, nextPackage);
+
+  const consumption: FinancialPackageConsumption = {
+    id: uid(),
+    owner_user_id: owner,
+    package_id: nextPackage.id,
+    patient_id: nextPackage.patient_id,
+    session_id: payload.session_id,
+    financial_entry_id: payload.financial_entry_id,
+    consumed_at: payload.consumed_at ?? now(),
+    note: payload.note?.trim() || undefined,
+    created_at: now(),
+  };
+  db.financialPackageConsumptions.set(consumption.id, consumption);
+  return consumption;
+};
+
 export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry, "id" | "owner_user_id" | "created_at">): FinancialEntry => {
   const item = { ...payload, id: uid(), owner_user_id: owner, created_at: now() };
+  if (item.package_id) {
+    const pkg = getByOwner(db.financialPackages, owner, item.package_id);
+    if (!pkg || pkg.patient_id !== item.patient_id) {
+      delete item.package_id;
+    }
+  }
   db.financial.set(item.id, item);
+  if (item.status === "paid" && item.package_id) {
+    consumeFinancialPackageSessionInternal(owner, {
+      package_id: item.package_id,
+      session_id: item.session_id,
+      financial_entry_id: item.id,
+      consumed_at: item.paid_at ?? now(),
+      note: "Consumo automático ao registrar pagamento.",
+    });
+  }
   persistMutation();
   return item;
 };
@@ -2549,7 +2594,7 @@ export const createFinancialEntry = (owner: string, payload: Omit<FinancialEntry
 export const updateFinancialEntry = (
   owner: string,
   entryId: string,
-  patch: Partial<Pick<FinancialEntry, "amount" | "due_date" | "status" | "description" | "payment_method" | "paid_at" | "notes">>,
+  patch: Partial<Pick<FinancialEntry, "amount" | "due_date" | "status" | "description" | "payment_method" | "paid_at" | "notes" | "package_id">>,
 ): FinancialEntry | undefined => {
   const current = getByOwner(db.financial, owner, entryId);
   if (!current) return undefined;
@@ -2561,6 +2606,7 @@ export const updateFinancialEntry = (
     status: patch.status ?? current.status,
     description: patch.description !== undefined ? patch.description.trim() || current.description : current.description,
     payment_method: patch.payment_method !== undefined ? patch.payment_method.trim() || undefined : current.payment_method,
+    package_id: patch.package_id !== undefined ? patch.package_id || undefined : current.package_id,
     notes: patch.notes !== undefined ? patch.notes.trim() || undefined : current.notes,
     paid_at:
       patch.status === "paid"
@@ -2575,9 +2621,56 @@ export const updateFinancialEntry = (
   };
 
   db.financial.set(next.id, next);
+  if (current.status !== "paid" && next.status === "paid" && next.package_id) {
+    consumeFinancialPackageSessionInternal(owner, {
+      package_id: next.package_id,
+      session_id: next.session_id,
+      financial_entry_id: next.id,
+      consumed_at: next.paid_at ?? now(),
+      note: "Consumo automático ao atualizar pagamento para pago.",
+    });
+  }
   persistMutation();
   return next;
 };
+
+export const createFinancialPackage = (
+  owner: string,
+  payload: {
+    patient_id: string;
+    quantity: number;
+    total_amount: number;
+  },
+): FinancialPackage => {
+  const quantity = Math.max(1, Math.floor(payload.quantity));
+  const item: FinancialPackage = {
+    id: uid(),
+    owner_user_id: owner,
+    patient_id: payload.patient_id,
+    quantity,
+    total_amount: Math.max(0, Number(payload.total_amount) || 0),
+    sessions_remaining: quantity,
+    status: quantity > 0 ? "active" : "consumed",
+    created_at: now(),
+  };
+  db.financialPackages.set(item.id, item);
+  persistMutation();
+  return item;
+};
+
+export const listFinancialPackages = (owner: string, patientId?: string): FinancialPackage[] =>
+  byOwner(db.financialPackages.values(), owner)
+    .filter((item) => !patientId || item.patient_id === patientId)
+    .sort(compareByNewestDate);
+
+export const listFinancialPackageConsumptions = (
+  owner: string,
+  filters?: { package_id?: string; patient_id?: string },
+): FinancialPackageConsumption[] =>
+  byOwner(db.financialPackageConsumptions.values(), owner)
+    .filter((item) => (!filters?.package_id || item.package_id === filters.package_id)
+      && (!filters?.patient_id || item.patient_id === filters.patient_id))
+    .sort(compareByNewestDate);
 
 export const buildFinanceSummary = (owner: string, referenceDate = new Date()) => {
   const monthKey = `${referenceDate.getFullYear()}-${String(referenceDate.getMonth() + 1).padStart(2, "0")}`;
