@@ -32,19 +32,66 @@ export interface ApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: BodyInit | object | null;
 }
 
+export interface RetryNotice {
+  path: string;
+  method: string;
+  reason: "NETWORK_ERROR" | "TIMEOUT";
+  attempt: number;
+  nextRetryInMs: number;
+}
+
+export interface ApiRequestMetric {
+  path: string;
+  method: string;
+  durationMs: number;
+  status?: number;
+  ok: boolean;
+  errorCode?: string;
+  attempt: number;
+}
+
+interface EndpointMetricAggregate {
+  path: string;
+  method: string;
+  count: number;
+  successCount: number;
+  failureCount: number;
+  avgDurationMs: number;
+  lastStatus?: number;
+  lastErrorCode?: string;
+}
+
 function getAuthToken(): string | null {
   return readStoredAuthUser()?.token ?? null;
 }
 
 let onUnauthorized: (() => void) | null = null;
+let onRetrying: ((notice: RetryNotice) => void) | null = null;
+let onRequestMetric: ((metric: ApiRequestMetric) => void) | null = null;
+const endpointMetrics = new Map<string, EndpointMetricAggregate>();
 
 export function setOnUnauthorized(fn: () => void) {
   onUnauthorized = fn;
 }
 
-function resolveTimeout(path: string, explicit?: number): number {
+export function setOnRetrying(fn: ((notice: RetryNotice) => void) | null) {
+  onRetrying = fn;
+}
+
+export function setOnRequestMetric(fn: ((metric: ApiRequestMetric) => void) | null) {
+  onRequestMetric = fn;
+}
+
+export function getApiEndpointMetrics(): EndpointMetricAggregate[] {
+  return Array.from(endpointMetrics.values());
+}
+
+const INITIAL_READ_TIMEOUT = 10_000;
+
+function resolveTimeout(path: string, method: string, explicit?: number): number {
   if (explicit !== undefined) return explicit;
   if (LONG_TIMEOUT_PATTERNS.some((pattern) => path.includes(pattern))) return LONG_TIMEOUT;
+  if (method === "GET") return INITIAL_READ_TIMEOUT;
   return DEFAULT_TIMEOUT;
 }
 
@@ -60,9 +107,9 @@ export async function apiRequest<T = unknown>(
     ...fetchOptions
   } = options;
 
-  const timeout = resolveTimeout(path, explicitTimeout);
   const url = `${baseUrl}${path}`;
   const method = (fetchOptions.method || "GET").toUpperCase();
+  const timeout = resolveTimeout(path, method, explicitTimeout);
   const shouldRetry = retry ?? method === "GET";
   const isFormData = typeof FormData !== "undefined" && body instanceof FormData;
   const token = getAuthToken();
@@ -87,8 +134,17 @@ export async function apiRequest<T = unknown>(
     serializedBody = JSON.stringify(body);
   }
 
-  const doFetch = async (): Promise<ApiResult<T>> => {
+  const doFetch = async (attempt: number): Promise<ApiResult<T>> => {
+    const start = performance.now();
     const controller = new AbortController();
+    if (fetchOptions.signal) {
+      if (fetchOptions.signal.aborted) {
+        controller.abort();
+      } else {
+        fetchOptions.signal.addEventListener("abort", () => controller.abort(), { once: true });
+      }
+    }
+
     const timer = setTimeout(() => controller.abort(), timeout);
 
     try {
@@ -107,12 +163,20 @@ export async function apiRequest<T = unknown>(
           onUnauthorized?.();
         }
 
-        return {
+        const unauthorized: ApiResult<T> = {
           success: false,
           error: { code: "UNAUTHORIZED", message: "Sessão expirada. Faça login novamente." },
           request_id: "local",
           status: 401,
         };
+        recordMetric(path, method, {
+          durationMs: performance.now() - start,
+          status: 401,
+          ok: false,
+          errorCode: unauthorized.error.code,
+          attempt,
+        });
+        return unauthorized;
       }
 
       let responseBody: any;
@@ -123,7 +187,7 @@ export async function apiRequest<T = unknown>(
       }
 
       if (!response.ok || responseBody.error) {
-        return {
+        const failure: ApiResult<T> = {
           success: false,
           error:
             responseBody.error || {
@@ -133,43 +197,110 @@ export async function apiRequest<T = unknown>(
           request_id: responseBody.request_id || "unknown",
           status: response.status,
         };
+        recordMetric(path, method, {
+          durationMs: performance.now() - start,
+          status: response.status,
+          ok: false,
+          errorCode: failure.error.code,
+          attempt,
+        });
+        return failure;
       }
 
-      return {
+      const success: ApiResult<T> = {
         success: true,
         data: responseBody.data ?? responseBody,
         request_id: responseBody.request_id || "unknown",
         status: response.status,
       };
+      recordMetric(path, method, {
+        durationMs: performance.now() - start,
+        status: response.status,
+        ok: true,
+        attempt,
+      });
+      return success;
     } catch (error: unknown) {
       clearTimeout(timer);
       const isAbort = error instanceof DOMException && error.name === "AbortError";
+      const requestWasCancelled = Boolean(fetchOptions.signal?.aborted);
+      const code = requestWasCancelled ? "CANCELLED" : isAbort ? "TIMEOUT" : "NETWORK_ERROR";
+
+      recordMetric(path, method, {
+        durationMs: performance.now() - start,
+        ok: false,
+        errorCode: code,
+        attempt,
+      });
 
       return {
         success: false,
         error: {
-          code: isAbort ? "TIMEOUT" : "NETWORK_ERROR",
-          message: isAbort
-            ? "Tempo limite excedido. Tente novamente."
-            : "Integração indisponível. Verifique sua conexão.",
+          code,
+          message: requestWasCancelled
+            ? "Requisição cancelada."
+            : isAbort
+              ? "Tempo limite excedido. Tente novamente."
+              : "Integração indisponível. Verifique sua conexão.",
         },
         request_id: "local",
       };
     }
   };
 
-  const result = await doFetch();
+  const result = await doFetch(1);
   if (
     !result.success &&
     shouldRetry &&
     (result.error.code === "NETWORK_ERROR" || result.error.code === "TIMEOUT")
   ) {
+    onRetrying?.({
+      path,
+      method,
+      reason: result.error.code,
+      attempt: 2,
+      nextRetryInMs: 1000,
+    });
     if (IS_DEV) console.warn(`[apiClient] Retrying ${method} ${path}...`);
     await new Promise((resolve) => setTimeout(resolve, 1000));
-    return doFetch();
+    return doFetch(2);
   }
 
   return result;
+}
+
+function recordMetric(path: string, method: string, metric: Omit<ApiRequestMetric, "path" | "method">) {
+  const normalized: ApiRequestMetric = { path, method, ...metric };
+  onRequestMetric?.(normalized);
+
+  const key = `${method} ${path}`;
+  const previous = endpointMetrics.get(key);
+
+  if (!previous) {
+    endpointMetrics.set(key, {
+      path,
+      method,
+      count: 1,
+      successCount: normalized.ok ? 1 : 0,
+      failureCount: normalized.ok ? 0 : 1,
+      avgDurationMs: normalized.durationMs,
+      lastStatus: normalized.status,
+      lastErrorCode: normalized.errorCode,
+    });
+    return;
+  }
+
+  const count = previous.count + 1;
+  endpointMetrics.set(key, {
+    path,
+    method,
+    count,
+    successCount: previous.successCount + (normalized.ok ? 1 : 0),
+    failureCount: previous.failureCount + (normalized.ok ? 0 : 1),
+    avgDurationMs: (previous.avgDurationMs * previous.count + normalized.durationMs) / count,
+    lastStatus: normalized.status ?? previous.lastStatus,
+    lastErrorCode: normalized.errorCode ?? previous.lastErrorCode,
+  });
 }
 
 function getHumanError(status: number, body: any): string {
@@ -207,4 +338,3 @@ export const api = {
   delete: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "DELETE" }),
 };
-
