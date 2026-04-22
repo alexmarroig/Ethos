@@ -1,4 +1,5 @@
-﻿import { useMemo, useState } from "react";
+﻿import { GoogleOAuthProvider } from "@react-oauth/google";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -82,7 +83,9 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
   const [showSignupPassword, setShowSignupPassword] = useState(false);
   const [showSignupConfirmPassword, setShowSignupConfirmPassword] = useState(false);
   const [isSigningUp, setIsSigningUp] = useState(false);
-  const queryClient = useQueryClient();
+  const [isGoogleSdkReady, setIsGoogleSdkReady] = useState(false);
+  const [googleSdkTimedOut, setGoogleSdkTimedOut] = useState(false);
+  const [googleSdkFailed, setGoogleSdkFailed] = useState(false);
   const { login, loginWithGoogle } = useAuth();
   const { toast } = useToast();
 
@@ -294,6 +297,31 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     setMode("login");
     setSignup(initialSignup);
   };
+
+  const googleSdkMessage = (() => {
+    if (googleSdkFailed) {
+      return "Login com Google indisponível no momento. Use email e senha e tente novamente mais tarde.";
+    }
+    if (googleSdkTimedOut) {
+      return "Carregando login com Google... você já pode entrar com email e senha.";
+    }
+    return "Preparando login com Google...";
+  })();
+
+  useEffect(() => {
+    if (mode !== "login" || isGoogleSdkReady || googleSdkFailed) {
+      setGoogleSdkTimedOut(false);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setGoogleSdkTimedOut(true);
+    }, 2500);
+
+    return () => {
+      window.clearTimeout(timeout);
+    };
+  }, [googleSdkFailed, isGoogleSdkReady, mode]);
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
@@ -640,7 +668,26 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
                 </div>
               </div>
 
-              <GoogleLoginButton onSuccess={handleGoogleLogin} isLoading={isLoading} />
+              <GoogleOAuthProvider
+                clientId="83150950956-5avv08g9dsds5fpm7dfd9ui6rptn8uu2.apps.googleusercontent.com"
+                onScriptLoadSuccess={() => {
+                  setIsGoogleSdkReady(true);
+                  setGoogleSdkFailed(false);
+                  setGoogleSdkTimedOut(false);
+                }}
+                onScriptLoadError={() => {
+                  setGoogleSdkFailed(true);
+                  setIsGoogleSdkReady(false);
+                }}
+              >
+                {isGoogleSdkReady ? (
+                  <GoogleLoginButton onSuccess={handleGoogleLogin} isLoading={isLoading} />
+                ) : (
+                  <div className="rounded-xl border border-border px-4 py-3 text-center text-sm text-muted-foreground">
+                    {googleSdkMessage}
+                  </div>
+                )}
+              </GoogleOAuthProvider>
 
               <div className="text-center text-xs text-muted-foreground space-y-2">
                 <p>

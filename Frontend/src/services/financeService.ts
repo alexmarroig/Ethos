@@ -1,5 +1,6 @@
 import { api, type ApiResult } from "./apiClient";
-import { patientService, type Patient } from "./patientService";
+import { type Patient } from "./patientService";
+import { resolvePatientsIndex } from "./patientIndexCache";
 
 type RawFinancialEntry = {
   id: string;
@@ -20,6 +21,7 @@ type RawPaginatedFinancialEntries = {
   page: number;
   page_size: number;
   total: number;
+  next_cursor?: string | null;
 };
 
 export interface FinancialEntry {
@@ -72,11 +74,6 @@ export interface FinancialSummary {
   due_soon_count: number;
 }
 
-async function loadPatientsIndex() {
-  const patientsResult = await patientService.list();
-  return patientsResult.success ? patientsResult.data : [];
-}
-
 export const financeService = {
   createEntry: async (data: {
     patient_id: string;
@@ -100,7 +97,7 @@ export const financeService = {
         notes: data.notes,
         description: data.description ?? "Sessão de psicoterapia",
       }),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -125,7 +122,7 @@ export const financeService = {
   ): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
       api.patch<RawFinancialEntry>(`/financial/entries/${entryId}`, data),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;
@@ -139,24 +136,43 @@ export const financeService = {
   listEntries: async (filters?: {
     patient_id?: string;
     status?: string;
-  }): Promise<ApiResult<FinancialEntry[]>> => {
+  }, patientsIndex?: Patient[]): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("page_size", "100");
+    params.set("page", String(filters?.page ?? 1));
+    params.set("page_size", String(filters?.page_size ?? 100));
+    if (filters?.cursor) params.set("cursor", filters.cursor);
     if (filters?.patient_id) params.set("patient_id", filters.patient_id);
+    if (filters?.session_id) params.set("session_id", filters.session_id);
     if (filters?.status) params.set("status", filters.status);
+    if (filters?.due_from) params.set("due_from", filters.due_from);
+    if (filters?.due_to) params.set("due_to", filters.due_to);
     const qs = params.toString();
 
     const [result, patients] = await Promise.all([
       api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`),
-      loadPatientsIndex(),
+      resolvePatientsIndex(patientsIndex),
     ]);
 
     if (!result.success) return result;
 
     return {
       ...result,
-      data: result.data.items.map((item) => mapEntry(item, patients)),
+      data: {
+        items: result.data.items.map((item) => mapEntry(item, patients)),
+        page: result.data.page,
+        page_size: result.data.page_size,
+        total: result.data.total,
+        next_cursor: result.data.next_cursor,
+      },
+    };
+  },
+
+  listEntries: async (filters?: FinanceListFilters): Promise<ApiResult<FinancialEntry[]>> => {
+    const result = await financeService.listEntriesPage(filters);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: result.data.items,
     };
   },
 
@@ -173,7 +189,7 @@ export const financeService = {
         total_per_month: number;
         entries: RawFinancialEntry[];
       }>("/finance"),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result;

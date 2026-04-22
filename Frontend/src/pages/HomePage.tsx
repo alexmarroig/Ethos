@@ -3,7 +3,11 @@ import { motion } from "framer-motion";
 import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
-import { type Session } from "@/services/sessionService";
+import { sessionService, type Session } from "@/services/sessionService";
+import { useAppStore } from "@/stores/appStore";
+import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
+import { type Patient } from "@/services/patientService";
+import { getPatientsIndex } from "@/services/patientIndexCache";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
@@ -93,96 +97,169 @@ const getBirthdayBadge = (birthDate?: string) => {
 
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const { maskName } = usePrivacy();
-  const todayDate = new Date();
-  const currentMonth = todayDate.getMonth() + 1;
-  const today = todayDate.toISOString().slice(0, 10);
-  const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
-    .toISOString()
-    .slice(0, 10);
-  const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0)
-    .toISOString()
-    .slice(0, 10);
+  const sessionCache = useAppStore((s) => s.sessionCache);
+  const sessionCacheAt = useAppStore((s) => s.sessionCacheAt);
+  const setSessionCache = useAppStore((s) => s.setSessionCache);
+  const [todaySessions, setTodaySessions] = useState<Session[]>([]);
+  const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
+  const [pendingSessions, setPendingSessions] = useState<Session[]>([]);
+  const [pendingPayments, setPendingPayments] = useState<FinancialEntry[]>([]);
+  const [upcomingPayments, setUpcomingPayments] = useState<FinancialEntry[]>([]);
+  const [birthdayPatients, setBirthdayPatients] = useState<Patient[]>([]);
+  const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
-  const sessionsQuery = useSessions({ from: today, to: monthEnd });
-  const pendingSessionsQuery = useSessions({ status: "pending", exclude_blocks: true });
-  const financialEntriesQuery = useFinancialEntries({ status: "open" });
-  const patientsQuery = usePatients();
-  const financialSummaryQuery = useFinancialSummary();
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
 
-  const loading = sessionsQuery.isPending;
-  const criticalError = sessionsQuery.error as { message?: string } | null;
+      const todayDate = new Date();
+      const today = todayDate.toISOString().slice(0, 10);
+      const upcomingWindowEndDate = new Date(todayDate);
+      upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
+      const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
 
-  const todaySessions = useMemo(
-    () =>
-      (sessionsQuery.data ?? [])
-        .filter((item) => item.date === today)
-        .sort((a, b) => a.time.localeCompare(b.time)),
-    [sessionsQuery.data, today],
-  );
+      // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
+      const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
 
-  const upcomingSessions = useMemo(
-    () =>
-      (sessionsQuery.data ?? [])
-        .filter((item) => item.date > today)
-        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-        .slice(0, 6),
-    [sessionsQuery.data, today],
-  );
+      const patientsPromise = getPatientsIndex();
+      const allSessionsPromise = patientsPromise.then((patients) => (
+        cacheIsFresh
+          ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
+          : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
+              if (r.success) setSessionCache(r.data);
+              return r;
+            })
+      ));
+      const pendingSessionsPromise = patientsPromise.then((patients) =>
+        sessionService.list({ status: "pending", exclude_blocks: true }, patients),
+      );
+      const financePromise = patientsPromise.then((patients) =>
+        financeService.listEntries({ status: "open" }, patients),
+      );
 
-  const pendingSessions = useMemo(
-    () =>
-      (pendingSessionsQuery.data ?? [])
-        .filter(
-          (item) =>
-            item.event_type !== "block" &&
-            !item.patient_id.startsWith("block-") &&
-            item.date <= today &&
-            (item.clinical_note_status === "draft" || !item.has_clinical_note),
-        )
-        .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`)),
-    [pendingSessionsQuery.data, today],
-  );
+      const [patients, allSessionsData, pendingRes, financeRes] = await Promise.all([
+        patientsPromise,
+        allSessionsPromise,
+        pendingSessionsPromise,
+        financePromise,
+      ]);
+      if (!todayRes.success) {
+        setError({ message: (todayRes as any).error?.message ?? "Erro ao carregar sessões", requestId: (todayRes as any).request_id ?? "" });
+        setLoading(false);
+        return;
+      }
 
-  const orderedEntries = useMemo(
-    () =>
-      [...(financialEntriesQuery.data ?? [])].sort((a, b) => {
-        const left = a.due_date ?? a.created_at;
-        const right = b.due_date ?? b.created_at;
-        return left.localeCompare(right);
-      }),
-    [financialEntriesQuery.data],
-  );
+      const todayData = [...todayRes.data].sort((a, b) => a.time.localeCompare(b.time));
+      setTodaySessions(todayData);
 
-  const pendingPayments = useMemo(
-    () => orderedEntries.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
-    [orderedEntries, today],
-  );
+      if (pendingRes.success) {
+        const pendingData = pendingRes.data
+          .filter(
+            (item) =>
+              item.event_type !== "block" &&
+              !item.patient_id.startsWith("block-") &&
+              (item.date <= today) && // Only past or today
+              (item.clinical_note_status === "draft" || !item.has_clinical_note)
+          )
+          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+        setPendingSessions(pendingData);
+      } else {
+        setPendingSessions([]);
+      }
 
-  const upcomingPayments = useMemo(
-    () =>
-      orderedEntries
-        .filter((entry) => {
-          const dueDate = (entry.due_date ?? "").slice(0, 10);
-          return dueDate >= today && dueDate >= monthStart;
-        })
-        .slice(0, 6),
-    [orderedEntries, monthStart, today],
-  );
+      if (financeSummaryRes.success) setFinancialSummary(financeSummaryRes.data);
 
-  const birthdayPatients = useMemo(
-    () =>
-      (patientsQuery.data ?? [])
+      setError(null);
+      setLoading(false);
+
+      // Load non-critical sections in background.
+      void Promise.all([
+        sessionService.list({
+          from: today,
+          to: upcomingWindowEnd,
+          exclude_blocks: true,
+          page_size: 30,
+        }),
+        financeService.listEntriesPage({
+          status: "open",
+          due_from: today,
+          due_to: upcomingWindowEnd,
+          page_size: 40,
+        }),
+        patientService.list(),
+      ]).then(([upcomingRes, financeRes, patientsRes]) => {
+        if (upcomingRes.success) {
+          setSessionCache(upcomingRes.data);
+          setUpcomingSessions(
+            upcomingRes.data
+              .filter((item) => item.date > today)
+              .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+              .slice(0, 6),
+          );
+        } else {
+          setUpcomingSessions([]);
+        }
+
+        if (financeRes.success) {
+          const ordered = [...financeRes.data.items].sort((a, b) => {
+            const left = a.due_date ?? a.created_at;
+            const right = b.due_date ?? b.created_at;
+            return left.localeCompare(right);
+          });
+          setPendingPayments(
+            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
+          );
+          setUpcomingPayments(
+            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) >= today).slice(0, 6),
+          );
+        } else {
+          setPendingPayments([]);
+          setUpcomingPayments([]);
+        }
+
+        if (patientsRes.success) {
+          const birthdays = patientsRes.data
+            .filter((patient) => {
+              if (!patient.birth_date) return false;
+              const [, month] = patient.birth_date.split("-").map(Number);
+              return month === todayDate.getMonth() + 1;
+            })
+            .sort(
+              (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+            )
+            .slice(0, 8);
+          setBirthdayPatients(birthdays);
+        } else {
+          setBirthdayPatients([]);
+        }
+      }).catch(() => {
+        setUpcomingSessions([]);
+        setPendingPayments([]);
+        setUpcomingPayments([]);
+      }
+
+      const birthdays = patients
         .filter((patient) => {
           if (!patient.birth_date) return false;
           const [, month] = patient.birth_date.split("-").map(Number);
-          return month === currentMonth;
+          return month === todayDate.getMonth() + 1;
         })
-        .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
-        .slice(0, 8),
-    [currentMonth, patientsQuery.data],
-  );
+        .sort(
+          (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+        )
+        .slice(0, 8);
+      setBirthdayPatients(birthdays);
 
-  const financialSummary = financialSummaryQuery.data ?? null;
+      setError(null);
+      setLoading(false);
+    };
+
+    void load();
+  // Re-run when session cache updates so the home page reflects changes instantly
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionCacheAt]);
 
   const mapStatus = (session: Session): SessionStatus => {
     if (session.clinical_note_status === "validated") return "validated";
