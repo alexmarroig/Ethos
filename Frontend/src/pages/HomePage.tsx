@@ -113,41 +113,41 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
 
       const todayDate = new Date();
       const today = todayDate.toISOString().slice(0, 10);
-      const monthStart = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1)
-        .toISOString()
-        .slice(0, 10);
-      const monthEnd = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0)
-        .toISOString()
-        .slice(0, 10);
+      const upcomingWindowEndDate = new Date(todayDate);
+      upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
+      const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
 
       // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
       const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
 
-      const [allSessionsData, pendingRes, financeRes, patientsRes] = await Promise.all([
+      const [todayRes, pendingRes, financeSummaryRes] = await Promise.all([
         cacheIsFresh
-          ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
-          : sessionService.list({ from: today, to: monthEnd }).then((r) => {
-              if (r.success) setSessionCache(r.data);
-              return r;
+          ? Promise.resolve({
+              success: true as const,
+              data: sessionCache.filter((item) => item.date === today).slice(0, 10),
+              request_id: "cache",
+            })
+          : sessionService.list({
+              from: today,
+              to: today,
+              exclude_blocks: true,
+              page_size: 10,
             }),
-        sessionService.list({ status: "pending", exclude_blocks: true }),
-        financeService.listEntries({ status: "open" }),
-        patientService.list(),
+        sessionService.list({
+          status: "pending",
+          exclude_blocks: true,
+          to: today,
+          page_size: 20,
+        }),
+        financeService.getFinancialSummary(),
       ]);
-
-      // Alias for compat with rest of the function
-      const todayRes = allSessionsData;
-      const upcomingRes = allSessionsData;
-
-      if (!allSessionsData.success) {
-        setError({ message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões", requestId: (allSessionsData as any).request_id ?? "" });
+      if (!todayRes.success) {
+        setError({ message: (todayRes as any).error?.message ?? "Erro ao carregar sessões", requestId: (todayRes as any).request_id ?? "" });
         setLoading(false);
         return;
       }
 
-      const todayData = [...allSessionsData.data]
-        .filter((item) => item.date === today)
-        .sort((a, b) => a.time.localeCompare(b.time));
+      const todayData = [...todayRes.data].sort((a, b) => a.time.localeCompare(b.time));
       setTodaySessions(todayData);
 
       if (pendingRes.success) {
@@ -165,69 +165,83 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setPendingSessions([]);
       }
 
-      if (allSessionsData.success) {
-        const upcomingData = allSessionsData.data
-          .filter((item) => item.date > today)
-          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-          .slice(0, 6);
-        setUpcomingSessions(upcomingData);
-      } else {
-        setUpcomingSessions([]);
-      }
-
-      if (financeRes.success) {
-        const ordered = [...financeRes.data].sort((a, b) => {
-          const left = a.due_date ?? a.created_at;
-          const right = b.due_date ?? b.created_at;
-          return left.localeCompare(right);
-        });
-
-        setPendingPayments(
-          ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
-        );
-        setUpcomingPayments(
-          ordered
-            .filter((entry) => {
-              const dueDate = (entry.due_date ?? "").slice(0, 10);
-              return dueDate >= today && dueDate >= monthStart;
-            })
-            .slice(0, 6),
-        );
-      } else {
-        setPendingPayments([]);
-        setUpcomingPayments([]);
-      }
-
-      if (patientsRes.success) {
-        const birthdays = patientsRes.data
-          .filter((patient) => {
-            if (!patient.birth_date) return false;
-            const [, month] = patient.birth_date.split("-").map(Number);
-            return month === todayDate.getMonth() + 1;
-          })
-          .sort(
-            (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
-          )
-          .slice(0, 8);
-        setBirthdayPatients(birthdays);
-      } else {
-        setBirthdayPatients([]);
-      }
+      if (financeSummaryRes.success) setFinancialSummary(financeSummaryRes.data);
 
       setError(null);
       setLoading(false);
+
+      // Load non-critical sections in background.
+      void Promise.all([
+        sessionService.list({
+          from: today,
+          to: upcomingWindowEnd,
+          exclude_blocks: true,
+          page_size: 30,
+        }),
+        financeService.listEntriesPage({
+          status: "open",
+          due_from: today,
+          due_to: upcomingWindowEnd,
+          page_size: 40,
+        }),
+        patientService.list(),
+      ]).then(([upcomingRes, financeRes, patientsRes]) => {
+        if (upcomingRes.success) {
+          setSessionCache(upcomingRes.data);
+          setUpcomingSessions(
+            upcomingRes.data
+              .filter((item) => item.date > today)
+              .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+              .slice(0, 6),
+          );
+        } else {
+          setUpcomingSessions([]);
+        }
+
+        if (financeRes.success) {
+          const ordered = [...financeRes.data.items].sort((a, b) => {
+            const left = a.due_date ?? a.created_at;
+            const right = b.due_date ?? b.created_at;
+            return left.localeCompare(right);
+          });
+          setPendingPayments(
+            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
+          );
+          setUpcomingPayments(
+            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) >= today).slice(0, 6),
+          );
+        } else {
+          setPendingPayments([]);
+          setUpcomingPayments([]);
+        }
+
+        if (patientsRes.success) {
+          const birthdays = patientsRes.data
+            .filter((patient) => {
+              if (!patient.birth_date) return false;
+              const [, month] = patient.birth_date.split("-").map(Number);
+              return month === todayDate.getMonth() + 1;
+            })
+            .sort(
+              (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+            )
+            .slice(0, 8);
+          setBirthdayPatients(birthdays);
+        } else {
+          setBirthdayPatients([]);
+        }
+      }).catch(() => {
+        setUpcomingSessions([]);
+        setPendingPayments([]);
+        setUpcomingPayments([]);
+        setBirthdayPatients([]);
+      });
     };
 
     void load();
   // Re-run when session cache updates so the home page reflects changes instantly
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionCacheAt]);
-
-  useEffect(() => {
-    financeService.getFinancialSummary().then((res) => {
-      if (res.success) setFinancialSummary(res.data);
-    }).catch(console.error);
-  }, []);
 
   const mapStatus = (session: Session): SessionStatus => {
     if (session.clinical_note_status === "validated") return "validated";
