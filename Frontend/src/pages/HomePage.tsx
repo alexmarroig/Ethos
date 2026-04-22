@@ -7,7 +7,8 @@ import FloatingActionButton, { SessionState } from "@/components/FloatingActionB
 import { sessionService, type Session } from "@/services/sessionService";
 import { useAppStore } from "@/stores/appStore";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
-import { patientService, type Patient } from "@/services/patientService";
+import { type Patient } from "@/services/patientService";
+import { getPatientsIndex } from "@/services/patientIndexCache";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
@@ -123,16 +124,27 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
       const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
 
-      const [allSessionsData, pendingRes, financeRes, patientsRes] = await Promise.all([
+      const patientsPromise = getPatientsIndex();
+      const allSessionsPromise = patientsPromise.then((patients) => (
         cacheIsFresh
           ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
-          : sessionService.list({ from: today, to: monthEnd }).then((r) => {
+          : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
               if (r.success) setSessionCache(r.data);
               return r;
-            }),
-        sessionService.list({ status: "pending", exclude_blocks: true }),
-        financeService.listEntries({ status: "open" }),
-        patientService.list(),
+            })
+      ));
+      const pendingSessionsPromise = patientsPromise.then((patients) =>
+        sessionService.list({ status: "pending", exclude_blocks: true }, patients),
+      );
+      const financePromise = patientsPromise.then((patients) =>
+        financeService.listEntries({ status: "open" }, patients),
+      );
+
+      const [patients, allSessionsData, pendingRes, financeRes] = await Promise.all([
+        patientsPromise,
+        allSessionsPromise,
+        pendingSessionsPromise,
+        financePromise,
       ]);
 
       // Alias for compat with rest of the function
@@ -198,21 +210,17 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         setUpcomingPayments([]);
       }
 
-      if (patientsRes.success) {
-        const birthdays = patientsRes.data
-          .filter((patient) => {
-            if (!patient.birth_date) return false;
-            const [, month] = patient.birth_date.split("-").map(Number);
-            return month === todayDate.getMonth() + 1;
-          })
-          .sort(
-            (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
-          )
-          .slice(0, 8);
-        setBirthdayPatients(birthdays);
-      } else {
-        setBirthdayPatients([]);
-      }
+      const birthdays = patients
+        .filter((patient) => {
+          if (!patient.birth_date) return false;
+          const [, month] = patient.birth_date.split("-").map(Number);
+          return month === todayDate.getMonth() + 1;
+        })
+        .sort(
+          (a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date),
+        )
+        .slice(0, 8);
+      setBirthdayPatients(birthdays);
 
       setError(null);
       setLoading(false);

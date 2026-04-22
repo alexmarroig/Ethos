@@ -1,5 +1,6 @@
 import { api, type ApiResult } from "./apiClient";
-import { patientService, type Patient } from "./patientService";
+import { type Patient } from "./patientService";
+import { resolvePatientsIndex } from "./patientIndexCache";
 
 export interface RecurrenceRule {
   type: "weekly" | "2x-week" | "biweekly";
@@ -155,13 +156,8 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
   };
 }
 
-async function loadPatientsIndex() {
-  const patientsResult = await patientService.list();
-  return patientsResult.success ? patientsResult.data : [];
-}
-
 export const sessionService = {
-  list: async (filters?: SessionFilters): Promise<ApiResult<Session[]>> => {
+  list: async (filters?: SessionFilters, patientsIndex?: Patient[]): Promise<ApiResult<Session[]>> => {
     const params = new URLSearchParams();
     params.set("page", "1");
     params.set("page_size", "100");
@@ -174,7 +170,7 @@ export const sessionService = {
 
     const [sessionsResult, patients] = await Promise.all([
       api.get<RawPaginatedSessions>(`/sessions?${qs}`),
-      loadPatientsIndex(),
+      resolvePatientsIndex(patientsIndex),
     ]);
 
     if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<Session[]>;
@@ -197,7 +193,7 @@ export const sessionService = {
   getById: async (id: string): Promise<ApiResult<Session>> => {
     const [sessionResult, patients] = await Promise.all([
       api.get<RawSession>(`/sessions/${id}`),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!sessionResult.success) return sessionResult as unknown as ApiResult<Session>;
@@ -219,7 +215,7 @@ export const sessionService = {
   }): Promise<ApiResult<Session>> => {
     const [createResult, patients] = await Promise.all([
       api.post<RawSession>("/sessions", data),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!createResult.success) return createResult as unknown as ApiResult<Session>;
@@ -234,7 +230,7 @@ export const sessionService = {
     const rawStatus = status === "pending" ? "scheduled" : status;
     const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}/status`, { status: rawStatus }),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result as unknown as ApiResult<Session>;
@@ -256,7 +252,7 @@ export const sessionService = {
   ): Promise<ApiResult<Session>> => {
     const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}`, data),
-      loadPatientsIndex(),
+      resolvePatientsIndex(),
     ]);
 
     if (!result.success) return result as unknown as ApiResult<Session>;
