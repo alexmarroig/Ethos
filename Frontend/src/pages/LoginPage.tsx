@@ -94,6 +94,7 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
   const [googleSdkFailed, setGoogleSdkFailed] = useState(false);
   const { login, loginWithGoogle } = useAuth();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const normalizedCrp = useMemo(() => signup.crp.replace(/\s+/g, ""), [signup.crp]);
   const selectedSpecialties = signup.specialty
