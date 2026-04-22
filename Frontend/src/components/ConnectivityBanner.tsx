@@ -159,11 +159,9 @@ const ConnectivityBanner = () => {
   const setControlStatus = useAppStore((s) => s.setControlStatus);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
-  if (!SHOW_CONNECTIVITY_BANNER) {
-    return null;
-  }
-
   const runCheck = useCallback(async () => {
+    if (!SHOW_CONNECTIVITY_BANNER) return;
+
     if (isDemoModeEnabled()) {
       setClinicalStatus("online");
       setControlStatus("online");
@@ -183,10 +181,19 @@ const ConnectivityBanner = () => {
   }, [setClinicalStatus, setControlStatus]);
 
   useEffect(() => {
+    if (!SHOW_CONNECTIVITY_BANNER) return;
+
     runCheck();
     intervalRef.current = setInterval(runCheck, 30_000);
-    return () => clearInterval(intervalRef.current);
+
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
   }, [runCheck]);
+
+  if (!SHOW_CONNECTIVITY_BANNER) {
+    return null;
+  }
 
   const clinicalVisual = getVisual(clinicalStatus, "Plano clínico");
   const controlVisual = getVisual(controlStatus, "Serviços cloud");
