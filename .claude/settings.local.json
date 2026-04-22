@@ -8,7 +8,10 @@
       "Bash(eas build:logs 16253018-c602-4fac-b933-90a732541ee1)",
       "mcp__Claude_Preview__preview_start",
       "Bash(curl -s http://localhost:8080 -o /dev/null -w \"%{http_code}\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Bash(xargs cat *)",
+      "Bash(npm run *)",
+      "mcp__f702ec6c-45ee-43d7-aa66-c1536ab14ca9__list_teams"
     ]
   }
 }
