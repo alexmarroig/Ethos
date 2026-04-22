@@ -16,6 +16,20 @@ type RawFinancialEntry = {
   created_at: string;
 };
 
+type RawRevertPaymentResponse = RawFinancialEntry | {
+  entry: RawFinancialEntry;
+  affected_sessions?: Array<{
+    id: string;
+    status?: string;
+    payment_status?: "paid" | "open" | "exempt";
+  }>;
+  audit?: {
+    id?: string;
+    created_at?: string;
+  };
+  reverted_at?: string;
+};
+
 type RawPaginatedFinancialEntries = {
   items: RawFinancialEntry[];
   page: number;
@@ -45,6 +59,20 @@ export interface FinanceSummary {
   pending_sessions: number;
   total_per_month: number;
   entries: FinancialEntry[];
+}
+
+export interface RevertPaymentResult {
+  entry: FinancialEntry;
+  affected_sessions: Array<{
+    id: string;
+    status?: string;
+    payment_status?: "paid" | "open" | "exempt";
+  }>;
+  audit?: {
+    id?: string;
+    created_at?: string;
+  };
+  reverted_at?: string;
 }
 
 function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
@@ -218,6 +246,38 @@ export const financeService = {
       data: {
         ...result.data,
         entries: result.data.entries.map((entry) => mapEntry(entry, patients)),
+      },
+    };
+  },
+
+  revertPayment: async (
+    entryId: string,
+    data?: {
+      reason?: string;
+      actor_id?: string;
+      actor_name?: string;
+    },
+  ): Promise<ApiResult<RevertPaymentResult>> => {
+    const [result, patients] = await Promise.all([
+      api.post<RawRevertPaymentResponse>(`/financial/entries/${entryId}/revert`, data ?? {}),
+      resolvePatientsIndex(),
+    ]);
+
+    if (!result.success) return result;
+
+    const response = result.data;
+    const rawEntry = "entry" in response ? response.entry : response;
+    const affectedSessions = "entry" in response ? (response.affected_sessions ?? []) : [];
+    const revertedAt = "entry" in response ? response.reverted_at : undefined;
+    const audit = "entry" in response ? response.audit : undefined;
+
+    return {
+      ...result,
+      data: {
+        entry: mapEntry(rawEntry, patients),
+        affected_sessions: affectedSessions,
+        reverted_at: revertedAt,
+        audit,
       },
     };
   },
