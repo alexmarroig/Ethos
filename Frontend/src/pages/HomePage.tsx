@@ -20,6 +20,8 @@ interface HomePageProps {
   onPatientClick?: (patientId: string) => void;
 }
 
+const SESSION_CACHE_TTL_MS = 60_000;
+
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 
