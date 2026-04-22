@@ -95,6 +95,8 @@ export interface RevertPaymentResult {
     created_at?: string;
   };
   reverted_at?: string;
+}
+
 type RawFinancialPackage = {
   id: string;
   patient_id: string;
@@ -489,6 +491,9 @@ export const financeService = {
       data: Array.from(buckets.values()).sort((left, right) =>
         left.monthKey.localeCompare(right.monthKey),
       ),
+    };
+  },
+
   revertPayment: async (
     entryId: string,
     data?: {
