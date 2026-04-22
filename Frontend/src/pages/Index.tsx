@@ -4,6 +4,7 @@ import SplashScreen from "@/components/SplashScreen";
 import LogoRevealSplash from "@/components/LogoRevealSplash";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
+import OnboardingWidget from "@/components/OnboardingWidget";
 import RoleGate from "@/components/RoleGate";
 import LoginPage from "@/pages/LoginPage";
 import { useAuth } from "@/contexts/AuthContext";
@@ -352,6 +353,7 @@ const Index = () => {
                 </motion.div>
               </AnimatePresence>
             </main>
+            <OnboardingWidget />
             {isMobile && <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />}
           </motion.div>
         )}

@@ -12,6 +12,7 @@ import ContractPortalPage from "./pages/ContractPortalPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { EntitlementsProvider } from "./contexts/EntitlementsContext";
+import { OnboardingProvider } from "./contexts/OnboardingContext";
 import { rehydratePendingJobs } from "./stores/appStore";
 import { queryClient } from "./lib/queryClient";
 
@@ -28,6 +29,7 @@ const App = () => (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AuthProvider>
         <EntitlementsProvider>
+          <OnboardingProvider>
           <TooltipProvider>
             <Toaster />
             <Sonner />
@@ -45,6 +47,7 @@ const App = () => (
               </Routes>
             </BrowserRouter>
           </TooltipProvider>
+          </OnboardingProvider>
         </EntitlementsProvider>
       </AuthProvider>
     </ThemeProvider>

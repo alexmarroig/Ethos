@@ -7,10 +7,12 @@ import { formatPhone } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { patientService, type Patient } from "@/services/patientService";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import { useOnboarding } from "@/contexts/OnboardingContext";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PatientCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
+import OnboardingCoachmark from "@/components/OnboardingCoachmark";
 import {
   Dialog,
   DialogContent,
@@ -79,6 +81,8 @@ const parseAccessCredentials = (credentials?: string | null) => {
 const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   const { toast } = useToast();
   const { maskName } = usePrivacy();
+  const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
+  const [dismissCoachmark, setDismissCoachmark] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,6 +154,7 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
     setNewEmail("");
     setNewWhatsApp("");
     toast({ title: "Paciente criado" });
+    markMissionCompleted("register-client");
     setCreating(false);
     onOpenPatient(result.data.id);
   };
@@ -299,6 +304,13 @@ const PatientsPage = ({ onOpenPatient }: PatientsPageProps) => {
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
+        {shouldShowCoachmarks && !dismissCoachmark && currentMissionId === "register-client" ? (
+          <OnboardingCoachmark
+            title="Missão 1: cadastre seu primeiro cliente"
+            description="Abra o modal de cadastro, registre o paciente e conclua para avançar no onboarding."
+            onDismiss={() => setDismissCoachmark(true)}
+          />
+        ) : null}
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Pacientes</h1>
           <p className="mt-2 text-muted-foreground">Cadastre e acompanhe seus pacientes com calma.</p>

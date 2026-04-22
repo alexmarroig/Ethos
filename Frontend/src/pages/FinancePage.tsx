@@ -27,6 +27,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { FinanceCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import { useOnboarding } from "@/contexts/OnboardingContext";
+import OnboardingCoachmark from "@/components/OnboardingCoachmark";
 import { patientService, type Patient } from "@/services/patientService";
 import {
   Dialog,
@@ -99,8 +101,10 @@ function ChartFallback() {
 }
 
 export default function FinancePage() {
+  const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
   const { toast } = useToast();
   const { maskCurrency, maskName } = usePrivacy();
+  const [dismissCoachmark, setDismissCoachmark] = useState(false);
   const [entries, setEntries] = useState<FinancialEntry[]>([]);
   const [summary, setSummary] = useState<FinanceSummary | null>(null);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
@@ -352,6 +356,7 @@ export default function FinancePage() {
     setCreateOpen(false);
     setNewPatientId("");
     setNewEntry(emptyEntryForm);
+    markMissionCompleted("register-payment");
     toast({ title: "Cobran\u00e7a criada" });
     setCreating(false);
   };
@@ -398,6 +403,7 @@ export default function FinancePage() {
     updateLocalEntry(result.data);
     setEditOpen(false);
     setSelectedEntry(null);
+    markMissionCompleted("register-payment");
     toast({ title: "Lançamento atualizado" });
     setSavingEntry(false);
   };
@@ -430,6 +436,13 @@ export default function FinancePage() {
   return (
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
+        {shouldShowCoachmarks && !dismissCoachmark && currentMissionId === "register-payment" ? (
+          <OnboardingCoachmark
+            title="Missão 4: registre um pagamento"
+            description="Crie uma cobrança no financeiro e acompanhe seu fluxo de recebimentos desde o início."
+            onDismiss={() => setDismissCoachmark(true)}
+          />
+        ) : null}
         <motion.header
           className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8"
           initial={{ opacity: 0, y: 12 }}

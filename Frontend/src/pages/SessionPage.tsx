@@ -16,6 +16,8 @@ import { usePrivacy } from "@/hooks/usePrivacy";
 import { startJob } from "@/jobs/jobManager";
 import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
+import { useOnboarding } from "@/contexts/OnboardingContext";
+import OnboardingCoachmark from "@/components/OnboardingCoachmark";
 
 interface SessionPageProps {
   sessionId: string;
@@ -24,6 +26,7 @@ interface SessionPageProps {
 }
 
 const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) => {
+  const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
   const { maskName } = usePrivacy();
   const [notes, setNotes] = useState("");
   const [hasAudio, setHasAudio] = useState(false);
@@ -45,6 +48,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   const [paymentDueDate, setPaymentDueDate] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentSaving, setPaymentSaving] = useState(false);
+  const [dismissCoachmark, setDismissCoachmark] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -155,6 +159,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       return;
     }
     setSession(result.data);
+    markMissionCompleted("register-attendance");
     toast({ title: "Sessão confirmada", description: "Marcada como confirmada pelo paciente." });
   };
 
@@ -166,6 +171,9 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       return;
     }
     setSession(result.data);
+    if (newStatus === "confirmed" || newStatus === "completed" || newStatus === "missed") {
+      markMissionCompleted("register-attendance");
+    }
     toast({ title: "Status atualizado" });
   };
 
@@ -216,10 +224,17 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setPaymentAmount(String(result.data.amount));
     setPaymentDueDate(result.data.due_date ? new Date(result.data.due_date).toISOString().slice(0, 10) : "");
     setPaymentMethod(result.data.payment_method ?? "");
+    markMissionCompleted("register-payment");
     toast({
       title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "Cobrança atualizada" : "Cobrança registrada",
       description: markAsPaid ? "A sessão ficou quitada no financeiro." : "O pagamento desta sessão foi vinculado ao financeiro.",
     });
+  };
+
+  const handleNotesBlur = () => {
+    if (notes.trim().length >= 10) {
+      markMissionCompleted("session-note");
+    }
   };
 
   const handleCancelSeries = async () => {
@@ -261,6 +276,15 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       <ConsentModal isOpen={consentOpen} onClose={() => setConsentOpen(false)} onConfirm={handleConsentConfirm} />
 
       <div className="content-container py-6 md:py-8">
+        {shouldShowCoachmarks && !dismissCoachmark && (currentMissionId === "register-attendance" || currentMissionId === "session-note") ? (
+          <OnboardingCoachmark
+            title={currentMissionId === "register-attendance" ? "Missão 3: registre a frequência" : "Missão 5: anote a sessão"}
+            description={currentMissionId === "register-attendance"
+              ? "Atualize o status da sessão para Confirmada/Concluída/Faltou para registrar presença."
+              : "Escreva uma observação clínica com pelo menos alguns detalhes para concluir essa etapa."}
+            onDismiss={() => setDismissCoachmark(true)}
+          />
+        ) : null}
         <motion.button onClick={onBack} className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors duration-200 mb-8" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}>
           <ArrowLeft className="w-4 h-4" strokeWidth={1.5} />
           <span className="text-sm">Voltar</span>
@@ -378,7 +402,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 
         <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
           <h2 className="font-serif text-xl font-medium text-foreground mb-4">Anotações do profissional</h2>
-          <Textarea placeholder="Escreva observações livres. Este campo não é exportado automaticamente." value={notes} onChange={(e) => setNotes(e.target.value)} className="min-h-[160px] resize-none text-base leading-relaxed" />
+          <Textarea placeholder="Escreva observações livres. Este campo não é exportado automaticamente." value={notes} onChange={(e) => setNotes(e.target.value)} onBlur={handleNotesBlur} className="min-h-[160px] resize-none text-base leading-relaxed" />
         </motion.section>
 
         <motion.section className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}>
@@ -443,4 +467,3 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 };
 
 export default SessionPage;
-
