@@ -39,6 +39,11 @@ export const ENABLE_DEMO_LOGIN =
 export const SHOW_CONNECTIVITY_BANNER =
   import.meta.env.VITE_SHOW_CONNECTIVITY_BANNER === "true";
 
+export const ENABLE_INTRO_SPLASH =
+  import.meta.env.VITE_ENABLE_INTRO_SPLASH != null
+    ? import.meta.env.VITE_ENABLE_INTRO_SPLASH === "true"
+    : import.meta.env.DEV;
+
 // Timeouts
 export const DEFAULT_TIMEOUT = 30_000;
 export const LONG_TIMEOUT = 120_000; // upload, transcribe, export, backup

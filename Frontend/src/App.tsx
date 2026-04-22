@@ -1,9 +1,8 @@
-import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
@@ -14,8 +13,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { EntitlementsProvider } from "./contexts/EntitlementsContext";
 import { rehydratePendingJobs } from "./stores/appStore";
+import { queryClient } from "./lib/queryClient";
 
-const queryClient = new QueryClient();
 
 const JobRehydrator = () => {
   useEffect(() => {
@@ -26,7 +25,6 @@ const JobRehydrator = () => {
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
-    <GoogleOAuthProvider clientId="83150950956-5avv08g9dsds5fpm7dfd9ui6rptn8uu2.apps.googleusercontent.com">
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AuthProvider>
         <EntitlementsProvider>
@@ -50,7 +48,6 @@ const App = () => (
         </EntitlementsProvider>
       </AuthProvider>
     </ThemeProvider>
-      </GoogleOAuthProvider>
   </QueryClientProvider>
 );
 

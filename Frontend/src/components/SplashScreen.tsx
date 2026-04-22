@@ -15,40 +15,30 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
-    if (prefersReducedMotion) {
-      const timer = window.setTimeout(async () => {
+    const sequence = async () => {
+      // 0.4s — halo emerges
+      haloControls.start({
+        opacity: [0, 0.3],
+        transition: { duration: 0.24, ease: "easeOut" },
+      });
+
+      // quick pulse
+      setTimeout(() => {
+        haloControls.start({
+          opacity: [0.3, 0.5, 0.3],
+          transition: { duration: 0.2, ease: "easeInOut" },
+        });
+      }, 200);
+
+      // dissolve everything quickly
+      setTimeout(async () => {
         await containerControls.start({
           opacity: 0,
-          transition: { duration: 0.3, ease: "linear" },
+          transition: { duration: 0.24, ease: "easeInOut" },
         });
         onComplete();
-      }, 1400);
-
-      return () => window.clearTimeout(timer);
-    }
-
-    // 0.4s — halo emerges
-    haloControls.start({
-      opacity: [0, 0.3],
-      transition: { duration: 1.2, ease: "easeOut" },
-    });
-
-    // 4.0s — single light pulse
-    const pulseTimer = window.setTimeout(() => {
-      haloControls.start({
-        opacity: [0.3, 0.5, 0.3],
-        transition: { duration: 1.5, ease: "easeInOut" },
-      });
-    }, 4000);
-
-    // 5.0s — dissolve everything
-    const finishTimer = window.setTimeout(async () => {
-      await containerControls.start({
-        opacity: 0,
-        transition: { duration: 1, ease: "easeInOut" },
-      });
-      onComplete();
-    }, 5000);
+      }, 420);
+    };
 
     return () => {
       window.clearTimeout(pulseTimer);
@@ -106,11 +96,9 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
               strokeWidth={1.2}
               strokeLinecap="round"
               strokeDasharray={CIRCUMFERENCE}
-              initial={{ strokeDashoffset: CIRCUMFERENCE, opacity: prefersReducedMotion ? 0.15 : 0.3 }}
-              animate={{ strokeDashoffset: prefersReducedMotion ? CIRCUMFERENCE : 0 }}
-              transition={
-                prefersReducedMotion ? { duration: 0 } : { delay: 1.2, duration: 1.8, ease: "easeInOut" }
-              }
+              initial={{ strokeDashoffset: CIRCUMFERENCE, opacity: 0.3 }}
+              animate={{ strokeDashoffset: 0 }}
+              transition={{ delay: 0.05, duration: 0.3, ease: "easeInOut" }}
               style={{ opacity: 0.3 }}
             />
           </svg>
@@ -123,9 +111,9 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
               key={letter}
               className="font-serif text-6xl md:text-7xl font-medium"
               style={{ color: letter === "E" ? "#2F6F73" : "#e8e4df", letterSpacing: "0.05em" }}
-              initial={{ opacity: 0, y: prefersReducedMotion ? 4 : 0 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 + i * (prefersReducedMotion ? 0.05 : 0.15), duration: 0.35, ease: "easeOut" }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.04 + i * 0.03, duration: 0.2, ease: "easeOut" }}
             >
               {letter}
             </motion.span>
@@ -138,25 +126,24 @@ const SplashScreen = ({ onComplete }: SplashScreenProps) => {
           style={{ color: "#a09a92" }}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ delay: prefersReducedMotion ? 0.6 : 2.2, duration: 0.4, ease: "easeOut" }}
+          transition={{ delay: 0.2, duration: 0.2, ease: "easeOut" }}
         >
           Prática clínica. Com cuidado.
         </motion.p>
 
-        {!prefersReducedMotion ? (
-          <motion.div
-            className="mt-8"
-            style={{
-              width: 120,
-              height: 1,
-              backgroundColor: "rgba(232, 228, 223, 0.15)",
-              transformOrigin: "left",
-            }}
-            initial={{ scaleX: 0 }}
-            animate={{ scaleX: 1 }}
-            transition={{ delay: 2.8, duration: 2, ease: "easeInOut" }}
-          />
-        ) : null}
+        {/* Loading bar */}
+        <motion.div
+          className="mt-8"
+          style={{
+            width: 120,
+            height: 1,
+            backgroundColor: "rgba(232, 228, 223, 0.15)",
+            transformOrigin: "left",
+          }}
+          initial={{ scaleX: 0 }}
+          animate={{ scaleX: 1 }}
+          transition={{ delay: 0.22, duration: 0.25, ease: "easeInOut" }}
+        />
       </div>
     </motion.div>
   );

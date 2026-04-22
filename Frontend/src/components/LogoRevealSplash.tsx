@@ -11,7 +11,7 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
   const prefersReducedMotion = useReducedMotion();
 
   useEffect(() => {
-    const timer = window.setTimeout(onComplete, prefersReducedMotion ? 1200 : 2900);
+    const timer = window.setTimeout(onComplete, 420);
     return () => window.clearTimeout(timer);
   }, [onComplete, prefersReducedMotion]);
 
@@ -21,14 +21,17 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
       initial={{ opacity: 1 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      transition={{ duration: 0.42, ease: "easeInOut" }}
+      transition={{ duration: 0.2, ease: "easeInOut" }}
     >
-      <div
-        className={
-          prefersReducedMotion
-            ? "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,205,111,0.08)_0%,rgba(3,8,19,1)_70%)]"
-            : "absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,205,111,0.14)_0%,rgba(11,18,31,0.5)_34%,rgba(3,8,19,1)_72%)]"
-        }
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(251,205,111,0.14)_0%,rgba(11,18,31,0.5)_34%,rgba(3,8,19,1)_72%)]" />
+      <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_0%,rgba(255,214,130,0.04)_46%,transparent_62%)]" />
+
+      <motion.div
+        aria-hidden="true"
+        className="absolute h-[32rem] w-[32rem] rounded-full bg-[#f2bb55]/15 blur-[86px] md:h-[46rem] md:w-[46rem]"
+        initial={{ opacity: 0, scale: 0.62 }}
+        animate={{ opacity: [0, 0.92, 0.58], scale: [0.62, 1.08, 1] }}
+        transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
       />
       {!prefersReducedMotion ? (
         <div className="absolute inset-0 bg-[linear-gradient(115deg,transparent_0%,rgba(255,214,130,0.04)_46%,transparent_62%)]" />
@@ -46,22 +49,20 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
 
       <motion.section
         className="relative z-10 flex flex-col items-center px-6"
-        initial={{ opacity: 0, scale: 0.98, y: 8 }}
-        animate={{ opacity: 1, scale: 1, y: 0 }}
-        transition={{ duration: prefersReducedMotion ? 0.35 : 0.76, ease: [0.16, 1, 0.3, 1] }}
+        initial={{ opacity: 0, scale: 0.92, filter: "blur(10px)" }}
+        animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+        transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
       >
         <div className="relative isolate overflow-visible py-8">
-          {!prefersReducedMotion ? (
-            <motion.div
-              aria-hidden="true"
-              className="absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 select-none font-serif text-[clamp(5rem,15vw,12rem)] font-semibold tracking-[0.18em] text-[#f7c96e] blur-[16px]"
-              initial={{ opacity: 0, scale: 0.88 }}
-              animate={{ opacity: [0, 0.78, 0.34], scale: [0.88, 1.05, 1] }}
-              transition={{ duration: 2.15, ease: "easeOut" }}
-            >
-              ETHOS
-            </motion.div>
-          ) : null}
+          <motion.div
+            aria-hidden="true"
+            className="absolute left-1/2 top-1/2 -z-10 -translate-x-1/2 -translate-y-1/2 select-none font-serif text-[clamp(5rem,15vw,12rem)] font-semibold tracking-[0.18em] text-[#f7c96e] blur-[16px]"
+            initial={{ opacity: 0, scale: 0.88 }}
+            animate={{ opacity: [0, 0.78, 0.34], scale: [0.88, 1.05, 1] }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+          >
+            ETHOS
+          </motion.div>
 
           <motion.h1
             aria-label="ETHOS"
@@ -84,8 +85,8 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
                   visible: { opacity: 1, y: 0, scale: 1 },
                 }}
                 transition={{
-                  delay: 0.16 + index * 0.08,
-                  duration: prefersReducedMotion ? 0.36 : 0.62,
+                  delay: 0.04 + index * 0.02,
+                  duration: 0.18,
                   ease: [0.16, 1, 0.3, 1],
                 }}
                 animate={
@@ -106,33 +107,31 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
             ))}
           </motion.h1>
 
-          {!prefersReducedMotion ? (
+          <motion.div
+            aria-hidden="true"
+            className="pointer-events-none absolute -inset-x-20 top-1/2 h-32 -translate-y-1/2 overflow-hidden"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: [0, 1, 0.92, 0] }}
+            transition={{ duration: 0.36, delay: 0.08, times: [0, 0.12, 0.72, 1] }}
+          >
             <motion.div
-              aria-hidden="true"
-              className="pointer-events-none absolute -inset-x-20 top-1/2 h-32 -translate-y-1/2 overflow-hidden"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: [0, 1, 0.92, 0] }}
-              transition={{ duration: 1.68, delay: 0.66, times: [0, 0.12, 0.72, 1] }}
-            >
-              <motion.div
-                className="absolute -top-10 h-52 w-28 -skew-x-12 rounded-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,232,166,0.18)_18%,rgba(255,245,197,0.96)_48%,rgba(246,191,75,0.3)_74%,transparent_100%)] blur-[5px]"
-                style={{
-                  boxShadow:
-                    "0 0 34px rgba(255, 231, 166, 0.86), 0 0 86px rgba(246, 197, 91, 0.48)",
-                }}
-                initial={{ x: "-26vw" }}
-                animate={{ x: "58vw" }}
-                transition={{ duration: 1.48, delay: 0.66, ease: [0.65, 0, 0.35, 1] }}
-              />
-            </motion.div>
-          ) : null}
+              className="absolute -top-10 h-52 w-28 -skew-x-12 rounded-full bg-[linear-gradient(90deg,transparent_0%,rgba(255,232,166,0.18)_18%,rgba(255,245,197,0.96)_48%,rgba(246,191,75,0.3)_74%,transparent_100%)] blur-[5px]"
+              style={{
+                boxShadow:
+                  "0 0 34px rgba(255, 231, 166, 0.86), 0 0 86px rgba(246, 197, 91, 0.48)",
+              }}
+              initial={{ x: "-26vw" }}
+              animate={{ x: "58vw" }}
+              transition={{ duration: 0.32, delay: 0.08, ease: [0.65, 0, 0.35, 1] }}
+            />
+          </motion.div>
         </div>
 
         <motion.p
           className="mt-1 text-center text-[0.68rem] uppercase tracking-[0.5em] text-[#d9c59b]/75 md:text-sm"
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: [0, 0.82, 0.82], y: 0 }}
-          transition={{ duration: 1.2, delay: 0.78, ease: "easeOut" }}
+          transition={{ duration: 0.22, delay: 0.1, ease: "easeOut" }}
         >
           Ética clínica. Com presença.
         </motion.p>
@@ -142,7 +141,7 @@ const LogoRevealSplash = ({ onComplete }: LogoRevealSplashProps) => {
           className="mt-7 h-px w-44 bg-[linear-gradient(90deg,transparent,rgba(255,231,166,0.9),transparent)]"
           initial={{ scaleX: 0, opacity: 0 }}
           animate={{ scaleX: [0, 1, 0.82], opacity: [0, 1, 0.34] }}
-          transition={{ duration: 1.5, delay: 0.86, ease: "easeInOut" }}
+          transition={{ duration: 0.28, delay: 0.12, ease: "easeInOut" }}
         />
       </motion.section>
     </motion.div>
