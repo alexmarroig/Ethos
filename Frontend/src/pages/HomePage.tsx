@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { motion } from "framer-motion";
 import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
@@ -14,6 +13,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
 import { Button } from "@/components/ui/button";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import {
+  useFinancialEntries,
+  useFinancialSummary,
+  usePatients,
+  useSessions,
+} from "@/hooks/useDomainQueries";
 
 interface HomePageProps {
   onSessionClick: (sessionId: string) => void;
@@ -89,9 +94,6 @@ const getBirthdayBadge = (birthDate?: string) => {
   if (distance === 1) return "Amanhã";
   return null;
 };
-
-// Cache TTL: 60 seconds — if cache is fresh, skip session API calls
-const SESSION_CACHE_TTL_MS = 60_000;
 
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const { maskName } = usePrivacy();
@@ -313,14 +315,14 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
     );
   }
 
-  if (error) {
+  if (criticalError) {
     return (
       <div className="min-h-screen">
         <div className="content-container py-12">
           <h1 className="mb-8 font-serif text-3xl font-medium text-foreground md:text-4xl">
             Início
           </h1>
-          <IntegrationUnavailable message={error.message} requestId={error.requestId} />
+          <IntegrationUnavailable message={criticalError.message ?? "Erro ao carregar sessões"} requestId="" />
         </div>
       </div>
     );

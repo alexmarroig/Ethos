@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "next-themes";
 import Index from "./pages/Index";
@@ -13,8 +13,8 @@ import ResetPasswordPage from "./pages/ResetPasswordPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { EntitlementsProvider } from "./contexts/EntitlementsContext";
 import { rehydratePendingJobs } from "./stores/appStore";
+import { queryClient } from "./lib/queryClient";
 
-const queryClient = new QueryClient();
 
 const JobRehydrator = () => {
   useEffect(() => {
