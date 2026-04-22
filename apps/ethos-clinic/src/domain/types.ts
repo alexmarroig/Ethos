@@ -362,6 +362,7 @@ export type DreamDiaryEntry = Owned & {
   associations?: string;        // "isso me lembrou de..."
   is_recurring: boolean;        // sonho recorrente?
   wake_state: "tranquilo" | "agitado" | "confuso" | "assustado" | "neutro";
+  updated_at?: string;
 };
 
 export type SupportedScaleType = "PHQ-9" | "GAD-7";
@@ -403,6 +404,7 @@ export type ClinicalSynthesis = Owned & {
   based_on_sessions: UUID[];
   date_range?: string;
   last_updated: string;
+  updated_at?: string;
   version: number;
 };
 export type ClinicalDocumentVersion = Owned & {

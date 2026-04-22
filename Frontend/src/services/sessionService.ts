@@ -194,13 +194,14 @@ export const sessionService = {
     if (filters?.exclude_blocks) params.set("exclude_blocks", "true");
     const qs = params.toString();
 
-    const [sessionsResult, patientsIndex] = await Promise.all([
+    const [sessionsResult, resolvedPatients] = await Promise.all([
       api.get<RawPaginatedSessions>(`/sessions?${qs}`),
       resolvePatientsIndex(patients),
     ]);
 
     if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<PaginatedData<Session>>;
 
+    const patientsIndex = buildPatientsIndex(resolvedPatients);
     const mapped = sessionsResult.data.items.map((item) => mapSession(item, patientsIndex));
 
     return {
@@ -225,7 +226,7 @@ export const sessionService = {
   },
 
   getById: async (id: string): Promise<ApiResult<Session>> => {
-    const [sessionResult, patientsIndex] = await Promise.all([
+    const [sessionResult, patients] = await Promise.all([
       api.get<RawSession>(`/sessions/${id}`),
       resolvePatientsIndex(),
     ]);
@@ -234,7 +235,7 @@ export const sessionService = {
 
     return {
       ...sessionResult,
-      data: mapSession(sessionResult.data, patientsIndex),
+      data: mapSession(sessionResult.data, buildPatientsIndex(patients)),
     };
   },
 
@@ -247,7 +248,7 @@ export const sessionService = {
     block_title?: string;
     location_type?: "remote" | "presencial";
   }): Promise<ApiResult<Session>> => {
-    const [createResult, patientsIndex] = await Promise.all([
+    const [createResult, patients] = await Promise.all([
       api.post<RawSession>("/sessions", data),
       resolvePatientsIndex(),
     ]);
@@ -256,13 +257,13 @@ export const sessionService = {
 
     return {
       ...createResult,
-      data: mapSession(createResult.data, patientsIndex),
+      data: mapSession(createResult.data, buildPatientsIndex(patients)),
     };
   },
 
   updateStatus: async (id: string, status: Session["status"]): Promise<ApiResult<Session>> => {
     const rawStatus = status === "pending" ? "scheduled" : status;
-    const [result, patientsIndex] = await Promise.all([
+    const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}/status`, { status: rawStatus }),
       resolvePatientsIndex(),
     ]);
@@ -271,7 +272,7 @@ export const sessionService = {
 
     return {
       ...result,
-      data: mapSession(result.data, patientsIndex),
+      data: mapSession(result.data, buildPatientsIndex(patients)),
     };
   },
 
@@ -284,7 +285,7 @@ export const sessionService = {
       location_type?: "remote" | "presencial"
     }>
   ): Promise<ApiResult<Session>> => {
-    const [result, patientsIndex] = await Promise.all([
+    const [result, patients] = await Promise.all([
       api.patch<RawSession>(`/sessions/${id}`, data),
       resolvePatientsIndex(),
     ]);
@@ -293,7 +294,7 @@ export const sessionService = {
 
     return {
       ...result,
-      data: mapSession(result.data, patientsIndex),
+      data: mapSession(result.data, buildPatientsIndex(patients)),
     };
   },
 

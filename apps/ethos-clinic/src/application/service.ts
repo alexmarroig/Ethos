@@ -2125,7 +2125,13 @@ export const refreshClinicalSynthesis = async (owner: string, patientId: string,
   const sessionIds = sessions.map(s => s.id);
   const allNotes = listClinicalNotes(owner, { patientId });
   const relevantNotes = allNotes.filter(n => sessionIds.includes(n.session_id));
-  const reports = listPatientDocuments(owner, patientId).filter(d => d.kind === "session_report" || d.kind === "psychological_report").slice(0, 3) as unknown as ClinicalReport[];
+  const reports = byOwner(db.reports.values(), owner)
+    .filter((report) =>
+      (report.patient_id === patient.id || report.patient_id === patient.external_id)
+      && (report.kind === "session_report" || report.kind === "psychological_report")
+    )
+    .sort(compareByNewestDate)
+    .slice(0, 3);
 
 
   let existing = Array.from(db.clinicalSyntheses.values()).find(

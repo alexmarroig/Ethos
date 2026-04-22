@@ -879,7 +879,7 @@ export const createEthosBackend = () =>
       }
 
       if (method === "POST" && synthesisByPatientId) {
-        const body = await readJson(req).catch(() => ({}));
+        const body = await readJson(req).catch(() => ({})) as Record<string, unknown>;
         const data = await refreshClinicalSynthesis(auth.user.id, synthesisByPatientId[1], {
           sessionsLimit: typeof body.sessionsLimit === "number" ? body.sessionsLimit : 5,
           force: body.force === true
@@ -1246,6 +1246,11 @@ export const createEthosBackend = () =>
         if (typeof dream_date !== "string" || typeof narrative !== "string" || !Array.isArray(emotions) || typeof emotional_intensity !== "number") {
           return error(res, requestId, 422, "VALIDATION_ERROR", "dream_date, narrative, emotions[], emotional_intensity required");
         }
+        const validWakeStates = ["tranquilo", "agitado", "confuso", "assustado", "neutro"] as const;
+        const normalizedWakeState = typeof wake_state === "string" && validWakeStates.includes(wake_state as typeof validWakeStates[number])
+          ? wake_state as typeof validWakeStates[number]
+          : "neutro";
+
         const entry: import("../domain/types").DreamDiaryEntry = {
           id: uid(),
           owner_user_id: access.owner_user_id,
@@ -1261,7 +1266,7 @@ export const createEthosBackend = () =>
           patient_interpretation: typeof patient_interpretation === "string" ? patient_interpretation : undefined,
           associations: typeof associations === "string" ? associations : undefined,
           is_recurring: is_recurring === true,
-          wake_state: ["tranquilo","agitado","confuso","assustado","neutro"].includes(wake_state) ? wake_state : "neutro",
+          wake_state: normalizedWakeState,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
