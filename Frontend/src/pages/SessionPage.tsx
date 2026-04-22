@@ -86,7 +86,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 
   useEffect(() => {
     const loadLinkedPayment = async () => {
-      const result = await financeService.listEntries();
+      const result = await financeService.listEntries({ session_id: sessionId, page_size: 1 });
       if (!result.success) return;
       const entry = result.data.find((item) => item.session_id === sessionId) ?? null;
       setLinkedEntry(entry);
@@ -443,5 +443,4 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 };
 
 export default SessionPage;
-
 

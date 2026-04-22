@@ -48,6 +48,7 @@ type RawPaginatedSessions = {
   page: number;
   page_size: number;
   total: number;
+  next_cursor?: string | null;
 };
 
 export interface Session {
@@ -86,6 +87,17 @@ export interface SessionFilters {
   status?: string;
   patient_id?: string;
   exclude_blocks?: boolean;
+  page?: number;
+  page_size?: number;
+  cursor?: string;
+}
+
+export interface PaginatedData<T> {
+  items: T[];
+  page: number;
+  page_size: number;
+  total: number;
+  next_cursor?: string | null;
 }
 
 function formatDateParts(raw: RawSession) {
@@ -159,8 +171,9 @@ function mapSession(raw: RawSession, patients: Patient[]): Session {
 export const sessionService = {
   list: async (filters?: SessionFilters, patientsIndex?: Patient[]): Promise<ApiResult<Session[]>> => {
     const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("page_size", "100");
+    params.set("page", String(filters?.page ?? 1));
+    params.set("page_size", String(filters?.page_size ?? 100));
+    if (filters?.cursor) params.set("cursor", filters.cursor);
     if (filters?.from) params.set("from", filters.from);
     if (filters?.to) params.set("to", filters.to);
     if (filters?.status) params.set("status", filters.status === "pending" ? "scheduled" : filters.status);
@@ -173,20 +186,28 @@ export const sessionService = {
       resolvePatientsIndex(patientsIndex),
     ]);
 
-    if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<Session[]>;
+    if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<PaginatedData<Session>>;
 
     const mapped = sessionsResult.data.items.map((item) => mapSession(item, patients));
-    const filtered = mapped.filter((item) => {
-      if (filters?.from && item.date < filters.from) return false;
-      if (filters?.to && item.date > filters.to) return false;
-      if (filters?.status && item.status !== filters.status) return false;
-      if (filters?.patient_id && item.patient_id !== filters.patient_id) return false;
-      return true;
-    });
 
     return {
       ...sessionsResult,
-      data: filtered,
+      data: {
+        items: mapped,
+        page: sessionsResult.data.page,
+        page_size: sessionsResult.data.page_size,
+        total: sessionsResult.data.total,
+        next_cursor: sessionsResult.data.next_cursor,
+      },
+    };
+  },
+
+  list: async (filters?: SessionFilters): Promise<ApiResult<Session[]>> => {
+    const result = await sessionService.listPage(filters);
+    if (!result.success) return result as unknown as ApiResult<Session[]>;
+    return {
+      ...result,
+      data: result.data.items,
     };
   },
 

@@ -21,6 +21,7 @@ type RawPaginatedFinancialEntries = {
   page: number;
   page_size: number;
   total: number;
+  next_cursor?: string | null;
 };
 
 export interface FinancialEntry {
@@ -137,10 +138,14 @@ export const financeService = {
     status?: string;
   }, patientsIndex?: Patient[]): Promise<ApiResult<FinancialEntry[]>> => {
     const params = new URLSearchParams();
-    params.set("page", "1");
-    params.set("page_size", "100");
+    params.set("page", String(filters?.page ?? 1));
+    params.set("page_size", String(filters?.page_size ?? 100));
+    if (filters?.cursor) params.set("cursor", filters.cursor);
     if (filters?.patient_id) params.set("patient_id", filters.patient_id);
+    if (filters?.session_id) params.set("session_id", filters.session_id);
     if (filters?.status) params.set("status", filters.status);
+    if (filters?.due_from) params.set("due_from", filters.due_from);
+    if (filters?.due_to) params.set("due_to", filters.due_to);
     const qs = params.toString();
 
     const [result, patients] = await Promise.all([
@@ -152,7 +157,22 @@ export const financeService = {
 
     return {
       ...result,
-      data: result.data.items.map((item) => mapEntry(item, patients)),
+      data: {
+        items: result.data.items.map((item) => mapEntry(item, patients)),
+        page: result.data.page,
+        page_size: result.data.page_size,
+        total: result.data.total,
+        next_cursor: result.data.next_cursor,
+      },
+    };
+  },
+
+  listEntries: async (filters?: FinanceListFilters): Promise<ApiResult<FinancialEntry[]>> => {
+    const result = await financeService.listEntriesPage(filters);
+    if (!result.success) return result;
+    return {
+      ...result,
+      data: result.data.items,
     };
   },
 
