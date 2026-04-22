@@ -1,6 +1,6 @@
 ﻿import { GoogleOAuthProvider } from "@react-oauth/google";
 import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -71,7 +71,12 @@ const choiceButtonClass = (selected: boolean) =>
   }`;
 
 const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
-  const prefersReducedMotion = useReducedMotion();
+  const prefersReducedMotion = useMemo(
+    () =>
+      typeof window !== "undefined" &&
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    [],
+  );
   const [mode, setMode] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
