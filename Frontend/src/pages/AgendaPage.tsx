@@ -13,6 +13,8 @@ import { usePrivacy } from "@/hooks/usePrivacy";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { AgendaGridSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
+import { useOnboarding } from "@/contexts/OnboardingContext";
+import OnboardingCoachmark from "@/components/OnboardingCoachmark";
 import { patientService, type Patient } from "@/services/patientService";
 import { useAppStore } from "@/stores/appStore";
 import {
@@ -99,6 +101,7 @@ function combineDateTime(date: string, time: string) {
 }
 
 const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
+  const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const { maskName } = usePrivacy();
@@ -126,6 +129,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
   const [sessionDialogOpen, setSessionDialogOpen] = useState(false);
   const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'task' }>({});
+  const [dismissCoachmark, setDismissCoachmark] = useState(false);
 
   const [dialogOpen, setDialogOpen] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -244,6 +248,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     setNewTime("");
     setNewDuration("50");
     toast({ title: "Sessão agendada" });
+    markMissionCompleted("schedule-session");
     setCreating(false);
   };
 
@@ -419,6 +424,13 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     <>
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
+        {shouldShowCoachmarks && !dismissCoachmark && currentMissionId === "schedule-session" ? (
+          <OnboardingCoachmark
+            title="Missão 2: agende uma sessão"
+            description="Crie uma nova sessão na agenda para organizar seu atendimento inicial."
+            onDismiss={() => setDismissCoachmark(true)}
+          />
+        ) : null}
         <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div>
