@@ -5,10 +5,12 @@ import {
   ArrowUpRight,
   CheckCircle2,
   DollarSign,
+  History,
   Loader2,
   PencilLine,
   Plus,
   TrendingUp,
+  Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,6 +30,7 @@ import { FinanceCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivacy } from "@/hooks/usePrivacy";
 import { patientService, type Patient } from "@/services/patientService";
+import { readStoredAuthUser } from "@/services/authStorage";
 import {
   Dialog,
   DialogContent,
@@ -122,6 +125,15 @@ export default function FinancePage() {
   const [editOpen, setEditOpen] = useState(false);
   const [savingEntry, setSavingEntry] = useState(false);
   const [editEntry, setEditEntry] = useState<EntryFormState>(emptyEntryForm);
+  const [revertEntry, setRevertEntry] = useState<FinancialEntry | null>(null);
+  const [revertOpen, setRevertOpen] = useState(false);
+  const [revertReason, setRevertReason] = useState("");
+  const [revertingPayment, setRevertingPayment] = useState(false);
+  const [revertedItems, setRevertedItems] = useState<Record<string, {
+    at: string;
+    affectedSessions: number;
+    reason?: string;
+  }>>({});
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -400,6 +412,57 @@ export default function FinancePage() {
     setSelectedEntry(null);
     toast({ title: "Lançamento atualizado" });
     setSavingEntry(false);
+  };
+
+  const openRevertModal = (entry: FinancialEntry) => {
+    setRevertEntry(entry);
+    setRevertReason("");
+    setRevertOpen(true);
+  };
+
+  const handleRevertPayment = async () => {
+    if (!revertEntry) return;
+    setRevertingPayment(true);
+    const authUser = readStoredAuthUser();
+    const result = await financeService.revertPayment(revertEntry.id, {
+      reason: revertReason.trim() || undefined,
+      actor_id: authUser?.id,
+      actor_name: authUser?.name,
+    });
+
+    if (!result.success) {
+      toast({
+        title: "Erro ao reverter pagamento",
+        description: result.error.message,
+        variant: "destructive",
+      });
+      setRevertingPayment(false);
+      return;
+    }
+
+    updateLocalEntry({
+      ...result.data.entry,
+      status: "open",
+      paid_at: undefined,
+    });
+
+    setRevertedItems((current) => ({
+      ...current,
+      [revertEntry.id]: {
+        at: result.data.reverted_at ?? new Date().toISOString(),
+        affectedSessions: result.data.affected_sessions.length || (revertEntry.session_id ? 1 : 0),
+        reason: revertReason.trim() || undefined,
+      },
+    }));
+
+    setRevertOpen(false);
+    setRevertEntry(null);
+    setRevertReason("");
+    toast({
+      title: "Pagamento revertido",
+      description: "Cobrança e sessões relacionadas foram marcadas como pendentes.",
+    });
+    setRevertingPayment(false);
   };
 
   if (loading) {
@@ -722,6 +785,11 @@ export default function FinancePage() {
                       <span className={cn("rounded-full px-2.5 py-1 text-xs font-semibold", statusColor(entry.status))}>
                         {statusLabel(entry.status)}
                       </span>
+                      {revertedItems[entry.id] ? (
+                        <span className="rounded-full bg-blue-500/10 px-2 py-0.5 text-xs font-medium text-blue-700 dark:text-blue-300">
+                          Revertido
+                        </span>
+                      ) : null}
                       {isOverdue(entry) ? (
                         <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
                           Vencido
@@ -737,6 +805,12 @@ export default function FinancePage() {
                       <PencilLine className="h-4 w-4" />
                       Editar
                     </Button>
+                    {entry.status === "paid" ? (
+                      <Button variant="outline" size="sm" className="gap-2 text-amber-700 border-amber-300 hover:bg-amber-50 dark:text-amber-300 dark:border-amber-900/60 dark:hover:bg-amber-900/20" onClick={() => openRevertModal(entry)}>
+                        <Undo2 className="h-4 w-4" />
+                        Reverter pagamento
+                      </Button>
+                    ) : null}
                     <ShareWithPatientButton type="financial/entries" id={entry.id} shared={(entry as FinancialEntry & { shared_with_patient?: boolean }).shared_with_patient ?? false} />
                     <WhatsAppButton
                       phone=""
@@ -748,6 +822,20 @@ export default function FinancePage() {
                     {entry.payment_method ? `Forma de pagamento: ${entry.payment_method}` : "Forma de pagamento n\u00e3o definida"}
                   </p>
                 </div>
+                {revertedItems[entry.id] ? (
+                  <div className="mt-3 rounded-xl border border-blue-500/20 bg-blue-500/5 px-3 py-2 text-xs text-blue-800 dark:text-blue-200">
+                    <div className="flex items-center gap-2">
+                      <History className="h-3.5 w-3.5" />
+                      <span className="font-medium">
+                        Reversão em {formatDate(revertedItems[entry.id].at)}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[11px] opacity-90">
+                      {revertedItems[entry.id].affectedSessions} sessão(ões) afetada(s)
+                      {revertedItems[entry.id].reason ? ` · Motivo: ${revertedItems[entry.id].reason}` : ""}
+                    </p>
+                  </div>
+                ) : null}
               </div>
             ))
           )}
@@ -794,6 +882,52 @@ export default function FinancePage() {
               <Button onClick={handleSaveEntry} disabled={savingEntry || !editEntry.amount} className="gap-2">
                 {savingEntry ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Salvar
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={revertOpen} onOpenChange={setRevertOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Confirmar reversão do pagamento</DialogTitle>
+              <DialogDescription>
+                Confira os dados antes de voltar a cobrança e as sessões para pendente.
+              </DialogDescription>
+            </DialogHeader>
+            {revertEntry ? (
+              <div className="space-y-4">
+                <div className="rounded-xl border border-border/70 bg-muted/30 p-3 text-sm">
+                  <p><span className="font-medium">Cliente:</span> {maskName(revertEntry.patient_name ?? "Paciente")}</p>
+                  <p className="mt-1"><span className="font-medium">Data do pagamento:</span> {revertEntry.paid_at ? formatDate(revertEntry.paid_at) : "Não informada"}</p>
+                  <p className="mt-1"><span className="font-medium">Valor:</span> {maskCurrency(formatCurrency(revertEntry.amount))}</p>
+                  <p className="mt-1">
+                    <span className="font-medium">Sessões afetadas:</span>{" "}
+                    {revertEntry.session_id ? "1 sessão vinculada ao lançamento" : "Sessões vinculadas automaticamente pelo backend"}
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium text-foreground">Motivo (opcional, para auditoria)</label>
+                  <Textarea
+                    value={revertReason}
+                    onChange={(event) => setRevertReason(event.target.value)}
+                    placeholder="Ex.: pagamento lançado incorretamente."
+                    className="min-h-[90px]"
+                  />
+                </div>
+              </div>
+            ) : null}
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setRevertOpen(false)} disabled={revertingPayment}>
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleRevertPayment}
+                disabled={!revertEntry || revertingPayment}
+                className="gap-2"
+              >
+                {revertingPayment ? <Loader2 className="h-4 w-4 animate-spin" /> : <Undo2 className="h-4 w-4" />}
+                Confirmar reversão
               </Button>
             </DialogFooter>
           </DialogContent>
