@@ -1,9 +1,8 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Plus, Repeat2, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import AudioRecorder from "@/components/AudioRecorder";
 import ConsentModal from "@/components/ConsentModal";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
@@ -17,6 +16,7 @@ import { startJob } from "@/jobs/jobManager";
 import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
 import { PackageModal } from "@/components/finance/PackageModal";
+import SessionPaymentForm from "@/components/finance/SessionPaymentForm";
 
 interface SessionPageProps {
   sessionId: string;
@@ -468,6 +468,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
               </Button>
             </div>
           </div>
+          {session ? <SessionPaymentForm session={session} onToast={toast} /> : null}
         </motion.section>
 
         <motion.div className={`fixed bottom-0 right-0 p-4 md:p-6 bg-gradient-to-t from-background via-background to-transparent ${isMobile ? "left-0" : "left-64"}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>

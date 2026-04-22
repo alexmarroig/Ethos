@@ -9,12 +9,22 @@ type RawFinancialEntry = {
   package_id?: string;
   amount: number;
   payment_method?: string;
-  status: "paid" | "open";
+  status: "paid" | "open" | "exempt" | "package";
   due_date?: string;
   paid_at?: string;
   notes?: string;
   description?: string;
   created_at: string;
+  is_exempt?: boolean;
+  is_partial?: boolean;
+  total_amount?: number;
+  amount_paid?: number;
+  paid_amount?: number;
+  insurance_provider?: string;
+  session_package_id?: string;
+  repasse_amount?: number;
+  receivable_amount?: number;
+  payment_origin?: string;
 };
 
 type RawPaginatedFinancialEntries = {
@@ -33,12 +43,22 @@ export interface FinancialEntry {
   package_id?: string;
   amount: number;
   payment_method?: string;
-  status: "paid" | "open";
+  status: "paid" | "open" | "exempt" | "package";
   due_date?: string;
   paid_at?: string;
   notes?: string;
   description?: string;
   created_at: string;
+  is_exempt?: boolean;
+  is_partial?: boolean;
+  total_amount?: number;
+  amount_paid?: number;
+  paid_amount?: number;
+  insurance_provider?: string;
+  session_package_id?: string;
+  repasse_amount?: number;
+  receivable_amount?: number;
+  payment_origin?: string;
 }
 
 export interface FinanceSummary {
@@ -94,6 +114,16 @@ function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
     notes: raw.notes ?? raw.description,
     description: raw.description,
     created_at: raw.created_at,
+    is_exempt: raw.is_exempt,
+    is_partial: raw.is_partial,
+    total_amount: raw.total_amount,
+    amount_paid: raw.amount_paid,
+    paid_amount: raw.paid_amount,
+    insurance_provider: raw.insurance_provider,
+    session_package_id: raw.session_package_id,
+    repasse_amount: raw.repasse_amount,
+    receivable_amount: raw.receivable_amount,
+    payment_origin: raw.payment_origin,
   };
 }
 
@@ -130,9 +160,19 @@ export const financeService = {
     amount: number;
     payment_method?: string;
     due_date?: string;
-    status?: "open" | "paid";
+    status?: "open" | "paid" | "exempt" | "package";
     notes?: string;
     description?: string;
+    is_exempt?: boolean;
+    is_partial?: boolean;
+    total_amount?: number;
+    amount_paid?: number;
+    paid_amount?: number;
+    insurance_provider?: string;
+    session_package_id?: string;
+    repasse_amount?: number;
+    receivable_amount?: number;
+    payment_origin?: string;
   }): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
       api.post<RawFinancialEntry>("/financial/entry", {
@@ -146,6 +186,16 @@ export const financeService = {
         type: "receivable",
         notes: data.notes,
         description: data.description ?? "Sessão de psicoterapia",
+        is_exempt: data.is_exempt,
+        is_partial: data.is_partial,
+        total_amount: data.total_amount,
+        amount_paid: data.amount_paid,
+        paid_amount: data.paid_amount,
+        insurance_provider: data.insurance_provider,
+        session_package_id: data.session_package_id,
+        repasse_amount: data.repasse_amount,
+        receivable_amount: data.receivable_amount,
+        payment_origin: data.payment_origin,
       }),
       resolvePatientsIndex(),
     ]);
@@ -218,11 +268,21 @@ export const financeService = {
       amount: number;
       payment_method?: string;
       due_date?: string;
-      status: "open" | "paid";
+      status: "open" | "paid" | "exempt" | "package";
       paid_at?: string;
       package_id?: string;
       notes?: string;
       description?: string;
+      is_exempt?: boolean;
+      is_partial?: boolean;
+      total_amount?: number;
+      amount_paid?: number;
+      paid_amount?: number;
+      insurance_provider?: string;
+      session_package_id?: string;
+      repasse_amount?: number;
+      receivable_amount?: number;
+      payment_origin?: string;
     }>,
   ): Promise<ApiResult<FinancialEntry>> => {
     const [result, patients] = await Promise.all([
