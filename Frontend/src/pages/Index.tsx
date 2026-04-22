@@ -5,41 +5,71 @@ import LogoRevealSplash from "@/components/LogoRevealSplash";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
 import RoleGate from "@/components/RoleGate";
-import HomePage from "@/pages/HomePage";
-import SessionPage from "@/pages/SessionPage";
-import AgendaPage from "@/pages/AgendaPage";
-import PatientsPage from "@/pages/PatientsPage";
-import PatientDetailPage from "@/pages/PatientDetailPage";
-import EthicsPage from "@/pages/EthicsPage";
 import LoginPage from "@/pages/LoginPage";
-import ProntuarioPage from "@/pages/ProntuarioPage";
-import FormsPage from "@/pages/FormsPage";
-import AnamnesisPage from "@/pages/AnamnesisPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { lazyRetry } from "@/lib/lazyRetry";
 import { ENABLE_INTRO_SPLASH } from "@/config/runtime";
 
-const ReportsPage = lazyRetry(() => import("@/pages/ReportsPage"));
-const FinancePage = lazyRetry(() => import("@/pages/FinancePage"));
-const DocumentsPage = lazyRetry(() => import("@/pages/DocumentsPage"));
-const AccountPage = lazyRetry(() => import("@/pages/AccountPage"));
-const BackupPage = lazyRetry(() => import("@/pages/BackupPage"));
-const ContractsPage = lazyRetry(() => import("@/pages/ContractsPage"));
-const PatientHomePage = lazyRetry(() => import("@/pages/patient/PatientHomePage"));
-const PatientSessionsPage = lazyRetry(() => import("@/pages/patient/PatientSessionsPage"));
-const PatientDiaryPage = lazyRetry(() => import("@/pages/patient/PatientDiaryPage"));
-const PatientMessagesPage = lazyRetry(() => import("@/pages/patient/PatientMessagesPage"));
-const PatientDocumentsPage = lazyRetry(() => import("@/pages/patient/PatientDocumentsPage"));
-const PatientPaymentsPage = lazyRetry(() => import("@/pages/patient/PatientPaymentsPage"));
-const PatientBookingPage = lazyRetry(() => import("@/pages/patient/PatientBookingPage"));
-const DreamDiaryPage = lazyRetry(() => import("@/pages/patient/DreamDiaryPage"));
-const AvailabilitySettingsPage = lazyRetry(() => import("@/pages/AvailabilitySettingsPage"));
-const AdminDashboard = lazyRetry(() => import("@/pages/admin/AdminDashboard"));
-const AdminUsersPage = lazyRetry(() => import("@/pages/admin/AdminUsersPage"));
-const AdminTestLab = lazyRetry(() => import("@/pages/admin/AdminTestLab"));
-const AdminTicketsPage = lazyRetry(() => import("@/pages/admin/AdminTicketsPage"));
-const DiagnosticsPage = lazyRetry(() => import("@/pages/DiagnosticsPage"));
+const importHomePage = () => import("@/pages/HomePage");
+const importSessionPage = () => import("@/pages/SessionPage");
+const importAgendaPage = () => import("@/pages/AgendaPage");
+const importPatientsPage = () => import("@/pages/PatientsPage");
+const importPatientDetailPage = () => import("@/pages/PatientDetailPage");
+const importEthicsPage = () => import("@/pages/EthicsPage");
+const importProntuarioPage = () => import("@/pages/ProntuarioPage");
+const importFormsPage = () => import("@/pages/FormsPage");
+const importAnamnesisPage = () => import("@/pages/AnamnesisPage");
+const importReportsPage = () => import("@/pages/ReportsPage");
+const importFinancePage = () => import("@/pages/FinancePage");
+const importDocumentsPage = () => import("@/pages/DocumentsPage");
+const importAccountPage = () => import("@/pages/AccountPage");
+const importBackupPage = () => import("@/pages/BackupPage");
+const importContractsPage = () => import("@/pages/ContractsPage");
+const importPatientHomePage = () => import("@/pages/patient/PatientHomePage");
+const importPatientSessionsPage = () => import("@/pages/patient/PatientSessionsPage");
+const importPatientDiaryPage = () => import("@/pages/patient/PatientDiaryPage");
+const importPatientMessagesPage = () => import("@/pages/patient/PatientMessagesPage");
+const importPatientDocumentsPage = () => import("@/pages/patient/PatientDocumentsPage");
+const importPatientPaymentsPage = () => import("@/pages/patient/PatientPaymentsPage");
+const importPatientBookingPage = () => import("@/pages/patient/PatientBookingPage");
+const importDreamDiaryPage = () => import("@/pages/patient/DreamDiaryPage");
+const importAvailabilitySettingsPage = () => import("@/pages/AvailabilitySettingsPage");
+const importAdminDashboard = () => import("@/pages/admin/AdminDashboard");
+const importAdminUsersPage = () => import("@/pages/admin/AdminUsersPage");
+const importAdminTestLab = () => import("@/pages/admin/AdminTestLab");
+const importAdminTicketsPage = () => import("@/pages/admin/AdminTicketsPage");
+const importDiagnosticsPage = () => import("@/pages/DiagnosticsPage");
+
+const HomePage = lazyRetry(importHomePage);
+const SessionPage = lazyRetry(importSessionPage);
+const AgendaPage = lazyRetry(importAgendaPage);
+const PatientsPage = lazyRetry(importPatientsPage);
+const PatientDetailPage = lazyRetry(importPatientDetailPage);
+const EthicsPage = lazyRetry(importEthicsPage);
+const ProntuarioPage = lazyRetry(importProntuarioPage);
+const FormsPage = lazyRetry(importFormsPage);
+const AnamnesisPage = lazyRetry(importAnamnesisPage);
+const ReportsPage = lazyRetry(importReportsPage);
+const FinancePage = lazyRetry(importFinancePage);
+const DocumentsPage = lazyRetry(importDocumentsPage);
+const AccountPage = lazyRetry(importAccountPage);
+const BackupPage = lazyRetry(importBackupPage);
+const ContractsPage = lazyRetry(importContractsPage);
+const PatientHomePage = lazyRetry(importPatientHomePage);
+const PatientSessionsPage = lazyRetry(importPatientSessionsPage);
+const PatientDiaryPage = lazyRetry(importPatientDiaryPage);
+const PatientMessagesPage = lazyRetry(importPatientMessagesPage);
+const PatientDocumentsPage = lazyRetry(importPatientDocumentsPage);
+const PatientPaymentsPage = lazyRetry(importPatientPaymentsPage);
+const PatientBookingPage = lazyRetry(importPatientBookingPage);
+const DreamDiaryPage = lazyRetry(importDreamDiaryPage);
+const AvailabilitySettingsPage = lazyRetry(importAvailabilitySettingsPage);
+const AdminDashboard = lazyRetry(importAdminDashboard);
+const AdminUsersPage = lazyRetry(importAdminUsersPage);
+const AdminTestLab = lazyRetry(importAdminTestLab);
+const AdminTicketsPage = lazyRetry(importAdminTicketsPage);
+const DiagnosticsPage = lazyRetry(importDiagnosticsPage);
 
 type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
@@ -59,6 +89,12 @@ function PageFallback() {
     </div>
   );
 }
+
+const prefetchByRole: Record<"professional" | "patient" | "admin", Array<() => Promise<unknown>>> = {
+  professional: [importHomePage, importAgendaPage, importPatientsPage],
+  patient: [importPatientHomePage, importPatientSessionsPage, importPatientDiaryPage],
+  admin: [importAdminDashboard, importAdminUsersPage, importAdminTicketsPage],
+};
 
 const Index = () => {
   const [showSplash, setShowSplash] = useState(() => ENABLE_INTRO_SPLASH);
