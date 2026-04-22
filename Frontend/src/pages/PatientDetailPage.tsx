@@ -51,6 +51,7 @@ import { api } from "@/services/apiClient";
 import type { DreamDiaryEntry } from "@/services/patientPortalService";
 import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
+import { financeService, type FinancialPackage, type FinancialPackageConsumption } from "@/services/financeService";
 import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
 import { ClinicalSynthesisCard } from "@/components/ClinicalSynthesisCard";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
@@ -416,6 +417,8 @@ export default function PatientDetailPage({
   const [showAllSessions, setShowAllSessions] = useState(false);
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null);
   const [dreamDiaryEntries, setDreamDiaryEntries] = useState<DreamDiaryEntry[]>([]);
+  const [financialPackages, setFinancialPackages] = useState<FinancialPackage[]>([]);
+  const [packageConsumptions, setPackageConsumptions] = useState<FinancialPackageConsumption[]>([]);
   const [dreamDiaryLoading, setDreamDiaryLoading] = useState(false);
   const [dreamDiaryLoaded, setDreamDiaryLoaded] = useState(false);
 
@@ -446,6 +449,18 @@ export default function PatientDetailPage({
     if (result.success) {
       setSynthesis(result.data);
     }
+  }, [patientId]);
+
+  useEffect(() => {
+    const loadPackages = async () => {
+      const [packagesResult, consumptionsResult] = await Promise.all([
+        financeService.listPackages({ patient_id: patientId }),
+        financeService.listPackageConsumptions({ patient_id: patientId }),
+      ]);
+      if (packagesResult.success) setFinancialPackages(packagesResult.data);
+      if (consumptionsResult.success) setPackageConsumptions(consumptionsResult.data);
+    };
+    void loadPackages();
   }, [patientId]);
 
   const handleRefreshSynthesis = async () => {
@@ -1763,6 +1778,44 @@ export default function PatientDetailPage({
                   }
                 }}
               />
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h3 className="text-sm font-semibold text-foreground">Pacotes do paciente</h3>
+              {financialPackages.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum pacote registrado para este paciente.</p>
+              ) : (
+                <div className="space-y-2">
+                  {financialPackages.map((pkg) => (
+                    <div key={pkg.id} className="rounded-md border border-border/70 p-2.5 text-sm">
+                      <p className="font-medium text-foreground">
+                        {pkg.quantity} sessões · saldo {pkg.sessions_remaining} · R$ {pkg.total_amount.toFixed(2)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Criado em {formatDateTime(pkg.created_at)} · {pkg.status === "active" ? "Ativo" : "Consumido"}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <h3 className="text-sm font-semibold text-foreground">Histórico de consumo do pacote</h3>
+              {packageConsumptions.length === 0 ? (
+                <p className="text-xs text-muted-foreground">Nenhum consumo registrado até o momento.</p>
+              ) : (
+                <div className="space-y-2">
+                  {packageConsumptions.map((item) => (
+                    <div key={item.id} className="rounded-md border border-border/70 p-2.5 text-sm">
+                      <p className="font-medium text-foreground">{formatDateTime(item.consumed_at)} · sessão {item.session_id ?? "manual"}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Pacote {item.package_id.slice(0, 8)}{item.note ? ` · ${item.note}` : ""}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </CollapsibleSection>

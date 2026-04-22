@@ -1,15 +1,21 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Repeat2, Trash2, Wallet } from "lucide-react";
+import { ArrowLeft, Upload, FileText, Eye, EyeOff, Loader2, Plus, Repeat2, Trash2, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import AudioRecorder from "@/components/AudioRecorder";
 import ConsentModal from "@/components/ConsentModal";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { sessionService, Session } from "@/services/sessionService";
 import { audioService } from "@/services/audioService";
 import { financeService, type FinancialEntry } from "@/services/financeService";
+import { patientService } from "@/services/patientService";
+import { exportService, openDataUrlInNewTab } from "@/services/exportService";
+import { receiptDeliveryService } from "@/services/receiptDeliveryService";
+import { financeService, type FinancialEntry, type FinancialPackage } from "@/services/financeService";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { usePrivacy } from "@/hooks/usePrivacy";
@@ -18,6 +24,8 @@ import { useAppStore } from "@/stores/appStore";
 import SavedLocally from "@/components/SavedLocally";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import OnboardingCoachmark from "@/components/OnboardingCoachmark";
+import { PackageModal } from "@/components/finance/PackageModal";
+import SessionPaymentForm from "@/components/finance/SessionPaymentForm";
 
 interface SessionPageProps {
   sessionId: string;
@@ -49,6 +57,16 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   const [paymentMethod, setPaymentMethod] = useState("");
   const [paymentSaving, setPaymentSaving] = useState(false);
   const [dismissCoachmark, setDismissCoachmark] = useState(false);
+  const [receiptModalOpen, setReceiptModalOpen] = useState(false);
+  const [sendReceiptByEmail, setSendReceiptByEmail] = useState(true);
+  const [receiptEmail, setReceiptEmail] = useState("");
+  const [receiptSubject, setReceiptSubject] = useState("");
+  const [receiptMessage, setReceiptMessage] = useState("");
+  const [receiptSending, setReceiptSending] = useState(false);
+  const [receiptPdfLoading, setReceiptPdfLoading] = useState(false);
+  const [packages, setPackages] = useState<FinancialPackage[]>([]);
+  const [selectedPackageId, setSelectedPackageId] = useState("");
+  const [packageModalOpen, setPackageModalOpen] = useState(false);
   const { toast } = useToast();
   const isMobile = useIsMobile();
 
@@ -89,11 +107,22 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   }, [sessionId]);
 
   useEffect(() => {
+    if (!session?.patient_id) return;
+    const loadPackages = async () => {
+      const result = await financeService.listPackages({ patient_id: session.patient_id });
+      if (!result.success) return;
+      setPackages(result.data);
+    };
+    void loadPackages();
+  }, [session?.patient_id]);
+
+  useEffect(() => {
     const loadLinkedPayment = async () => {
       const result = await financeService.listEntries({ session_id: sessionId, page_size: 1 });
       if (!result.success) return;
       const entry = result.data.find((item) => item.session_id === sessionId) ?? null;
       setLinkedEntry(entry);
+      setSelectedPackageId(entry?.package_id ?? "");
       setPaymentAmount(entry ? String(entry.amount) : "");
       setPaymentDueDate(entry?.due_date ? new Date(entry.due_date).toISOString().slice(0, 10) : "");
       setPaymentMethod(entry?.payment_method ?? "");
@@ -101,6 +130,24 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
 
     void loadLinkedPayment();
   }, [sessionId]);
+
+  useEffect(() => {
+    const loadPatientEmail = async () => {
+      if (!session?.patient_id) return;
+      const result = await patientService.getById(session.patient_id);
+      if (!result.success) return;
+      if (result.data.patient.email) {
+        setReceiptEmail(result.data.patient.email);
+      }
+    };
+    void loadPatientEmail();
+  }, [session?.patient_id]);
+
+  useEffect(() => {
+    if (!session) return;
+    setReceiptSubject(`Recibo da sessão - ${session.patient_name}`);
+    setReceiptMessage(`Olá ${session.patient_name},\n\nSegue o recibo da sessão.\n\nQualquer dúvida, estou à disposição.`);
+  }, [session?.id, session?.patient_name]);
 
   const canGenerateProntuario = hasAudio || notes.trim().length > 0;
 
@@ -204,6 +251,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
       amount: Number(paymentAmount),
       due_date: paymentDueDate ? new Date(`${paymentDueDate}T12:00:00`).toISOString() : undefined,
       payment_method: paymentMethod || undefined,
+      package_id: selectedPackageId || undefined,
       status: markAsPaid ? ("paid" as const) : ("open" as const),
       paid_at: markAsPaid ? new Date().toISOString() : undefined,
       description: "Sessão de psicoterapia",
@@ -225,10 +273,100 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
     setPaymentDueDate(result.data.due_date ? new Date(result.data.due_date).toISOString().slice(0, 10) : "");
     setPaymentMethod(result.data.payment_method ?? "");
     markMissionCompleted("register-payment");
+    setSelectedPackageId(result.data.package_id ?? "");
     toast({
       title: markAsPaid ? "Pagamento marcado como pago" : linkedEntry ? "Cobrança atualizada" : "Cobrança registrada",
       description: markAsPaid ? "A sessão ficou quitada no financeiro." : "O pagamento desta sessão foi vinculado ao financeiro.",
     });
+
+    if (markAsPaid) {
+      setReceiptModalOpen(true);
+    }
+  };
+
+  const handleDownloadReceiptPdf = async () => {
+    if (!linkedEntry) return;
+    setReceiptPdfLoading(true);
+    const result = await exportService.exportPdf({
+      document_type: "financial_entry",
+      document_id: linkedEntry.id,
+    });
+    setReceiptPdfLoading(false);
+
+    if (!result.success) {
+      toast({ title: "Erro ao gerar PDF", description: result.error.message, variant: "destructive" });
+      return;
+    }
+
+    if (result.data.data_url) {
+      openDataUrlInNewTab(result.data.data_url);
+      return;
+    }
+    if (result.data.url) {
+      window.open(result.data.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    toast({ title: "PDF indisponível", description: "Não foi possível abrir o PDF do recibo.", variant: "destructive" });
+  };
+
+  const handleSendReceipt = async () => {
+    if (!session || !linkedEntry) return;
+    if (sendReceiptByEmail && !receiptEmail.trim()) {
+      toast({ title: "E-mail obrigatório", description: "Informe o e-mail de destino para enviar o recibo.", variant: "destructive" });
+      return;
+    }
+    if (!receiptSubject.trim()) {
+      toast({ title: "Título obrigatório", description: "Informe o título do e-mail.", variant: "destructive" });
+      return;
+    }
+
+    setReceiptSending(true);
+    const sendResult = await receiptDeliveryService.sendReceipt({
+      financial_entry_id: linkedEntry.id,
+      patient_id: session.patient_id,
+      session_id: session.id,
+      send_email: sendReceiptByEmail,
+      to_email: sendReceiptByEmail ? receiptEmail.trim() : undefined,
+      subject: receiptSubject.trim(),
+      message: receiptMessage.trim() || undefined,
+    });
+
+    if (!sendResult.success) {
+      setReceiptSending(false);
+      toast({ title: "Erro ao enviar recibo", description: sendResult.error.message, variant: "destructive" });
+      return;
+    }
+
+    const registryResult = await receiptDeliveryService.registerReceiptDocument({
+      patient_id: session.patient_id,
+      session_id: session.id,
+      financial_entry_id: linkedEntry.id,
+      title: `Recibo - ${session.patient_name} - ${new Date().toLocaleDateString("pt-BR")}`,
+      amount: linkedEntry.amount,
+      paid_at: linkedEntry.paid_at,
+      sent_at: sendResult.data.sent_at,
+      destination_email: sendReceiptByEmail ? receiptEmail.trim() : undefined,
+    });
+
+    setReceiptSending(false);
+
+    if (!registryResult.success) {
+      toast({
+        title: "Recibo enviado com alerta",
+        description: "O envio foi concluído, mas não foi possível registrar o histórico em documentos.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Recibo enviado",
+      description: sendReceiptByEmail
+        ? `Recibo enviado para ${receiptEmail.trim()}.`
+        : "Recibo registrado para envio/manual.",
+    });
+    setReceiptModalOpen(false);
   };
 
   const handleNotesBlur = () => {
@@ -274,6 +412,72 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
   return (
     <div className="min-h-screen pb-32">
       <ConsentModal isOpen={consentOpen} onClose={() => setConsentOpen(false)} onConfirm={handleConsentConfirm} />
+      <Dialog open={receiptModalOpen} onOpenChange={(open) => !receiptSending && setReceiptModalOpen(open)}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Enviar recibo</DialogTitle>
+            <DialogDescription>
+              Confirme os dados abaixo para enviar o recibo da sessão e registrar no histórico de documentos.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-1">
+            <div className="flex items-center justify-between rounded-lg border border-border p-3">
+              <div>
+                <p className="text-sm font-medium">Enviar por e-mail</p>
+                <p className="text-xs text-muted-foreground">Ative para disparar automaticamente para o paciente.</p>
+              </div>
+              <Switch checked={sendReceiptByEmail} onCheckedChange={setSendReceiptByEmail} disabled={receiptSending} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">E-mail destino</label>
+              <Input
+                type="email"
+                placeholder="paciente@email.com"
+                value={receiptEmail}
+                onChange={(event) => setReceiptEmail(event.target.value)}
+                disabled={!sendReceiptByEmail || receiptSending}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Título do e-mail</label>
+              <Input value={receiptSubject} onChange={(event) => setReceiptSubject(event.target.value)} disabled={receiptSending} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-sm font-medium text-foreground">Mensagem (opcional)</label>
+              <Textarea
+                value={receiptMessage}
+                onChange={(event) => setReceiptMessage(event.target.value)}
+                className="min-h-[120px]"
+                disabled={receiptSending}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2 sm:justify-between">
+            <Button variant="outline" onClick={() => void handleDownloadReceiptPdf()} disabled={receiptPdfLoading || receiptSending || !linkedEntry}>
+              {receiptPdfLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Download em PDF
+            </Button>
+
+            <Button onClick={() => void handleSendReceipt()} disabled={receiptSending || receiptPdfLoading || !linkedEntry}>
+              {receiptSending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              {receiptSending ? "Enviando..." : "Enviar recibo"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      {session ? (
+        <PackageModal
+          open={packageModalOpen}
+          patientId={session.patient_id}
+          onOpenChange={setPackageModalOpen}
+          onCreated={(pkg) => setPackages((current) => [pkg, ...current])}
+        />
+      ) : null}
 
       <div className="content-container py-6 md:py-8">
         {shouldShowCoachmarks && !dismissCoachmark && (currentMissionId === "register-attendance" || currentMissionId === "session-note") ? (
@@ -436,6 +640,25 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
               <Input type="date" value={paymentDueDate} onChange={(event) => setPaymentDueDate(event.target.value)} />
               <Input placeholder="Forma de pagamento" value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value)} />
             </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <select
+                className="h-10 min-w-[260px] rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedPackageId}
+                onChange={(event) => setSelectedPackageId(event.target.value)}
+              >
+                <option value="">Sem pacote</option>
+                {packages
+                  .filter((item) => item.sessions_remaining > 0 || item.id === selectedPackageId)
+                  .map((pkg) => (
+                    <option key={pkg.id} value={pkg.id}>
+                      {pkg.quantity} sessões · saldo {pkg.sessions_remaining} · R$ {pkg.total_amount.toFixed(2)}
+                    </option>
+                  ))}
+              </select>
+              <Button type="button" variant="outline" size="icon" onClick={() => setPackageModalOpen(true)} title="Inserir pacote">
+                <Plus className="h-4 w-4" />
+              </Button>
+            </div>
 
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" onClick={() => void handleSavePayment(false)} disabled={paymentSaving || !paymentAmount.trim()}>
@@ -448,6 +671,7 @@ const SessionPage = ({ sessionId, onBack, onOpenProntuario }: SessionPageProps) 
               </Button>
             </div>
           </div>
+          {session ? <SessionPaymentForm session={session} onToast={toast} /> : null}
         </motion.section>
 
         <motion.div className={`fixed bottom-0 right-0 p-4 md:p-6 bg-gradient-to-t from-background via-background to-transparent ${isMobile ? "left-0" : "left-64"}`} initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
