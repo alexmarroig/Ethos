@@ -1,5 +1,5 @@
-﻿import { useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useMemo, useState } from "react";
+import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { Eye, EyeOff, Loader2, ArrowLeft, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,6 +68,7 @@ const choiceButtonClass = (selected: boolean) =>
   }`;
 
 const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
+  const prefersReducedMotion = useReducedMotion();
   const [mode, setMode] = useState<ViewMode>("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -294,15 +295,15 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
     <div className="min-h-screen bg-background flex items-center justify-center px-6">
       <motion.div
         className="w-full max-w-2xl"
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: prefersReducedMotion ? 8 : 20 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ duration: prefersReducedMotion ? 0.25 : 0.6, ease: [0.25, 0.1, 0.25, 1] }}
       >
         <motion.div
           className="text-center mb-12"
-          initial={{ opacity: 0, y: 10 }}
+          initial={{ opacity: 0, y: prefersReducedMotion ? 4 : 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 0.1 }}
+          transition={{ duration: prefersReducedMotion ? 0.2 : 0.5, delay: prefersReducedMotion ? 0 : 0.1 }}
         >
           <div className="mx-auto flex justify-center">
             <BrandWordmark textClassName="text-4xl font-medium tracking-tight" />
@@ -310,14 +311,14 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
           <p className="mt-2 text-muted-foreground text-sm">Plataforma clínica para atendimento real</p>
         </motion.div>
 
-        <AnimatePresence mode="wait">
+        <AnimatePresence mode="wait" initial={!prefersReducedMotion}>
           {mode === "recovery" ? (
             <motion.div
               key="recovery"
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: prefersReducedMotion ? 8 : 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
               className="mx-auto max-w-md"
             >
               {recoverySent ? (
@@ -395,10 +396,10 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
               key="signup"
               onSubmit={handleSignup}
               className="space-y-5"
-              initial={{ opacity: 0, x: 20 }}
+              initial={{ opacity: 0, x: prefersReducedMotion ? 8 : 20 }}
               animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2 md:col-span-2">
@@ -566,8 +567,8 @@ const LoginPage = ({ onLoginSuccess }: LoginPageProps) => {
               className="mx-auto max-w-md space-y-6"
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              exit={{ opacity: 0, x: -20 }}
-              transition={{ duration: 0.3 }}
+              exit={{ opacity: 0, x: prefersReducedMotion ? -8 : -20 }}
+              transition={{ duration: prefersReducedMotion ? 0.18 : 0.3 }}
             >
               <div className="space-y-2">
                 <label htmlFor="email" className="text-sm font-medium text-foreground">
