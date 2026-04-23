@@ -245,11 +245,12 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
     }
 
     const cloudResult = await controlAuthService.login(email, password);
-    if (cloudResult.success) {
+    if (cloudResult.success && cloudResult.data.token) {
       setControlToken(cloudResult.data.token);
       persistUser(
         normalizeUser({
           ...cloudResult.data.user,
+          token: cloudResult.data.token,
         }),
         true
       );
