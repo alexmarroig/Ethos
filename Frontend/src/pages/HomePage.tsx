@@ -149,7 +149,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         pendingSessionsPromise,
         financePromise,
         loadTimeout,
-      ]; // prettier-ignore
+      ]);
 
       if (allSessionsData === "timeout") {
         setError({ message: "Tempo limite excedido", requestId: "" });
