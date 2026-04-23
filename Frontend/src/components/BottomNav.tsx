@@ -29,8 +29,8 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
       { id: "account", label: "Conta", icon: User },
     ];
     return (
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border md:hidden">
-        <div className="flex items-center justify-around">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur md:hidden">
+        <div className="flex items-center justify-around gap-1 px-1">
           {items.map((item) => {
             const Icon = item.icon;
             return (
@@ -38,7 +38,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
                 key={item.id}
                 onClick={() => handleNav(item.id)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
+                  "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
                   currentPage === item.id ? "text-primary" : "text-muted-foreground",
                 )}
               >
@@ -67,8 +67,8 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
     ];
     return (
       <>
-        <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border md:hidden">
-          <div className="flex items-center justify-around">
+        <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur md:hidden">
+          <div className="flex items-center justify-around gap-1 px-1">
             {mainItems.map((item) => {
               const Icon = item.icon;
               return (
@@ -76,7 +76,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
                   key={item.id}
                   onClick={() => handleNav(item.id)}
                   className={cn(
-                    "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
+                    "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
                     currentPage === item.id ? "text-primary" : "text-muted-foreground",
                   )}
                 >
@@ -88,7 +88,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
             <button
               onClick={() => setMoreOpen(true)}
               className={cn(
-                "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
+                "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
                 moreItems.some((i) => i.id === currentPage) ? "text-primary" : "text-muted-foreground",
               )}
             >
@@ -149,8 +149,8 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
 
   return (
     <>
-      <nav className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border md:hidden">
-        <div className="flex items-center justify-around">
+      <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-border bg-card/95 backdrop-blur md:hidden">
+        <div className="flex items-center justify-around gap-1 px-1">
           {mainItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -158,7 +158,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
                 key={item.id}
                 onClick={() => handleNav(item.id)}
                 className={cn(
-                  "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
+                  "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
                   currentPage === item.id ? "text-primary" : "text-muted-foreground",
                 )}
               >
@@ -170,7 +170,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
           <button
             onClick={() => setMoreOpen(true)}
             className={cn(
-              "flex flex-col items-center justify-center py-2 px-3 min-h-[56px] min-w-[56px] transition-colors duration-200",
+              "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
               moreItems.some((i) => i.id === currentPage) ? "text-primary" : "text-muted-foreground",
             )}
           >

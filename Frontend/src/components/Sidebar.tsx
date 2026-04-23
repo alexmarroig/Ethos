@@ -171,7 +171,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
   return (
     <motion.aside
-      className="fixed bottom-0 left-0 top-0 z-40 hidden w-72 flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
+      className="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}

@@ -137,12 +137,24 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    width: 100%;
+    min-height: 100%;
+    overflow-x: clip;
   }
 
   body {
     @apply bg-background text-foreground;
     font-feature-settings: "cv11", "ss01";
     background: hsl(var(--background));
+    width: 100%;
+    min-height: 100dvh;
+    overflow-x: clip;
+  }
+
+  #root {
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: clip;
   }
 
   h1, h2, h3 {
@@ -286,8 +298,14 @@
 
   /* Container for main content */
   .content-container {
-    @apply mx-auto px-4 sm:px-6 lg:px-8;
+    @apply mx-auto w-full px-4 sm:px-6 lg:px-8;
     max-width: 1220px;
+  }
+
+  .app-shell {
+    min-height: 100dvh;
+    width: 100%;
+    overflow-x: clip;
   }
 
   /* Motion: button hover/click */
