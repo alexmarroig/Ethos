@@ -112,7 +112,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       setError(null);
 
       const loadTimeoutMs = 15_000;
-      const loadTimeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), loadTimeoutMs));
+      const loadTimeout = new Promise((resolve) =>
+        setTimeout(() => resolve("timeout"), loadTimeoutMs)
+      );
 
       try {
         const todayDate = new Date();
@@ -147,11 +149,10 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         pendingSessionsPromise,
         financePromise,
         loadTimeout,
-      ]);
+      ]; // prettier-ignore
 
       if (allSessionsData === "timeout") {
         setError({ message: "Tempo limite excedido", requestId: "" });
-        setLoading(false);
         return;
       }
 
@@ -160,7 +161,6 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões",
           requestId: (allSessionsData as any).request_id ?? "",
         });
-        setLoading(false);
         return;
       }
 
@@ -261,6 +261,8 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
         .slice(0, 8);
       setBirthdayPatients(birthdays);
+    } finally {
+      setLoading(false);
     };
 
     void load();
