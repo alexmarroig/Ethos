@@ -93,8 +93,6 @@ const getBirthdayBadge = (birthDate?: string) => {
 
 const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const { maskName } = usePrivacy();
-  const sessionCache = useAppStore((s) => s.sessionCache);
-  const sessionCacheAt = useAppStore((s) => s.sessionCacheAt);
   const setSessionCache = useAppStore((s) => s.setSessionCache);
   const [todaySessions, setTodaySessions] = useState<Session[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
@@ -107,14 +105,19 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    const loadTimeoutMs = 15_000;
+    const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number) =>
+      Promise.race([
+        promise,
+        new Promise<"timeout">((resolve) => {
+          window.setTimeout(() => resolve("timeout"), timeoutMs);
+        }),
+      ]);
+
     const load = async () => {
       setLoading(true);
       setError(null);
-
-      const loadTimeoutMs = 15_000;
-      const loadTimeout = new Promise((resolve) =>
-        setTimeout(() => resolve("timeout"), loadTimeoutMs)
-      );
 
       try {
         const todayDate = new Date();
@@ -125,36 +128,51 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
         const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
 
-        const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
+        const {
+          sessionCache: cachedSessions,
+          sessionCacheAt: cachedSessionsAt,
+        } = useAppStore.getState();
+        const cacheIsFresh =
+          cachedSessions.length > 0 &&
+          (Date.now() - cachedSessionsAt) < SESSION_CACHE_TTL_MS;
 
         const patientsPromise = getPatientsIndex({ ttlMs: 60_000 });
-      const allSessionsPromise = patientsPromise.then((patients) => (
-        cacheIsFresh
-          ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
-          : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
-              if (r.success) setSessionCache(r.data);
-              return r;
-            })
-      ));
-      const pendingSessionsPromise = patientsPromise.then((patients) =>
-        sessionService.list({ status: "pending", exclude_blocks: true }, patients),
-      );
-      const financePromise = patientsPromise.then((patients) =>
-        financeService.listEntries({ status: "open" }, patients),
-      );
+        const allSessionsPromise = patientsPromise.then((patients) => (
+          cacheIsFresh
+            ? Promise.resolve({ success: true as const, data: cachedSessions, request_id: "cache" })
+            : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
+                if (r.success) setSessionCache(r.data);
+                return r;
+              })
+        ));
+        const pendingSessionsPromise = patientsPromise.then((patients) =>
+          sessionService.list({ status: "pending", exclude_blocks: true }, patients),
+        );
+        const financePromise = patientsPromise.then((patients) =>
+          financeService.listEntries({ status: "open" }, patients),
+        );
 
-      const [patients, allSessionsData, pendingRes, financeRes] = await Promise.all([
-        patientsPromise,
-        allSessionsPromise,
-        pendingSessionsPromise,
-        financePromise,
-        loadTimeout,
-      ]);
+        const loadResult = await withTimeout(
+          Promise.all([
+            patientsPromise,
+            allSessionsPromise,
+            pendingSessionsPromise,
+            financePromise,
+          ]),
+          loadTimeoutMs,
+        );
 
-      if (allSessionsData === "timeout") {
-        setError({ message: "Tempo limite excedido", requestId: "" });
-        return;
-      }
+        if (cancelled) return;
+
+        if (loadResult === "timeout") {
+          setError({ message: "Tempo limite excedido ao carregar o painel inicial.", requestId: "" });
+          setTodaySessions([]);
+          setPendingSessions([]);
+          setFinancialSummary(null);
+          return;
+        }
+
+        const [patients, allSessionsData, pendingRes, financeRes] = loadResult;
 
       if (!allSessionsData.success) {
         setError({
@@ -200,7 +218,6 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
       }
 
       setError(null);
-      setLoading(false);
 
       // Load non-critical sections in background.
       void Promise.all([
@@ -217,6 +234,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           page_size: 40,
         }),
       ]).then(([upcomingRes, financeRes]) => {
+        if (cancelled) return;
         if (upcomingRes.success) {
           setSessionCache(upcomingRes.data);
           setUpcomingSessions(
@@ -247,6 +265,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         }
 
       }).catch(() => {
+        if (cancelled) return;
         setUpcomingSessions([]);
         setPendingPayments([]);
         setUpcomingPayments([]);
@@ -261,14 +280,27 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
         .slice(0, 8);
       setBirthdayPatients(birthdays);
+      } catch {
+        if (!cancelled) {
+          setError({ message: "Erro inesperado ao carregar o painel inicial.", requestId: "" });
+          setTodaySessions([]);
+          setUpcomingSessions([]);
+          setPendingSessions([]);
+          setPendingPayments([]);
+          setUpcomingPayments([]);
+          setFinancialSummary(null);
+        }
     } finally {
-      setLoading(false);
+        if (!cancelled) setLoading(false);
+      }
     };
 
     void load();
-  // Re-run when session cache updates so the home page reflects changes instantly
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionCacheAt]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [setSessionCache]);
 
   const mapStatus = (session: Session): SessionStatus => {
     if (session.clinical_note_status === "validated") return "validated";
