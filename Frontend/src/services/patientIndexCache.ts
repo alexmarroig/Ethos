@@ -25,11 +25,22 @@ export async function getPatientsIndex(options?: { ttlMs?: number; forceRefresh?
   if (!options?.forceRefresh && isCacheFresh(patientsCache)) return patientsCache.data;
   if (inflightPatientsRequest) return inflightPatientsRequest;
 
-  inflightPatientsRequest = patientService
-    .list()
-    .then((result) => (result.success ? result.data : []))
+  const timeoutMs = 10_000;
+  const timeoutPromise = new Promise<Patient[]>((resolve) =>
+    setTimeout(() => resolve([]), timeoutMs)
+  );
+
+  inflightPatientsRequest = Promise.race([
+    patientService
+      .list()
+      .then((result) => (result.success ? result.data : []))
+      .catch(() => []),
+    timeoutPromise,
+  ])
     .then((patients) => {
-      primePatientsIndexCache(patients, options?.ttlMs ?? DEFAULT_PATIENT_INDEX_TTL_MS);
+      if (patients.length > 0) {
+        primePatientsIndexCache(patients, options?.ttlMs ?? DEFAULT_PATIENT_INDEX_TTL_MS);
+      }
       return patients;
     })
     .finally(() => {
