@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import LogoRevealSplash from "@/components/LogoRevealSplash";
@@ -187,7 +187,7 @@ const Index = () => {
     setCurrentPage("patients");
   };
 
-  const handleNavigate = (page: string) => {
+  const handleNavigate = useCallback((page: string) => {
     const redirects: Record<string, string> = {
       anamnesis: "forms",
       reports: "documents",
@@ -200,7 +200,7 @@ const Index = () => {
     if (resolved !== "patient-detail") {
       setSelectedPatientId(null);
     }
-  };
+  }, []);
 
   const renderPage = () => {
     const professionalPages = [
