@@ -109,19 +109,23 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setError(null);
 
-      const todayDate = new Date();
-      const today = todayDate.toISOString().slice(0, 10);
-      const monthEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
-      const monthEnd = monthEndDate.toISOString().slice(0, 10);
-      const upcomingWindowEndDate = new Date(todayDate);
-      upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
-      const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
+      const loadTimeoutMs = 15_000;
+      const loadTimeout = new Promise((resolve) => setTimeout(() => resolve("timeout"), loadTimeoutMs));
 
-      // Use cache if fresh (< 60s) — avoids redundant API call when navigating from Agenda
-      const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
+      try {
+        const todayDate = new Date();
+        const today = todayDate.toISOString().slice(0, 10);
+        const monthEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+        const monthEnd = monthEndDate.toISOString().slice(0, 10);
+        const upcomingWindowEndDate = new Date(todayDate);
+        upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
+        const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
 
-      const patientsPromise = getPatientsIndex();
+        const cacheIsFresh = sessionCache.length > 0 && (Date.now() - sessionCacheAt) < SESSION_CACHE_TTL_MS;
+
+        const patientsPromise = getPatientsIndex({ ttlMs: 60_000 });
       const allSessionsPromise = patientsPromise.then((patients) => (
         cacheIsFresh
           ? Promise.resolve({ success: true as const, data: sessionCache, request_id: "cache" })
@@ -142,7 +146,15 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         allSessionsPromise,
         pendingSessionsPromise,
         financePromise,
+        loadTimeout,
       ]);
+
+      if (allSessionsData === "timeout") {
+        setError({ message: "Tempo limite excedido", requestId: "" });
+        setLoading(false);
+        return;
+      }
+
       if (!allSessionsData.success) {
         setError({
           message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões",
