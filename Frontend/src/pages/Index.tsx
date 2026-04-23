@@ -344,11 +344,16 @@ const Index = () => {
 
       <AnimatePresence>
         {!isLoading && isAuthenticated && (
-          <motion.div className="min-h-screen bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
+          <motion.div className="app-shell min-h-dvh bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
             <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
-            <main className={cn("pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0", !isMobile && "md:pl-64")}>
+            <main
+              className={cn(
+                "w-full overflow-x-clip pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
+                !isMobile && "md:pl-64",
+              )}
+            >
               <AnimatePresence mode="wait">
-                <motion.div key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}>
+                <motion.div className="min-w-0" key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}>
                   <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
                 </motion.div>
               </AnimatePresence>
