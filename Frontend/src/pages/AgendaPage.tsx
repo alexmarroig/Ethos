@@ -975,28 +975,15 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
           </div>
 
-          {/* Suggestions panel — always visible at xl+; on mobile only when there are suggestions */}
-          <div
-            className={cn(
-              "space-y-3",
-              visibleSuggestions.length === 0 && "hidden",
-              "xl:block xl:shrink-0 xl:border-l xl:pl-4 xl:pt-2",
-              visibleSuggestions.length > 0 && "border-t pt-4",
-            )}
-            style={{ flexBasis: `${suggestionsPanelWidth}px` }}
-          >
-            <div className="flex items-center gap-2 text-sm font-semibold">
-              <Sparkles className="h-4 w-4 text-primary" />
-              <span>Próxima semana</span>
-              {visibleSuggestions.length > 0 && (
+          {visibleSuggestions.length > 0 ? (
+            /* Panel with suggestions — original structure preserved */
+            <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
+              <div className="flex items-center gap-2 text-sm font-semibold">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <span>Próxima semana</span>
                 <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{visibleSuggestions.length}</span>
-              )}
-            </div>
-
-            {visibleSuggestions.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sem sessões agendadas para a próxima semana.</p>
-            ) : (
-              visibleSuggestions.map((s) => (
+              </div>
+              {visibleSuggestions.map((s) => (
                 <div
                   key={`${s.patient_id}-${s.suggested_at}`}
                   className={cn(
@@ -1033,7 +1020,6 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                       <X className="h-3.5 w-3.5" />
                     </button>
                   </div>
-
                   <Button
                     size="sm"
                     className="w-full h-7 text-xs"
@@ -1051,9 +1037,18 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                     Confirmar
                   </Button>
                 </div>
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          ) : (
+            /* Empty state — desktop only, same flex item sizing */
+            <div className="hidden xl:block xl:shrink-0 xl:border-l xl:pl-4 xl:pt-2 space-y-3" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
+              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+                <Sparkles className="h-4 w-4" />
+                <span>Próxima semana</span>
+              </div>
+              <p className="text-sm text-muted-foreground">Sem sessões agendadas para a próxima semana.</p>
+            </div>
+          )}
           </motion.div>
         ) : null}
       </div>
