@@ -35,7 +35,10 @@ export function AppShell({
       transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}
     >
       <Sidebar currentPage={currentPage} onNavigate={onNavigate} onPrefetch={onPrefetch} />
-      <main className={cn("pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0", !isMobile && "md:pl-64")}>
+      <main
+        className="pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0"
+        style={!isMobile ? { paddingLeft: "var(--sidebar-w, 256px)" } : undefined}
+      >
         <AnimatePresence mode="wait">
           <motion.div
             key={pageKey}

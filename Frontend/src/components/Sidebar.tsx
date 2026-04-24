@@ -33,7 +33,23 @@ import { useAuth, UserRole } from "@/contexts/AuthContext";
 import { useTheme } from "next-themes";
 import BrandWordmark from "@/components/BrandWordmark";
 import { useAppStore } from "@/stores/appStore";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
+
+const SIDEBAR_MIN = 200;
+const SIDEBAR_MAX = 400;
+const SIDEBAR_DEFAULT = 256;
+const STORAGE_KEY = "sidebar-width";
+
+function initSidebarWidth(): number {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored) {
+      const n = parseInt(stored, 10);
+      if (n >= SIDEBAR_MIN && n <= SIDEBAR_MAX) return n;
+    }
+  } catch { /* ignore */ }
+  return SIDEBAR_DEFAULT;
+}
 import { patientPortalService, type PatientNotification } from "@/services/patientPortalService";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
@@ -87,6 +103,34 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
   const [notifications, setNotifications] = useState<PatientNotification[]>([]);
   const [notifOpen, setNotifOpen] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+
+  const [sidebarWidth, setSidebarWidth] = useState(initSidebarWidth);
+  const dragging = useRef(false);
+  const dragStartX = useRef(0);
+  const dragStartW = useRef(0);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--sidebar-w", `${sidebarWidth}px`);
+  }, [sidebarWidth]);
+
+  const onDragStart = useCallback((e: React.PointerEvent) => {
+    dragging.current = true;
+    dragStartX.current = e.clientX;
+    dragStartW.current = sidebarWidth;
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }, [sidebarWidth]);
+
+  const onDragMove = useCallback((e: React.PointerEvent) => {
+    if (!dragging.current) return;
+    const delta = e.clientX - dragStartX.current;
+    const next = Math.min(SIDEBAR_MAX, Math.max(SIDEBAR_MIN, dragStartW.current + delta));
+    setSidebarWidth(next);
+    try { localStorage.setItem(STORAGE_KEY, String(next)); } catch { /* ignore */ }
+  }, []);
+
+  const onDragEnd = useCallback(() => {
+    dragging.current = false;
+  }, []);
 
   useEffect(() => {
     if (user?.role !== "patient") return;
@@ -172,11 +216,20 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
 
   return (
     <motion.aside
-      className="fixed bottom-0 left-0 top-0 z-40 hidden w-64 flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
+      className="fixed bottom-0 left-0 top-0 z-40 hidden flex-col border-r border-sidebar-border/80 bg-sidebar/92 backdrop-blur-xl md:flex"
+      style={{ width: sidebarWidth }}
       initial={{ x: -20, opacity: 0 }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.5, ease: [0.25, 0.1, 0.25, 1] }}
     >
+      {/* drag handle */}
+      <div
+        className="absolute bottom-0 right-0 top-0 w-1 cursor-col-resize transition-colors hover:bg-primary/25 active:bg-primary/40"
+        onPointerDown={onDragStart}
+        onPointerMove={onDragMove}
+        onPointerUp={onDragEnd}
+        onPointerCancel={onDragEnd}
+      />
       <div className="border-b border-sidebar-border/80 px-6 py-6">
         <div className="flex items-start justify-between gap-3">
           <div className="flex min-w-0 flex-1 items-start gap-3">
@@ -256,7 +309,7 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
                     )}
                     strokeWidth={1.5}
                   />
-                  <span className="truncate text-[15px]">{item.label}</span>
+                  <span className="text-[15px] leading-snug">{item.label}</span>
                 </button>
               </li>
             );
