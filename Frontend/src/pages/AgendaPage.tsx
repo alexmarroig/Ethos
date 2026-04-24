@@ -960,83 +960,100 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             </div>
           </div>
 
-          {visibleSuggestions.length > 0 && (
-            <>
-            <button
-              type="button"
-              aria-label="Redimensionar painel lateral da agenda"
-              className="hidden xl:block xl:h-[calc(100%-0.5rem)] xl:w-2 xl:shrink-0 cursor-col-resize rounded-full bg-transparent transition-colors hover:bg-border/80"
-              onPointerDown={(event) => {
-                event.preventDefault();
-                startSuggestionsResize(event.clientX);
-              }}
-            />
-            <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
-              <div className="flex items-center gap-2 text-sm font-semibold">
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span>Próxima semana</span>
+          {/* Grip handle — always visible at xl+, independent of suggestions */}
+          <div
+            className="hidden xl:flex xl:shrink-0 xl:cursor-col-resize xl:flex-col xl:items-center xl:justify-center xl:gap-1.5 xl:rounded-md xl:px-1 xl:transition-colors xl:hover:bg-accent"
+            style={{ alignSelf: "stretch", width: 20 }}
+            onPointerDown={(event) => {
+              event.preventDefault();
+              startSuggestionsResize(event.clientX);
+            }}
+            aria-label="Redimensionar painel lateral da agenda"
+          >
+            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
+          </div>
+
+          {/* Suggestions panel — always visible at xl+; on mobile only when there are suggestions */}
+          <div
+            className={cn(
+              "space-y-3",
+              visibleSuggestions.length === 0 && "hidden",
+              "xl:block xl:shrink-0 xl:border-l xl:pl-4 xl:pt-2",
+              visibleSuggestions.length > 0 && "border-t pt-4",
+            )}
+            style={{ flexBasis: `${suggestionsPanelWidth}px` }}
+          >
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <span>Próxima semana</span>
+              {visibleSuggestions.length > 0 && (
                 <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{visibleSuggestions.length}</span>
-              </div>
-
-              {visibleSuggestions.map((s) => (
-                  <div
-                    key={`${s.patient_id}-${s.suggested_at}`}
-                    className={cn(
-                      "rounded-lg border p-3 text-sm space-y-2",
-                      s.source === "rule"
-                        ? "border-l-4 border-l-teal-500 bg-teal-50 dark:bg-teal-950/30"
-                        : "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/30",
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-1">
-                      <div>
-                        <p className="font-medium leading-tight">{maskName(s.patient_name)}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {new Date(s.suggested_at).toLocaleString("pt-BR", {
-                            weekday: "short", day: "2-digit", month: "short",
-                            hour: "2-digit", minute: "2-digit",
-                          })}
-                        </p>
-                        {s.source === "pattern" && s.confidence !== undefined && (
-                          <p className="text-xs text-amber-600 dark:text-amber-400">
-                            detectado · {s.confidence}% conf.
-                          </p>
-                        )}
-                        {s.recurrence_type && (
-                          <p className="text-xs text-teal-600 dark:text-teal-400">{s.recurrence_type}</p>
-                        )}
-                      </div>
-                      <button
-                        onClick={() =>
-                          setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]))
-                        }
-                        className="text-muted-foreground hover:text-foreground shrink-0"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-
-                    <Button
-                      size="sm"
-                      className="w-full h-7 text-xs"
-                      onClick={async () => {
-                        await sessionService.create({
-                          patient_id: s.patient_id,
-                          scheduled_at: s.suggested_at,
-                          duration_minutes: s.duration_minutes,
-                        });
-                        setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]));
-                        const result = await sessionService.list(weekWindow);
-                        if (result.success) setSessions(result.data);
-                      }}
-                    >
-                      Confirmar
-                    </Button>
-                  </div>
-                ))}
+              )}
             </div>
-            </>
-          )}
+
+            {visibleSuggestions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sem sessões agendadas para a próxima semana.</p>
+            ) : (
+              visibleSuggestions.map((s) => (
+                <div
+                  key={`${s.patient_id}-${s.suggested_at}`}
+                  className={cn(
+                    "rounded-lg border p-3 text-sm space-y-2",
+                    s.source === "rule"
+                      ? "border-l-4 border-l-teal-500 bg-teal-50 dark:bg-teal-950/30"
+                      : "border-l-4 border-l-amber-500 bg-amber-50 dark:bg-amber-950/30",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-1">
+                    <div>
+                      <p className="font-medium leading-tight">{maskName(s.patient_name)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(s.suggested_at).toLocaleString("pt-BR", {
+                          weekday: "short", day: "2-digit", month: "short",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </p>
+                      {s.source === "pattern" && s.confidence !== undefined && (
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          detectado · {s.confidence}% conf.
+                        </p>
+                      )}
+                      {s.recurrence_type && (
+                        <p className="text-xs text-teal-600 dark:text-teal-400">{s.recurrence_type}</p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() =>
+                        setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]))
+                      }
+                      className="text-muted-foreground hover:text-foreground shrink-0"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <Button
+                    size="sm"
+                    className="w-full h-7 text-xs"
+                    onClick={async () => {
+                      await sessionService.create({
+                        patient_id: s.patient_id,
+                        scheduled_at: s.suggested_at,
+                        duration_minutes: s.duration_minutes,
+                      });
+                      setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]));
+                      const result = await sessionService.list(weekWindow);
+                      if (result.success) setSessions(result.data);
+                    }}
+                  >
+                    Confirmar
+                  </Button>
+                </div>
+              ))
+            )}
+          </div>
           </motion.div>
         ) : null}
       </div>
