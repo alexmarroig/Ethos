@@ -15,11 +15,12 @@ import { EntitlementsProvider } from "./contexts/EntitlementsContext";
 import { OnboardingProvider } from "./contexts/OnboardingContext";
 import { rehydratePendingJobs } from "./stores/appStore";
 import { queryClient } from "./lib/queryClient";
-
+import { CLINICAL_BASE_URL } from "./config/runtime";
 
 const JobRehydrator = () => {
   useEffect(() => {
     rehydratePendingJobs();
+    void fetch(`${CLINICAL_BASE_URL}/health`, { method: "GET" }).catch(() => {});
   }, []);
   return null;
 };

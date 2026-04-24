@@ -1572,10 +1572,20 @@ export const createEthosBackend = () =>
         if (!pagination) return;
 
         const excludeBlocks = url.searchParams.get("exclude_blocks") === "true";
+        const fromParam = url.searchParams.get("from");
+        const toParam = url.searchParams.get("to");
+        const statusParam = url.searchParams.get("status");
+        const patientIdParam = url.searchParams.get("patient_id");
+
         let items = Array.from(db.sessions.values()).filter((item) => item.owner_user_id === auth.user.id);
         if (excludeBlocks) {
           items = items.filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"));
         }
+        if (fromParam) items = items.filter((item) => item.date >= fromParam);
+        if (toParam) items = items.filter((item) => item.date <= toParam);
+        if (statusParam) items = items.filter((item) => item.status === statusParam);
+        if (patientIdParam) items = items.filter((item) => item.patient_id === patientIdParam);
+
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
 
@@ -2436,7 +2446,15 @@ export const createEthosBackend = () =>
         const pagination = getPaginationOrError(res, requestId, url);
         if (!pagination) return;
 
-        const items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+        const statusParam = url.searchParams.get("status");
+        const dueFrom = url.searchParams.get("due_from");
+        const dueTo = url.searchParams.get("due_to");
+
+        let items = Array.from(db.financial.values()).filter((item) => item.owner_user_id === auth.user.id);
+        if (statusParam) items = items.filter((item) => item.status === statusParam);
+        if (dueFrom) items = items.filter((item) => (item.due_date ?? "") >= dueFrom);
+        if (dueTo) items = items.filter((item) => (item.due_date ?? "") <= dueTo);
+
         recordProntuarioAudit(auth.user.id, "ACCESS", "financial_entry");
         return ok(res, requestId, 200, paginate(items, pagination.page, pagination.pageSize));
       }
