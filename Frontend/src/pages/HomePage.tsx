@@ -21,7 +21,9 @@ interface HomePageProps {
 }
 
 const SESSION_CACHE_TTL_MS = 60_000;
-const INITIAL_SHELL_WAIT_MS = 1_200;
+const HOME_DASHBOARD_CACHE_KEY = "ethos_home_dashboard_cache_v1";
+const HOME_DASHBOARD_CACHE_TTL_MS = 5 * 60_000;
+const SLOW_LOAD_NOTICE_MS = 4_500;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -92,13 +94,52 @@ const getBirthdayBadge = (birthDate?: string) => {
   return null;
 };
 
-const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number) =>
-  Promise.race([
-    promise,
-    new Promise<"timeout">((resolve) => {
-      window.setTimeout(() => resolve("timeout"), timeoutMs);
-    }),
-  ]);
+type HomeDashboardCache = {
+  version: 1;
+  savedAt: number;
+  today: string;
+  todaySessions: Session[];
+  upcomingSessions: Session[];
+  pendingSessions: Session[];
+  pendingPayments: FinancialEntry[];
+  upcomingPayments: FinancialEntry[];
+  birthdayPatients: Patient[];
+  financialSummary: FinancialSummary | null;
+};
+
+function readHomeDashboardCache(today: string): HomeDashboardCache | null {
+  try {
+    const raw = window.localStorage.getItem(HOME_DASHBOARD_CACHE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<HomeDashboardCache>;
+    if (
+      parsed.version !== 1 ||
+      parsed.today !== today ||
+      !parsed.savedAt ||
+      Date.now() - parsed.savedAt > HOME_DASHBOARD_CACHE_TTL_MS
+    ) {
+      return null;
+    }
+    return parsed as HomeDashboardCache;
+  } catch {
+    return null;
+  }
+}
+
+function writeHomeDashboardCache(cache: Omit<HomeDashboardCache, "version" | "savedAt">) {
+  try {
+    window.localStorage.setItem(
+      HOME_DASHBOARD_CACHE_KEY,
+      JSON.stringify({
+        version: 1,
+        savedAt: Date.now(),
+        ...cache,
+      }),
+    );
+  } catch {
+    // Best effort cache only. The dashboard must keep working if storage is unavailable.
+  }
+}
 
 const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps) => {
   const { maskName } = usePrivacy();
@@ -116,77 +157,81 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
 
   useEffect(() => {
     let cancelled = false;
+    let hasRenderedUsefulData = false;
+    let slowNoticeTimer: number | undefined;
 
     const load = async () => {
-      setLoading(true);
+      const todayDate = new Date();
+      const today = todayDate.toISOString().slice(0, 10);
+      const monthEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+      const monthEnd = monthEndDate.toISOString().slice(0, 10);
+      const upcomingWindowEndDate = new Date(todayDate);
+      upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
+      const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
+
       setError(null);
       setLoadNotice(null);
-      setTodaySessions([]);
-      setUpcomingSessions([]);
-      setPendingSessions([]);
-      setPendingPayments([]);
-      setUpcomingPayments([]);
-      setBirthdayPatients([]);
-      setFinancialSummary(null);
+
+      const {
+        sessionCache: cachedSessions,
+        sessionCacheAt: cachedSessionsAt,
+      } = useAppStore.getState();
+      const cacheIsFresh =
+        cachedSessions.length > 0 &&
+        Date.now() - cachedSessionsAt < SESSION_CACHE_TTL_MS;
+      const cachedDashboard = readHomeDashboardCache(today);
+
+      if (cacheIsFresh) {
+        const todayData = [...cachedSessions]
+          .filter((session) => session.date === today)
+          .sort((a, b) => a.time.localeCompare(b.time));
+        const upcomingData = [...cachedSessions]
+          .filter((session) => session.event_type !== "block" && session.date > today)
+          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+          .slice(0, 6);
+        setTodaySessions(todayData);
+        setUpcomingSessions(upcomingData);
+        hasRenderedUsefulData = todayData.length > 0 || upcomingData.length > 0;
+      } else if (cachedDashboard) {
+        setTodaySessions(cachedDashboard.todaySessions);
+        setUpcomingSessions(cachedDashboard.upcomingSessions);
+        setPendingSessions(cachedDashboard.pendingSessions);
+        setPendingPayments(cachedDashboard.pendingPayments);
+        setUpcomingPayments(cachedDashboard.upcomingPayments);
+        setBirthdayPatients(cachedDashboard.birthdayPatients);
+        setFinancialSummary(cachedDashboard.financialSummary);
+        hasRenderedUsefulData = true;
+      }
+
+      setLoading(false);
+
+      slowNoticeTimer = window.setTimeout(() => {
+        if (!cancelled && !hasRenderedUsefulData) {
+          setLoadNotice("Ainda sincronizando os dados. A tela ja esta pronta e os blocos serao atualizados em segundo plano.");
+        }
+      }, SLOW_LOAD_NOTICE_MS);
 
       try {
-        const todayDate = new Date();
-        const today = todayDate.toISOString().slice(0, 10);
-        const monthEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
-        const monthEnd = monthEndDate.toISOString().slice(0, 10);
-        const upcomingWindowEndDate = new Date(todayDate);
-        upcomingWindowEndDate.setDate(upcomingWindowEndDate.getDate() + 14);
-        const upcomingWindowEnd = upcomingWindowEndDate.toISOString().slice(0, 10);
-
-        const {
-          sessionCache: cachedSessions,
-          sessionCacheAt: cachedSessionsAt,
-        } = useAppStore.getState();
-        const cacheIsFresh =
-          cachedSessions.length > 0 &&
-          Date.now() - cachedSessionsAt < SESSION_CACHE_TTL_MS;
 
         const patientsPromise = getPatientsIndex({ ttlMs: 60_000 }).catch(() => []);
-        const allSessionsPromise = patientsPromise.then((patients) => (
-          cacheIsFresh
-            ? Promise.resolve({ success: true as const, data: cachedSessions, request_id: "cache" })
-            : sessionService.list({ from: today, to: monthEnd }, patients, { timeout: 12_000, retry: true }).then((result) => {
-                if (result.success) setSessionCache(result.data);
-                return result;
-              })
-        ));
-        const pendingSessionsPromise = patientsPromise.then((patients) =>
-          sessionService.list({ status: "pending", exclude_blocks: true }, patients, { timeout: 8_000, retry: false }),
+        const allSessionsPromise = cacheIsFresh
+          ? Promise.resolve({ success: true as const, data: cachedSessions, request_id: "cache" })
+          : sessionService.list({ from: today, to: monthEnd }, undefined, { timeout: 12_000, retry: true }).then((result) => {
+              if (result.success) setSessionCache(result.data);
+              return result;
+            });
+        const pendingSessionsPromise = sessionService.list(
+          { status: "pending", exclude_blocks: true },
+          undefined,
+          { timeout: 8_000, retry: false },
         );
-        const financePromise = patientsPromise.then((patients) =>
-          financeService.listEntriesPage({ status: "open", page_size: 200 }, patients, { timeout: 8_000, retry: false }),
+        const financePromise = financeService.listEntriesPage(
+          { status: "open", page_size: 200 },
+          undefined,
+          { timeout: 8_000, retry: false },
         );
 
-        const firstSessions = await withTimeout(allSessionsPromise, INITIAL_SHELL_WAIT_MS);
         if (cancelled) return;
-
-        if (firstSessions === "timeout") {
-          setLoadNotice("O painel inicial está demorando mais que o esperado. Vamos preencher os blocos assim que os dados chegarem.");
-        } else if (!firstSessions.success) {
-          if (firstSessions.error?.code === "TIMEOUT" || firstSessions.error?.code === "NETWORK_ERROR") {
-            setLoadNotice("Não foi possível atualizar as sessões agora. O painel continua disponível e tentará novamente ao recarregar.");
-            setLoading(false);
-          } else {
-            setError({
-            message: firstSessions.error?.message ?? "Erro ao carregar sessões",
-            requestId: firstSessions.request_id ?? "",
-          });
-            setLoading(false);
-            return;
-          }
-        } else {
-          const todayData = [...firstSessions.data]
-            .filter((session) => session.date === today)
-            .sort((a, b) => a.time.localeCompare(b.time));
-          setTodaySessions(todayData);
-        }
-
-        setLoading(false);
 
         void patientsPromise
           .then((patients) => {
@@ -200,6 +245,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
               .slice(0, 8);
             setBirthdayPatients(birthdays);
+            if (birthdays.length > 0) hasRenderedUsefulData = true;
           })
           .catch(() => {
             if (!cancelled) setBirthdayPatients([]);
@@ -216,6 +262,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               .filter((session) => session.date === today)
               .sort((a, b) => a.time.localeCompare(b.time));
             setTodaySessions(todayData);
+            if (todayData.length > 0) hasRenderedUsefulData = true;
             setError(null);
             setLoadNotice(null);
           })
@@ -242,6 +289,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               )
               .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
             setPendingSessions(pendingData);
+            if (pendingData.length > 0) hasRenderedUsefulData = true;
           })
           .catch(() => {
             if (!cancelled) setPendingSessions([]);
@@ -264,6 +312,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
                 (entry) => (entry.due_date ?? "").slice(0, 10) >= today,
               ).length,
             });
+            if (financeResult.data.items.length > 0) hasRenderedUsefulData = true;
           })
           .catch(() => {
             if (!cancelled) setFinancialSummary(null);
@@ -283,7 +332,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               due_to: upcomingWindowEnd,
               page_size: 40,
             },
-            await patientsPromise.catch(() => []),
+            undefined,
             { timeout: 8_000, retry: false },
           ),
         ])
@@ -298,6 +347,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
                   .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
                   .slice(0, 6),
               );
+              if (upcomingRes.data.length > 0) hasRenderedUsefulData = true;
             } else {
               setUpcomingSessions([]);
             }
@@ -312,6 +362,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               setUpcomingPayments(
                 ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) >= today).slice(0, 6),
               );
+              if (ordered.length > 0) hasRenderedUsefulData = true;
             } else {
               setPendingPayments([]);
               setUpcomingPayments([]);
@@ -335,8 +386,42 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
 
     return () => {
       cancelled = true;
+      if (slowNoticeTimer) window.clearTimeout(slowNoticeTimer);
     };
   }, [setSessionCache]);
+
+  useEffect(() => {
+    const today = new Date().toISOString().slice(0, 10);
+    const hasAnyDashboardData =
+      todaySessions.length > 0 ||
+      upcomingSessions.length > 0 ||
+      pendingSessions.length > 0 ||
+      pendingPayments.length > 0 ||
+      upcomingPayments.length > 0 ||
+      birthdayPatients.length > 0 ||
+      !!financialSummary;
+
+    if (!hasAnyDashboardData) return;
+
+    writeHomeDashboardCache({
+      today,
+      todaySessions,
+      upcomingSessions,
+      pendingSessions,
+      pendingPayments,
+      upcomingPayments,
+      birthdayPatients,
+      financialSummary,
+    });
+  }, [
+    todaySessions,
+    upcomingSessions,
+    pendingSessions,
+    pendingPayments,
+    upcomingPayments,
+    birthdayPatients,
+    financialSummary,
+  ]);
 
   const mapStatus = (session: Session): SessionStatus => {
     if (session.clinical_note_status === "validated") return "validated";
