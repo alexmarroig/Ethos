@@ -965,13 +965,13 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             <button
               type="button"
               aria-label="Redimensionar painel lateral da agenda"
-              className="hidden 2xl:block 2xl:h-[calc(100%-0.5rem)] 2xl:w-2 2xl:shrink-0 cursor-col-resize rounded-full bg-transparent transition-colors hover:bg-border/80"
+              className="hidden xl:block xl:h-[calc(100%-0.5rem)] xl:w-2 xl:shrink-0 cursor-col-resize rounded-full bg-transparent transition-colors hover:bg-border/80"
               onPointerDown={(event) => {
                 event.preventDefault();
                 startSuggestionsResize(event.clientX);
               }}
             />
-            <div className="w-full space-y-3 border-t pt-4 2xl:shrink-0 2xl:border-l 2xl:border-t-0 2xl:pl-4 2xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
+            <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>Próxima semana</span>
