@@ -40,6 +40,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  onPrefetch?: (page: string) => void;
 }
 
 interface NavItem {
@@ -78,7 +79,7 @@ const navigation: NavItem[] = [
   { id: "diagnostics", label: "Diagnóstico técnico", icon: Stethoscope, roles: ["admin"], separator: true },
 ];
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, onPrefetch }: SidebarProps) {
   const { user, logout, hasRole } = useAuth();
   const { resolvedTheme, setTheme } = useTheme();
   const privacyMode = useAppStore((s) => s.privacyMode);
@@ -236,6 +237,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
               <li key={item.id}>
                 {item.separator ? <div className="my-3 border-t border-sidebar-border" /> : null}
                 <button
+                  onFocus={() => onPrefetch?.(item.id)}
+                  onMouseEnter={() => onPrefetch?.(item.id)}
                   onClick={() => onNavigate(item.id)}
                   className={cn(
                     "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",
@@ -290,6 +293,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
 
         <button
+          onFocus={() => onPrefetch?.("account")}
+          onMouseEnter={() => onPrefetch?.("account")}
           onClick={() => onNavigate("account")}
           className={cn(
             "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",

@@ -1,4 +1,4 @@
-﻿import {
+import {
   CLINICAL_BASE_URL,
   DEFAULT_TIMEOUT,
   LONG_TIMEOUT,

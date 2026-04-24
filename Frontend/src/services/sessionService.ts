@@ -1,4 +1,4 @@
-import { api, type ApiResult } from "./apiClient";
+import { api, type ApiRequestOptions, type ApiResult } from "./apiClient";
 import { type Patient } from "./patientService";
 import { resolvePatientsIndex } from "./patientIndexCache";
 
@@ -42,6 +42,10 @@ type RawSession = {
   block_title?: string;
   location_type?: "remote" | "presencial";
 };
+
+function normalizePatientKey(value?: string | null) {
+  return typeof value === "string" ? value.trim() : "";
+}
 
 type RawPaginatedSessions = {
   items: RawSession[];
@@ -142,9 +146,15 @@ function buildPatientsIndex(patients: Patient[]): Map<string, Patient> {
   const patientsIndex = new Map<string, Patient>();
 
   for (const patient of patients) {
-    patientsIndex.set(patient.id, patient);
+    const primaryKey = normalizePatientKey(patient.id);
+    if (primaryKey) {
+      patientsIndex.set(primaryKey, patient);
+    }
     if (patient.external_id) {
-      patientsIndex.set(patient.external_id, patient);
+      const externalKey = normalizePatientKey(patient.external_id);
+      if (externalKey) {
+        patientsIndex.set(externalKey, patient);
+      }
     }
   }
 
@@ -152,7 +162,7 @@ function buildPatientsIndex(patients: Patient[]): Map<string, Patient> {
 }
 
 function mapSession(raw: RawSession, patientsIndex: Map<string, Patient>): Session {
-  const patient = patientsIndex.get(raw.patient_id);
+  const patient = patientsIndex.get(normalizePatientKey(raw.patient_id));
   const { date, time, scheduled_at } = formatDateParts(raw);
 
   return {
@@ -181,8 +191,19 @@ function mapSession(raw: RawSession, patientsIndex: Map<string, Patient>): Sessi
   };
 }
 
+function sessionNeedsPatientLookup(raw: RawSession) {
+  if (raw.event_type === "block" || raw.patient_id?.startsWith("block-")) {
+    return false;
+  }
+  return !raw.patient_name;
+}
+
 export const sessionService = {
-  listPage: async (filters?: SessionFilters, patients?: Patient[]): Promise<ApiResult<PaginatedData<Session>>> => {
+  listPage: async (
+    filters?: SessionFilters,
+    patients?: Patient[],
+    requestOptions?: ApiRequestOptions,
+  ): Promise<ApiResult<PaginatedData<Session>>> => {
     const params = new URLSearchParams();
     params.set("page", String(filters?.page ?? 1));
     params.set("page_size", String(filters?.page_size ?? 100));
@@ -194,13 +215,13 @@ export const sessionService = {
     if (filters?.exclude_blocks) params.set("exclude_blocks", "true");
     const qs = params.toString();
 
-    const [sessionsResult, resolvedPatients] = await Promise.all([
-      api.get<RawPaginatedSessions>(`/sessions?${qs}`),
-      resolvePatientsIndex(patients),
-    ]);
+    const sessionsResult = await api.get<RawPaginatedSessions>(`/sessions?${qs}`, requestOptions);
 
     if (!sessionsResult.success) return sessionsResult as unknown as ApiResult<PaginatedData<Session>>;
 
+    const shouldResolvePatients =
+      !!patients?.length || sessionsResult.data.items.some((item) => sessionNeedsPatientLookup(item));
+    const resolvedPatients = shouldResolvePatients ? await resolvePatientsIndex(patients) : [];
     const patientsIndex = buildPatientsIndex(resolvedPatients);
     const mapped = sessionsResult.data.items.map((item) => mapSession(item, patientsIndex));
 
@@ -216,8 +237,12 @@ export const sessionService = {
     };
   },
 
-  list: async (filters?: SessionFilters, patients?: Patient[]): Promise<ApiResult<Session[]>> => {
-    const result = await sessionService.listPage(filters, patients);
+  list: async (
+    filters?: SessionFilters,
+    patients?: Patient[],
+    requestOptions?: ApiRequestOptions,
+  ): Promise<ApiResult<Session[]>> => {
+    const result = await sessionService.listPage(filters, patients, requestOptions);
     if (!result.success) return result as unknown as ApiResult<Session[]>;
     return {
       ...result,
@@ -301,8 +326,8 @@ export const sessionService = {
   getTranscript: (id: string): Promise<ApiResult<SessionTranscript>> =>
     api.get<SessionTranscript>(`/sessions/${id}/transcript`),
 
-  getSuggestions: async (weekStart: string): Promise<ApiResult<CalendarSuggestion[]>> => {
-    return api.get<CalendarSuggestion[]>(`/sessions/suggestions?week_start=${weekStart}`);
+  getSuggestions: async (weekStart: string, requestOptions?: ApiRequestOptions): Promise<ApiResult<CalendarSuggestion[]>> => {
+    return api.get<CalendarSuggestion[]>(`/sessions/suggestions?week_start=${weekStart}`, requestOptions);
   },
 
   cancelSeries: async (seriesId: string): Promise<ApiResult<{ cancelled: number }>> => {

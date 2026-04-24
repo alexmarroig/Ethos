@@ -1,101 +1,46 @@
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import SplashScreen from "@/components/SplashScreen";
 import LogoRevealSplash from "@/components/LogoRevealSplash";
-import Sidebar from "@/components/Sidebar";
-import BottomNav from "@/components/BottomNav";
-import OnboardingWidget from "@/components/OnboardingWidget";
-import RoleGate from "@/components/RoleGate";
 import LoginPage from "@/pages/LoginPage";
 import { useAuth } from "@/contexts/AuthContext";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { lazyRetry } from "@/lib/lazyRetry";
 import { ENABLE_INTRO_SPLASH } from "@/config/runtime";
+import { AppShell } from "@/pages/AppShell";
+import { ProtectedPage } from "@/pages/ProtectedPage";
+import { pageRedirects, pages, prefetchByRole, prefetchPage, type Page } from "@/pages/pageRegistry";
 
-const importHomePage = () => import("@/pages/HomePage");
-const importSessionPage = () => import("@/pages/SessionPage");
-const importAgendaPage = () => import("@/pages/AgendaPage");
-const importPatientsPage = () => import("@/pages/PatientsPage");
-const importPatientDetailPage = () => import("@/pages/PatientDetailPage");
-const importEthicsPage = () => import("@/pages/EthicsPage");
-const importProntuarioPage = () => import("@/pages/ProntuarioPage");
-const importFormsPage = () => import("@/pages/FormsPage");
-const importAnamnesisPage = () => import("@/pages/AnamnesisPage");
-const importReportsPage = () => import("@/pages/ReportsPage");
-const importFinancePage = () => import("@/pages/FinancePage");
-const importDocumentsPage = () => import("@/pages/DocumentsPage");
-const importAccountPage = () => import("@/pages/AccountPage");
-const importBackupPage = () => import("@/pages/BackupPage");
-const importContractsPage = () => import("@/pages/ContractsPage");
-const importPatientHomePage = () => import("@/pages/patient/PatientHomePage");
-const importPatientSessionsPage = () => import("@/pages/patient/PatientSessionsPage");
-const importPatientDiaryPage = () => import("@/pages/patient/PatientDiaryPage");
-const importPatientMessagesPage = () => import("@/pages/patient/PatientMessagesPage");
-const importPatientDocumentsPage = () => import("@/pages/patient/PatientDocumentsPage");
-const importPatientPaymentsPage = () => import("@/pages/patient/PatientPaymentsPage");
-const importPatientBookingPage = () => import("@/pages/patient/PatientBookingPage");
-const importDreamDiaryPage = () => import("@/pages/patient/DreamDiaryPage");
-const importAvailabilitySettingsPage = () => import("@/pages/AvailabilitySettingsPage");
-const importAdminDashboard = () => import("@/pages/admin/AdminDashboard");
-const importAdminUsersPage = () => import("@/pages/admin/AdminUsersPage");
-const importAdminTestLab = () => import("@/pages/admin/AdminTestLab");
-const importAdminTicketsPage = () => import("@/pages/admin/AdminTicketsPage");
-const importDiagnosticsPage = () => import("@/pages/DiagnosticsPage");
-
-const HomePage = lazyRetry(importHomePage);
-const SessionPage = lazyRetry(importSessionPage);
-const AgendaPage = lazyRetry(importAgendaPage);
-const PatientsPage = lazyRetry(importPatientsPage);
-const PatientDetailPage = lazyRetry(importPatientDetailPage);
-const EthicsPage = lazyRetry(importEthicsPage);
-const ProntuarioPage = lazyRetry(importProntuarioPage);
-const FormsPage = lazyRetry(importFormsPage);
-const AnamnesisPage = lazyRetry(importAnamnesisPage);
-const ReportsPage = lazyRetry(importReportsPage);
-const FinancePage = lazyRetry(importFinancePage);
-const DocumentsPage = lazyRetry(importDocumentsPage);
-const AccountPage = lazyRetry(importAccountPage);
-const BackupPage = lazyRetry(importBackupPage);
-const ContractsPage = lazyRetry(importContractsPage);
-const PatientHomePage = lazyRetry(importPatientHomePage);
-const PatientSessionsPage = lazyRetry(importPatientSessionsPage);
-const PatientDiaryPage = lazyRetry(importPatientDiaryPage);
-const PatientMessagesPage = lazyRetry(importPatientMessagesPage);
-const PatientDocumentsPage = lazyRetry(importPatientDocumentsPage);
-const PatientPaymentsPage = lazyRetry(importPatientPaymentsPage);
-const PatientBookingPage = lazyRetry(importPatientBookingPage);
-const DreamDiaryPage = lazyRetry(importDreamDiaryPage);
-const AvailabilitySettingsPage = lazyRetry(importAvailabilitySettingsPage);
-const AdminDashboard = lazyRetry(importAdminDashboard);
-const AdminUsersPage = lazyRetry(importAdminUsersPage);
-const AdminTestLab = lazyRetry(importAdminTestLab);
-const AdminTicketsPage = lazyRetry(importAdminTicketsPage);
-const DiagnosticsPage = lazyRetry(importDiagnosticsPage);
-
-type Page =
-  | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
-  | "forms" | "anamnesis" | "reports" | "finance" | "documents" | "account" | "backup"
-  | "contracts"
-  | "patient-home" | "patient-sessions" | "patient-diary" | "patient-messages"
-  | "patient-documents" | "patient-payments" | "patient-booking" | "patient-dream-diary"
-  | "availability"
-  | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
-  | "diagnostics";
-
-function PageFallback() {
-  return (
-    <div className="content-container py-12 flex items-center gap-3">
-      <div className="h-5 w-5 animate-spin rounded-full border-2 border-muted-foreground/30 border-t-primary" />
-      <p className="text-sm text-muted-foreground">Carregando tela...</p>
-    </div>
-  );
-}
-
-const prefetchByRole: Record<"professional" | "patient" | "admin", Array<() => Promise<unknown>>> = {
-  professional: [importHomePage, importAgendaPage, importPatientsPage],
-  patient: [importPatientHomePage, importPatientSessionsPage, importPatientDiaryPage],
-  admin: [importAdminDashboard, importAdminUsersPage, importAdminTicketsPage],
-};
+const {
+  HomePage,
+  SessionPage,
+  AgendaPage,
+  PatientsPage,
+  PatientDetailPage,
+  EthicsPage,
+  ProntuarioPage,
+  FormsPage,
+  AnamnesisPage,
+  ReportsPage,
+  FinancePage,
+  DocumentsPage,
+  AccountPage,
+  BackupPage,
+  ContractsPage,
+  PatientHomePage,
+  PatientSessionsPage,
+  PatientDiaryPage,
+  PatientMessagesPage,
+  PatientDocumentsPage,
+  PatientPaymentsPage,
+  PatientBookingPage,
+  DreamDiaryPage,
+  AvailabilitySettingsPage,
+  AdminDashboard,
+  AdminUsersPage,
+  AdminTestLab,
+  AdminTicketsPage,
+  DiagnosticsPage,
+} = pages;
 
 const Index = () => {
   const [showSplash, setShowSplash] = useState(() => ENABLE_INTRO_SPLASH);
@@ -107,14 +52,6 @@ const Index = () => {
   const isMobile = useIsMobile();
   const visibleStartRef = useRef<number>(typeof performance !== "undefined" ? performance.now() : Date.now());
   const visibilityReportedRef = useRef(false);
-
-  const handleSplashComplete = () => {
-    setShowSplash(false);
-  };
-
-  const handleLogoRevealComplete = () => {
-    setShowLogoReveal(false);
-  };
 
   useEffect(() => {
     if (!ENABLE_INTRO_SPLASH || isAuthenticated) {
@@ -149,6 +86,12 @@ const Index = () => {
   }, [isLoading, isAuthenticated]);
 
   useEffect(() => {
+    if (!isAuthenticated || !user) return;
+    const importers = prefetchByRole[user.role as keyof typeof prefetchByRole] ?? [];
+    for (const importer of importers) void importer();
+  }, [isAuthenticated, user]);
+
+  useEffect(() => {
     if (isAuthenticated && user && user.role === "professional") {
       const isComplete = !!(user.crp && user.specialty && user.clinical_approach);
       if (!isComplete && currentPage !== "account") {
@@ -157,44 +100,38 @@ const Index = () => {
     }
   }, [isAuthenticated, user, currentPage]);
 
-  const handleSessionClick = (sessionId: string) => {
+  const handleSessionClick = useCallback((sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("session");
-  };
+  }, []);
 
-  const handleBackFromSession = () => {
+  const handleBackFromSession = useCallback(() => {
     setSelectedSessionId(null);
     setCurrentPage("home");
-  };
+  }, []);
 
-  const handleOpenProntuario = (sessionId: string) => {
+  const handleOpenProntuario = useCallback((sessionId: string) => {
     setSelectedSessionId(sessionId);
     setCurrentPage("prontuario");
-  };
+  }, []);
 
-  const handleBackFromProntuario = () => {
+  const handleBackFromProntuario = useCallback(() => {
     setSelectedSessionId(null);
     setCurrentPage("home");
-  };
+  }, []);
 
-  const handleOpenPatient = (patientId: string) => {
+  const handleOpenPatient = useCallback((patientId: string) => {
     setSelectedPatientId(patientId);
     setCurrentPage("patient-detail");
-  };
+  }, []);
 
-  const handleBackFromPatient = () => {
+  const handleBackFromPatient = useCallback(() => {
     setSelectedPatientId(null);
     setCurrentPage("patients");
-  };
+  }, []);
 
   const handleNavigate = useCallback((page: string) => {
-    const redirects: Record<string, string> = {
-      anamnesis: "forms",
-      reports: "documents",
-      contracts: "documents",
-      "patient-dream-diary": "patient-diary",
-    };
-    const resolved = redirects[page] ?? page;
+    const resolved = pageRedirects[page] ?? page;
     setCurrentPage(resolved as Page);
     setSelectedSessionId(null);
     if (resolved !== "patient-detail") {
@@ -202,60 +139,9 @@ const Index = () => {
     }
   }, []);
 
-  const renderPage = () => {
-    const professionalPages = [
-      "home",
-      "agenda",
-      "patients",
-      "patient-detail",
-      "forms",
-      "anamnesis",
-      "finance",
-      "reports",
-      "documents",
-      "contracts",
-      "backup",
-      "ethics",
-      "session",
-      "prontuario",
-      "account",
-      "settings",
-    ];
-
-    if (professionalPages.includes(currentPage)) {
-      return (
-        <RoleGate allowed={["professional", "admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
-          {renderPageContent()}
-        </RoleGate>
-      );
-    }
-
-    if (currentPage.startsWith("patient-")) {
-      return (
-        <RoleGate allowed={["patient"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
-          {renderPageContent()}
-        </RoleGate>
-      );
-    }
-
-    if (currentPage.startsWith("admin-")) {
-      return (
-        <RoleGate allowed={["admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
-          {renderPageContent()}
-        </RoleGate>
-      );
-    }
-
-    if (currentPage === "diagnostics") {
-      return (
-        <RoleGate allowed={["admin"]} fallback={<FallbackRedirect hasRole={hasRole} onNavigate={handleNavigate} />}>
-          {renderPageContent()}
-        </RoleGate>
-      );
-    }
-
-    return renderPageContent();
-  };
+  const handlePrefetch = useCallback((page: string) => {
+    prefetchPage(page);
+  }, []);
 
   const renderPageContent = () => {
     switch (currentPage) {
@@ -331,8 +217,8 @@ const Index = () => {
 
   return (
     <>
-      <AnimatePresence>{showSplash && <SplashScreen onComplete={handleSplashComplete} />}</AnimatePresence>
-      <AnimatePresence>{!showSplash && showLogoReveal && <LogoRevealSplash onComplete={handleLogoRevealComplete} />}</AnimatePresence>
+      <AnimatePresence>{showSplash && <SplashScreen onComplete={() => setShowSplash(false)} />}</AnimatePresence>
+      <AnimatePresence>{!showSplash && showLogoReveal && <LogoRevealSplash onComplete={() => setShowLogoReveal(false)} />}</AnimatePresence>
 
       <AnimatePresence>
         {!isLoading && !isAuthenticated && (
@@ -344,47 +230,22 @@ const Index = () => {
 
       <AnimatePresence>
         {!isLoading && isAuthenticated && (
-          <motion.div className="app-shell min-h-dvh bg-background" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.25, ease: [0.25, 0.1, 0.25, 1] }}>
-            <Sidebar currentPage={currentPage} onNavigate={handleNavigate} />
-            <main
-              className={cn(
-                "w-full overflow-x-clip pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-0",
-                !isMobile && "md:pl-64",
-              )}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div className="min-w-0" key={currentPage + (selectedSessionId?.toString() || "") + (selectedPatientId?.toString() || "")} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} transition={{ duration: 0.2, ease: [0.25, 0.1, 0.25, 1] }}>
-                  <Suspense fallback={<PageFallback />}>{renderPage()}</Suspense>
-                </motion.div>
-              </AnimatePresence>
-            </main>
-            <OnboardingWidget />
-            {isMobile && <BottomNav currentPage={currentPage} onNavigate={handleNavigate} />}
-          </motion.div>
+          <AppShell
+            currentPage={currentPage}
+            isMobile={isMobile}
+            selectedSessionId={selectedSessionId}
+            selectedPatientId={selectedPatientId}
+            onNavigate={handleNavigate}
+            onPrefetch={handlePrefetch}
+          >
+            <ProtectedPage page={currentPage} hasRole={hasRole} onNavigate={handleNavigate}>
+              {renderPageContent()}
+            </ProtectedPage>
+          </AppShell>
         )}
       </AnimatePresence>
     </>
   );
 };
-
-function FallbackRedirect({ hasRole, onNavigate }: { hasRole: (...r: string[]) => boolean; onNavigate: (p: string) => void }) {
-  const defaultPage = hasRole("patient") ? "patient-home" : hasRole("admin") ? "admin-dashboard" : "home";
-  useEffect(() => {
-    onNavigate(defaultPage);
-  }, [defaultPage, onNavigate]);
-
-  return (
-    <div className="content-container py-12 text-center">
-      <p className="text-muted-foreground">Acesso não permitido.</p>
-      <button onClick={() => onNavigate(defaultPage)} className="mt-4 text-primary text-sm hover:underline">
-        Ir para página inicial
-      </button>
-    </div>
-  );
-}
-
-function cn(...classes: (string | boolean | undefined)[]) {
-  return classes.filter(Boolean).join(" ");
-}
 
 export default Index;

@@ -21,6 +21,7 @@ interface HomePageProps {
 }
 
 const SESSION_CACHE_TTL_MS = 60_000;
+const INITIAL_SHELL_WAIT_MS = 1_200;
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -78,7 +79,7 @@ const getBirthdayAge = (birthDate?: string) => {
 const getBirthdayDistanceLabel = (birthDate?: string) => {
   const distance = getDaysUntilBirthday(birthDate);
   if (!Number.isFinite(distance)) return "Data inválida";
-  if (distance === 0) return "É Hoje";
+  if (distance === 0) return "É hoje";
   if (distance > 0) return `Faltam ${distance} dia(s)`;
   return `Passou há ${Math.abs(distance)} dia(s)`;
 };
@@ -91,7 +92,15 @@ const getBirthdayBadge = (birthDate?: string) => {
   return null;
 };
 
-const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
+const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number) =>
+  Promise.race([
+    promise,
+    new Promise<"timeout">((resolve) => {
+      window.setTimeout(() => resolve("timeout"), timeoutMs);
+    }),
+  ]);
+
+const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps) => {
   const { maskName } = usePrivacy();
   const setSessionCache = useAppStore((s) => s.setSessionCache);
   const [todaySessions, setTodaySessions] = useState<Session[]>([]);
@@ -103,21 +112,22 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
+  const [loadNotice, setLoadNotice] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    const loadTimeoutMs = 15_000;
-    const withTimeout = <T,>(promise: Promise<T>, timeoutMs: number) =>
-      Promise.race([
-        promise,
-        new Promise<"timeout">((resolve) => {
-          window.setTimeout(() => resolve("timeout"), timeoutMs);
-        }),
-      ]);
 
     const load = async () => {
       setLoading(true);
       setError(null);
+      setLoadNotice(null);
+      setTodaySessions([]);
+      setUpcomingSessions([]);
+      setPendingSessions([]);
+      setPendingPayments([]);
+      setUpcomingPayments([]);
+      setBirthdayPatients([]);
+      setFinancialSummary(null);
 
       try {
         const todayDate = new Date();
@@ -134,164 +144,190 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
         } = useAppStore.getState();
         const cacheIsFresh =
           cachedSessions.length > 0 &&
-          (Date.now() - cachedSessionsAt) < SESSION_CACHE_TTL_MS;
+          Date.now() - cachedSessionsAt < SESSION_CACHE_TTL_MS;
 
-        const patientsPromise = getPatientsIndex({ ttlMs: 60_000 });
+        const patientsPromise = getPatientsIndex({ ttlMs: 60_000 }).catch(() => []);
         const allSessionsPromise = patientsPromise.then((patients) => (
           cacheIsFresh
             ? Promise.resolve({ success: true as const, data: cachedSessions, request_id: "cache" })
-            : sessionService.list({ from: today, to: monthEnd }, patients).then((r) => {
-                if (r.success) setSessionCache(r.data);
-                return r;
+            : sessionService.list({ from: today, to: monthEnd }, patients, { timeout: 12_000, retry: true }).then((result) => {
+                if (result.success) setSessionCache(result.data);
+                return result;
               })
         ));
         const pendingSessionsPromise = patientsPromise.then((patients) =>
-          sessionService.list({ status: "pending", exclude_blocks: true }, patients),
+          sessionService.list({ status: "pending", exclude_blocks: true }, patients, { timeout: 8_000, retry: false }),
         );
         const financePromise = patientsPromise.then((patients) =>
-          financeService.listEntries({ status: "open" }, patients),
+          financeService.listEntriesPage({ status: "open", page_size: 200 }, patients, { timeout: 8_000, retry: false }),
         );
 
-        const loadResult = await withTimeout(
-          Promise.all([
-            patientsPromise,
-            allSessionsPromise,
-            pendingSessionsPromise,
-            financePromise,
-          ]),
-          loadTimeoutMs,
-        );
-
+        const firstSessions = await withTimeout(allSessionsPromise, INITIAL_SHELL_WAIT_MS);
         if (cancelled) return;
 
-        if (loadResult === "timeout") {
-          setError({ message: "Tempo limite excedido ao carregar o painel inicial.", requestId: "" });
-          setTodaySessions([]);
-          setPendingSessions([]);
-          setFinancialSummary(null);
-          return;
-        }
-
-        const [patients, allSessionsData, pendingRes, financeRes] = loadResult;
-
-      if (!allSessionsData.success) {
-        setError({
-          message: (allSessionsData as any).error?.message ?? "Erro ao carregar sessões",
-          requestId: (allSessionsData as any).request_id ?? "",
-        });
-        return;
-      }
-
-      const todayData = [...allSessionsData.data]
-        .filter((session) => session.date === today)
-        .sort((a, b) => a.time.localeCompare(b.time));
-      setTodaySessions(todayData);
-
-      if (pendingRes.success) {
-        const pendingData = pendingRes.data
-          .filter(
-            (item) =>
-              item.event_type !== "block" &&
-              !item.patient_id.startsWith("block-") &&
-              (item.date <= today) && // Only past or today
-              (item.clinical_note_status === "draft" || !item.has_clinical_note)
-          )
-          .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
-        setPendingSessions(pendingData);
-      } else {
-        setPendingSessions([]);
-      }
-
-      if (financeRes.success) {
-        const overdue = financeRes.data.filter(
-          (entry) => (entry.due_date ?? "").slice(0, 10) < today,
-        );
-        setFinancialSummary({
-          total_income: 0,
-          total_pending: financeRes.data.reduce((sum, entry) => sum + entry.amount, 0),
-          overdue_total: overdue.reduce((sum, entry) => sum + entry.amount, 0),
-          paid_count: 0,
-          overdue_count: overdue.length,
-        });
-      } else {
-        setFinancialSummary(null);
-      }
-
-      setError(null);
-
-      // Load non-critical sections in background.
-      void Promise.all([
-        sessionService.list({
-          from: today,
-          to: upcomingWindowEnd,
-          exclude_blocks: true,
-          page_size: 30,
-        }),
-        financeService.listEntriesPage({
-          status: "open",
-          due_from: today,
-          due_to: upcomingWindowEnd,
-          page_size: 40,
-        }),
-      ]).then(([upcomingRes, financeRes]) => {
-        if (cancelled) return;
-        if (upcomingRes.success) {
-          setSessionCache(upcomingRes.data);
-          setUpcomingSessions(
-            upcomingRes.data
-              .filter((item) => item.date > today)
-              .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
-              .slice(0, 6),
-          );
-        } else {
-          setUpcomingSessions([]);
-        }
-
-        if (financeRes.success) {
-          const ordered = [...financeRes.data.items].sort((a, b) => {
-            const left = a.due_date ?? a.created_at;
-            const right = b.due_date ?? b.created_at;
-            return left.localeCompare(right);
+        if (firstSessions === "timeout") {
+          setLoadNotice("O painel inicial está demorando mais que o esperado. Vamos preencher os blocos assim que os dados chegarem.");
+        } else if (!firstSessions.success) {
+          if (firstSessions.error?.code === "TIMEOUT" || firstSessions.error?.code === "NETWORK_ERROR") {
+            setLoadNotice("Não foi possível atualizar as sessões agora. O painel continua disponível e tentará novamente ao recarregar.");
+            setLoading(false);
+          } else {
+            setError({
+            message: firstSessions.error?.message ?? "Erro ao carregar sessões",
+            requestId: firstSessions.request_id ?? "",
           });
-          setPendingPayments(
-            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today),
-          );
-          setUpcomingPayments(
-            ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) >= today).slice(0, 6),
-          );
+            setLoading(false);
+            return;
+          }
         } else {
-          setPendingPayments([]);
-          setUpcomingPayments([]);
+          const todayData = [...firstSessions.data]
+            .filter((session) => session.date === today)
+            .sort((a, b) => a.time.localeCompare(b.time));
+          setTodaySessions(todayData);
         }
 
-      }).catch(() => {
-        if (cancelled) return;
-        setUpcomingSessions([]);
-        setPendingPayments([]);
-        setUpcomingPayments([]);
-      });
+        setLoading(false);
 
-      const birthdays = patients
-        .filter((patient) => {
-          if (!patient.birth_date) return false;
-          const [, month] = patient.birth_date.split("-").map(Number);
-          return month === todayDate.getMonth() + 1;
-        })
-        .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
-        .slice(0, 8);
-      setBirthdayPatients(birthdays);
+        void patientsPromise
+          .then((patients) => {
+            if (cancelled) return;
+            const birthdays = patients
+              .filter((patient) => {
+                if (!patient.birth_date) return false;
+                const [, month] = patient.birth_date.split("-").map(Number);
+                return month === todayDate.getMonth() + 1;
+              })
+              .sort((a, b) => getDaysUntilBirthday(a.birth_date) - getDaysUntilBirthday(b.birth_date))
+              .slice(0, 8);
+            setBirthdayPatients(birthdays);
+          })
+          .catch(() => {
+            if (!cancelled) setBirthdayPatients([]);
+          });
+
+        void allSessionsPromise
+          .then((allSessionsResult) => {
+            if (cancelled) return;
+            if (!allSessionsResult.success) {
+              setLoadNotice("Não foi possível atualizar as sessões agora. O painel continua disponível e tentará novamente ao recarregar.");
+              return;
+            }
+            const todayData = [...allSessionsResult.data]
+              .filter((session) => session.date === today)
+              .sort((a, b) => a.time.localeCompare(b.time));
+            setTodaySessions(todayData);
+            setError(null);
+            setLoadNotice(null);
+          })
+          .catch(() => {
+            if (!cancelled) {
+              setLoadNotice("Não foi possível atualizar as sessões agora. O painel continua disponível e tentará novamente ao recarregar.");
+            }
+          });
+
+        void pendingSessionsPromise
+          .then((pendingResult) => {
+            if (cancelled) return;
+            if (!pendingResult.success) {
+              setPendingSessions([]);
+              return;
+            }
+            const pendingData = pendingResult.data
+              .filter(
+                (item) =>
+                  item.event_type !== "block" &&
+                  !item.patient_id.startsWith("block-") &&
+                  item.date <= today &&
+                  (item.clinical_note_status === "draft" || !item.has_clinical_note),
+              )
+              .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`));
+            setPendingSessions(pendingData);
+          })
+          .catch(() => {
+            if (!cancelled) setPendingSessions([]);
+          });
+
+        void financePromise
+          .then((financeResult) => {
+            if (cancelled) return;
+            if (!financeResult.success) {
+              setFinancialSummary(null);
+              return;
+            }
+            const overdue = financeResult.data.items.filter(
+              (entry) => (entry.due_date ?? "").slice(0, 10) < today,
+            );
+            setFinancialSummary({
+              overdue_count: overdue.length,
+              overdue_total: overdue.reduce((sum, entry) => sum + entry.amount, 0),
+              due_soon_count: financeResult.data.items.filter(
+                (entry) => (entry.due_date ?? "").slice(0, 10) >= today,
+              ).length,
+            });
+          })
+          .catch(() => {
+            if (!cancelled) setFinancialSummary(null);
+          });
+
+        void Promise.all([
+          sessionService.list({
+            from: today,
+            to: upcomingWindowEnd,
+            exclude_blocks: true,
+            page_size: 30,
+          }, undefined, { timeout: 8_000, retry: false }),
+          financeService.listEntriesPage(
+            {
+              status: "open",
+              due_from: today,
+              due_to: upcomingWindowEnd,
+              page_size: 40,
+            },
+            await patientsPromise.catch(() => []),
+            { timeout: 8_000, retry: false },
+          ),
+        ])
+          .then(([upcomingRes, futureFinanceRes]) => {
+            if (cancelled) return;
+
+            if (upcomingRes.success) {
+              setSessionCache(upcomingRes.data);
+              setUpcomingSessions(
+                upcomingRes.data
+                  .filter((item) => item.date > today)
+                  .sort((a, b) => `${a.date} ${a.time}`.localeCompare(`${b.date} ${b.time}`))
+                  .slice(0, 6),
+              );
+            } else {
+              setUpcomingSessions([]);
+            }
+
+            if (futureFinanceRes.success) {
+              const ordered = [...futureFinanceRes.data.items].sort((a, b) => {
+                const left = a.due_date ?? a.created_at;
+                const right = b.due_date ?? b.created_at;
+                return left.localeCompare(right);
+              });
+              setPendingPayments(ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) < today));
+              setUpcomingPayments(
+                ordered.filter((entry) => (entry.due_date ?? "").slice(0, 10) >= today).slice(0, 6),
+              );
+            } else {
+              setPendingPayments([]);
+              setUpcomingPayments([]);
+            }
+          })
+          .catch(() => {
+            if (cancelled) return;
+            setUpcomingSessions([]);
+            setPendingPayments([]);
+            setUpcomingPayments([]);
+          });
       } catch {
         if (!cancelled) {
           setError({ message: "Erro inesperado ao carregar o painel inicial.", requestId: "" });
-          setTodaySessions([]);
-          setUpcomingSessions([]);
-          setPendingSessions([]);
-          setPendingPayments([]);
-          setUpcomingPayments([]);
-          setFinancialSummary(null);
+          setLoading(false);
         }
-    } finally {
-        if (!cancelled) setLoading(false);
       }
     };
 
@@ -317,9 +353,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
   const getFabState = (): SessionState => {
     const all = [...todaySessions, ...pendingSessions];
     if (all.some((item) => !item.has_audio && !item.has_clinical_note)) return "no-record";
-    if (all.some((item) => item.clinical_note_status === "draft")) {
-      return "draft-prontuario";
-    }
+    if (all.some((item) => item.clinical_note_status === "draft")) return "draft-prontuario";
     return "no-session";
   };
 
@@ -392,26 +426,25 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           </p>
         </motion.header>
 
+        {loadNotice ? (
+          <div className="mb-6 flex items-start gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-900">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600" />
+            <p>{loadNotice}</p>
+          </div>
+        ) : null}
+
         <section className="mb-8 grid grid-cols-2 gap-3 md:gap-4 xl:grid-cols-4">
           <SummaryCard
             title="Sessões de hoje"
             value={String(todaySessions.length)}
-            description={
-              todaySessions.length
-                ? "Atendimentos confirmados para hoje"
-                : "Nenhuma sessão agendada hoje"
-            }
+            description={todaySessions.length ? "Atendimentos confirmados para hoje" : "Nenhuma sessão agendada hoje"}
             icon={<Clock3 className="h-4 w-4" />}
             onClick={() => onNavigate("agenda")}
           />
           <SummaryCard
             title="Próximas sessões"
             value={String(upcomingSessions.length)}
-            description={
-              upcomingSessions.length
-                ? "Já previstas no restante do mês"
-                : "Sem novas sessões no mês"
-            }
+            description={upcomingSessions.length ? "Já previstas no restante do mês" : "Sem novas sessões no mês"}
             icon={<CalendarPlus className="h-4 w-4" />}
             onClick={() => onNavigate("agenda")}
           />
@@ -429,17 +462,13 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           <SummaryCard
             title="Aniversariantes do mês"
             value={String(birthdayPatients.length)}
-            description={
-              birthdayPatients.length
-                ? "Pacientes fazem aniversário neste mês"
-                : "Sem aniversários neste mês"
-            }
+            description={birthdayPatients.length ? "Pacientes fazem aniversário neste mês" : "Sem aniversários neste mês"}
             icon={<Gift className="h-4 w-4" />}
             onClick={() => onNavigate("patients")}
           />
         </section>
 
-        {financialSummary && financialSummary.overdue_count > 0 && (
+        {financialSummary && financialSummary.overdue_count > 0 ? (
           <div className="mb-6 flex items-center gap-3 rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 text-sm">
             <AlertCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <div className="flex-1">
@@ -464,7 +493,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               Ver →
             </a>
           </div>
-        )}
+        ) : null}
 
         <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
           <div className="space-y-6">
@@ -488,7 +517,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                     session.event_type === "block" ? (
                       <div
                         key={session.id}
-                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                        className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/50"
                         onClick={() => onNavigate("agenda")}
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -511,7 +540,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                         onClick={() => onSessionClick(session.id)}
                         index={index}
                       />
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -523,16 +552,14 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={upcomingSessions.length ? () => onNavigate("agenda") : undefined}
             >
               {upcomingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhuma atividade cadastrada para os próximos dias.
-                </p>
+                <p className="text-sm text-muted-foreground">Nenhuma atividade cadastrada para os próximos dias.</p>
               ) : (
                 <div className="space-y-3">
                   {upcomingSessions.map((session) =>
                     session.event_type === "block" ? (
                       <div
                         key={session.id}
-                        className="flex items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 cursor-pointer hover:bg-muted/50 transition-colors"
+                        className="flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-border/70 bg-muted/30 px-3 py-2.5 transition-colors hover:bg-muted/50"
                         onClick={() => onNavigate("agenda")}
                       >
                         <Ban className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -550,16 +577,21 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
                         title={maskName(session.patient_name)}
                         subtitle={`${formatDateLabel(session.date)} · ${session.time}`}
                         meta={
-                          session.status === "confirmed" ? "Confirmada"
-                          : session.status === "cancelled_with_notice" ? "Cancelado c/ aviso"
-                          : session.status === "cancelled_no_show" ? "Cancelado s/ aviso"
-                          : session.status === "rescheduled_by_patient" ? "Remarcado"
-                          : session.status === "rescheduled_by_psychologist" ? "Remarcado p/ psicólogo"
-                          : "Agendada"
+                          session.status === "confirmed"
+                            ? "Confirmada"
+                            : session.status === "cancelled_with_notice"
+                              ? "Cancelado c/ aviso"
+                              : session.status === "cancelled_no_show"
+                                ? "Cancelado s/ aviso"
+                                : session.status === "rescheduled_by_patient"
+                                  ? "Remarcado"
+                                  : session.status === "rescheduled_by_psychologist"
+                                    ? "Remarcado p/ psicólogo"
+                                    : "Agendada"
                         }
                         onClick={() => onSessionClick(session.id)}
                       />
-                    )
+                    ),
                   )}
                 </div>
               )}
@@ -571,9 +603,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={pendingSessions.length ? () => onNavigate("agenda") : undefined}
             >
               {pendingSessions.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum prontuário pendente no momento.
-                </p>
+                <p className="text-sm text-muted-foreground">Nenhum prontuário pendente no momento.</p>
               ) : (
                 <div className="space-y-3">
                   {pendingSessions.map((session, index) => (
@@ -594,15 +624,9 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
           </div>
 
           <div className="space-y-6">
-            <SectionCard
-              title="Próximos pagamentos"
-              actionLabel="Financeiro"
-              onAction={() => onNavigate("finance")}
-            >
+            <SectionCard title="Próximos pagamentos" actionLabel="Financeiro" onAction={() => onNavigate("finance")}>
               {upcomingPayments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum próximo vencimento registrado.
-                </p>
+                <p className="text-sm text-muted-foreground">Nenhum próximo vencimento registrado.</p>
               ) : (
                 <div className="space-y-3">
                   {upcomingPayments.map((entry) => (
@@ -647,9 +671,7 @@ const HomePage = ({ onSessionClick, onNavigate }: HomePageProps) => {
               onAction={birthdayPatients.length ? () => onNavigate("patients") : undefined}
             >
               {birthdayPatients.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Nenhum aniversariante cadastrado neste mês.
-                </p>
+                <p className="text-sm text-muted-foreground">Nenhum aniversariante cadastrado neste mês.</p>
               ) : (
                 <div className="space-y-3">
                   {birthdayPatients.map((patient) => (
@@ -683,13 +705,15 @@ function SummaryCard({
   value,
   description,
   icon,
+  onClick,
 }: {
   title: string;
   value: string;
   description: string;
   icon: React.ReactNode;
+  onClick?: () => void;
 }) {
-  return (
+  const body = (
     <motion.div
       className="session-card overflow-hidden"
       initial={{ opacity: 0, y: 12 }}
@@ -709,6 +733,14 @@ function SummaryCard({
       </p>
       <p className="mt-1 text-xs leading-5 text-muted-foreground md:mt-2 md:text-sm md:leading-6">{description}</p>
     </motion.div>
+  );
+
+  if (!onClick) return body;
+
+  return (
+    <button type="button" className="w-full text-left" onClick={onClick}>
+      {body}
+    </button>
   );
 }
 
@@ -782,9 +814,7 @@ function CompactRow({
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground dark:text-foreground/72">
-            {subtitle}
-          </p>
+          <p className="mt-1 text-sm text-muted-foreground dark:text-foreground/72">{subtitle}</p>
         </div>
         <div className={`shrink-0 text-right ${stackedMeta ? "self-start pt-0.5" : ""}`}>
           <p className="text-sm font-semibold text-foreground dark:text-foreground">{meta}</p>

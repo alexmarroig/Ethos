@@ -3,11 +3,15 @@ import App from "./App.tsx";
 import "./index.css";
 import { recoverFromChunkLoadFailure } from "./lib/chunkRecovery";
 
-const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1"]);
+const CACHE_CLEANUP_HOSTNAMES = new Set([
+  "localhost",
+  "127.0.0.1",
+  "app.ethos-clinic.com",
+]);
 
 async function clearLocalWebArtifacts() {
   if (typeof window === "undefined") return;
-  if (!LOCAL_HOSTNAMES.has(window.location.hostname)) return;
+  if (!CACHE_CLEANUP_HOSTNAMES.has(window.location.hostname)) return;
 
   try {
     if ("serviceWorker" in navigator) {

@@ -1,10 +1,11 @@
-import { api, type ApiResult } from "./apiClient";
+import { api, type ApiRequestOptions, type ApiResult } from "./apiClient";
 import { type Patient } from "./patientService";
 import { resolvePatientsIndex } from "./patientIndexCache";
 
 type RawFinancialEntry = {
   id: string;
   patient_id: string;
+  patient_name?: string;
   session_id?: string;
   package_id?: string;
   amount: number;
@@ -123,15 +124,22 @@ export interface FinancialPackageConsumption {
   created_at: string;
 }
 
+function normalizePatientKey(value?: string | null) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
 function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
+  const patientKey = normalizePatientKey(raw.patient_id);
   const patient = patients.find(
-    (item) => item.id === raw.patient_id || item.external_id === raw.patient_id,
+    (item) =>
+      normalizePatientKey(item.id) === patientKey ||
+      normalizePatientKey(item.external_id) === patientKey,
   );
 
   return {
     id: raw.id,
     patient_id: raw.patient_id,
-    patient_name: patient?.name,
+    patient_name: patient?.name ?? raw.patient_name,
     session_id: raw.session_id,
     package_id: raw.package_id,
     amount: raw.amount,
@@ -153,6 +161,10 @@ function mapEntry(raw: RawFinancialEntry, patients: Patient[]): FinancialEntry {
     receivable_amount: raw.receivable_amount,
     payment_origin: raw.payment_origin,
   };
+}
+
+function entryNeedsPatientLookup(raw: RawFinancialEntry) {
+  return !raw.patient_name;
 }
 
 export interface FinancialSummary {
@@ -262,7 +274,12 @@ export const financeService = {
       resolvePatientsIndex(),
     ]);
     if (!result.success) return result;
-    const patient = patients.find((item) => item.id === result.data.patient_id || item.external_id === result.data.patient_id);
+    const patientKey = normalizePatientKey(result.data.patient_id);
+    const patient = patients.find(
+      (item) =>
+        normalizePatientKey(item.id) === patientKey ||
+        normalizePatientKey(item.external_id) === patientKey,
+    );
     return { ...result, data: { ...result.data, patient_name: patient?.name } };
   },
 
@@ -279,7 +296,13 @@ export const financeService = {
       ...result,
       data: result.data.map((pkg) => ({
         ...pkg,
-        patient_name: patients.find((item) => item.id === pkg.patient_id || item.external_id === pkg.patient_id)?.name,
+        patient_name: patients.find((item) => {
+          const patientKey = normalizePatientKey(pkg.patient_id);
+          return (
+            normalizePatientKey(item.id) === patientKey ||
+            normalizePatientKey(item.external_id) === patientKey
+          );
+        })?.name,
       })),
     };
   },
@@ -301,7 +324,13 @@ export const financeService = {
       ...result,
       data: result.data.map((item) => ({
         ...item,
-        patient_name: patients.find((p) => p.id === item.patient_id || p.external_id === item.patient_id)?.name,
+        patient_name: patients.find((patient) => {
+          const patientKey = normalizePatientKey(item.patient_id);
+          return (
+            normalizePatientKey(patient.id) === patientKey ||
+            normalizePatientKey(patient.external_id) === patientKey
+          );
+        })?.name,
       })),
     };
   },
@@ -345,6 +374,7 @@ export const financeService = {
   listEntriesPage: async (
     filters?: FinanceListFilters,
     patientsIndex?: Patient[],
+    requestOptions?: ApiRequestOptions,
   ): Promise<ApiResult<FinancialEntriesPage>> => {
     const params = new URLSearchParams();
     params.set("page", String(filters?.page ?? 1));
@@ -357,12 +387,12 @@ export const financeService = {
     if (filters?.due_to) params.set("due_to", filters.due_to);
     const qs = params.toString();
 
-    const [result, patients] = await Promise.all([
-      api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`),
-      resolvePatientsIndex(patientsIndex),
-    ]);
+    const result = await api.get<RawPaginatedFinancialEntries>(`/financial/entries?${qs}`, requestOptions);
 
     if (!result.success) return result;
+    const shouldResolvePatients =
+      !!patientsIndex?.length || result.data.items.some((item) => entryNeedsPatientLookup(item));
+    const patients = shouldResolvePatients ? await resolvePatientsIndex(patientsIndex) : [];
 
     return {
       ...result,

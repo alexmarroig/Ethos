@@ -8,9 +8,10 @@ import { useAppStore } from "@/stores/appStore";
 interface BottomNavProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  onPrefetch?: (page: string) => void;
 }
 
-const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
+const BottomNav = ({ currentPage, onNavigate, onPrefetch }: BottomNavProps) => {
   const { hasRole } = useAuth();
   const [moreOpen, setMoreOpen] = useState(false);
   const privacyMode = useAppStore((s) => s.privacyMode);
@@ -20,6 +21,12 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
     setMoreOpen(false);
     onNavigate(id);
   };
+
+  const prefetchProps = (id: string) => ({
+    onFocus: () => onPrefetch?.(id),
+    onMouseEnter: () => onPrefetch?.(id),
+    onTouchStart: () => onPrefetch?.(id),
+  });
 
   if (hasRole("patient")) {
     const items = [
@@ -36,6 +43,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
             return (
               <button
                 key={item.id}
+                {...prefetchProps(item.id)}
                 onClick={() => handleNav(item.id)}
                 className={cn(
                   "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
@@ -74,6 +82,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
               return (
                 <button
                   key={item.id}
+                  {...prefetchProps(item.id)}
                   onClick={() => handleNav(item.id)}
                   className={cn(
                     "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
@@ -109,6 +118,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
                 return (
                   <button
                     key={item.id}
+                    {...prefetchProps(item.id)}
                     onClick={() => handleNav(item.id)}
                     className={cn(
                       "flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-4 transition-colors",
@@ -156,6 +166,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
             return (
               <button
                 key={item.id}
+                {...prefetchProps(item.id)}
                 onClick={() => handleNav(item.id)}
                 className={cn(
                   "flex min-w-0 flex-1 flex-col items-center justify-center px-2 py-2 min-h-[56px] transition-colors duration-200",
@@ -206,6 +217,7 @@ const BottomNav = ({ currentPage, onNavigate }: BottomNavProps) => {
               return (
                 <button
                   key={item.id}
+                  {...prefetchProps(item.id)}
                   onClick={() => handleNav(item.id)}
                   className={cn(
                     "flex flex-col items-center justify-center gap-2 rounded-2xl border border-border bg-card p-4 transition-colors",
