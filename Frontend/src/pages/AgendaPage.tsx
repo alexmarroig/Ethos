@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Monitor, Building2, PanelRightClose, PanelRightOpen, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ import {
 import {
   readAgendaWeekCache,
   writeAgendaWeekCache,
-  type AgendaDensity,
 } from "@/pages/agendaStorage";
 
 interface AgendaPageProps {
@@ -42,8 +41,8 @@ type AgendaSettings = {
 };
 
 type StoredAgendaSettings = AgendaSettings & {
-  density?: AgendaDensity;
   suggestionsExpanded?: boolean;
+  suggestionsPanelWidth?: number;
 };
 
 type CacheStatus = "idle" | "cached" | "synced";
@@ -57,6 +56,7 @@ const defaultAgendaSettings: AgendaSettings = {
 const SUGGESTIONS_PANEL_MIN_WIDTH = 220;
 const SUGGESTIONS_PANEL_MAX_WIDTH = 420;
 const SUGGESTIONS_PANEL_DEFAULT_WIDTH = 240;
+const AGENDA_SESSIONS_TIMEOUT_MS = 12_000;
 
 const weekDays = [
   { id: 1, short: "Seg", long: "Segunda" },
@@ -148,7 +148,6 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [suggestionsPanelWidth, setSuggestionsPanelWidth] = useState(SUGGESTIONS_PANEL_DEFAULT_WIDTH);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(true);
-  const [density, setDensity] = useState<AgendaDensity>("comfortable");
   const [cacheStatus, setCacheStatus] = useState<CacheStatus>("idle");
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(null);
   const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'task' }>({});
@@ -214,12 +213,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       };
       setAgendaSettings(nextSettings);
       setSettingsDraft(nextSettings);
-      setDensity(parsed.density ?? "comfortable");
       setSuggestionsExpanded(parsed.suggestionsExpanded ?? true);
+      if (typeof parsed.suggestionsPanelWidth === "number") {
+        setSuggestionsPanelWidth(Math.max(
+          SUGGESTIONS_PANEL_MIN_WIDTH,
+          Math.min(SUGGESTIONS_PANEL_MAX_WIDTH, parsed.suggestionsPanelWidth),
+        ));
+      }
     } catch {
       setAgendaSettings(defaultAgendaSettings);
       setSettingsDraft(defaultAgendaSettings);
-      setDensity("comfortable");
       setSuggestionsExpanded(true);
     } finally {
       setSettingsHydrated(true);
@@ -232,10 +235,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       startHour: agendaSettings.startHour,
       endHour: agendaSettings.endHour,
       enabledWeekdays: agendaSettings.enabledWeekdays,
-      density,
       suggestionsExpanded,
+      suggestionsPanelWidth,
     }));
-  }, [agendaSettings, density, settingsHydrated, suggestionsExpanded]);
+  }, [agendaSettings, settingsHydrated, suggestionsExpanded, suggestionsPanelWidth]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -248,7 +251,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
   useEffect(() => {
     const cachedWeek = readAgendaWeekCache();
-    if (cachedWeek?.weekWindow.from === weekWindow.from && cachedWeek.weekWindow.to === weekWindow.to) {
+    const hasUsableCache = cachedWeek?.weekWindow.from === weekWindow.from && cachedWeek.weekWindow.to === weekWindow.to;
+
+    if (hasUsableCache) {
       setSessions(cachedWeek.sessions);
       setSessionCache(cachedWeek.sessions);
       setCacheStatus("cached");
@@ -257,9 +262,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     }
 
     const loadSessions = async () => {
-      setLoading(!cachedWeek);
+      setLoading(!hasUsableCache);
       try {
-        const result = await sessionService.list(weekWindow, undefined, { timeout: 4000, retry: false });
+        const result = await sessionService.list(weekWindow, undefined, {
+          timeout: AGENDA_SESSIONS_TIMEOUT_MS,
+          retry: true,
+        });
         if (!result.success) {
           setError({ message: result.error.message, requestId: result.request_id });
           return;
@@ -494,29 +502,17 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     [dismissedSuggestions, suggestions],
   );
 
-  const desktopDensity = density === "compact"
-    ? {
-        gridMinWidth: 0,
-        dayColumnMin: 122,
-        cellMinHeight: 88,
-        emptyCellMinHeight: 72,
-        cellPadding: "p-2",
-        cardPadding: "p-2.5",
-        dayHeaderPadding: "p-3",
-        cardTitleClamp: "line-clamp-2",
-        metaVisible: false,
-      }
-    : {
-        gridMinWidth: 0,
-        dayColumnMin: 148,
-        cellMinHeight: 116,
-        emptyCellMinHeight: 92,
-        cellPadding: "p-2.5",
-        cardPadding: "p-3",
-        dayHeaderPadding: "p-4",
-        cardTitleClamp: "line-clamp-3",
-        metaVisible: true,
-      };
+  const desktopDensity = {
+    gridMinWidth: 0,
+    dayColumnMin: 148,
+    cellMinHeight: 116,
+    emptyCellMinHeight: 92,
+    cellPadding: "p-2.5",
+    cardPadding: "p-3",
+    dayHeaderPadding: "p-4",
+    cardTitleClamp: "line-clamp-3",
+    metaVisible: true,
+  };
 
   const desktopCalendarGrid = useMemo(() => {
     const dayWidth = `minmax(${desktopDensity.dayColumnMin}px, 1fr)`;
@@ -704,28 +700,6 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-2xl border border-border bg-card p-1 shadow-subtle">
-              <button
-                type="button"
-                onClick={() => setDensity("compact")}
-                className={cn(
-                  "rounded-xl px-3 py-1.5 text-xs font-medium transition-colors",
-                  density === "compact" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary",
-                )}
-              >
-                Compacta
-              </button>
-              <button
-                type="button"
-                onClick={() => setDensity("comfortable")}
-                className={cn(
-                  "rounded-xl px-3 py-1.5 text-xs font-medium transition-colors",
-                  density === "comfortable" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary",
-                )}
-              >
-                Confortável
-              </button>
-            </div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-subtle">
               <span className={cn("h-2.5 w-2.5 rounded-full", cacheStatus === "synced" ? "bg-status-validated" : cacheStatus === "cached" ? "bg-orange-400" : "bg-border")} />
               <span>
@@ -815,16 +789,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
           >
-          <div className="w-full min-w-0 rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
+          <div className="min-w-0 flex-1 rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
             <div className="grid w-full min-w-0" style={{ gridTemplateColumns: desktopCalendarGrid }}>
               <div className="border-b border-r border-border bg-muted/30 p-3" />
               {visibleWeekDays.map((day) => (
                 <div key={day.key} className={cn("min-w-0 border-b border-border", desktopDensity.dayHeaderPadding, day.isToday && "bg-primary/5")}>
                   <p className={cn("truncate text-[11px] uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>
-                    {density === "compact" ? day.short : day.long}
+                    {day.long}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
-                    <span className={cn("font-serif text-foreground", density === "compact" ? "text-xl" : "text-2xl")}>{formatDayNumber(day.date)}</span>
+                    <span className="font-serif text-2xl text-foreground">{formatDayNumber(day.date)}</span>
                     {day.isToday ? <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
                   </div>
                 </div>
@@ -832,7 +806,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
               {timeSlots.map((slot) => (
                 <div key={slot} className="contents">
-                  <div className={cn("border-r border-border bg-muted/20 px-2 text-right", density === "compact" ? "py-3" : "px-3 py-4")}>
+                  <div className="border-r border-border bg-muted/20 px-3 py-4 text-right">
                     <span className="text-xs font-medium text-muted-foreground">{slot}</span>
                   </div>
                   {visibleWeekDays.map((day) => {
