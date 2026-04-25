@@ -86,7 +86,31 @@ export function getApiEndpointMetrics(): EndpointMetricAggregate[] {
   return Array.from(endpointMetrics.values());
 }
 
-const INITIAL_READ_TIMEOUT = 10_000;
+const INITIAL_READ_TIMEOUT = 20_000;
+
+let readinessPromise: Promise<void> | null = null;
+let readinessMountedAt = Date.now();
+
+export function primeReadiness(baseUrl: string = CLINICAL_BASE_URL, timeoutMs = 60_000): Promise<void> {
+  if (readinessPromise) return readinessPromise;
+  readinessMountedAt = Date.now();
+  readinessPromise = (async () => {
+    const ctrl = new AbortController();
+    const t = setTimeout(() => ctrl.abort(), timeoutMs);
+    try {
+      await fetch(`${baseUrl}/health`, { signal: ctrl.signal });
+    } catch {
+      /* libera gate mesmo se falhar — evita bloqueio eterno */
+    } finally {
+      clearTimeout(t);
+    }
+  })();
+  return readinessPromise;
+}
+
+export function isColdStartWindow(): boolean {
+  return Date.now() - readinessMountedAt < 60_000;
+}
 
 function resolveTimeout(path: string, method: string, explicit?: number): number {
   if (explicit !== undefined) return explicit;
@@ -248,22 +272,33 @@ export async function apiRequest<T = unknown>(
     }
   };
 
-  const result = await doFetch(1);
-  if (
+  if (readinessPromise && baseUrl === CLINICAL_BASE_URL && !path.startsWith("/health")) {
+    try { await readinessPromise; } catch { /* gate libera mesmo em falha */ }
+  }
+
+  let result = await doFetch(1);
+  let attempt = 1;
+  const maxAttempts = isColdStartWindow() ? 3 : 2;
+
+  while (
     !result.success &&
     shouldRetry &&
+    attempt < maxAttempts &&
     (result.error.code === "NETWORK_ERROR" || result.error.code === "TIMEOUT")
   ) {
+    const nextAttempt = attempt + 1;
+    const delay = Math.min(1000 * Math.pow(2, attempt - 1), 3000);
     onRetrying?.({
       path,
       method,
       reason: result.error.code,
-      attempt: 2,
-      nextRetryInMs: 1000,
+      attempt: nextAttempt,
+      nextRetryInMs: delay,
     });
-    if (IS_DEV) console.warn(`[apiClient] Retrying ${method} ${path}...`);
-    await new Promise((resolve) => setTimeout(resolve, 1000));
-    return doFetch(2);
+    if (IS_DEV) console.warn(`[apiClient] Retrying ${method} ${path} (attempt ${nextAttempt})...`);
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    result = await doFetch(nextAttempt);
+    attempt = nextAttempt;
   }
 
   return result;
