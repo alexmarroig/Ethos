@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, GripVertical, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -935,19 +935,22 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
 
           {/* Grip handle — always visible at xl+, independent of suggestions */}
-          <div
-            className="hidden xl:flex xl:shrink-0 xl:cursor-col-resize xl:flex-col xl:items-center xl:justify-center xl:gap-1.5 xl:rounded-md xl:px-1 xl:transition-colors xl:hover:bg-accent"
-            style={{ alignSelf: "stretch", width: 20 }}
+          <button
+            type="button"
+            className={cn(
+              "hidden min-h-16 shrink-0 cursor-col-resize items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 px-1.5 text-primary shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/10 xl:flex",
+              isResizingPanels && "border-primary/70 bg-primary/15",
+            )}
+            style={{ alignSelf: "stretch", width: 28 }}
             onPointerDown={(event) => {
               event.preventDefault();
               startSuggestionsResize(event.clientX);
             }}
+            title="Arraste para ajustar o tamanho da agenda"
             aria-label="Redimensionar painel lateral da agenda"
           >
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-          </div>
+            <GripVertical className="h-5 w-5" strokeWidth={1.8} />
+          </button>
 
           {visibleSuggestions.length > 0 ? (
             /* Panel with suggestions — original structure preserved */
