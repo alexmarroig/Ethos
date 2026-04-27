@@ -57,6 +57,7 @@ const SUGGESTIONS_PANEL_MIN_WIDTH = 220;
 const SUGGESTIONS_PANEL_MAX_WIDTH = 420;
 const SUGGESTIONS_PANEL_DEFAULT_WIDTH = 240;
 const AGENDA_SESSIONS_TIMEOUT_MS = 12_000;
+const CELL_HEIGHT_PX = 116;
 
 const weekDays = [
   { id: 1, short: "Seg", long: "Segunda" },
@@ -153,6 +154,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'task' }>({});
   const [dismissCoachmark, setDismissCoachmark] = useState(false);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
+  const [dragCreate, setDragCreate] = useState<{ dayKey: string; startSlot: string; endSlot: string } | null>(null);
+  const [resizingSession, setResizingSession] = useState<{ id: string; startY: number; originalDuration: number; currentDuration: number } | null>(null);
+  const resizeDurationRef = useRef<number>(0);
   const desktopAgendaRef = useRef<HTMLDivElement | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -519,6 +523,48 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     return `72px repeat(${visibleWeekDays.length}, ${dayWidth})`;
   }, [desktopDensity.dayColumnMin, visibleWeekDays.length]);
 
+  useEffect(() => {
+    if (!dragCreate) return;
+    const { dayKey, startSlot, endSlot } = dragCreate;
+    const handlePointerUp = () => {
+      const startIdx = timeSlots.indexOf(startSlot);
+      const endIdx = timeSlots.indexOf(endSlot);
+      const orderedStart = timeSlots[Math.min(startIdx, endIdx)];
+      setSessionDialogDefaults({ date: dayKey, time: orderedStart });
+      setDragCreate(null);
+      setSessionDialogOpen(true);
+    };
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => window.removeEventListener("pointerup", handlePointerUp);
+  }, [dragCreate, timeSlots]);
+
+  useEffect(() => {
+    if (!resizingSession) return;
+    const { id, startY, originalDuration } = resizingSession;
+    const handlePointerMove = (e: PointerEvent) => {
+      const delta = e.clientY - startY;
+      const newDuration = Math.max(30, originalDuration + Math.round((delta / CELL_HEIGHT_PX) * 60 / 30) * 30);
+      resizeDurationRef.current = newDuration;
+      setResizingSession((prev) => (prev ? { ...prev, currentDuration: newDuration } : null));
+    };
+    const handlePointerUp = async () => {
+      const finalDuration = resizeDurationRef.current;
+      if (finalDuration !== originalDuration) {
+        await sessionService.update(id, { duration_minutes: finalDuration });
+        const result = await sessionService.list(weekWindow);
+        if (result.success) setSessions(result.data);
+      }
+      setResizingSession(null);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resizingSession?.id, resizingSession?.startY]);
+
   const startSuggestionsResize = (clientX: number) => {
     if (!desktopAgendaRef.current) return;
     setIsResizingPanels(true);
@@ -829,99 +875,138 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                         {daySessions.length === 0 ? (
                           <button
                             type="button"
-                            className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-border/70 px-3 text-center text-[11px] text-muted-foreground/60 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60"
+                            className={cn(
+                              "flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
+                              (() => {
+                                if (!dragCreate || dragCreate.dayKey !== day.key) return "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
+                                const si = timeSlots.indexOf(dragCreate.startSlot);
+                                const ei = timeSlots.indexOf(dragCreate.endSlot);
+                                const ci = timeSlots.indexOf(slot);
+                                return ci >= Math.min(si, ei) && ci <= Math.max(si, ei)
+                                  ? "border-primary/60 bg-primary/10 text-primary/70"
+                                  : "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
+                              })(),
+                            )}
                             style={{ minHeight: `${desktopDensity.emptyCellMinHeight}px` }}
-                            onClick={() => {
-                              setSessionDialogDefaults({ date: day.key, time: slot });
-                              setSessionDialogOpen(true);
+                            onPointerDown={() => setDragCreate({ dayKey: day.key, startSlot: slot, endSlot: slot })}
+                            onPointerEnter={() => {
+                              if (dragCreate && dragCreate.dayKey === day.key) {
+                                setDragCreate((prev) => (prev ? { ...prev, endSlot: slot } : null));
+                              }
                             }}
                           >
-                            Livre
+                            {dragCreate?.dayKey === day.key && (() => {
+                              const si = timeSlots.indexOf(dragCreate.startSlot);
+                              const ei = timeSlots.indexOf(dragCreate.endSlot);
+                              const ci = timeSlots.indexOf(slot);
+                              return ci === Math.min(si, ei) && si !== ei;
+                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : "Livre"}
                           </button>
                         ) : (
                           <div className="space-y-2">
                             {daySessions.map((session) => {
                               const flags = getSessionFlags(session);
+                              const isResizing = resizingSession?.id === session.id;
+                              const displayDuration = isResizing ? resizingSession.currentDuration : session.duration;
                               return (
-                                <button
-                                  key={session.id}
-                                  type="button"
-                                  draggable
-                                  onDragStart={(event) => {
-                                    event.dataTransfer.setData("text/plain", session.id);
-                                    setDraggingSessionId(session.id);
-                                  }}
-                                  onDragEnd={() => setDraggingSessionId(null)}
-                                  onClick={() => onSessionClick(session.id)}
-                                  className={cn(
-                                    "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
-                                    desktopDensity.cardPadding,
-                                    getStatusColor(session.status),
-                                    draggingSessionId === session.id && "opacity-60",
-                                    session.event_type === "block" && "border-dashed opacity-80",
-                                  )}
-                                >
-                                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                                      <Clock3 className="h-3.5 w-3.5" />
-                                      {session.time}
-                                    </span>
-                                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                      {session.event_type === "session" && session.location_type && (
-                                        <span className="text-muted-foreground">
-                                          {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
-                                        </span>
-                                      )}
-                                      <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                        {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                <div key={session.id} className="relative">
+                                  <button
+                                    type="button"
+                                    draggable={!isResizing}
+                                    onDragStart={(event) => {
+                                      event.dataTransfer.setData("text/plain", session.id);
+                                      setDraggingSessionId(session.id);
+                                    }}
+                                    onDragEnd={() => setDraggingSessionId(null)}
+                                    onClick={() => onSessionClick(session.id)}
+                                    className={cn(
+                                      "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
+                                      desktopDensity.cardPadding,
+                                      getStatusColor(session.status),
+                                      draggingSessionId === session.id && "opacity-60",
+                                      session.event_type === "block" && "border-dashed opacity-80",
+                                      isResizing && "select-none pb-4",
+                                    )}
+                                  >
+                                    <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                        <Clock3 className="h-3.5 w-3.5" />
+                                        {session.time}
                                       </span>
-                                    </div>
-                                  </div>
-
-                                  <p className={cn(desktopDensity.cardTitleClamp, "break-words text-sm font-semibold leading-5 text-foreground")}>{session.block_title ?? maskName(session.patient_name)}</p>
-                                  {session.series_id && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                      <Repeat2 className="h-3 w-3" />
-                                      {session.recurrence
-                                        ? session.recurrence.type === "weekly" ? "Semanal"
-                                          : session.recurrence.type === "biweekly" ? "Quinzenal"
-                                          : "2× sem"
-                                        : "Série"}
-                                    </span>
-                                  )}
-
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {flags.map((flag) => (
-                                      <span
-                                        key={flag}
-                                        className={cn(
-                                          "rounded-full px-2 py-1 text-[10px] font-semibold",
-                                          flag === "Novo"
-                                            ? "bg-accent/15 text-accent"
-                                            : flag === "Retorno"
-                                              ? "bg-primary/10 text-primary"
-                                              : "bg-status-pending/15 text-status-pending",
+                                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                        {session.event_type === "session" && session.location_type && (
+                                          <span className="text-muted-foreground">
+                                            {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                                          </span>
                                         )}
-                                      >
-                                        {flag}
-                                      </span>
-                                    ))}
-                                  </div>
+                                        <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                                          {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                        </span>
+                                      </div>
+                                    </div>
 
-                                  <div className="mt-3 inline-flex max-w-full flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                                    {session.event_type === "block"
-                                      ? <CalendarPlus className="h-3.5 w-3.5" />
-                                      : <UserRound className="h-3.5 w-3.5" />}
-                                    {session.event_type === "block"
-                                      ? (session.duration ? `${session.duration} min` : "Tarefa")
-                                      : (session.duration ? `${session.duration} min` : "Sessão")}
-                                    {session.event_type === "session" && session.location_type && (
-                                      <span className="ml-1 opacity-70">
-                                        · {session.location_type === "remote" ? "Remoto" : "Presencial"}
+                                    <p className={cn(desktopDensity.cardTitleClamp, "break-words text-sm font-semibold leading-5 text-foreground")}>{session.block_title ?? maskName(session.patient_name)}</p>
+                                    {session.series_id && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                        <Repeat2 className="h-3 w-3" />
+                                        {session.recurrence
+                                          ? session.recurrence.type === "weekly" ? "Semanal"
+                                            : session.recurrence.type === "biweekly" ? "Quinzenal"
+                                            : "2× sem"
+                                          : "Série"}
                                       </span>
                                     )}
+
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {flags.map((flag) => (
+                                        <span
+                                          key={flag}
+                                          className={cn(
+                                            "rounded-full px-2 py-1 text-[10px] font-semibold",
+                                            flag === "Novo"
+                                              ? "bg-accent/15 text-accent"
+                                              : flag === "Retorno"
+                                                ? "bg-primary/10 text-primary"
+                                                : "bg-status-pending/15 text-status-pending",
+                                          )}
+                                        >
+                                          {flag}
+                                        </span>
+                                      ))}
+                                    </div>
+
+                                    <div className="mt-3 inline-flex max-w-full flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                                      {session.event_type === "block"
+                                        ? <CalendarPlus className="h-3.5 w-3.5" />
+                                        : <UserRound className="h-3.5 w-3.5" />}
+                                      {session.event_type === "block"
+                                        ? (displayDuration ? `${displayDuration} min` : "Tarefa")
+                                        : (displayDuration ? `${displayDuration} min` : "Sessão")}
+                                      {session.event_type === "session" && session.location_type && (
+                                        <span className="ml-1 opacity-70">
+                                          · {session.location_type === "remote" ? "Remoto" : "Presencial"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+
+                                  {/* Resize grip */}
+                                  <div
+                                    className={cn(
+                                      "absolute bottom-0 left-0 right-0 flex h-3 cursor-row-resize items-center justify-center rounded-b-2xl transition-colors",
+                                      isResizing ? "bg-primary/30" : "bg-transparent hover:bg-primary/15",
+                                    )}
+                                    onPointerDown={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      const dur = session.duration ?? 50;
+                                      resizeDurationRef.current = dur;
+                                      setResizingSession({ id: session.id, startY: e.clientY, originalDuration: dur, currentDuration: dur });
+                                    }}
+                                  >
+                                    <span className="h-0.5 w-6 rounded-full bg-current opacity-30" />
                                   </div>
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
