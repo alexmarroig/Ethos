@@ -91,6 +91,11 @@ const INITIAL_READ_TIMEOUT = 20_000;
 let readinessPromise: Promise<void> | null = null;
 let readinessMountedAt = Date.now();
 
+export function resetReadiness(): void {
+  readinessPromise = null;
+  readinessMountedAt = Date.now();
+}
+
 export function primeReadiness(baseUrl: string = CLINICAL_BASE_URL, timeoutMs = 60_000): Promise<void> {
   if (readinessPromise) return readinessPromise;
   readinessMountedAt = Date.now();
