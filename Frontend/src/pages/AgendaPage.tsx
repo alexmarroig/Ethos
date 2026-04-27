@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Monitor, Building2, PanelRightClose, PanelRightOpen, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, GripVertical, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -28,7 +28,6 @@ import {
 import {
   readAgendaWeekCache,
   writeAgendaWeekCache,
-  type AgendaDensity,
 } from "@/pages/agendaStorage";
 
 interface AgendaPageProps {
@@ -42,8 +41,8 @@ type AgendaSettings = {
 };
 
 type StoredAgendaSettings = AgendaSettings & {
-  density?: AgendaDensity;
   suggestionsExpanded?: boolean;
+  suggestionsPanelWidth?: number;
 };
 
 type CacheStatus = "idle" | "cached" | "synced";
@@ -57,6 +56,8 @@ const defaultAgendaSettings: AgendaSettings = {
 const SUGGESTIONS_PANEL_MIN_WIDTH = 220;
 const SUGGESTIONS_PANEL_MAX_WIDTH = 420;
 const SUGGESTIONS_PANEL_DEFAULT_WIDTH = 240;
+const AGENDA_SESSIONS_TIMEOUT_MS = 12_000;
+const CELL_HEIGHT_PX = 116;
 
 const weekDays = [
   { id: 1, short: "Seg", long: "Segunda" },
@@ -148,12 +149,14 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [suggestionsPanelWidth, setSuggestionsPanelWidth] = useState(SUGGESTIONS_PANEL_DEFAULT_WIDTH);
   const [suggestionsExpanded, setSuggestionsExpanded] = useState(true);
-  const [density, setDensity] = useState<AgendaDensity>("comfortable");
   const [cacheStatus, setCacheStatus] = useState<CacheStatus>("idle");
   const [cacheFetchedAt, setCacheFetchedAt] = useState<string | null>(null);
   const [sessionDialogDefaults, setSessionDialogDefaults] = useState<{ date?: string; time?: string; eventType?: 'session' | 'task' }>({});
   const [dismissCoachmark, setDismissCoachmark] = useState(false);
   const [isResizingPanels, setIsResizingPanels] = useState(false);
+  const [dragCreate, setDragCreate] = useState<{ dayKey: string; startSlot: string; endSlot: string } | null>(null);
+  const [resizingSession, setResizingSession] = useState<{ id: string; startY: number; originalDuration: number; currentDuration: number } | null>(null);
+  const resizeDurationRef = useRef<number>(0);
   const desktopAgendaRef = useRef<HTMLDivElement | null>(null);
 
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -214,12 +217,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       };
       setAgendaSettings(nextSettings);
       setSettingsDraft(nextSettings);
-      setDensity(parsed.density ?? "comfortable");
       setSuggestionsExpanded(parsed.suggestionsExpanded ?? true);
+      if (typeof parsed.suggestionsPanelWidth === "number") {
+        setSuggestionsPanelWidth(Math.max(
+          SUGGESTIONS_PANEL_MIN_WIDTH,
+          Math.min(SUGGESTIONS_PANEL_MAX_WIDTH, parsed.suggestionsPanelWidth),
+        ));
+      }
     } catch {
       setAgendaSettings(defaultAgendaSettings);
       setSettingsDraft(defaultAgendaSettings);
-      setDensity("comfortable");
       setSuggestionsExpanded(true);
     } finally {
       setSettingsHydrated(true);
@@ -232,10 +239,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       startHour: agendaSettings.startHour,
       endHour: agendaSettings.endHour,
       enabledWeekdays: agendaSettings.enabledWeekdays,
-      density,
       suggestionsExpanded,
+      suggestionsPanelWidth,
     }));
-  }, [agendaSettings, density, settingsHydrated, suggestionsExpanded]);
+  }, [agendaSettings, settingsHydrated, suggestionsExpanded, suggestionsPanelWidth]);
 
   useEffect(() => {
     const loadPatients = async () => {
@@ -248,7 +255,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
   useEffect(() => {
     const cachedWeek = readAgendaWeekCache();
-    if (cachedWeek?.weekWindow.from === weekWindow.from && cachedWeek.weekWindow.to === weekWindow.to) {
+    const hasUsableCache = cachedWeek?.weekWindow.from === weekWindow.from && cachedWeek.weekWindow.to === weekWindow.to;
+
+    if (hasUsableCache) {
       setSessions(cachedWeek.sessions);
       setSessionCache(cachedWeek.sessions);
       setCacheStatus("cached");
@@ -257,9 +266,12 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     }
 
     const loadSessions = async () => {
-      setLoading(!cachedWeek);
+      setLoading(!hasUsableCache);
       try {
-        const result = await sessionService.list(weekWindow, undefined, { timeout: 4000, retry: false });
+        const result = await sessionService.list(weekWindow, undefined, {
+          timeout: AGENDA_SESSIONS_TIMEOUT_MS,
+          retry: true,
+        });
         if (!result.success) {
           setError({ message: result.error.message, requestId: result.request_id });
           return;
@@ -494,34 +506,64 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     [dismissedSuggestions, suggestions],
   );
 
-  const desktopDensity = density === "compact"
-    ? {
-        gridMinWidth: 0,
-        dayColumnMin: 122,
-        cellMinHeight: 88,
-        emptyCellMinHeight: 72,
-        cellPadding: "p-2",
-        cardPadding: "p-2.5",
-        dayHeaderPadding: "p-3",
-        cardTitleClamp: "line-clamp-2",
-        metaVisible: false,
-      }
-    : {
-        gridMinWidth: 0,
-        dayColumnMin: 148,
-        cellMinHeight: 116,
-        emptyCellMinHeight: 92,
-        cellPadding: "p-2.5",
-        cardPadding: "p-3",
-        dayHeaderPadding: "p-4",
-        cardTitleClamp: "line-clamp-3",
-        metaVisible: true,
-      };
+  const desktopDensity = {
+    gridMinWidth: 0,
+    dayColumnMin: 148,
+    cellMinHeight: 116,
+    emptyCellMinHeight: 92,
+    cellPadding: "p-2.5",
+    cardPadding: "p-3",
+    dayHeaderPadding: "p-4",
+    cardTitleClamp: "line-clamp-3",
+    metaVisible: true,
+  };
 
   const desktopCalendarGrid = useMemo(() => {
     const dayWidth = `minmax(${desktopDensity.dayColumnMin}px, 1fr)`;
     return `72px repeat(${visibleWeekDays.length}, ${dayWidth})`;
   }, [desktopDensity.dayColumnMin, visibleWeekDays.length]);
+
+  useEffect(() => {
+    if (!dragCreate) return;
+    const { dayKey, startSlot, endSlot } = dragCreate;
+    const handlePointerUp = () => {
+      const startIdx = timeSlots.indexOf(startSlot);
+      const endIdx = timeSlots.indexOf(endSlot);
+      const orderedStart = timeSlots[Math.min(startIdx, endIdx)];
+      setSessionDialogDefaults({ date: dayKey, time: orderedStart });
+      setDragCreate(null);
+      setSessionDialogOpen(true);
+    };
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => window.removeEventListener("pointerup", handlePointerUp);
+  }, [dragCreate, timeSlots]);
+
+  useEffect(() => {
+    if (!resizingSession) return;
+    const { id, startY, originalDuration } = resizingSession;
+    const handlePointerMove = (e: PointerEvent) => {
+      const delta = e.clientY - startY;
+      const newDuration = Math.max(30, originalDuration + Math.round((delta / CELL_HEIGHT_PX) * 60 / 30) * 30);
+      resizeDurationRef.current = newDuration;
+      setResizingSession((prev) => (prev ? { ...prev, currentDuration: newDuration } : null));
+    };
+    const handlePointerUp = async () => {
+      const finalDuration = resizeDurationRef.current;
+      if (finalDuration !== originalDuration) {
+        await sessionService.update(id, { duration_minutes: finalDuration });
+        const result = await sessionService.list(weekWindow);
+        if (result.success) setSessions(result.data);
+      }
+      setResizingSession(null);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resizingSession?.id, resizingSession?.startY]);
 
   const startSuggestionsResize = (clientX: number) => {
     if (!desktopAgendaRef.current) return;
@@ -704,28 +746,6 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <div className="inline-flex rounded-2xl border border-border bg-card p-1 shadow-subtle">
-              <button
-                type="button"
-                onClick={() => setDensity("compact")}
-                className={cn(
-                  "rounded-xl px-3 py-1.5 text-xs font-medium transition-colors",
-                  density === "compact" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary",
-                )}
-              >
-                Compacta
-              </button>
-              <button
-                type="button"
-                onClick={() => setDensity("comfortable")}
-                className={cn(
-                  "rounded-xl px-3 py-1.5 text-xs font-medium transition-colors",
-                  density === "comfortable" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary",
-                )}
-              >
-                Confortável
-              </button>
-            </div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-subtle">
               <span className={cn("h-2.5 w-2.5 rounded-full", cacheStatus === "synced" ? "bg-status-validated" : cacheStatus === "cached" ? "bg-orange-400" : "bg-border")} />
               <span>
@@ -815,16 +835,16 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.18 }}
           >
-          <div className="w-full min-w-0 rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
+          <div className="min-w-0 flex-1 rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
             <div className="grid w-full min-w-0" style={{ gridTemplateColumns: desktopCalendarGrid }}>
               <div className="border-b border-r border-border bg-muted/30 p-3" />
               {visibleWeekDays.map((day) => (
                 <div key={day.key} className={cn("min-w-0 border-b border-border", desktopDensity.dayHeaderPadding, day.isToday && "bg-primary/5")}>
                   <p className={cn("truncate text-[11px] uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>
-                    {density === "compact" ? day.short : day.long}
+                    {day.long}
                   </p>
                   <div className="mt-1 flex items-center gap-2">
-                    <span className={cn("font-serif text-foreground", density === "compact" ? "text-xl" : "text-2xl")}>{formatDayNumber(day.date)}</span>
+                    <span className="font-serif text-2xl text-foreground">{formatDayNumber(day.date)}</span>
                     {day.isToday ? <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
                   </div>
                 </div>
@@ -832,7 +852,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
               {timeSlots.map((slot) => (
                 <div key={slot} className="contents">
-                  <div className={cn("border-r border-border bg-muted/20 px-2 text-right", density === "compact" ? "py-3" : "px-3 py-4")}>
+                  <div className="border-r border-border bg-muted/20 px-3 py-4 text-right">
                     <span className="text-xs font-medium text-muted-foreground">{slot}</span>
                   </div>
                   {visibleWeekDays.map((day) => {
@@ -855,99 +875,138 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                         {daySessions.length === 0 ? (
                           <button
                             type="button"
-                            className="flex h-full w-full items-center justify-center rounded-xl border border-dashed border-border/70 px-3 text-center text-[11px] text-muted-foreground/60 transition-colors hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60"
+                            className={cn(
+                              "flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
+                              (() => {
+                                if (!dragCreate || dragCreate.dayKey !== day.key) return "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
+                                const si = timeSlots.indexOf(dragCreate.startSlot);
+                                const ei = timeSlots.indexOf(dragCreate.endSlot);
+                                const ci = timeSlots.indexOf(slot);
+                                return ci >= Math.min(si, ei) && ci <= Math.max(si, ei)
+                                  ? "border-primary/60 bg-primary/10 text-primary/70"
+                                  : "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
+                              })(),
+                            )}
                             style={{ minHeight: `${desktopDensity.emptyCellMinHeight}px` }}
-                            onClick={() => {
-                              setSessionDialogDefaults({ date: day.key, time: slot });
-                              setSessionDialogOpen(true);
+                            onPointerDown={() => setDragCreate({ dayKey: day.key, startSlot: slot, endSlot: slot })}
+                            onPointerEnter={() => {
+                              if (dragCreate && dragCreate.dayKey === day.key) {
+                                setDragCreate((prev) => (prev ? { ...prev, endSlot: slot } : null));
+                              }
                             }}
                           >
-                            Livre
+                            {dragCreate?.dayKey === day.key && (() => {
+                              const si = timeSlots.indexOf(dragCreate.startSlot);
+                              const ei = timeSlots.indexOf(dragCreate.endSlot);
+                              const ci = timeSlots.indexOf(slot);
+                              return ci === Math.min(si, ei) && si !== ei;
+                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : "Livre"}
                           </button>
                         ) : (
                           <div className="space-y-2">
                             {daySessions.map((session) => {
                               const flags = getSessionFlags(session);
+                              const isResizing = resizingSession?.id === session.id;
+                              const displayDuration = isResizing ? resizingSession.currentDuration : session.duration;
                               return (
-                                <button
-                                  key={session.id}
-                                  type="button"
-                                  draggable
-                                  onDragStart={(event) => {
-                                    event.dataTransfer.setData("text/plain", session.id);
-                                    setDraggingSessionId(session.id);
-                                  }}
-                                  onDragEnd={() => setDraggingSessionId(null)}
-                                  onClick={() => onSessionClick(session.id)}
-                                  className={cn(
-                                    "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
-                                    desktopDensity.cardPadding,
-                                    getStatusColor(session.status),
-                                    draggingSessionId === session.id && "opacity-60",
-                                    session.event_type === "block" && "border-dashed opacity-80",
-                                  )}
-                                >
-                                  <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
-                                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
-                                      <Clock3 className="h-3.5 w-3.5" />
-                                      {session.time}
-                                    </span>
-                                    <div className="flex flex-wrap items-center justify-end gap-1.5">
-                                      {session.event_type === "session" && session.location_type && (
-                                        <span className="text-muted-foreground">
-                                          {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
-                                        </span>
-                                      )}
-                                      <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                        {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                <div key={session.id} className="relative">
+                                  <button
+                                    type="button"
+                                    draggable={!isResizing}
+                                    onDragStart={(event) => {
+                                      event.dataTransfer.setData("text/plain", session.id);
+                                      setDraggingSessionId(session.id);
+                                    }}
+                                    onDragEnd={() => setDraggingSessionId(null)}
+                                    onClick={() => onSessionClick(session.id)}
+                                    className={cn(
+                                      "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
+                                      desktopDensity.cardPadding,
+                                      getStatusColor(session.status),
+                                      draggingSessionId === session.id && "opacity-60",
+                                      session.event_type === "block" && "border-dashed opacity-80",
+                                      isResizing && "select-none pb-4",
+                                    )}
+                                  >
+                                    <div className="mb-2 flex flex-wrap items-start justify-between gap-2">
+                                      <span className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground">
+                                        <Clock3 className="h-3.5 w-3.5" />
+                                        {session.time}
                                       </span>
-                                    </div>
-                                  </div>
-
-                                  <p className={cn(desktopDensity.cardTitleClamp, "break-words text-sm font-semibold leading-5 text-foreground")}>{session.block_title ?? maskName(session.patient_name)}</p>
-                                  {session.series_id && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
-                                      <Repeat2 className="h-3 w-3" />
-                                      {session.recurrence
-                                        ? session.recurrence.type === "weekly" ? "Semanal"
-                                          : session.recurrence.type === "biweekly" ? "Quinzenal"
-                                          : "2× sem"
-                                        : "Série"}
-                                    </span>
-                                  )}
-
-                                  <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {flags.map((flag) => (
-                                      <span
-                                        key={flag}
-                                        className={cn(
-                                          "rounded-full px-2 py-1 text-[10px] font-semibold",
-                                          flag === "Novo"
-                                            ? "bg-accent/15 text-accent"
-                                            : flag === "Retorno"
-                                              ? "bg-primary/10 text-primary"
-                                              : "bg-status-pending/15 text-status-pending",
+                                      <div className="flex flex-wrap items-center justify-end gap-1.5">
+                                        {session.event_type === "session" && session.location_type && (
+                                          <span className="text-muted-foreground">
+                                            {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                                          </span>
                                         )}
-                                      >
-                                        {flag}
-                                      </span>
-                                    ))}
-                                  </div>
+                                        <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                                          {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                        </span>
+                                      </div>
+                                    </div>
 
-                                  <div className="mt-3 inline-flex max-w-full flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
-                                    {session.event_type === "block"
-                                      ? <CalendarPlus className="h-3.5 w-3.5" />
-                                      : <UserRound className="h-3.5 w-3.5" />}
-                                    {session.event_type === "block"
-                                      ? (session.duration ? `${session.duration} min` : "Tarefa")
-                                      : (session.duration ? `${session.duration} min` : "Sessão")}
-                                    {session.event_type === "session" && session.location_type && (
-                                      <span className="ml-1 opacity-70">
-                                        · {session.location_type === "remote" ? "Remoto" : "Presencial"}
+                                    <p className={cn(desktopDensity.cardTitleClamp, "break-words text-sm font-semibold leading-5 text-foreground")}>{session.block_title ?? maskName(session.patient_name)}</p>
+                                    {session.series_id && (
+                                      <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                        <Repeat2 className="h-3 w-3" />
+                                        {session.recurrence
+                                          ? session.recurrence.type === "weekly" ? "Semanal"
+                                            : session.recurrence.type === "biweekly" ? "Quinzenal"
+                                            : "2× sem"
+                                          : "Série"}
                                       </span>
                                     )}
+
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                      {flags.map((flag) => (
+                                        <span
+                                          key={flag}
+                                          className={cn(
+                                            "rounded-full px-2 py-1 text-[10px] font-semibold",
+                                            flag === "Novo"
+                                              ? "bg-accent/15 text-accent"
+                                              : flag === "Retorno"
+                                                ? "bg-primary/10 text-primary"
+                                                : "bg-status-pending/15 text-status-pending",
+                                          )}
+                                        >
+                                          {flag}
+                                        </span>
+                                      ))}
+                                    </div>
+
+                                    <div className="mt-3 inline-flex max-w-full flex-wrap items-center gap-1 text-[11px] text-muted-foreground">
+                                      {session.event_type === "block"
+                                        ? <CalendarPlus className="h-3.5 w-3.5" />
+                                        : <UserRound className="h-3.5 w-3.5" />}
+                                      {session.event_type === "block"
+                                        ? (displayDuration ? `${displayDuration} min` : "Tarefa")
+                                        : (displayDuration ? `${displayDuration} min` : "Sessão")}
+                                      {session.event_type === "session" && session.location_type && (
+                                        <span className="ml-1 opacity-70">
+                                          · {session.location_type === "remote" ? "Remoto" : "Presencial"}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </button>
+
+                                  {/* Resize grip */}
+                                  <div
+                                    className={cn(
+                                      "absolute bottom-0 left-0 right-0 flex h-3 cursor-row-resize items-center justify-center rounded-b-2xl transition-colors",
+                                      isResizing ? "bg-primary/30" : "bg-transparent hover:bg-primary/15",
+                                    )}
+                                    onPointerDown={(e) => {
+                                      e.stopPropagation();
+                                      e.preventDefault();
+                                      const dur = session.duration ?? 50;
+                                      resizeDurationRef.current = dur;
+                                      setResizingSession({ id: session.id, startY: e.clientY, originalDuration: dur, currentDuration: dur });
+                                    }}
+                                  >
+                                    <span className="h-0.5 w-6 rounded-full bg-current opacity-30" />
                                   </div>
-                                </button>
+                                </div>
                               );
                             })}
                           </div>
@@ -961,19 +1020,22 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
 
           {/* Grip handle — always visible at xl+, independent of suggestions */}
-          <div
-            className="hidden xl:flex xl:shrink-0 xl:cursor-col-resize xl:flex-col xl:items-center xl:justify-center xl:gap-1.5 xl:rounded-md xl:px-1 xl:transition-colors xl:hover:bg-accent"
-            style={{ alignSelf: "stretch", width: 20 }}
+          <button
+            type="button"
+            className={cn(
+              "hidden min-h-16 shrink-0 cursor-col-resize items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 px-1.5 text-primary shadow-sm transition-colors hover:border-primary/60 hover:bg-primary/10 xl:flex",
+              isResizingPanels && "border-primary/70 bg-primary/15",
+            )}
+            style={{ alignSelf: "stretch", width: 28 }}
             onPointerDown={(event) => {
               event.preventDefault();
               startSuggestionsResize(event.clientX);
             }}
+            title="Arraste para ajustar o tamanho da agenda"
             aria-label="Redimensionar painel lateral da agenda"
           >
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-            <div className="h-1 w-1 rounded-full bg-muted-foreground/50" />
-          </div>
+            <GripVertical className="h-5 w-5" strokeWidth={1.8} />
+          </button>
 
           {visibleSuggestions.length > 0 ? (
             /* Panel with suggestions — original structure preserved */

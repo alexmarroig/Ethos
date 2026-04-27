@@ -216,19 +216,19 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
         const patientsPromise = getPatientsIndex({ ttlMs: 60_000 }).catch(() => []);
         const allSessionsPromise = cacheIsFresh
           ? Promise.resolve({ success: true as const, data: cachedSessions, request_id: "cache" })
-          : sessionService.list({ from: today, to: monthEnd }, undefined, { timeout: 12_000, retry: true }).then((result) => {
+          : sessionService.list({ from: today, to: monthEnd }, undefined, { retry: true }).then((result) => {
               if (result.success) setSessionCache(result.data);
               return result;
             });
         const pendingSessionsPromise = sessionService.list(
           { status: "pending", exclude_blocks: true },
           undefined,
-          { timeout: 8_000, retry: false },
+          { retry: true },
         );
         const financePromise = financeService.listEntriesPage(
           { status: "open", page_size: 200 },
           undefined,
-          { timeout: 8_000, retry: false },
+          { retry: true },
         );
 
         if (cancelled) return;
@@ -324,7 +324,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
             to: upcomingWindowEnd,
             exclude_blocks: true,
             page_size: 30,
-          }, undefined, { timeout: 8_000, retry: false }),
+          }, undefined, { retry: true }),
           financeService.listEntriesPage(
             {
               status: "open",
@@ -333,7 +333,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
               page_size: 40,
             },
             undefined,
-            { timeout: 8_000, retry: false },
+            { retry: true },
           ),
         ])
           .then(([upcomingRes, futureFinanceRes]) => {
