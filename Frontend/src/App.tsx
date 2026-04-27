@@ -16,41 +16,74 @@ import { OnboardingProvider } from "./contexts/OnboardingContext";
 import { rehydratePendingJobs } from "./stores/appStore";
 import { queryClient } from "./lib/queryClient";
 import { CLINICAL_BASE_URL } from "./config/runtime";
-import { primeReadiness } from "./services/apiClient";
+import { primeReadiness, resetReadiness } from "./services/apiClient";
 
-const KEEP_ALIVE_MS = 10 * 60 * 1000;
+const KEEP_ALIVE_MS = 4 * 60 * 1000;       // ping a cada 4 min — Render dorme após ~15 min
 const SLOW_BANNER_AFTER_MS = 2_000;
+const REWAKE_HIDDEN_THRESHOLD_MS = 8 * 60 * 1000; // re-prime gate se tab ficou escondida >8 min
 
-const WakingBanner = () => (
+const WakingBanner = ({ seconds }: { seconds: number }) => (
   <div className="fixed top-3 left-1/2 z-[100] -translate-x-1/2 rounded-full border bg-background/95 px-4 py-2 text-sm shadow-lg backdrop-blur">
     <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-amber-500 mr-2 align-middle" />
-    Aguardando servidor (pode levar até 1 minuto na primeira requisição)…
+    Aguardando servidor{seconds > 0 ? ` · ${seconds}s` : ""}… (pode levar até 1 min na primeira vez)
   </div>
 );
 
 const JobRehydrator = () => {
   const [waking, setWaking] = useState(false);
+  const [elapsed, setElapsed] = useState(0);
+
   useEffect(() => {
     rehydratePendingJobs();
-    const readiness = primeReadiness(CLINICAL_BASE_URL, 60_000);
-    const slowTimer = setTimeout(() => setWaking(true), SLOW_BANNER_AFTER_MS);
-    readiness.finally(() => {
-      clearTimeout(slowTimer);
-      setWaking(false);
-    });
 
+    const startWake = () => {
+      const readiness = primeReadiness(CLINICAL_BASE_URL, 60_000);
+      const slowTimer = setTimeout(() => setWaking(true), SLOW_BANNER_AFTER_MS);
+      readiness.finally(() => {
+        clearTimeout(slowTimer);
+        setWaking(false);
+        setElapsed(0);
+      });
+    };
+
+    startWake();
+
+    // Contador de segundos visível no banner
+    const ticker = setInterval(() => {
+      setElapsed((s) => s + 1);
+    }, 1_000);
+
+    // Keep-alive periódico
     const interval = setInterval(() => {
       if (document.visibilityState === "visible") {
         void fetch(`${CLINICAL_BASE_URL}/health`, { method: "GET" }).catch(() => {});
       }
     }, KEEP_ALIVE_MS);
 
+    // Re-prime gate quando tab volta após longa ausência
+    let hiddenAt = 0;
+    const onVisibility = () => {
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+      } else if (hiddenAt > 0 && Date.now() - hiddenAt > REWAKE_HIDDEN_THRESHOLD_MS) {
+        hiddenAt = 0;
+        resetReadiness();
+        startWake();
+        void fetch(`${CLINICAL_BASE_URL}/health`, { method: "GET" }).catch(() => {});
+      } else {
+        hiddenAt = 0;
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     return () => {
-      clearTimeout(slowTimer);
+      clearInterval(ticker);
       clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
-  return waking ? <WakingBanner /> : null;
+
+  return waking ? <WakingBanner seconds={elapsed} /> : null;
 };
 
 const App = () => (

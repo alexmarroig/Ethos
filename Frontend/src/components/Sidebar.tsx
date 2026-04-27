@@ -72,7 +72,7 @@ const navigation: NavItem[] = [
   { id: "home", label: "Início", icon: Home, roles: ["professional", "admin"] },
   { id: "agenda", label: "Agenda clínica", icon: Calendar, roles: ["professional"] },
   { id: "patients", label: "Pacientes", icon: Users, roles: ["professional"] },
-  { id: "forms", label: "Formulários e anamnese", icon: ClipboardList, roles: ["professional"] },
+  { id: "forms", label: "Formulários e Anamnese", icon: ClipboardList, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
   { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
