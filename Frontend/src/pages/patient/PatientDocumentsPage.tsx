@@ -170,7 +170,7 @@ const PatientDocumentsPage = () => {
     <div className="min-h-screen">
       <div className="content-container py-8 md:py-12">
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Seus documentos</h1>
+          <h1 className="font-serif text-3xl md:text-4xl font-medium text-foreground">Seus Documentos</h1>
           <p className="mt-2 text-muted-foreground">Documentos compartilhados pela sua psicóloga.</p>
         </motion.header>
 

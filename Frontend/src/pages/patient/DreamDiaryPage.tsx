@@ -163,7 +163,7 @@ export default function DreamDiaryPage({ embedded = false }: { embedded?: boolea
                 </div>
                 <div>
                   {!embedded && <h1 className="font-serif text-2xl font-medium text-foreground md:text-3xl">
-                    Diário dos sonhos
+                    Diário dos Sonhos
                   </h1>}
                   <p className="text-sm text-muted-foreground">
                     Registre e reflita sobre seus sonhos.

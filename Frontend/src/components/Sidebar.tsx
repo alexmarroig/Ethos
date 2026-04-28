@@ -84,8 +84,8 @@ const navigation: NavItem[] = [
   { id: "patient-sessions", label: "Sessões", icon: Calendar, roles: ["patient"] },
   { id: "patient-documents", label: "Documentos", icon: FileText, roles: ["patient"] },
   { id: "patient-payments", label: "Pagamentos", icon: CreditCard, roles: ["patient"] },
-  { id: "patient-booking", label: "Agendar sessão", icon: CalendarPlus, roles: ["patient"] },
-  { id: "patient-diary", label: "Diário e formulários", icon: ClipboardList, roles: ["patient"] },
+  { id: "patient-booking", label: "Agendar Sessão", icon: CalendarPlus, roles: ["patient"] },
+  { id: "patient-diary", label: "Diário e Formulários", icon: ClipboardList, roles: ["patient"] },
 
   // Admin
   { id: "admin-dashboard", label: "Painel Admin", icon: UserCog, roles: ["admin"], separator: true },

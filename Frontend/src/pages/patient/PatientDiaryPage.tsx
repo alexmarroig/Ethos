@@ -271,7 +271,7 @@ export default function PatientDiaryPage() {
   if (forms.length === 0) {
     return (
       <div className="content-container py-12">
-        <h1 className="mb-3 font-serif text-3xl font-medium text-foreground">Diário e formulários</h1>
+        <h1 className="mb-3 font-serif text-3xl font-medium text-foreground">Diário e Formulários</h1>
         <div className="mt-16 flex flex-col items-center py-16 text-center">
           <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-3xl bg-muted text-4xl">📭</div>
           <p className="text-base font-medium text-foreground">Nenhum formulário disponível ainda</p>
@@ -286,7 +286,7 @@ export default function PatientDiaryPage() {
       <div className="content-container py-8 md:py-12">
         {/* Header */}
         <motion.header className="mb-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Diário e formulários</h1>
+          <h1 className="font-serif text-3xl font-medium text-foreground md:text-4xl">Diário e Formulários</h1>
           <p className="mt-2 text-muted-foreground">Preencha os formulários que sua psicóloga disponibilizou.</p>
           {/* Tab bar */}
           <div className="mt-6 flex gap-2 border-b border-border">
