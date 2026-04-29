@@ -75,6 +75,9 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import { PatientApproachSelector } from '../components/PatientApproachSelector';
+import { getPatientApproach, setPatientApproach } from '../services/approachStorageService';
+import type { Approach } from '../types/approach';
 
 type PatientDetailPageProps = {
   patientId: string;
@@ -421,6 +424,14 @@ export default function PatientDetailPage({
   const [packageConsumptions, setPackageConsumptions] = useState<FinancialPackageConsumption[]>([]);
   const [dreamDiaryLoading, setDreamDiaryLoading] = useState(false);
   const [dreamDiaryLoaded, setDreamDiaryLoaded] = useState(false);
+  const [patientApproach, setPatientApproachState] = useState<Approach | null>(
+    () => getPatientApproach(patientId)
+  );
+
+  const handleApproachChange = (approach: Approach | null) => {
+    setPatientApproachState(approach);
+    setPatientApproach(patientId, approach);
+  };
 
   const [sectionVisibility, setSectionVisibility] = useState<Record<string, boolean>>({
     observacoes: true,
@@ -1518,6 +1529,18 @@ export default function PatientDetailPage({
             </div>
           ))}
         </motion.div>
+
+        <motion.section className="session-card space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
+          <div>
+            <h2 className="font-serif text-2xl text-foreground">Abordagem Terapêutica</h2>
+            <p className="text-sm text-muted-foreground mt-1">Define o pacote de ferramentas ativo para este paciente.</p>
+          </div>
+          <PatientApproachSelector
+            patientId={patientId}
+            value={patientApproach}
+            onChange={handleApproachChange}
+          />
+        </motion.section>
 
         <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <div>

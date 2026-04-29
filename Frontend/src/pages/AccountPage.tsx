@@ -22,6 +22,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { ApproachMultiSelect } from '../components/ApproachMultiSelect';
+import { getPsychologistApproaches, setPsychologistApproaches } from '../services/approachStorageService';
+import type { Approach } from '../types/approach';
 
 const statusLabels: Record<string, { label: string; className: string }> = {
   trialing: { label: "Trial", className: "bg-blue-500/10 text-blue-600" },
@@ -83,6 +86,13 @@ const AccountPage = () => {
     specialty: user?.specialty ?? "",
     clinical_approach: user?.clinical_approach ?? "",
   });
+
+  const [approaches, setApproaches] = useState<Approach[]>(() => getPsychologistApproaches());
+
+  const handleApproachesChange = (newApproaches: Approach[]) => {
+    setApproaches(newApproaches);
+    setPsychologistApproaches(newApproaches);
+  };
 
   useEffect(() => {
     if (isCloudAuthenticated) {
@@ -406,6 +416,13 @@ const AccountPage = () => {
               <div className="space-y-2">
                 <label className="text-sm font-medium text-foreground">Abordagem clínica</label>
                 <Input value={profile.clinical_approach} onChange={(e) => setProfile((c) => ({ ...c, clinical_approach: e.target.value }))} />
+              </div>
+              <div className="space-y-2 md:col-span-2">
+                <label className="text-sm font-medium text-foreground">Abordagens clínicas (pacotes)</label>
+                <p className="text-xs text-muted-foreground">
+                  Selecione as abordagens que você domina. Elas determinam quais pacotes ficam disponíveis para cada paciente.
+                </p>
+                <ApproachMultiSelect value={approaches} onChange={handleApproachesChange} />
               </div>
             </div>
           </div>

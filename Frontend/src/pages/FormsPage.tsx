@@ -31,6 +31,9 @@ import { patientService, type Patient } from "@/services/patientService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import { PackageBanner } from '../components/PackageBanner';
+import { getPatientApproach } from '../services/approachStorageService';
+import { getHomework } from '../services/packageService';
 import {
   Dialog,
   DialogContent,
@@ -189,6 +192,9 @@ export default function FormsPage() {
   const filteredEntries = filterPatient
     ? entries.filter((entry) => entry.patient_id === filterPatient)
     : entries;
+
+  const patientApproach = filterPatient ? getPatientApproach(filterPatient) : null;
+  const packageHomework = patientApproach ? getHomework(patientApproach) : [];
 
   const closeEdit = () => {
     setEditingForm(null);
@@ -709,6 +715,17 @@ export default function FormsPage() {
               ))}
             </select>
           </div>
+
+          {patientApproach && packageHomework.length > 0 && (
+            <PackageBanner
+              approach={patientApproach}
+              items={packageHomework.map(h => ({ id: h.id, title: h.title, description: h.description }))}
+              onAssign={(item) => {
+                toast({ title: `${item.title} atribuída ao paciente.` });
+              }}
+              assignLabel="Atribuir"
+            />
+          )}
 
           {filteredEntries.length === 0 ? (
             <div className="py-10 text-center">

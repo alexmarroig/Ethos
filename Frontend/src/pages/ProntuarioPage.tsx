@@ -22,6 +22,9 @@ import type { PrivateComment } from "@/api/types";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useIsMobile } from "@/hooks/use-mobile";
 import SavedLocally from "@/components/SavedLocally";
+import { NoteTemplatePrompt } from '../components/NoteTemplatePrompt';
+import { getPatientApproach } from '../services/approachStorageService';
+import type { Approach } from '../types/approach';
 
 interface ProntuarioPageProps {
   sessionId: string;
@@ -53,6 +56,9 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
     plano_terapeutico: "",
   });
 
+  const [patientIdForApproach, setPatientIdForApproach] = useState<string | null>(null);
+  const [templateDismissed, setTemplateDismissed] = useState(false);
+
   // Private comments
   const [comments, setComments] = useState<PrivateComment[]>([]);
   const [newComment, setNewComment] = useState("");
@@ -70,6 +76,7 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
       const notes = res.data;
       const sessionRes = await sessionService.getById(sessionId);
       if (sessionRes.success) {
+        setPatientIdForApproach(sessionRes.data.patient_id);
         clinicalSynthesisService.get(sessionRes.data.patient_id).then(r => {
           if (r.success) setSynthesis(r.data);
         });
@@ -183,6 +190,11 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
     { key: "plano_terapeutico" as const, label: "Plano terapêutico" },
   ];
 
+  const patientApproach: Approach | null = patientIdForApproach
+    ? getPatientApproach(patientIdForApproach)
+    : null;
+  const isNewNote = !loading && !noteId;
+
   if (loading) {
     return (
       <div className="content-container py-12">
@@ -223,6 +235,17 @@ const ProntuarioPage = ({ sessionId, onBack }: ProntuarioPageProps) => {
         </motion.header>
 
         <SavedLocally show={showSaved} onDone={() => setShowSaved(false)} />
+
+        {isNewNote && patientApproach && !templateDismissed && (
+          <NoteTemplatePrompt
+            approach={patientApproach}
+            onUseTemplate={(scaffoldText) => {
+              updateContent('observacoes_clinicas', scaffoldText);
+              setTemplateDismissed(true);
+            }}
+            onDismiss={() => setTemplateDismissed(true)}
+          />
+        )}
 
         <motion.div
           className={cn("rounded-xl border-2 p-4 md:p-6 space-y-6", status === "draft" ? "border-status-pending/30 bg-status-pending/5" : "border-status-validated/30 bg-status-validated/5")}

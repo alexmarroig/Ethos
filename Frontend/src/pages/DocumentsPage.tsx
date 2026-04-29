@@ -31,6 +31,8 @@ import {
 } from "@/services/exportService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useToast } from "@/hooks/use-toast";
+import { PsychoeducationalSection } from '../components/PsychoeducationalSection';
+import { getPatientApproach } from '../services/approachStorageService';
 import {
   Dialog,
   DialogContent,
@@ -215,6 +217,8 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
 
     void load();
   }, []);
+
+  const patientApproach = patientId ? getPatientApproach(patientId) : null;
 
   const patientNames = useMemo(
     () => new Map(patients.map((patient) => [patient.id, patient.name])),
@@ -644,7 +648,14 @@ const DocumentsPage = ({ onNavigate }: DocumentsPageProps) => {
           </Suspense>
         )}
 
-        {activeTab === "documents" && <><motion.section
+        {activeTab === "documents" && <>{patientApproach && (
+          <PsychoeducationalSection
+            approach={patientApproach}
+            onShare={(materialId, title) => {
+              toast({ title: `"${title}" compartilhado com o paciente.` });
+            }}
+          />
+        )}<motion.section
           className="mb-8"
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
