@@ -1,9 +1,11 @@
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
 import { useOnboarding } from "@/contexts/OnboardingContext";
 import { cn } from "@/lib/utils";
 
 export default function OnboardingWidget() {
+  const { user } = useAuth();
   const {
     state,
     progress,
@@ -13,7 +15,7 @@ export default function OnboardingWidget() {
     disableOnboarding,
   } = useOnboarding();
 
-  if (!state || state.disabled) return null;
+  if (!state || state.disabled || user?.role === "patient") return null;
 
   const total = state.missions.length;
   const current = state.missions.find((mission) => !mission.completedAt);

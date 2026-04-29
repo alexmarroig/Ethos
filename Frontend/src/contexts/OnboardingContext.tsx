@@ -7,6 +7,7 @@ import {
   persistOnboardingState,
   syncOnboardingStateToBackend,
   type OnboardingMissionId,
+  type OnboardingRole,
   type OnboardingState,
 } from "@/services/onboardingService";
 
@@ -49,8 +50,9 @@ export function OnboardingProvider({ children }: { children: ReactNode }) {
       setState(null);
       return;
     }
-    setState(loadOnboardingState(user.id));
-  }, [isAuthenticated, user?.id]);
+    const role: OnboardingRole = user.role === "patient" ? "patient" : "professional";
+    setState(loadOnboardingState(user.id, role));
+  }, [isAuthenticated, user?.id, user?.role]);
 
   const markMissionCompleted = (missionId: OnboardingMissionId) => {
     setState((current) => {
