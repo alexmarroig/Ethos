@@ -22,6 +22,10 @@ import { patientPortalService } from "@/services/patientPortalService";
 import type { Form, FormEntry } from "@/services/formService";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/contexts/AuthContext';
+import { getPatientApproach } from '../../services/approachStorageService';
+import { getDiaryConfig } from '../../services/packageService';
+import { APPROACH_COLORS, APPROACH_FULL_LABELS } from '../../types/approach';
 
 const formatDatetime = (iso: string) =>
   new Date(iso).toLocaleDateString("pt-BR", {
@@ -47,6 +51,9 @@ const FORM_ICONS = ["📝", "💭", "🌱", "⭐", "🔍", "💡", "🎯", "🌊
 
 export default function PatientDiaryPage() {
   const { toast } = useToast();
+  const { user } = useAuth();
+  const patientApproach = user?.id ? getPatientApproach(user.id) : null;
+  const diaryConfig = patientApproach ? getDiaryConfig(patientApproach) : null;
   const [activeTab, setActiveTab] = useState<"diary" | "dreams">("diary");
   const [forms, setForms] = useState<Form[]>([]);
   const [selectedFormId, setSelectedFormId] = useState("");
@@ -313,7 +320,29 @@ export default function PatientDiaryPage() {
           </Suspense>
         )}
 
-        {activeTab === "diary" && <>{/* Form cards selector */}
+        {activeTab === "diary" && <>
+          {diaryConfig && patientApproach && (
+            <motion.div
+              className="mb-6 rounded-2xl border bg-card p-4 space-y-3"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              <div className="flex items-center gap-2">
+                <BookOpen className="h-4 w-4 text-primary" />
+                <span className={cn('rounded-full border px-2 py-0.5 text-xs font-medium', APPROACH_COLORS[patientApproach])}>
+                  {APPROACH_FULL_LABELS[patientApproach]}
+                </span>
+              </div>
+              <div>
+                <p className="text-sm font-semibold text-foreground">{diaryConfig.title}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{diaryConfig.description}</p>
+              </div>
+              <div className="rounded-xl bg-muted/40 px-4 py-3">
+                <p className="text-xs text-muted-foreground">{diaryConfig.entryLabel} — use os formulários abaixo atribuídos pelo seu psicólogo.</p>
+              </div>
+            </motion.div>
+          )}
+          {/* Form cards selector */}
         {forms.length > 1 && (
           <motion.div
             className="mb-6 flex gap-3 overflow-x-auto pb-2"
