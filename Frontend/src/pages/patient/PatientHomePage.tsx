@@ -9,6 +9,9 @@ import {
 } from "@/services/patientPortalService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { useAuth } from "@/contexts/AuthContext";
+import { HomeworkWidget } from '../../components/HomeworkWidget';
+import { getPatientApproach } from '../../services/approachStorageService';
+import { getHomework } from '../../services/packageService';
 
 const formatDate = (iso: string) => {
   try {
@@ -58,6 +61,8 @@ const sessionStatusLabel = (status: string) => {
 
 export default function PatientHomePage() {
   const { user } = useAuth();
+  const patientApproach = user?.id ? getPatientApproach(user.id) : null;
+  const packageHomework = patientApproach ? getHomework(patientApproach) : [];
   const [sessions, setSessions] = useState<PatientSession[]>([]);
   const [financial, setFinancial] = useState<PatientFinancialEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -285,6 +290,14 @@ export default function PatientHomePage() {
             )}
           </motion.section>
         </div>
+
+        <HomeworkWidget
+          items={packageHomework.slice(0, 3).map(hw => ({
+            id: hw.id,
+            title: hw.title,
+            description: hw.description,
+          }))}
+        />
       </div>
     </div>
   );
