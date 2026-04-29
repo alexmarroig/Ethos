@@ -7,6 +7,7 @@ export type OnboardingMissionId =
   | "register-payment"
   | "session-note"
   | "finish-onboarding";
+
 export type OnboardingRole = "professional" | "patient";
 
 export interface MissionState {
@@ -128,6 +129,26 @@ function getRoleMissions(role: OnboardingRole): MissionState[] {
   return role === "patient" ? patientMissions() : professionalMissions();
 }
 
+
+const LEGACY_MISSION_ID_MAP: Record<string, OnboardingMissionId> = {
+  "register-client": "register-client",
+  "add-client": "register-client",
+  "schedule-session": "schedule-session",
+  "book-session": "schedule-session",
+  "register-attendance": "register-attendance",
+  "confirm-attendance": "register-attendance",
+  "register-payment": "register-payment",
+  "add-payment": "register-payment",
+  "session-note": "session-note",
+  "add-session-note": "session-note",
+  "finish-onboarding": "finish-onboarding",
+  "complete-onboarding": "finish-onboarding",
+};
+
+function normalizeMissionId(id: string): OnboardingMissionId | null {
+  return LEGACY_MISSION_ID_MAP[id] ?? null;
+}
+
 const now = () => new Date().toISOString();
 
 function keyFor(userId: string) {
@@ -155,11 +176,25 @@ export function loadOnboardingState(userId: string, role: OnboardingRole): Onboa
   try {
     const parsed = JSON.parse(raw) as OnboardingState;
     if (parsed.userId !== userId) return createInitialOnboardingState(userId, role);
-    const missionById = new Map(parsed.missions.map((mission) => [mission.id, mission]));
+
+    const missionById = new Map(
+      (Array.isArray(parsed.missions) ? parsed.missions : []).flatMap((mission) => {
+        const normalizedId = normalizeMissionId(mission.id);
+        if (!normalizedId) return [];
+        return [[normalizedId, { ...mission, id: normalizedId } satisfies MissionState]];
+      }),
+    );
+
+    const normalizedEvents = (Array.isArray(parsed.events) ? parsed.events : []).flatMap((event) => {
+      const normalizedId = normalizeMissionId(event.missionId);
+      if (!normalizedId) return [];
+      return [{ ...event, missionId: normalizedId }];
+    });
+
     return {
       ...parsed,
       missions: roleMissions.map((mission) => missionById.get(mission.id) ?? mission),
-      events: Array.isArray(parsed.events) ? parsed.events : [],
+      events: normalizedEvents,
     };
   } catch {
     return createInitialOnboardingState(userId, role);
