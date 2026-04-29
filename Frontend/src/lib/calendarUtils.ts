@@ -2,8 +2,10 @@ import { type PatientSession } from "@/services/patientPortalService";
 
 const FALLBACK_PROFESSIONAL_NAME = "Profissional não informado";
 
-const getProfessionalName = (session: PatientSession) =>
-  session.provider_name ?? session.psychologist_name ?? FALLBACK_PROFESSIONAL_NAME;
+const getProfessionalName = (session: PatientSession) => {
+  const name = session.provider_name ?? session.psychologist_name;
+  return name && name.trim().length > 0 ? name : FALLBACK_PROFESSIONAL_NAME;
+};
 
 /**
  * Generates an iCal format string for a session
