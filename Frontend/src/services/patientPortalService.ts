@@ -82,6 +82,23 @@ export interface SlotRequest {
   created_at: string;
 }
 
+export interface PatientTask {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  completed: boolean;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export type PatientTaskPayload = {
+  title: string;
+  date: string;
+  time?: string;
+  completed?: boolean;
+};
+
 export interface DreamDiaryEntry {
   id: string;
   patient_id: string;
@@ -330,6 +347,20 @@ export const patientPortalService = {
     api.post<SlotRequest>("/patient/slot-request", data),
 
   getSlotRequests: () => api.get<SlotRequest[]>("/patient/slot-requests"),
+
+
+  getTasks: async (): Promise<ApiResult<PatientTask[]>> => {
+    const result = await api.get<PatientTask[]>("/patient/tasks");
+    if (!result.success && result.status === 404) return emptySuccess(result.request_id, []);
+    return result;
+  },
+
+  createTask: (data: PatientTaskPayload) => api.post<PatientTask>("/patient/tasks", data),
+
+  updateTask: (taskId: string, data: Partial<PatientTaskPayload>) =>
+    api.patch<PatientTask>(`/patient/tasks/${taskId}`, data),
+
+  deleteTask: (taskId: string) => api.delete<{ deleted: boolean }>(`/patient/tasks/${taskId}`),
 
   getDreamDiary: () => api.get<DreamDiaryEntry[]>("/patient/dream-diary"),
   createDreamDiaryEntry: (data: DreamDiaryEntryPayload) => api.post<DreamDiaryEntry>("/patient/dream-diary", data),
