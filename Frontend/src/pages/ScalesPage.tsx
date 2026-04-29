@@ -11,6 +11,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ScaleCardSkeleton } from "@/components/SkeletonCards";
 import { useToast } from "@/hooks/use-toast";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import { PackageBanner } from '../components/PackageBanner';
+import { getPatientApproach } from '../services/approachStorageService';
+import { getScales } from '../services/packageService';
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter,
 } from "@/components/ui/dialog";
@@ -30,6 +33,9 @@ const ScalesPage = () => {
   const [selectedScaleId, setSelectedScaleId] = useState("");
   const [patientId, setPatientId] = useState("");
   const [score, setScore] = useState("");
+
+  const patientApproach = patientId ? getPatientApproach(patientId) : null;
+  const packageScales = patientApproach ? getScales(patientApproach) : [];
 
   useEffect(() => {
     const load = async () => {
@@ -119,6 +125,21 @@ const ScalesPage = () => {
               </LineChart>
             </ResponsiveContainer>
           </motion.div>
+        )}
+
+        {patientApproach && packageScales.length > 0 && (
+          <PackageBanner
+            approach={patientApproach}
+            items={packageScales.map(s => ({
+              id: s.id,
+              title: `${s.abbreviation} — ${s.title}`,
+              description: s.description,
+            }))}
+            onAssign={(item) => {
+              toast({ title: `${item.title} adicionada para aplicação.` });
+            }}
+            assignLabel="Aplicar"
+          />
         )}
 
         <motion.div className="space-y-3" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}>
