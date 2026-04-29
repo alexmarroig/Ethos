@@ -23,6 +23,9 @@ const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 const isoDate = (iso: string) => iso.slice(0, 10);
+const PROFESSIONAL_FALLBACK = "Profissional não informado";
+const getProfessionalName = (session: PatientSession) =>
+  session.provider_name ?? session.psychologist_name ?? PROFESSIONAL_FALLBACK;
 
 const sessionStatusLabel = (status: string) => {
   switch (status) {
@@ -299,6 +302,9 @@ export default function PatientSessionsPage() {
                             )}>
                               {sessionStatusLabel(s.status)}
                             </span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {getProfessionalName(s)}
+                            </p>
                           </div>
                         </div>
 
@@ -371,6 +377,9 @@ export default function PatientSessionsPage() {
                           <p className="mt-1 text-sm text-muted-foreground">
                             {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            {getProfessionalName(s)}
+                          </p>
                         </button>
                       ))
                   )}
@@ -405,6 +414,9 @@ export default function PatientSessionsPage() {
                         </h4>
                         <p className="text-sm text-muted-foreground">
                           {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {getProfessionalName(s)}
                         </p>
                       </div>
                     </div>
