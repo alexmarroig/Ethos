@@ -321,6 +321,19 @@ const integrationTokenValid = (req: IncomingMessage) => {
   const expected = process.env.ETHOS_API_TOKEN ?? "ethos-integration-token";
   return Boolean(token) && token === expected;
 };
+const rateLimitState = new Map<string, { count: number; resetAt: number }>();
+const checkRateLimit = (req: IncomingMessage, key: string) => {
+  const ip = getRemoteIp(req);
+  const k = `${key}:${ip}`;
+  const now = Date.now();
+  const current = rateLimitState.get(k);
+  if (!current || current.resetAt < now) {
+    rateLimitState.set(k, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= 120;
+};
 const resolver = new BiohubAccessResolverService();
 const sendPatientAccessEmail = async (input: {
   to: string;
@@ -680,6 +693,20 @@ export const createEthosBackend = () =>
         const rateLimiter = await getRateLimiterProvider();
         const hit = await rateLimiter.hit(`biohub-access-legacy:${getRemoteIp(req)}`, 120, 60_000);
         if (!hit.allowed) { biohubMetrics.total_rate_limited += 1; return error(res, requestId, 429, "RATE_LIMITED", "Too many requests"); }
+        if (!isFeatureEnabled("BIOHUB_INTEGRATION_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub integration disabled");
+        if (!integrationTokenValid(req)) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid integration token");
+        if (!checkRateLimit(req, "biohub-access")) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
+        const body = await readJson(req);
+        const user_id = String(body.user_id ?? "").trim();
+        if (!user_id) return error(res, requestId, 422, "VALIDATION_ERROR", "user_id is required");
+        const result = resolver.resolve({ user_id, tenant_id: typeof body.tenant_id === "string" ? body.tenant_id : undefined });
+        return ok(res, requestId, 200, { ...result, has_access: result.allowed, access: result.allowed, allowed: result.allowed });
+      }
+
+      if (method === "POST" && url.pathname === "/biohub/access") {
+        if (!isFeatureEnabled("BIOHUB_LEGACY_ACCESS_ENDPOINT_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub legacy endpoint disabled");
+        if (!integrationTokenValid(req)) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid integration token");
+        if (!checkRateLimit(req, "biohub-access-legacy")) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
         const body = await readJson(req);
         const userId = String(body.userId ?? "").trim();
         if (!userId) return error(res, requestId, 422, "VALIDATION_ERROR", "userId is required");
@@ -741,6 +768,11 @@ export const createEthosBackend = () =>
       }
 
             // ─── Webhook Evolution API — confirmação automática de sessão ────────────
+        const result = resolver.resolve({ user_id: userId, action });
+        return ok(res, requestId, 200, { allowed: result.allowed });
+      }
+
+      // ─── Webhook Evolution API — confirmação automática de sessão ────────────
       if (method === "POST" && url.pathname === "/webhook/whatsapp") {
         try {
           const body = await readJson(req) as Record<string, unknown>;

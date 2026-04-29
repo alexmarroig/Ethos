@@ -1,4 +1,5 @@
 import { biohubRepository } from "./biohubRepository";
+import { db } from "../infra/database";
 
 export type BiohubAction = "read" | "write" | "publish" | "admin";
 export type BiohubAccessResult = {
@@ -18,6 +19,8 @@ const isActive = (status?: string) => status === "active";
 export class BiohubAccessResolverService {
   async resolve(input: { user_id: string; tenant_id?: string; action?: BiohubAction }): Promise<BiohubAccessResult> {
     const profile = await biohubRepository.getProfile(input.user_id);
+  resolve(input: { user_id: string; tenant_id?: string; action?: BiohubAction }): BiohubAccessResult {
+    const profile = db.biohubAccessProfiles.get(input.user_id);
     const now = Date.now();
     const defaultResult: BiohubAccessResult = {
       allowed: false,
@@ -37,6 +40,7 @@ export class BiohubAccessResolverService {
 
     const rawOverride = await biohubRepository.getActiveOverride(input.user_id);
     const override = rawOverride && (!rawOverride.expires_at || Date.parse(rawOverride.expires_at) > now) ? rawOverride : undefined;
+    const override = Array.from(db.biohubPlanOverrides.values()).find((item) => item.user_id === input.user_id && item.active && (!item.expires_at || Date.parse(item.expires_at) > now));
     if (override) {
       if (override.override_plan === "none") return defaultResult;
       return { ...defaultResult, allowed: true, mode: "full", reason: "override", plan: override.override_plan, source: "override", can_edit: true, can_publish: true };
@@ -48,11 +52,13 @@ export class BiohubAccessResolverService {
 
     const subscriptions = await biohubRepository.listSubscriptions(input.user_id);
     const bundle = subscriptions.find((item) => item.source === "bundle" && isActive(item.status));
+    const bundle = Array.from(db.biohubSubscriptions.values()).find((item) => item.user_id === input.user_id && item.source === "bundle" && isActive(item.status));
     if (bundle) {
       return { ...defaultResult, allowed: true, mode: "full", reason: "bundle", plan: bundle.plan_code, source: "ethos_bundle", can_edit: true, can_publish: true };
     }
 
     const standalone = subscriptions.find((item) => item.source === "standalone" && isActive(item.status));
+    const standalone = Array.from(db.biohubSubscriptions.values()).find((item) => item.user_id === input.user_id && item.source === "standalone" && isActive(item.status));
     if (standalone) {
       return { ...defaultResult, allowed: true, mode: "full", reason: "standalone", plan: standalone.plan_code, source: "standalone_subscription", can_edit: true, can_publish: true };
     }
