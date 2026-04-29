@@ -25,8 +25,10 @@ const formatTime = (iso: string) =>
 
 const isoDate = (iso: string) => iso.slice(0, 10);
 const PROFESSIONAL_FALLBACK = "Profissional não informado";
-const getProfessionalName = (session: PatientSession) =>
-  session.provider_name ?? session.psychologist_name ?? PROFESSIONAL_FALLBACK;
+const getProfessionalName = (session: PatientSession) => {
+  const name = session.provider_name ?? session.psychologist_name;
+  return name && name.trim().length > 0 ? name : PROFESSIONAL_FALLBACK;
+};
 
 const sessionStatusLabel = (status: string) => {
   switch (status) {

@@ -240,8 +240,8 @@ export const patientPortalService = {
         scheduled_at: item.scheduled_at,
         status: item.status,
         confirmed: item.status === "confirmed",
-        psychologist_name: item.psychologist_name ?? item.psychologist?.name,
-        provider_name: item.provider_name ?? item.provider?.name,
+        psychologist_name: item.psychologist_name ?? item.psychologist?.name ?? item.professional_name,
+        provider_name: item.provider_name ?? item.provider?.name ?? item.professional_name,
       })),
     );
   },
