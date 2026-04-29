@@ -63,6 +63,21 @@ test("phase2 admin + sso", async () => {
   const server = createEthosBackend(); server.listen(0); await once(server, "listening");
   const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   try {
+    const adminLogin = await req(base, "/auth/login", { email: "admin@ethos.local", password: "admin123" });
+    const adminToken = adminLogin.json.data.token;
+    const setOverride = await req(base, "/api/admin/biohub/users/u2/override", { override_plan: "premium", reason: "vip" }, { authorization: `Bearer ${adminToken}` });
+    assert.equal(setOverride.status, 200);
+    const accessAfterOverride = await req(base, "/api/integrations/biohub/access", { user_id: "u2" }, { authorization: "Bearer tok", "x-biohub-compat": "raw" });
+    assert.equal(accessAfterOverride.json.allowed, true);
+    
+
+    
+    const userLogin = await req(base, "/auth/login", { email: "camila@ethos.local", password: "admin123" });
+    const openToken = await req(base, "/api/me/biohub/sso-token", {}, { authorization: `Bearer ${userLogin.json.data.token}` });
+    assert.equal(openToken.status, 200);
+    const metricRes = await fetch(`${base}/metrics`);
+    assert.equal(metricRes.status, 200);
+
     const adminLogin = await req(base, "/auth/login", { email: "camila@ethos.local", password: "admin123" });
     const adminToken = adminLogin.json.data.token;
     const setOverride = await req(base, "/api/admin/biohub/users/u2/override", { override_plan: "premium", reason: "vip" }, { authorization: `Bearer ${adminToken}` });
