@@ -15,6 +15,8 @@ export interface PatientSession {
   scheduled_at?: string;
   status: string;
   confirmed: boolean;
+  psychologist_name?: string;
+  provider_name?: string;
 }
 
 export interface DiaryEntry {
@@ -221,6 +223,8 @@ export const patientPortalService = {
         scheduled_at: item.scheduled_at,
         status: item.status,
         confirmed: item.status === "confirmed",
+        psychologist_name: item.psychologist_name ?? item.psychologist?.name,
+        provider_name: item.provider_name ?? item.provider?.name,
       })),
     );
   },
