@@ -28,4 +28,14 @@ export const runMigrations = async () => {
   } finally {
     await sql`DELETE FROM schema_migration_locks WHERE id=${LOCK_ID}`;
   }
+  const existing = await sql`SELECT id FROM schema_migrations WHERE id=${MIGRATION_ID}` as Array<{id:string}>;
+  if (existing.length > 0) return;
+  const file = path.resolve(__dirname, "../../migrations/20260429_01_biohub_phase2.sql");
+  const raw = readFileSync(file, "utf8");
+  const upSection = raw.split("-- down")[0].replace("-- up", "");
+  const statements = upSection.split(";").map((s) => s.trim()).filter(Boolean);
+  for (const stmt of statements) {
+    await sql.query(stmt);
+  }
+  await sql`INSERT INTO schema_migrations (id) VALUES (${MIGRATION_ID})`;
 };
