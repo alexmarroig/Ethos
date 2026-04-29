@@ -66,6 +66,8 @@ export default function PatientSessionsPage() {
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
   const [agendaView, setAgendaView] = useState<"sessions" | "tasks" | "all">("all");
+  const [taskDraft, setTaskDraft] = useState({ title: "", date: "", time: "" });
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -125,6 +127,23 @@ export default function PatientSessionsPage() {
     if (!remote.success && remote.status === 404) await patientPortalService.createTask(remotePayload);
   };
 
+  const removeTask = async (taskId: string) => {
+    deletePatientTask(taskId);
+    setTasks(readPatientTasks());
+    await patientPortalService.deleteTask(taskId);
+  };
+
+  const resetTaskDraft = (date?: string) => {
+    setEditingTaskId(null);
+    setTaskDraft({ title: "", date: date ?? selectedDay ?? "", time: "" });
+  };
+
+
+  useEffect(() => {
+    if (!selectedDay) return;
+    setTaskDraft((prev) => ({ ...prev, date: prev.date || selectedDay }));
+  }, [selectedDay]);
+
   const handleConfirm = async (sessionId: string) => {
     const res = await patientPortalService.confirmSession(sessionId);
     if (res.success) {
@@ -177,6 +196,7 @@ export default function PatientSessionsPage() {
   const tasksByDate = new Map<string, PatientTask[]>();
   for (const task of tasks) tasksByDate.set(task.date, [...(tasksByDate.get(task.date) ?? []), task]);
   const selectedTasks = selectedDay ? (tasksByDate.get(selectedDay) ?? []) : [];
+
 
   const upcoming = sessions.filter((s) => s.scheduled_at && new Date(s.scheduled_at) >= today);
 
@@ -341,22 +361,59 @@ export default function PatientSessionsPage() {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={() => {
-                        if (!selectedDay) return;
-                        const title = window.prompt("Título da tarefa:");
-                        if (!title) return;
-                        const time = window.prompt("Horário (opcional, HH:MM):") ?? "";
-                        void saveTask({
-                          id: crypto.randomUUID(),
-                          title,
-                          date: selectedDay,
-                          time: time || undefined,
-                          completed: false,
-                        });
-                      }}
+                      onClick={() => resetTaskDraft(selectedDay)}
                     >
                       Nova tarefa
                     </Button>
+                  </div>
+                  <div className="rounded-[24px] border border-border bg-card p-5 space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {editingTaskId ? "Editar tarefa pessoal" : "Criar tarefa pessoal"}
+                    </p>
+                    <input
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                      placeholder="Título da tarefa"
+                      value={taskDraft.title}
+                      onChange={(e) => setTaskDraft((prev) => ({ ...prev, title: e.target.value }))}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                        value={taskDraft.date}
+                        onChange={(e) => setTaskDraft((prev) => ({ ...prev, date: e.target.value }))}
+                      />
+                      <input
+                        type="time"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                        value={taskDraft.time}
+                        onChange={(e) => setTaskDraft((prev) => ({ ...prev, time: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (!taskDraft.title.trim() || !taskDraft.date) return;
+                          const original = tasks.find((t) => t.id === editingTaskId);
+                          void saveTask({
+                            id: editingTaskId ?? crypto.randomUUID(),
+                            title: taskDraft.title.trim(),
+                            date: taskDraft.date,
+                            time: taskDraft.time || undefined,
+                            completed: original?.completed ?? false,
+                          });
+                          resetTaskDraft(selectedDay ?? undefined);
+                        }}
+                      >
+                        {editingTaskId ? "Salvar" : "Adicionar"}
+                      </Button>
+                      {editingTaskId && (
+                        <Button variant="ghost" size="sm" onClick={() => resetTaskDraft(selectedDay ?? undefined)}>
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   {selectedSessions.length === 0 && selectedTasks.length === 0 ? (
                     <div className="rounded-[24px] border border-dashed border-border py-12 text-center bg-muted/20">
@@ -424,7 +481,8 @@ export default function PatientSessionsPage() {
                         <p className="text-sm text-muted-foreground">{task.time ? `Horário: ${task.time}` : "Sem horário definido"}</p>
                         <div className="flex gap-2">
                           <Button variant="outline" size="sm" onClick={() => void saveTask({ ...task, completed: !task.completed })}>{task.completed ? "Reabrir" : "Concluir tarefa"}</Button>
-                          <Button variant="ghost" size="sm" onClick={() => { deletePatientTask(task.id); setTasks(readPatientTasks()); void patientPortalService.deleteTask(task.id); }}>Excluir</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingTaskId(task.id) || setTaskDraft({ title: task.title, date: task.date, time: task.time ?? "" })}>Editar</Button>
+                          <Button variant="ghost" size="sm" onClick={() => void removeTask(task.id)}>Excluir</Button>
                         </div>
                       </div>
                     ))}
