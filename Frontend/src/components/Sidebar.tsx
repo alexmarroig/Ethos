@@ -260,17 +260,17 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
             </div>
           </div>
 
-          <div className="flex shrink-0 items-center gap-1.5 pt-1">
+          <div className="flex shrink-0 items-start gap-1.5 pt-0.5">
             {user?.role === "patient" && (
               <button
                 type="button"
                 onClick={() => setNotifOpen(true)}
-                className="relative z-10 flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
+                className="relative z-20 flex h-11 w-11 shrink-0 items-center justify-center overflow-visible rounded-full border border-sidebar-border/80 bg-card text-sidebar-foreground transition-colors hover:border-primary/30 hover:text-primary"
                 aria-label="Notificações"
               >
                 <Bell className="h-4 w-4" />
                 {unreadCount > 0 && (
-                  <span className="absolute right-0 top-0 z-20 flex h-4 min-w-4 -translate-y-1/3 translate-x-1/3 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-sidebar animate-in zoom-in">
+                  <span className="absolute right-0 top-0 z-30 flex h-4 min-w-4 -translate-y-1/4 translate-x-1/4 items-center justify-center rounded-full bg-primary px-1 text-[9px] font-bold text-primary-foreground ring-2 ring-sidebar ring-offset-1 ring-offset-sidebar animate-in zoom-in">
                     {unreadCount > 9 ? "9+" : unreadCount}
                   </span>
                 )}
