@@ -43,6 +43,10 @@ import type {
   SlotRequest,
   WhatsAppConfig,
   SessionReminderConfig,
+  BiohubAccessProfile,
+  BiohubSubscription,
+  BiohubPlanOverride,
+  BiohubAccessAuditLog,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -131,6 +135,10 @@ export const db = {
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
+  biohubAccessProfiles: new Map<string, BiohubAccessProfile>(),
+  biohubSubscriptions: new Map<string, BiohubSubscription>(),
+  biohubPlanOverrides: new Map<string, BiohubPlanOverride>(),
+  biohubAccessAuditLogs: new Map<string, BiohubAccessAuditLog>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   idempotency: new Map<string, IdempotencyRecord>(),
 };
