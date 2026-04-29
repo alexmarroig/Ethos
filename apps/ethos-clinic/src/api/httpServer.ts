@@ -155,6 +155,7 @@ import {
 } from "../application/notifications";
 import type { ApiEnvelope, ApiError, AvailabilityBlock, NotificationChannel, Role, SessionStatus } from "../domain/types";
 import { db, uid, getIdempotencyEntry, setIdempotencyEntry, schedulePersistDatabase } from "../infra/database";
+import { BiohubAccessResolverService } from "../application/biohubAccessResolver";
 
 const openApiPath = path.resolve(__dirname, "../../openapi.yaml");
 const openApi = existsSync(openApiPath) ? readFileSync(openApiPath, "utf-8") : "openapi: 3.0.0\ninfo:\n  title: Ethos Clinic API\n  version: 0.0.0";
@@ -311,6 +312,27 @@ const getRemoteIp = (req: IncomingMessage) => {
   return req.socket.remoteAddress ?? "unknown";
 };
 
+
+const isFeatureEnabled = (flag: string) => process.env[flag] !== "0";
+const integrationTokenValid = (req: IncomingMessage) => {
+  const token = tokenFrom(req);
+  const expected = process.env.ETHOS_API_TOKEN ?? "ethos-integration-token";
+  return Boolean(token) && token === expected;
+};
+const rateLimitState = new Map<string, { count: number; resetAt: number }>();
+const checkRateLimit = (req: IncomingMessage, key: string) => {
+  const ip = getRemoteIp(req);
+  const k = `${key}:${ip}`;
+  const now = Date.now();
+  const current = rateLimitState.get(k);
+  if (!current || current.resetAt < now) {
+    rateLimitState.set(k, { count: 1, resetAt: now + 60_000 });
+    return true;
+  }
+  current.count += 1;
+  return current.count <= 120;
+};
+const resolver = new BiohubAccessResolverService();
 const sendPatientAccessEmail = async (input: {
   to: string;
   patientName: string;
@@ -633,6 +655,29 @@ export const createEthosBackend = () =>
 
       if (method === "GET" && url.pathname === "/health") {
         return ok(res, requestId, 200, { status: "ok", service: "ethos-clinic" });
+      }
+
+      if (method === "POST" && url.pathname === "/api/integrations/biohub/access") {
+        if (!isFeatureEnabled("BIOHUB_INTEGRATION_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub integration disabled");
+        if (!integrationTokenValid(req)) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid integration token");
+        if (!checkRateLimit(req, "biohub-access")) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
+        const body = await readJson(req);
+        const user_id = String(body.user_id ?? "").trim();
+        if (!user_id) return error(res, requestId, 422, "VALIDATION_ERROR", "user_id is required");
+        const result = resolver.resolve({ user_id, tenant_id: typeof body.tenant_id === "string" ? body.tenant_id : undefined });
+        return ok(res, requestId, 200, { ...result, has_access: result.allowed, access: result.allowed, allowed: result.allowed });
+      }
+
+      if (method === "POST" && url.pathname === "/biohub/access") {
+        if (!isFeatureEnabled("BIOHUB_LEGACY_ACCESS_ENDPOINT_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub legacy endpoint disabled");
+        if (!integrationTokenValid(req)) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid integration token");
+        if (!checkRateLimit(req, "biohub-access-legacy")) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
+        const body = await readJson(req);
+        const userId = String(body.userId ?? "").trim();
+        if (!userId) return error(res, requestId, 422, "VALIDATION_ERROR", "userId is required");
+        const action = typeof body.action === "string" ? body.action as "read" | "write" | "publish" | "admin" : undefined;
+        const result = resolver.resolve({ user_id: userId, action });
+        return ok(res, requestId, 200, { allowed: result.allowed });
       }
 
       // ─── Webhook Evolution API — confirmação automática de sessão ────────────
@@ -2817,6 +2862,19 @@ export const createEthosBackend = () =>
       }
 
       // Not found
+      if (method === "POST" && url.pathname === "/api/me/biohub/upgrade-intent") {
+        if (!isFeatureEnabled("BIOHUB_SELF_SERVICE_UPGRADE_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub self-service disabled");
+        const auth = requireAuth(req, res, requestId);
+        if (!auth) return;
+        const body = await readJson(req);
+        const target_plan = String(body.target_plan ?? "");
+        const source = String(body.source ?? "");
+        if (!["basic", "premium"].includes(target_plan) || !["standalone", "bundle_change"].includes(source)) return error(res, requestId, 422, "VALIDATION_ERROR", "Invalid target_plan/source");
+        const intent_id = uid();
+        db.biohubAccessAuditLogs.set(intent_id, { id: intent_id, actor_user_id: auth.user.id, target_user_id: auth.user.id, action_type: "upgrade_intent", before_json: {}, after_json: { target_plan, source }, created_at: new Date().toISOString() });
+        return ok(res, requestId, 200, { ok: true, intent_id, next_step: source === "bundle_change" ? "contact_sales" : "checkout_pending" });
+      }
+
       return error(res, requestId, 404, "NOT_FOUND", "Route not found");
     } catch (err) {
       if (err instanceof BadRequestError) {
