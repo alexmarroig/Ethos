@@ -803,78 +803,11 @@ export const createEthosBackend = () =>
         const body = await readJson(req);
         const user_id = String(body.user_id ?? "").trim();
         if (!user_id) return error(res, requestId, 422, "VALIDATION_ERROR", "user_id is required");
-        const result = resolver.resolve({ user_id, tenant_id: typeof body.tenant_id === "string" ? body.tenant_id : undefined });
+        const result = await resolver.resolve({ user_id, tenant_id: typeof body.tenant_id === "string" ? body.tenant_id : undefined });
         return ok(res, requestId, 200, { ...result, has_access: result.allowed, access: result.allowed, allowed: result.allowed });
       }
 
-      if (method === "POST" && url.pathname === "/biohub/access") {
-        if (!isFeatureEnabled("BIOHUB_LEGACY_ACCESS_ENDPOINT_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub legacy endpoint disabled");
-        if (!integrationTokenValid(req)) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid integration token");
-        if (!checkRateLimit(req, "biohub-access-legacy")) return error(res, requestId, 429, "RATE_LIMITED", "Too many requests");
-        const body = await readJson(req);
-        const userId = String(body.userId ?? "").trim();
-        if (!userId) return error(res, requestId, 422, "VALIDATION_ERROR", "userId is required");
-        const action = typeof body.action === "string" ? body.action as "read" | "write" | "publish" | "admin" : undefined;
-        const result = await resolver.resolve({ user_id: userId, action });
-        if (!result.allowed) biohubMetrics.total_denied += 1;
-        const rawPayload = { allowed: result.allowed, access: result.allowed, has_access: result.allowed };
-        const latencyMs = Date.now() - startedAt;
-        biohubMetrics.observe(latencyMs);
-        process.stdout.write(`${JSON.stringify({ request_id: requestId, route: url.pathname, status: 200, latency_ms: latencyMs, reason: result.reason, source: result.source, user_id: hashUserId(userId) })}
-`);
-        if (isRawCompatMode(req.headers as Record<string, string | string[] | undefined>, url.searchParams)) { res.statusCode = 200; jsonHeaders(res, requestId); return res.end(safeStringify(rawPayload)); }
-        return ok(res, requestId, 200, { allowed: result.allowed });
-      }
 
-
-      if (method === "POST" && url.pathname === "/api/integrations/sso/validate") {
-        if (!isFeatureEnabled("BIOHUB_SSO_VALIDATE_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "SSO validate disabled");
-        const body = await readJson(req);
-        const token = String(body.token ?? "");
-        const secret = process.env.BIOHUB_SSO_JWT_SECRET ?? "";
-        try {
-          const [h,p,sig] = token.split(".");
-          const expected = crypto.createHmac("sha256", secret).update(`${h}.${p}`).digest("base64url");
-          if (!h || !p || !sig || expected !== sig) return error(res, requestId, 401, "UNAUTHORIZED", "Invalid token");
-          const payload = JSON.parse(Buffer.from(p, "base64url").toString("utf8"));
-          if (typeof payload.exp !== "number" || payload.exp * 1000 < Date.now()) return error(res, requestId, 401, "UNAUTHORIZED", "Token expired");
-          return ok(res, requestId, 200, { valid: true, payload });
-        } catch { return error(res, requestId, 401, "UNAUTHORIZED", "Invalid token"); }
-      }
-
-      const adminBiohubMatch = url.pathname.match(/^\/api\/admin\/biohub\/users\/([^/]+)\/(override|ambassador-toggle|block|unblock)$/);
-      if (adminBiohubMatch) {
-        if (!isFeatureEnabled("BIOHUB_ADMIN_OVERRIDE_ENABLED")) return error(res, requestId, 503, "FEATURE_DISABLED", "BioHub admin disabled");
-        const auth = requireAuth(req, res, requestId); if (!auth) return;
-        if (!requireAnyRole(res, requestId, ["admin", "supervisor"], auth.user.role)) return;
-        const userId = adminBiohubMatch[1]; const action = adminBiohubMatch[2];
-        const before = await biohubRepository.getProfile(userId) ?? null;
-        if (action === "override" && method === "POST") {
-          const body = await readJson(req);
-          await biohubRepository.createOverride({ id: uid(), user_id: userId, override_plan: body.override_plan as any, reason: String(body.reason ?? "admin"), expires_at: typeof body.expires_at === "string" ? body.expires_at : null, set_by_admin_id: auth.user.id, active: true });
-        }
-        if (action === "override" && method === "DELETE") await biohubRepository.deactivateOverrides(userId);
-        if (action === "ambassador-toggle" && method === "POST") {
-          const body = await readJson(req);
-          const profile = before ?? { user_id: userId, trial_started_at: null, trial_ends_at: null, status: "none", is_ambassador: false };
-          profile.is_ambassador = body.enabled === true;
-          await biohubRepository.upsertProfile(profile as any);
-        }
-        if ((action === "block" || action === "unblock") && method === "POST") {
-          const profile = before ?? { user_id: userId, trial_started_at: null, trial_ends_at: null, status: "none", is_ambassador: false };
-          if (action === "block") { profile.status = "blocked" as any; profile.blocked_at = new Date().toISOString(); }
-          else { profile.status = "active" as any; profile.blocked_at = null; }
-          await biohubRepository.upsertProfile(profile as any);
-        }
-        const after = await biohubRepository.getProfile(userId) ?? null;
-        await biohubRepository.addAudit({ actor_user_id: auth.user.id, target_user_id: userId, action_type: action === "ambassador-toggle" ? "set_ambassador" : action === "block" ? "block" : action === "unblock" ? "unblock" : method === "DELETE" ? "remove_override" : "set_override", before_json: { before }, after_json: { after } });
-        return ok(res, requestId, 200, { ok: true, user_id: userId });
-      }
-
-            // ─── Webhook Evolution API — confirmação automática de sessão ────────────
-        const result = resolver.resolve({ user_id: userId, action });
-        return ok(res, requestId, 200, { allowed: result.allowed });
-      }
 
       // ─── Webhook Evolution API — confirmação automática de sessão ────────────
       if (method === "POST" && url.pathname === "/webhook/whatsapp") {
@@ -1822,8 +1755,8 @@ export const createEthosBackend = () =>
         if (excludeBlocks) {
           items = items.filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"));
         }
-        if (fromParam) items = items.filter((item) => item.date >= fromParam);
-        if (toParam) items = items.filter((item) => item.date <= toParam);
+        if (fromParam) items = items.filter((item) => (item as any).date >= fromParam);
+        if (toParam) items = items.filter((item) => (item as any).date <= toParam);
         if (statusParam) items = items.filter((item) => item.status === statusParam);
         if (patientIdParam) items = items.filter((item) => item.patient_id === patientIdParam);
 
@@ -3063,7 +2996,7 @@ export const createEthosBackend = () =>
         const secret = process.env.BIOHUB_SSO_JWT_SECRET ?? "";
         if (!secret) return error(res, requestId, 503, "CONFIG_ERROR", "Missing BIOHUB_SSO_JWT_SECRET");
         const now = Math.floor(Date.now() / 1000);
-        const payload = { user_id: auth.user.id, tenant_id: auth.user.owner_user_id ?? auth.user.id, session_id: uid(), issued_at: now, exp: now + 300, requires_upgrade: false };
+        const payload = { user_id: auth.user.id, tenant_id: (auth.user as any).owner_user_id ?? auth.user.id, session_id: uid(), issued_at: now, exp: now + 300, requires_upgrade: false };
         const head = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
         const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
         const signature = crypto.createHmac("sha256", secret).update(`${head}.${body}`).digest("base64url");

@@ -43,7 +43,8 @@ export const getRateLimiterProvider = async (): Promise<RateLimiterProvider> => 
   if (cachedProvider) return cachedProvider;
   if ((process.env.RATE_LIMIT_PROVIDER ?? "memory") === "redis" && process.env.REDIS_URL) {
     try {
-      const { createClient } = await import("redis");
+      const redisModuleName = "redis";
+      const { createClient } = await import(redisModuleName);
       const client = createClient({ url: process.env.REDIS_URL });
       await client.connect();
       cachedProvider = new RedisRateLimiter(client);
