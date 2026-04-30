@@ -876,7 +876,7 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { allowed: result.allowed });
       }
 
-      // ─── Webhook Evolution API — confirmação automática de sessão ────────────
+            // ─── Webhook Evolution API — confirmação automática de sessão ────────────
       if (method === "POST" && url.pathname === "/webhook/whatsapp") {
         try {
           const body = await readJson(req) as Record<string, unknown>;
