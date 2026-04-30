@@ -1,10 +1,14 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
-import { getPatientsRepository } from "@/domain/repositories/patientsRepository";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  getPatientsRepository,
+  setPatientsRepositoryForTests,
+} from "@/domain/repositories/patientsRepository";
 import { patientService } from "@/services/patientService";
 
 describe("PatientsRepository contract", () => {
   beforeEach(() => {
     vi.restoreAllMocks();
+    setPatientsRepositoryForTests(null);
   });
 
   it("exposes the expected contract methods", () => {
@@ -45,12 +49,35 @@ describe("PatientsRepository contract", () => {
       request_id: "test",
     };
 
-    const spy = vi.spyOn(patientService, "getById").mockResolvedValue(expected as any);
+    const spy = vi
+      .spyOn(patientService, "getById")
+      .mockResolvedValue(expected as any);
 
     const repository = getPatientsRepository();
     const result = await repository.getById("p-1");
 
     expect(spy).toHaveBeenCalledWith("p-1");
     expect(result).toEqual(expected);
+  });
+
+  it("allows overriding repository implementation", async () => {
+    const override = {
+      list: vi.fn().mockResolvedValue({
+        success: true as const,
+        data: [{ id: "fake" }],
+        request_id: "override",
+      }),
+      getById: vi.fn(),
+      create: vi.fn(),
+      update: vi.fn(),
+      grantAccess: vi.fn(),
+    } as any;
+
+    setPatientsRepositoryForTests(override);
+
+    const result = await getPatientsRepository().list();
+
+    expect(override.list).toHaveBeenCalledTimes(1);
+    expect(result.request_id).toBe("override");
   });
 });
