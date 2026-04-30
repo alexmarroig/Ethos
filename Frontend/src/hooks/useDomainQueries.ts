@@ -5,8 +5,10 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
-import { patientService, type Patient } from "@/services/patientService";
-import { sessionService, type Session, type SessionFilters } from "@/services/sessionService";
+import type { Patient } from "@/services/patientService";
+import { patientsDomainService } from "@/domain/services/patientsDomainService";
+import type { Session, SessionFilters } from "@/services/sessionService";
+import { sessionsDomainService } from "@/domain/services/sessionsDomainService";
 import type { ApiResult } from "@/services/apiClient";
 
 const MINUTE = 60_000;
@@ -75,7 +77,7 @@ export function retryDelayByError(attempt: number, error: unknown) {
 export function useSessions(filters?: SessionFilters) {
   return useQuery({
     queryKey: domainQueryKeys.sessions(filters),
-    queryFn: async () => unwrapResult(await sessionService.list(filters), "sessions"),
+    queryFn: async () => unwrapResult(await sessionsDomainService.list(filters), "sessions"),
     staleTime: domainCachePolicy.sessions.staleTime,
     gcTime: domainCachePolicy.sessions.gcTime,
     placeholderData: keepPreviousData,
@@ -85,7 +87,7 @@ export function useSessions(filters?: SessionFilters) {
 export function usePatients() {
   return useQuery({
     queryKey: domainQueryKeys.patients(),
-    queryFn: async (): Promise<Patient[]> => unwrapResult(await patientService.list(), "patients"),
+    queryFn: async (): Promise<Patient[]> => unwrapResult(await patientsDomainService.list(), "patients"),
     staleTime: domainCachePolicy.patients.staleTime,
     gcTime: domainCachePolicy.patients.gcTime,
     placeholderData: keepPreviousData,
@@ -117,7 +119,7 @@ export async function prefetchHomeQueries(queryClient: QueryClient) {
   await Promise.allSettled([
     queryClient.prefetchQuery({
       queryKey: domainQueryKeys.patients(),
-      queryFn: async () => unwrapResult(await patientService.list(), "patients"),
+      queryFn: async () => unwrapResult(await patientsDomainService.list(), "patients"),
       staleTime: domainCachePolicy.patients.staleTime,
       gcTime: domainCachePolicy.patients.gcTime,
     }),
