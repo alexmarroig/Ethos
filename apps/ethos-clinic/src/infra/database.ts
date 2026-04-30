@@ -381,7 +381,14 @@ const PREFERRED_LOCAL_CLINICIAN_PASSWORD = "admin123";
 const LEGACY_LOCAL_CLINICIAN_EMAIL = "camila@ethos.local";
 
 const seedBaseData = () => {
-  camilaId = ensureSeedUser({
+  camilaId = 
+  ensureSeedUser({
+    email: "admin@ethos.local",
+    name: "Ethos Admin",
+    password: "admin123",
+    role: "admin",
+  });
+ensureSeedUser({
     email: LEGACY_LOCAL_CLINICIAN_EMAIL,
     name: "Camila",
     password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,

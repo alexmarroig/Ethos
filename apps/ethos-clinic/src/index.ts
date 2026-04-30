@@ -4,8 +4,12 @@ import { startSessionReminderWorker } from "./application/sessionReminderWorker"
 import { startBillingReminderWorker } from "./application/billingReminderWorker";
 import { loadFromFile, saveToFile, startAutosave } from "./infra/persist";
 import { deduplicateAndRepairSeeds } from "./infra/database";
+import { runMigrations } from "./infra/migrations";
+import { biohubRepository } from "./application/biohubRepository";
 
 async function main() {
+  await runMigrations();
+  await biohubRepository.healthcheck();
   await loadFromFile();
   deduplicateAndRepairSeeds(); // remove email duplicates left by old persist bug
   startAutosave(30_000);

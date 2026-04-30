@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { getSessionsRepository, setSessionsRepositoryForTests } from "@/domain/repositories/sessionsRepository";
+import {
+  getSessionsRepository,
+  setSessionsRepositoryForTests,
+} from "@/domain/repositories/sessionsRepository";
 import { sessionService } from "@/services/sessionService";
 
 describe("SessionsRepository contract", () => {
@@ -10,6 +13,7 @@ describe("SessionsRepository contract", () => {
 
   it("exposes expected methods", () => {
     const repository = getSessionsRepository();
+
     expect(typeof repository.listPage).toBe("function");
     expect(typeof repository.list).toBe("function");
     expect(typeof repository.getById).toBe("function");
@@ -25,8 +29,12 @@ describe("SessionsRepository contract", () => {
 
   it("delegates list()", async () => {
     const expected = { success: true as const, data: [], request_id: "test" };
-    const spy = vi.spyOn(sessionService, "list").mockResolvedValue(expected as any);
+    const spy = vi
+      .spyOn(sessionService, "list")
+      .mockResolvedValue(expected as any);
+
     const result = await getSessionsRepository().list();
+
     expect(spy).toHaveBeenCalledTimes(1);
     expect(result).toEqual(expected);
   });
@@ -34,7 +42,11 @@ describe("SessionsRepository contract", () => {
   it("allows overriding repository implementation", async () => {
     const override = {
       listPage: vi.fn(),
-      list: vi.fn().mockResolvedValue({ success: true as const, data: [], request_id: "override" }),
+      list: vi.fn().mockResolvedValue({
+        success: true as const,
+        data: [],
+        request_id: "override",
+      }),
       getById: vi.fn(),
       create: vi.fn(),
       updateStatus: vi.fn(),
@@ -47,6 +59,7 @@ describe("SessionsRepository contract", () => {
     } as any;
 
     setSessionsRepositoryForTests(override);
+
     const result = await getSessionsRepository().list();
 
     expect(override.list).toHaveBeenCalledTimes(1);
