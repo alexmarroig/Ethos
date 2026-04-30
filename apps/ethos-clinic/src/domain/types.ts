@@ -589,3 +589,44 @@ export type SessionReminderConfig = {
   template: string;
 };
 
+
+
+export type BiohubAccessProfile = {
+  user_id: string;
+  trial_started_at: string | null;
+  trial_ends_at: string | null;
+  status: "trialing" | "active" | "past_due" | "blocked" | "none";
+  is_ambassador: boolean;
+  blocked_at?: string | null;
+  blocked_reason?: string | null;
+};
+
+export type BiohubSubscription = {
+  id: string;
+  user_id: string;
+  source: "bundle" | "standalone";
+  plan_code: "free" | "basic" | "premium";
+  status: "active" | "past_due" | "canceled";
+  current_period_start: string;
+  current_period_end: string;
+};
+
+export type BiohubPlanOverride = {
+  id: string;
+  user_id: string;
+  override_plan: "free" | "basic" | "premium" | "none";
+  reason: string;
+  expires_at?: string | null;
+  set_by_admin_id: string;
+  active: boolean;
+};
+
+export type BiohubAccessAuditLog = {
+  id: string;
+  actor_user_id: string;
+  target_user_id: string;
+  action_type: "set_override" | "remove_override" | "set_ambassador" | "block" | "unblock" | "upgrade_intent" | "subscription_sync";
+  before_json: Record<string, unknown>;
+  after_json: Record<string, unknown>;
+  created_at: string;
+};

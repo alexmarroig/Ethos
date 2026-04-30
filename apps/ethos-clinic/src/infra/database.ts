@@ -43,6 +43,10 @@ import type {
   SlotRequest,
   WhatsAppConfig,
   SessionReminderConfig,
+  BiohubAccessProfile,
+  BiohubSubscription,
+  BiohubPlanOverride,
+  BiohubAccessAuditLog,
 } from "../domain/types";
 
 const now = () => new Date().toISOString();
@@ -131,6 +135,10 @@ export const db = {
   telemetry: new Map<string, TelemetryEvent>(),
   telemetryQueue: new Map<string, Array<TelemetryEvent>>(),
   audit: new Map<string, AuditEvent>(),
+  biohubAccessProfiles: new Map<string, BiohubAccessProfile>(),
+  biohubSubscriptions: new Map<string, BiohubSubscription>(),
+  biohubPlanOverrides: new Map<string, BiohubPlanOverride>(),
+  biohubAccessAuditLogs: new Map<string, BiohubAccessAuditLog>(),
   observabilityAlerts: new Map<string, ObservabilityAlert>(),
   idempotency: new Map<string, IdempotencyRecord>(),
 };
@@ -373,7 +381,14 @@ const PREFERRED_LOCAL_CLINICIAN_PASSWORD = "admin123";
 const LEGACY_LOCAL_CLINICIAN_EMAIL = "camila@ethos.local";
 
 const seedBaseData = () => {
-  camilaId = ensureSeedUser({
+  camilaId = 
+  ensureSeedUser({
+    email: "admin@ethos.local",
+    name: "Ethos Admin",
+    password: "admin123",
+    role: "admin",
+  });
+ensureSeedUser({
     email: LEGACY_LOCAL_CLINICIAN_EMAIL,
     name: "Camila",
     password: PREFERRED_LOCAL_CLINICIAN_PASSWORD,

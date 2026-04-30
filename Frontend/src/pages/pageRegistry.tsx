@@ -29,6 +29,7 @@ const importAdminUsersPage = () => import("@/pages/admin/AdminUsersPage");
 const importAdminTestLab = () => import("@/pages/admin/AdminTestLab");
 const importAdminTicketsPage = () => import("@/pages/admin/AdminTicketsPage");
 const importDiagnosticsPage = () => import("@/pages/DiagnosticsPage");
+const importBioHubPage = () => import("@/pages/BioHubPage");
 
 export type Page =
   | "home" | "agenda" | "patients" | "patient-detail" | "ethics" | "settings" | "session" | "prontuario"
@@ -38,7 +39,7 @@ export type Page =
   | "patient-documents" | "patient-payments" | "patient-booking" | "patient-dream-diary"
   | "availability"
   | "admin-dashboard" | "admin-users" | "admin-testlab" | "admin-tickets"
-  | "diagnostics";
+  | "diagnostics" | "biohub";
 
 export type PageRole = "professional" | "patient" | "admin";
 
@@ -89,6 +90,7 @@ export const pageAccess: Partial<Record<Page, PageRole[]>> = {
   "admin-testlab": ["admin"],
   "admin-tickets": ["admin"],
   diagnostics: ["admin"],
+  biohub: ["professional", "admin"],
 };
 
 export const pages = {
@@ -121,6 +123,7 @@ export const pages = {
   AdminTestLab: lazyRetry(importAdminTestLab),
   AdminTicketsPage: lazyRetry(importAdminTicketsPage),
   DiagnosticsPage: lazyRetry(importDiagnosticsPage),
+  BioHubPage: lazyRetry(importBioHubPage),
 };
 
 export const pageImporters: Partial<Record<Page, () => Promise<unknown>>> = {
@@ -153,10 +156,11 @@ export const pageImporters: Partial<Record<Page, () => Promise<unknown>>> = {
   "admin-testlab": importAdminTestLab,
   "admin-tickets": importAdminTicketsPage,
   diagnostics: importDiagnosticsPage,
+  biohub: importBioHubPage,
 };
 
 export const prefetchByRole: Record<PageRole, Array<() => Promise<unknown>>> = {
-  professional: [importHomePage, importAgendaPage, importPatientsPage],
+  professional: [importHomePage, importAgendaPage, importPatientsPage, importBioHubPage],
   patient: [importPatientHomePage, importPatientSessionsPage, importPatientDiaryPage],
   admin: [importAdminDashboard, importAdminUsersPage, importAdminTicketsPage],
 };
