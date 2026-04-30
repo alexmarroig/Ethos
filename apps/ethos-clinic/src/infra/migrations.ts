@@ -46,8 +46,13 @@ export const runMigrations = async () => {
       .map((stmt) => stmt.trim())
       .filter(Boolean);
 
+    const executeRaw = sql as unknown as (
+      strings: TemplateStringsArray,
+      ...values: unknown[]
+    ) => Promise<Array<Record<string, unknown>>>;
+
     for (const stmt of statements) {
-      await sql.query(stmt);
+      await executeRaw([stmt] as unknown as TemplateStringsArray);
     }
 
     await sql`INSERT INTO schema_migrations (id) VALUES (${MIGRATION_ID})`;
