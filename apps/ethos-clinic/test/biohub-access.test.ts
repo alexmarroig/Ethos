@@ -78,6 +78,12 @@ test("phase2 admin + sso", async () => {
     const metricRes = await fetch(`${base}/metrics`);
     assert.equal(metricRes.status, 200);
 
+    const adminLogin = await req(base, "/auth/login", { email: "camila@ethos.local", password: "admin123" });
+    const adminToken = adminLogin.json.data.token;
+    const setOverride = await req(base, "/api/admin/biohub/users/u2/override", { override_plan: "premium", reason: "vip" }, { authorization: `Bearer ${adminToken}` });
+    assert.equal(setOverride.status, 403);
+    
+
     const payload = Buffer.from(JSON.stringify({ user_id: "u1", tenant_id: "t1", session_id: "s1", issued_at: 1, exp: Math.floor(Date.now()/1000)+3600, requires_upgrade: false })).toString("base64url");
     const head = Buffer.from(JSON.stringify({ alg: "HS256", typ: "JWT" })).toString("base64url");
     const sig = require("node:crypto").createHmac("sha256", "secret").update(`${head}.${payload}`).digest("base64url");

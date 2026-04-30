@@ -6,6 +6,10 @@ type NeonSql = ReturnType<typeof neon>;
 
 export interface BiohubRepository {
   healthcheck(): Promise<void>;
+import { db, uid } from "../infra/database";
+import type { BiohubAccessAuditLog, BiohubAccessProfile, BiohubPlanOverride, BiohubSubscription } from "../domain/types";
+
+export interface BiohubRepository {
   getProfile(userId: string): Promise<BiohubAccessProfile | undefined>;
   listSubscriptions(userId: string): Promise<BiohubSubscription[]>;
   getActiveOverride(userId: string): Promise<BiohubPlanOverride | undefined>;
@@ -40,6 +44,7 @@ class SqlBiohubRepository implements BiohubRepository {
 
 class MemoryBiohubRepository implements BiohubRepository {
   async healthcheck() { return; }
+export class MemoryBiohubRepository implements BiohubRepository {
   async getProfile(userId: string) { return db.biohubAccessProfiles.get(userId); }
   async listSubscriptions(userId: string) { return Array.from(db.biohubSubscriptions.values()).filter((s) => s.user_id === userId); }
   async getActiveOverride(userId: string) { return Array.from(db.biohubPlanOverrides.values()).find((o) => o.user_id === userId && o.active); }
@@ -58,3 +63,9 @@ export const createBiohubRepository = (): BiohubRepository => {
 };
 
 export const biohubRepository: BiohubRepository = createBiohubRepository();
+  async addAudit(log: Omit<BiohubAccessAuditLog, "id" | "created_at">) {
+    db.biohubAccessAuditLogs.set(uid(), { id: uid(), created_at: new Date().toISOString(), ...log });
+  }
+}
+
+export const biohubRepository: BiohubRepository = new MemoryBiohubRepository();
