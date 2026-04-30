@@ -40,6 +40,7 @@ const {
   AdminTestLab,
   AdminTicketsPage,
   DiagnosticsPage,
+  BioHubPage,
 } = pages;
 
 const Index = () => {
@@ -203,6 +204,8 @@ const Index = () => {
         return <DiagnosticsPage />;
       case "admin-tickets":
         return <AdminTicketsPage />;
+      case "biohub":
+        return <BioHubPage />;
       case "settings":
         return (
           <div className="content-container py-12">
