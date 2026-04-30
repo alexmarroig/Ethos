@@ -871,11 +871,6 @@ export const createEthosBackend = () =>
         return ok(res, requestId, 200, { ok: true, user_id: userId });
       }
 
-            // ─── Webhook Evolution API — confirmação automática de sessão ────────────
-        const result = resolver.resolve({ user_id: userId, action });
-        return ok(res, requestId, 200, { allowed: result.allowed });
-      }
-
       // ─── Webhook Evolution API — confirmação automática de sessão ────────────
       if (method === "POST" && url.pathname === "/webhook/whatsapp") {
         try {
