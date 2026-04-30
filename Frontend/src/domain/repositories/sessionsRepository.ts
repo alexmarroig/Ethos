@@ -7,12 +7,16 @@ function isLocalSessionsEnabled(): boolean {
 
 let sessionsRepositoryOverride: SessionsRepository | null = null;
 
-export function setSessionsRepositoryForTests(repository: SessionsRepository | null): void {
+export function setSessionsRepositoryForTests(
+  repository: SessionsRepository | null,
+): void {
   sessionsRepositoryOverride = repository;
 }
 
 export function getSessionsRepository(): SessionsRepository {
-  if (sessionsRepositoryOverride) return sessionsRepositoryOverride;
+  if (sessionsRepositoryOverride) {
+    return sessionsRepositoryOverride;
+  }
 
   if (isLocalSessionsEnabled()) {
     // TODO: plugar IndexedDBSessionsRepository quando estiver pronto.

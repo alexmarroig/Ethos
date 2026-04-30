@@ -8,12 +8,16 @@ function isLocalPatientsEnabled(): boolean {
 
 let patientsRepositoryOverride: PatientsRepository | null = null;
 
-export function setPatientsRepositoryForTests(repository: PatientsRepository | null): void {
+export function setPatientsRepositoryForTests(
+  repository: PatientsRepository | null,
+): void {
   patientsRepositoryOverride = repository;
 }
 
 export function getPatientsRepository(): PatientsRepository {
-  if (patientsRepositoryOverride) return patientsRepositoryOverride;
+  if (patientsRepositoryOverride) {
+    return patientsRepositoryOverride;
+  }
 
   if (isLocalPatientsEnabled()) {
     return indexedDbPatientsRepository;

@@ -27,6 +27,7 @@ import {
   Loader2,
   Calendar as CalendarIcon,
   CreditCard as CreditCardIcon,
+  Globe,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth, UserRole } from "@/contexts/AuthContext";
@@ -75,6 +76,7 @@ const navigation: NavItem[] = [
   { id: "forms", label: "Formulários e Anamnese", icon: ClipboardList, roles: ["professional"] },
   { id: "finance", label: "Financeiro", icon: DollarSign, roles: ["professional"], separator: true },
   { id: "documents", label: "Documentos", icon: FolderOpen, roles: ["professional"] },
+  { id: "biohub", label: "BioHub", icon: Globe, roles: ["professional", "admin"] },
   { id: "availability", label: "Disponibilidade", icon: Clock, roles: ["professional"], separator: true },
   { id: "backup", label: "Backup e dados", icon: DatabaseBackup, roles: ["professional"] },
   { id: "ethics", label: "Ética e sigilo", icon: Shield, roles: ["professional"] },

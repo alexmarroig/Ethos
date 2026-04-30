@@ -7,12 +7,16 @@ function isLocalRecordsEnabled(): boolean {
 
 let recordsRepositoryOverride: RecordsRepository | null = null;
 
-export function setRecordsRepositoryForTests(repository: RecordsRepository | null): void {
+export function setRecordsRepositoryForTests(
+  repository: RecordsRepository | null,
+): void {
   recordsRepositoryOverride = repository;
 }
 
 export function getRecordsRepository(): RecordsRepository {
-  if (recordsRepositoryOverride) return recordsRepositoryOverride;
+  if (recordsRepositoryOverride) {
+    return recordsRepositoryOverride;
+  }
 
   if (isLocalRecordsEnabled()) {
     // TODO: plugar IndexedDBRecordsRepository quando estiver pronto.
