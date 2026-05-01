@@ -5,6 +5,7 @@ import PainPoints from "@/components/landing/PainPoints";
 import Solution from "@/components/landing/Solution";
 import HowItWorks from "@/components/landing/HowItWorks";
 import Features from "@/components/landing/Features";
+import BioHub from "@/components/landing/BioHub";
 import Demo from "@/components/landing/Demo";
 import Platforms from "@/components/landing/Platforms";
 import Testimonials from "@/components/landing/Testimonials";
@@ -28,6 +29,7 @@ const Index = () => {
         <Solution />
         <HowItWorks />
         <Features />
+        <BioHub />
         <Demo />
         <Platforms />
         <Testimonials />

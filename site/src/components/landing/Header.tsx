@@ -5,6 +5,7 @@ import EthosLogo from "./EthosLogo";
 const NAV = [
   { label: "Solução", href: "#solucao" },
   { label: "Funcionalidades", href: "#funcionalidades" },
+  { label: "BioHub", href: "#biohub" },
   { label: "Privacidade", href: "#privacidade" },
   { label: "Preço", href: "#preco" },
   { label: "FAQ", href: "#faq" },

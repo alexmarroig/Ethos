@@ -324,12 +324,14 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
               type="button"
               onClick={togglePrivacyMode}
               className={cn(
-                "flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border transition-all duration-200 text-xs font-medium",
+                "flex h-9 flex-1 items-center justify-center gap-2 rounded-xl border transition-all duration-300 text-xs font-medium",
                 privacyMode
                   ? "border-primary/40 bg-primary/10 text-primary"
                   : "border-sidebar-border/60 text-muted-foreground hover:border-primary/30 hover:bg-sidebar-accent hover:text-foreground",
               )}
-              title={privacyMode ? "Privacidade ativa" : "Modo privacidade"}
+              title={privacyMode ? "Desativar Privacidade" : "Ativar Privacidade"}
+              aria-label={privacyMode ? "Desativar modo privacidade" : "Ativar modo privacidade"}
+              aria-pressed={privacyMode}
             >
               {privacyMode ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
               {privacyMode ? "Privado" : "Público"}
@@ -338,8 +340,9 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
           <button
             type="button"
             onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
-            className="flex h-9 w-12 items-center justify-center rounded-xl border border-sidebar-border/60 text-muted-foreground transition-all duration-200 hover:border-primary/30 hover:bg-sidebar-accent hover:text-foreground"
-            aria-label="Alternar tema"
+            className="flex h-9 w-12 items-center justify-center rounded-xl border border-sidebar-border/60 text-muted-foreground transition-all duration-300 hover:border-primary/30 hover:bg-sidebar-accent hover:text-foreground"
+            aria-label="Alternar tema claro/escuro"
+            title="Alternar tema"
           >
             {resolvedTheme === "dark" ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
           </button>
@@ -350,14 +353,14 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
           onMouseEnter={() => onPrefetch?.("account")}
           onClick={() => onNavigate("account")}
           className={cn(
-            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-200",
+            "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left transition-all duration-300",
             "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
             currentPage === "account" ? "bg-sidebar-accent font-medium text-sidebar-primary" : "text-sidebar-foreground",
           )}
         >
           <User
             className={cn(
-              "h-[18px] w-[18px] transition-colors duration-200",
+              "h-[18px] w-[18px] transition-colors duration-300",
               currentPage === "account" ? "text-sidebar-primary" : "text-muted-foreground",
             )}
             strokeWidth={1.5}
@@ -368,7 +371,9 @@ export default function Sidebar({ currentPage, onNavigate, onPrefetch }: Sidebar
         {user ? (
           <button
             onClick={logout}
-            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-muted-foreground transition-all duration-200 hover:bg-destructive/10 hover:text-destructive"
+            aria-label="Sair do sistema"
+            title="Sair do sistema"
+            className="flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-left text-muted-foreground transition-all duration-300 hover:bg-destructive/10 hover:text-destructive"
           >
             <LogOut className="h-[18px] w-[18px]" strokeWidth={1.5} />
             <span className="text-[15px]">Sair</span>

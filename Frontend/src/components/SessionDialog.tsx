@@ -18,7 +18,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, Monitor, Repeat2 } from "lucide-react";
+import { Building2, Monitor, Repeat2, ChevronRight, ChevronLeft, CalendarCheck } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sessionService, type RecurrenceRule } from "@/services/sessionService";
 import {
@@ -27,6 +27,8 @@ import {
   writeAgendaDraft,
   writeAgendaTaskDraft,
 } from "@/pages/agendaStorage";
+import { AnimatePresence, motion } from "framer-motion";
+import { useBeforeUnload } from "@/hooks/useBeforeUnload";
 
 interface Patient {
   id: string;
@@ -102,16 +104,27 @@ export function SessionDialog({
   const [draftRecoveredAt, setDraftRecoveredAt] = useState<string | null>(null);
   const draftHydratedRef = useRef(false);
 
+  // Wizard state
+  const [step, setStep] = useState<1 | 2 | 3>(1);
+
   const endTime = useMemo(() => calculateEndTime(time, duration), [time, duration]);
   const currentMode = eventType === "task" ? "task" : "session";
+
+  const isDirty = useMemo(() => {
+    return patientId !== "" || taskTitle !== "" || date !== defaultDate || time !== defaultTime;
+  }, [patientId, taskTitle, date, time, defaultDate, defaultTime]);
+
+  useBeforeUnload(open && isDirty, "Você tem dados preenchidos no formulário. Tem certeza que deseja descartar?");
 
   useEffect(() => {
     if (!open) {
       draftHydratedRef.current = false;
+      setStep(1);
       return;
     }
 
     draftHydratedRef.current = false;
+    setStep(1);
     const nextMode = mode === "task" ? "task" : (defaultEventType ?? "session");
     const sessionDraft = nextMode === "session" ? readAgendaDraft("session") : null;
     const taskDraft = nextMode === "task" ? readAgendaDraft("task") : null;
@@ -221,7 +234,7 @@ export function SessionDialog({
       }
     : {
         title: "Agendar sessão",
-        description: "Preencha os dados principais da sessão e mantenha a ação de salvar sempre visível, sem apertar o layout.",
+        description: "Preencha os dados da sessão em etapas para facilitar o agendamento.",
         submitLabel: recurring ? "Iniciar recorrência" : "Agendar sessão",
       };
 
@@ -233,24 +246,38 @@ export function SessionDialog({
     ? recurrenceSummary(recurrenceType, recurrenceDays, time)
     : "";
 
+  const handleNext = () => {
+    setError(null);
+    if (step === 1) {
+      if (!date || !time) {
+        setError("Data e horário são obrigatórios.");
+        return;
+      }
+      if (eventType === "session" && !patientId) {
+        setError("Selecione um paciente.");
+        return;
+      }
+      if (eventType === "task" && !taskTitle.trim()) {
+        setError("Informe o título do bloqueio.");
+        return;
+      }
+      setStep(eventType === "session" ? 2 : 3);
+    } else if (step === 2) {
+      setStep(3);
+    }
+  };
+
+  const handleBack = () => {
+    setError(null);
+    if (step === 3) {
+      setStep(eventType === "session" ? 2 : 1);
+    } else if (step === 2) {
+      setStep(1);
+    }
+  };
+
   const handleSubmit = async () => {
     setError(null);
-
-    if (!date || !time) {
-      setError("Data e horário são obrigatórios.");
-      return;
-    }
-
-    if (eventType === "session" && !patientId) {
-      setError("Selecione um paciente.");
-      return;
-    }
-
-    if (eventType === "task" && !taskTitle.trim()) {
-      setError("Informe o título do bloqueio.");
-      return;
-    }
-
     const scheduledAt = new Date(`${date}T${time}:00`).toISOString();
 
     let recurrence: RecurrenceRule | undefined;
@@ -312,247 +339,369 @@ export function SessionDialog({
     setDuration(50);
   };
 
+  // Motion variants for wizard slide
+  const variants = {
+    enter: (direction: number) => {
+      return {
+        x: direction > 0 ? 50 : -50,
+        opacity: 0,
+      };
+    },
+    center: {
+      zIndex: 1,
+      x: 0,
+      opacity: 1,
+    },
+    exit: (direction: number) => {
+      return {
+        zIndex: 0,
+        x: direction < 0 ? 50 : -50,
+        opacity: 0,
+      };
+    },
+  };
+  
+  const [[page, direction], setPage] = useState([step, 0]);
+
+  useEffect(() => {
+    setPage((prev) => {
+      const dir = step > prev[0] ? 1 : -1;
+      return [step, dir];
+    });
+  }, [step]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[min(96vw,40rem)] max-w-[40rem] overflow-x-hidden p-0">
-        <div className="max-h-[90vh] overflow-y-auto">
-          <DialogHeader className="space-y-2 border-b border-border/70 px-4 pb-4 pt-6 sm:px-6">
-            <DialogTitle className="pr-8 font-serif text-xl sm:text-2xl">{dialogCopy.title}</DialogTitle>
-            <DialogDescription className="max-w-[52ch] pr-6 text-sm leading-6">
-              {dialogCopy.description}
-            </DialogDescription>
-            {draftRecoveredAt ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground">
-                <span>
-                  Rascunho recuperado. Última atualização em{" "}
-                  {new Date(draftRecoveredAt).toLocaleString("pt-BR", {
-                    day: "2-digit",
-                    month: "2-digit",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
-                  .
-                </span>
-                <button
-                  type="button"
-                  onClick={handleClearDraft}
-                  className="font-semibold text-primary transition-colors hover:text-primary/80"
-                >
-                  Limpar rascunho
-                </button>
-              </div>
-            ) : null}
-          </DialogHeader>
-
-          <div className="min-w-0 space-y-6 px-4 py-5 sm:px-6">
-            {eventType === "session" ? (
-              <section className="min-w-0 space-y-5">
-                <div className="min-w-0 space-y-2">
-                  <Label htmlFor="session-patient">Paciente</Label>
-                  <Select value={patientId} onValueChange={setPatientId}>
-                    <SelectTrigger id="session-patient" className="min-w-0">
-                      <SelectValue placeholder="Selecionar paciente..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {patients.map((patient) => (
-                        <SelectItem key={patient.id} value={patient.id}>
-                          {patient.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="min-w-0 space-y-2">
-                  <Label>Modalidade</Label>
-                  <div className="grid min-w-0 gap-2 sm:grid-cols-2">
-                    <button
-                      type="button"
-                      onClick={() => setLocationType("remote")}
-                      className={cn(
-                        "flex min-w-0 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium transition-colors",
-                        locationType === "remote"
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                      )}
-                    >
-                      <Monitor className="h-4 w-4 shrink-0" />
-                      <span className="truncate">Remoto</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setLocationType("presencial")}
-                      className={cn(
-                        "flex min-w-0 items-center justify-center gap-2 rounded-2xl border px-3 py-3 text-sm font-medium transition-colors",
-                        locationType === "presencial"
-                          ? "border-primary bg-primary text-primary-foreground"
-                          : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                      )}
-                    >
-                      <Building2 className="h-4 w-4 shrink-0" />
-                      <span className="truncate">Presencial</span>
-                    </button>
-                  </div>
-                </div>
-              </section>
-            ) : (
-              <section className="min-w-0 space-y-2">
-                <Label htmlFor="task-title">Título do bloqueio</Label>
-                <Input
-                  id="task-title"
-                  value={taskTitle}
-                  onChange={(event) => setTaskTitle(event.target.value)}
-                  placeholder="Ex.: almoço, supervisão, reunião ou atendimento externo"
-                />
-              </section>
-            )}
-
-            <section className="min-w-0 space-y-3">
-              <div className="space-y-1">
-                <h3 className="text-sm font-semibold text-foreground">Data e horário</h3>
-                <p className="text-xs leading-5 text-muted-foreground">
-                  Os campos quebram em pares para manter leitura estável em notebooks e janelas intermediárias.
-                </p>
-              </div>
-
-              <div className="min-w-0 space-y-3">
-                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                  <div className="min-w-0 space-y-2">
-                    <Label htmlFor="session-date">Data</Label>
-                    <Input
-                      id="session-date"
-                      type="date"
-                      value={date}
-                      onChange={(event) => setDate(event.target.value)}
-                    />
-                  </div>
-
-                  <div className="min-w-0 space-y-2">
-                    <Label htmlFor="session-time">Horário inicial</Label>
-                    <Input
-                      id="session-time"
-                      type="time"
-                      value={time}
-                      onChange={(event) => setTime(event.target.value)}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid min-w-0 gap-3 sm:grid-cols-2">
-                  <div className="min-w-0 space-y-2">
-                    <Label htmlFor="session-duration">Duração (min)</Label>
-                    <Input
-                      id="session-duration"
-                      type="number"
-                      min={15}
-                      step={5}
-                      value={duration}
-                      onChange={(event) => setDuration(Number(event.target.value))}
-                    />
-                  </div>
-
-                  <div className="min-w-0 space-y-2">
-                    <Label htmlFor="session-end-time">Horário final</Label>
-                    <Input
-                      id="session-end-time"
-                      value={endTime}
-                      readOnly
-                      disabled
-                      className="w-full min-w-0 opacity-80"
-                    />
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            {eventType === "session" ? (
-              <section className="min-w-0 space-y-4">
-                <div className="flex min-w-0 items-start justify-between gap-4 rounded-2xl border border-border/70 bg-muted/20 px-4 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-foreground">Sessão recorrente</p>
-                    <p className="text-xs leading-5 text-muted-foreground">
-                      Próxima sessão gerada automaticamente.
-                    </p>
-                  </div>
-                  <Switch checked={recurring} onCheckedChange={setRecurring} />
-                </div>
-
-                {recurring ? (
-                  <div className="min-w-0 space-y-4 rounded-2xl border border-dashed border-primary/30 bg-primary/5 px-4 py-4">
-                    <div className="grid min-w-0 gap-2 sm:grid-cols-3">
-                      {(["weekly", "2x-week", "biweekly"] as RecurrenceType[]).map((type) => (
-                        <button
-                          key={type}
-                          type="button"
-                          onClick={() => {
-                            setRecurrenceType(type);
-                            if (type !== "2x-week" && selectedDays.length > 1) {
-                              setSelectedDays([selectedDays[0]]);
-                            }
-                          }}
-                          className={cn(
-                            "rounded-2xl border px-3 py-2 text-xs font-semibold transition-colors",
-                            recurrenceType === type
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                          )}
-                        >
-                          {type === "weekly" ? "Semanal" : type === "2x-week" ? "2× semana" : "Quinzenal"}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="grid min-w-0 grid-cols-2 gap-2 sm:grid-cols-5">
-                      {ALL_DAYS.map((day) => (
-                        <button
-                          key={day}
-                          type="button"
-                          onClick={() => toggleDay(day)}
-                          className={cn(
-                            "rounded-2xl border px-3 py-2 text-xs font-semibold transition-colors",
-                            selectedDays.includes(day)
-                              ? "border-primary bg-primary text-primary-foreground"
-                              : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
-                          )}
-                        >
-                          {DAY_LABELS[day]}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="rounded-2xl border border-border/70 bg-background/80 px-3 py-3 text-sm text-muted-foreground">
-                      <div className="flex items-center gap-2 font-medium text-foreground">
-                        <Repeat2 className="h-4 w-4 text-primary" />
-                        Resumo da recorrência
-                      </div>
-                      <p className="mt-1 text-xs leading-5">
-                        {recurrenceText || "Defina ao menos um dia e um horário para gerar a recorrência."}
-                      </p>
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-            ) : null}
-
-            {error ? <p className="text-sm font-medium text-destructive">{error}</p> : null}
+      <DialogContent className="w-[min(96vw,40rem)] max-w-[40rem] overflow-hidden p-0 gap-0 border-sidebar-border/80 bg-background/95 backdrop-blur-md">
+        <DialogHeader className="space-y-2 border-b border-border/70 px-4 py-4 sm:px-6 bg-card/50">
+          <div className="flex items-center justify-between">
+            <DialogTitle className="font-serif text-xl sm:text-2xl">{dialogCopy.title}</DialogTitle>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-muted-foreground bg-secondary/50 px-2 py-1 rounded-full">
+              <span className={cn("transition-colors", step === 1 && "text-primary")}>1</span>
+              <span>/</span>
+              <span className={cn("transition-colors", step === 2 && "text-primary")}>{eventType === "session" ? "2" : "1"}</span>
+              {eventType === "session" && (
+                <>
+                  <span>/</span>
+                  <span className={cn("transition-colors", step === 3 && "text-primary")}>3</span>
+                </>
+              )}
+            </div>
           </div>
+          <DialogDescription className="max-w-[52ch] text-sm leading-6">
+            {dialogCopy.description}
+          </DialogDescription>
+          {draftRecoveredAt && step === 1 ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-muted-foreground mt-2">
+              <span>
+                Rascunho auto-salvo. Última alteração em{" "}
+                {new Date(draftRecoveredAt).toLocaleString("pt-BR", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}
+                .
+              </span>
+              <button
+                type="button"
+                onClick={handleClearDraft}
+                className="font-semibold text-primary transition-colors hover:text-primary/80"
+              >
+                Limpar rascunho
+              </button>
+            </div>
+          ) : null}
+        </DialogHeader>
+
+        <div className="relative min-h-[350px] overflow-hidden bg-background">
+          <AnimatePresence initial={false} custom={direction} mode="wait">
+            <motion.div
+              key={page}
+              custom={direction}
+              variants={variants}
+              initial="enter"
+              animate="center"
+              exit="exit"
+              transition={{
+                x: { type: "spring", stiffness: 300, damping: 30 },
+                opacity: { duration: 0.2 }
+              }}
+              className="absolute inset-0 px-4 py-5 sm:px-6 overflow-y-auto"
+            >
+              {step === 1 && (
+                <div className="space-y-6">
+                  {eventType === "session" ? (
+                    <section className="space-y-2">
+                      <Label htmlFor="session-patient">Paciente</Label>
+                      <Select value={patientId} onValueChange={setPatientId}>
+                        <SelectTrigger id="session-patient" className="min-w-0 bg-card">
+                          <SelectValue placeholder="Selecione um paciente..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {patients.map((patient) => (
+                            <SelectItem key={patient.id} value={patient.id}>
+                              {patient.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </section>
+                  ) : (
+                    <section className="space-y-2">
+                      <Label htmlFor="task-title">Título do bloqueio</Label>
+                      <Input
+                        id="task-title"
+                        value={taskTitle}
+                        onChange={(event) => setTaskTitle(event.target.value)}
+                        placeholder="Ex.: almoço, supervisão, reunião"
+                        className="bg-card"
+                      />
+                    </section>
+                  )}
+
+                  <section className="space-y-4">
+                    <div className="space-y-1">
+                      <h3 className="text-sm font-semibold text-foreground">Data e horário</h3>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="session-date">Data</Label>
+                        <Input
+                          id="session-date"
+                          type="date"
+                          value={date}
+                          onChange={(event) => setDate(event.target.value)}
+                          className="bg-card"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="session-time">Horário inicial</Label>
+                        <Input
+                          id="session-time"
+                          type="time"
+                          value={time}
+                          onChange={(event) => setTime(event.target.value)}
+                          className="bg-card"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4 sm:grid-cols-2">
+                      <div className="space-y-2">
+                        <Label htmlFor="session-duration">Duração (min)</Label>
+                        <Input
+                          id="session-duration"
+                          type="number"
+                          min={15}
+                          step={5}
+                          value={duration}
+                          onChange={(event) => setDuration(Number(event.target.value))}
+                          className="bg-card"
+                        />
+                      </div>
+
+                      <div className="space-y-2">
+                        <Label htmlFor="session-end-time">Horário final</Label>
+                        <Input
+                          id="session-end-time"
+                          value={endTime}
+                          readOnly
+                          disabled
+                          className="w-full bg-card opacity-70"
+                        />
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              )}
+
+              {step === 2 && eventType === "session" && (
+                <div className="space-y-6">
+                  <section className="space-y-3">
+                    <Label>Modalidade da Sessão</Label>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <button
+                        type="button"
+                        onClick={() => setLocationType("remote")}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium transition-all duration-200",
+                          locationType === "remote"
+                            ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <Monitor className="h-6 w-6" />
+                        <span>Remoto</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setLocationType("presencial")}
+                        className={cn(
+                          "flex flex-col items-center justify-center gap-2 rounded-2xl border p-4 text-sm font-medium transition-all duration-200",
+                          locationType === "presencial"
+                            ? "border-primary bg-primary/5 text-primary ring-1 ring-primary/20"
+                            : "border-border bg-card text-muted-foreground hover:border-primary/40 hover:bg-accent hover:text-foreground",
+                        )}
+                      >
+                        <Building2 className="h-6 w-6" />
+                        <span>Presencial</span>
+                      </button>
+                    </div>
+                  </section>
+
+                  <section className="space-y-4">
+                    <div className="flex items-center justify-between gap-4 rounded-2xl border border-border bg-card p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-foreground">Sessão recorrente</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Gerar automaticamente as próximas sessões.
+                        </p>
+                      </div>
+                      <Switch checked={recurring} onCheckedChange={setRecurring} />
+                    </div>
+
+                    <AnimatePresence>
+                      {recurring && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-4 rounded-2xl border border-primary/20 bg-primary/5 p-4"
+                        >
+                          <div className="grid gap-2 sm:grid-cols-3">
+                            {(["weekly", "2x-week", "biweekly"] as RecurrenceType[]).map((type) => (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => {
+                                  setRecurrenceType(type);
+                                  if (type !== "2x-week" && selectedDays.length > 1) {
+                                    setSelectedDays([selectedDays[0]]);
+                                  }
+                                }}
+                                className={cn(
+                                  "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
+                                  recurrenceType === type
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                                )}
+                              >
+                                {type === "weekly" ? "Semanal" : type === "2x-week" ? "2× semana" : "Quinzenal"}
+                              </button>
+                            ))}
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+                            {ALL_DAYS.map((day) => (
+                              <button
+                                key={day}
+                                type="button"
+                                onClick={() => toggleDay(day)}
+                                className={cn(
+                                  "rounded-xl border px-3 py-2 text-xs font-semibold transition-colors",
+                                  selectedDays.includes(day)
+                                    ? "border-primary bg-primary text-primary-foreground"
+                                    : "border-border bg-background text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                                )}
+                              >
+                                {DAY_LABELS[day]}
+                              </button>
+                            ))}
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </section>
+                </div>
+              )}
+
+              {step === 3 && (
+                <div className="space-y-6">
+                  <div className="flex flex-col items-center justify-center p-6 text-center space-y-4 rounded-2xl border border-primary/20 bg-primary/5">
+                    <div className="h-16 w-16 bg-primary/10 rounded-full flex items-center justify-center">
+                      <CalendarCheck className="h-8 w-8 text-primary" />
+                    </div>
+                    <div>
+                      <h3 className="text-lg font-semibold text-foreground">
+                        {eventType === "session" ? "Revisão do Agendamento" : "Revisão do Bloqueio"}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mt-1">Verifique os dados antes de confirmar.</p>
+                    </div>
+                  </div>
+
+                  <div className="rounded-2xl border bg-card divide-y divide-border">
+                    {eventType === "session" ? (
+                      <>
+                        <div className="p-4 flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Paciente</span>
+                          <span className="text-sm font-medium">{patients.find(p => p.id === patientId)?.name || "N/A"}</span>
+                        </div>
+                        <div className="p-4 flex justify-between items-center">
+                          <span className="text-sm text-muted-foreground">Modalidade</span>
+                          <span className="text-sm font-medium capitalize">{locationType}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="p-4 flex justify-between items-center">
+                        <span className="text-sm text-muted-foreground">Título</span>
+                        <span className="text-sm font-medium">{taskTitle}</span>
+                      </div>
+                    )}
+                    <div className="p-4 flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Data e Horário</span>
+                      <span className="text-sm font-medium">
+                        {date.split('-').reverse().join('/')} às {time} ({duration} min)
+                      </span>
+                    </div>
+                    {recurring && eventType === "session" && (
+                      <div className="p-4 flex justify-between items-center bg-primary/5">
+                        <span className="text-sm text-primary flex items-center gap-1.5">
+                          <Repeat2 className="h-4 w-4" /> Recorrência
+                        </span>
+                        <span className="text-sm font-medium text-primary text-right max-w-[60%]">
+                          {recurrenceText}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                  {error && <p className="text-sm font-medium text-destructive text-center">{error}</p>}
+                </div>
+              )}
+            </motion.div>
+          </AnimatePresence>
         </div>
 
-        <DialogFooter className="min-w-0 gap-2 border-t border-border/70 px-4 py-4 sm:px-6 sm:py-5">
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            className="w-full min-w-0 md:w-auto"
-          >
-            Cancelar
-          </Button>
-          <Button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full min-w-0 md:w-auto"
-          >
-            {loading ? "Salvando..." : dialogCopy.submitLabel}
-          </Button>
+        <DialogFooter className="border-t border-border/70 bg-card/50 p-4 sm:px-6">
+          <div className="flex w-full items-center justify-between">
+            <Button
+              variant="ghost"
+              onClick={step === 1 ? () => onOpenChange(false) : handleBack}
+              className="px-3"
+            >
+              {step === 1 ? "Cancelar" : (
+                <>
+                  <ChevronLeft className="mr-1.5 h-4 w-4" />
+                  Voltar
+                </>
+              )}
+            </Button>
+            
+            <Button
+              onClick={step === 3 ? handleSubmit : handleNext}
+              disabled={loading}
+              className="px-6 min-w-[120px]"
+            >
+              {step === 3 ? (
+                loading ? "Salvando..." : dialogCopy.submitLabel
+              ) : (
+                <>
+                  Próximo
+                  <ChevronRight className="ml-1.5 h-4 w-4" />
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

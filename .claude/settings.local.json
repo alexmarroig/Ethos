@@ -11,7 +11,9 @@
       "Bash(npx tsc *)",
       "Bash(xargs cat *)",
       "Bash(npm run *)",
-      "mcp__f702ec6c-45ee-43d7-aa66-c1536ab14ca9__list_teams"
+      "mcp__f702ec6c-45ee-43d7-aa66-c1536ab14ca9__list_teams",
+      "WebSearch",
+      "Bash(git checkout *)"
     ]
   }
 }

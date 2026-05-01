@@ -12,6 +12,7 @@ const defaultControlProxyTarget =
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
+  envPrefix: ["VITE_", "NEXT_PUBLIC_"],
   define: {
     __CLINICAL_PROXY_TARGET__: JSON.stringify(defaultClinicalProxyTarget),
     __CONTROL_PROXY_TARGET__: JSON.stringify(defaultControlProxyTarget),

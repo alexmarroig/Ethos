@@ -1,5 +1,13 @@
 import EthosLogo from "./EthosLogo";
 
+const productLinks = [
+  { label: "Funcionalidades", href: "#funcionalidades" },
+  { label: "BioHub", href: "#biohub" },
+  { label: "Preços", href: "#preco" },
+  { label: "Privacidade", href: "#privacidade" },
+  { label: "Roadmap", href: "#" },
+];
+
 const Footer = () => {
   const year = new Date().getFullYear();
 
@@ -34,14 +42,14 @@ const Footer = () => {
               Produto
             </h4>
             <ul className="space-y-3">
-              {["Funcionalidades", "Preços", "Privacidade", "Roadmap"].map((item) => (
-                <li key={item}>
+              {productLinks.map((item) => (
+                <li key={item.label}>
                   <a
-                    href="#"
+                    href={item.href}
                     className="text-sm text-[#6B8FA8] hover:text-[#EDF2F7] transition-colors"
                     style={{ fontFamily: "'DM Sans', sans-serif" }}
                   >
-                    {item}
+                    {item.label}
                   </a>
                 </li>
               ))}
