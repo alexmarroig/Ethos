@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, ReactNode } from "react";
 import { entitlementService, Entitlements } from "@/services/entitlementService";
 import { billingService, Subscription } from "@/services/billingService";
+import { useAuth } from "./AuthContext";
 
 interface EntitlementsContextType {
   entitlements: Entitlements | null;
@@ -33,8 +34,11 @@ const DEFAULT_ENTITLEMENTS: Entitlements = {
 };
 
 export const EntitlementsProvider = ({ children }: { children: ReactNode }) => {
+  const { user } = useAuth();
   const [entitlements, setEntitlements] = useState<Entitlements | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
+
+  const isWife = user?.email === "psi.camilafreitas@gmail.com";
 
   const isCloudConnected = !!entitlements;
 
@@ -43,15 +47,21 @@ export const EntitlementsProvider = ({ children }: { children: ReactNode }) => {
       "exports_enabled" | "backup_enabled" | "forms_enabled" |
       "scales_enabled" | "finance_enabled"
     >) => {
+      if (isWife) return true;
       const e = entitlements || DEFAULT_ENTITLEMENTS;
       return e[feature] === true;
     },
-    [entitlements]
+    [entitlements, isWife]
   );
 
+  const effectiveSubscription = isWife
+    ? ({ ...subscription, status: "active", plan: "Premium (VIP)" } as Subscription)
+    : subscription;
+
   const needsAction =
-    !!subscription &&
-    (subscription.status === "past_due" || subscription.status === "canceled");
+    !!effectiveSubscription &&
+    (effectiveSubscription.status === "past_due" || effectiveSubscription.status === "canceled") &&
+    !isWife;
 
   const fetchEntitlements = useCallback(async () => {
     const res = await entitlementService.get();
@@ -72,7 +82,7 @@ export const EntitlementsProvider = ({ children }: { children: ReactNode }) => {
     <EntitlementsContext.Provider
       value={{
         entitlements,
-        subscription,
+        subscription: effectiveSubscription,
         isCloudConnected,
         canUse,
         needsAction,
