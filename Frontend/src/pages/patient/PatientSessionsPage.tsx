@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { ChevronLeft, ChevronRight, CheckCircle2, Clock3, Calendar as CalendarIcon, List, ExternalLink, CalendarPlus, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { patientPortalService, type PatientSession } from "@/services/patientPortalService";
+import { patientPortalService, type PatientSession, type PatientTask as ApiPatientTask } from "@/services/patientPortalService";
 import IntegrationUnavailable from "@/components/IntegrationUnavailable";
 import { cn } from "@/lib/utils";
 import { generateGoogleLink, generateOutlookLink, downloadICal } from "@/lib/calendarUtils";
@@ -12,6 +12,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { deletePatientTask, readPatientTasks, type PatientTask, upsertPatientTask, writePatientTasks } from "@/pages/agendaStorage";
 
 const WEEKDAYS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 const MONTHS = [
@@ -23,6 +24,11 @@ const formatTime = (iso: string) =>
   new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
 const isoDate = (iso: string) => iso.slice(0, 10);
+const PROFESSIONAL_FALLBACK = "Profissional não informado";
+const getProfessionalName = (session: PatientSession) => {
+  const name = session.provider_name ?? session.psychologist_name;
+  return name && name.trim().length > 0 ? name : PROFESSIONAL_FALLBACK;
+};
 
 const sessionStatusLabel = (status: string) => {
   switch (status) {
@@ -54,10 +60,14 @@ const sessionColor = (status: string) => {
 
 export default function PatientSessionsPage() {
   const [sessions, setSessions] = useState<PatientSession[]>([]);
+  const [tasks, setTasks] = useState<PatientTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"calendar" | "list">("calendar");
+  const [agendaView, setAgendaView] = useState<"sessions" | "tasks" | "all">("all");
+  const [taskDraft, setTaskDraft] = useState({ title: "", date: "", time: "" });
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
 
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
@@ -87,6 +97,52 @@ export default function PatientSessionsPage() {
     void load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    setTasks(readPatientTasks());
+    const sync = async () => {
+      const res = await patientPortalService.getTasks();
+      if (res.success && res.data.length > 0) {
+        const normalized: PatientTask[] = res.data.map((t: ApiPatientTask) => ({
+          id: t.id,
+          title: t.title,
+          date: t.date,
+          time: t.time,
+          completed: t.completed,
+          createdAt: t.created_at ?? new Date().toISOString(),
+          updatedAt: t.updated_at ?? new Date().toISOString(),
+        }));
+        writePatientTasks(normalized);
+        setTasks(normalized);
+      }
+    };
+    void sync();
+  }, []);
+
+  const saveTask = async (task: Omit<PatientTask, "createdAt" | "updatedAt">) => {
+    const saved = upsertPatientTask(task);
+    setTasks(readPatientTasks());
+    const remotePayload = { title: saved.title, date: saved.date, time: saved.time, completed: saved.completed };
+    const remote = await patientPortalService.updateTask(saved.id, remotePayload);
+    if (!remote.success && remote.status === 404) await patientPortalService.createTask(remotePayload);
+  };
+
+  const removeTask = async (taskId: string) => {
+    deletePatientTask(taskId);
+    setTasks(readPatientTasks());
+    await patientPortalService.deleteTask(taskId);
+  };
+
+  const resetTaskDraft = (date?: string) => {
+    setEditingTaskId(null);
+    setTaskDraft({ title: "", date: date ?? selectedDay ?? "", time: "" });
+  };
+
+
+  useEffect(() => {
+    if (!selectedDay) return;
+    setTaskDraft((prev) => ({ ...prev, date: prev.date || selectedDay }));
+  }, [selectedDay]);
 
   const handleConfirm = async (sessionId: string) => {
     const res = await patientPortalService.confirmSession(sessionId);
@@ -137,6 +193,10 @@ export default function PatientSessionsPage() {
   };
 
   const selectedSessions = selectedDay ? (sessionsByDate.get(selectedDay) ?? []) : [];
+  const tasksByDate = new Map<string, PatientTask[]>();
+  for (const task of tasks) tasksByDate.set(task.date, [...(tasksByDate.get(task.date) ?? []), task]);
+  const selectedTasks = selectedDay ? (tasksByDate.get(selectedDay) ?? []) : [];
+
 
   const upcoming = sessions.filter((s) => s.scheduled_at && new Date(s.scheduled_at) >= today);
 
@@ -208,7 +268,12 @@ export default function PatientSessionsPage() {
                   const daySessions = sessionsByDate.get(dateStr) ?? [];
                   const isToday = dateStr === todayStr;
                   const isSelected = dateStr === selectedDay;
+                  const dayTasks = tasksByDate.get(dateStr) ?? [];
                   const hasSessions = daySessions.length > 0;
+                  const hasTasks = dayTasks.length > 0;
+                  const shouldShowSessions = agendaView === "sessions" || agendaView === "all";
+                  const shouldShowTasks = agendaView === "tasks" || agendaView === "all";
+                  const hasItems = (shouldShowSessions && hasSessions) || (shouldShowTasks && hasTasks);
 
                   return (
                     <button
@@ -220,15 +285,15 @@ export default function PatientSessionsPage() {
                           ? "bg-primary text-primary-foreground shadow-lg shadow-primary/20 scale-105 z-10"
                           : isToday
                             ? "bg-primary/5 text-primary border border-primary/20 font-bold"
-                            : hasSessions
+                            : hasItems
                               ? "bg-muted/40 text-foreground hover:bg-muted/60 border border-border/50"
                               : "text-foreground/60 hover:bg-muted/30 border border-transparent hover:border-border/50",
                       )}
                     >
                       <span className="text-sm md:text-base font-semibold">{day}</span>
-                      {hasSessions && (
+                      {hasItems && (
                         <div className="mt-auto flex flex-col gap-1 w-full overflow-hidden">
-                          {daySessions.slice(0, 2).map((s) => (
+                          {shouldShowSessions && daySessions.slice(0, 1).map((s) => (
                             <div
                               key={s.id}
                               className={cn(
@@ -237,11 +302,17 @@ export default function PatientSessionsPage() {
                               )}
                             />
                           ))}
+                          {shouldShowTasks && dayTasks.slice(0, 1).map((t) => (
+                            <div key={t.id} className={cn("hidden md:block h-1.5 w-full rounded-full opacity-80", isSelected ? "bg-primary-foreground" : t.completed ? "bg-emerald-300" : "bg-violet-400")} />
+                          ))}
                           <div className={cn(
                             "flex justify-center md:hidden gap-0.5",
                           )}>
-                            {daySessions.map((s) => (
+                            {shouldShowSessions && daySessions.map((s) => (
                               <span key={s.id} className={cn("h-1.5 w-1.5 rounded-full", isSelected ? "bg-primary-foreground" : sessionColor(s.status))} />
+                            ))}
+                            {shouldShowTasks && dayTasks.map((t) => (
+                              <span key={t.id} className={cn("h-1.5 w-1.5 rounded-full", isSelected ? "bg-primary-foreground" : t.completed ? "bg-emerald-300" : "bg-violet-400")} />
                             ))}
                           </div>
                         </div>
@@ -252,6 +323,15 @@ export default function PatientSessionsPage() {
               </div>
 
               <div className="mt-8 flex flex-wrap gap-6 border-t border-border pt-6">
+                <div className="flex items-center rounded-xl border border-border bg-background p-1">
+                  {[
+                    { key: "sessions", label: "Sessões" },
+                    { key: "tasks", label: "Tarefas" },
+                    { key: "all", label: "Tudo" },
+                  ].map((item) => (
+                    <button key={item.key} onClick={() => setAgendaView(item.key as typeof agendaView)} className={cn("px-3 py-1 text-xs rounded-lg", agendaView === item.key ? "bg-muted text-foreground" : "text-muted-foreground")}>{item.label}</button>
+                  ))}
+                </div>
                 {[
                   { color: "bg-primary", label: "Agendada" },
                   { color: "bg-emerald-500", label: "Confirmada" },
@@ -263,6 +343,10 @@ export default function PatientSessionsPage() {
                     {label}
                   </span>
                 ))}
+                <span className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+                  <span className="h-3 w-3 rounded-full bg-violet-400" />
+                  Tarefa
+                </span>
               </div>
             </motion.div>
 
@@ -274,13 +358,70 @@ export default function PatientSessionsPage() {
                     <h3 className="font-serif text-xl font-medium text-foreground">
                       {new Date(selectedDay + "T12:00:00").toLocaleDateString("pt-BR", { weekday: "long", day: "numeric", month: "long" })}
                     </h3>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => resetTaskDraft(selectedDay)}
+                    >
+                      Nova tarefa
+                    </Button>
                   </div>
-                  {selectedSessions.length === 0 ? (
+                  <div className="rounded-[24px] border border-border bg-card p-5 space-y-3">
+                    <p className="text-sm font-medium text-muted-foreground">
+                      {editingTaskId ? "Editar tarefa pessoal" : "Criar tarefa pessoal"}
+                    </p>
+                    <input
+                      className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                      placeholder="Título da tarefa"
+                      value={taskDraft.title}
+                      onChange={(e) => setTaskDraft((prev) => ({ ...prev, title: e.target.value }))}
+                    />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                      <input
+                        type="date"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                        value={taskDraft.date}
+                        onChange={(e) => setTaskDraft((prev) => ({ ...prev, date: e.target.value }))}
+                      />
+                      <input
+                        type="time"
+                        className="w-full rounded-xl border border-border bg-background px-3 py-2 text-sm"
+                        value={taskDraft.time}
+                        onChange={(e) => setTaskDraft((prev) => ({ ...prev, time: e.target.value }))}
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => {
+                          if (!taskDraft.title.trim() || !taskDraft.date) return;
+                          const original = tasks.find((t) => t.id === editingTaskId);
+                          void saveTask({
+                            id: editingTaskId ?? crypto.randomUUID(),
+                            title: taskDraft.title.trim(),
+                            date: taskDraft.date,
+                            time: taskDraft.time || undefined,
+                            completed: original?.completed ?? false,
+                          });
+                          resetTaskDraft(selectedDay ?? undefined);
+                        }}
+                      >
+                        {editingTaskId ? "Salvar" : "Adicionar"}
+                      </Button>
+                      {editingTaskId && (
+                        <Button variant="ghost" size="sm" onClick={() => resetTaskDraft(selectedDay ?? undefined)}>
+                          Cancelar
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                  {selectedSessions.length === 0 && selectedTasks.length === 0 ? (
                     <div className="rounded-[24px] border border-dashed border-border py-12 text-center bg-muted/20">
-                      <p className="text-sm text-muted-foreground">Nenhuma sessão neste dia.</p>
+                      <p className="text-sm text-muted-foreground">Nenhum item neste dia.</p>
                     </div>
                   ) : (
-                    selectedSessions.map((s) => (
+                    <>
+                    {selectedSessions.map((s) => (
                       <div key={s.id} className="rounded-[28px] border border-border bg-card p-6 shadow-sm space-y-5">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -299,6 +440,9 @@ export default function PatientSessionsPage() {
                             )}>
                               {sessionStatusLabel(s.status)}
                             </span>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {getProfessionalName(s)}
+                            </p>
                           </div>
                         </div>
 
@@ -330,7 +474,19 @@ export default function PatientSessionsPage() {
                           )}
                         </div>
                       </div>
-                    ))
+                    ))}
+                    {selectedTasks.map((task) => (
+                      <div key={task.id} className="rounded-[24px] border border-border bg-card p-5 space-y-3">
+                        <p className="font-semibold">{task.title}</p>
+                        <p className="text-sm text-muted-foreground">{task.time ? `Horário: ${task.time}` : "Sem horário definido"}</p>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" onClick={() => void saveTask({ ...task, completed: !task.completed })}>{task.completed ? "Reabrir" : "Concluir tarefa"}</Button>
+                          <Button variant="ghost" size="sm" onClick={() => setEditingTaskId(task.id) || setTaskDraft({ title: task.title, date: task.date, time: task.time ?? "" })}>Editar</Button>
+                          <Button variant="ghost" size="sm" onClick={() => void removeTask(task.id)}>Excluir</Button>
+                        </div>
+                      </div>
+                    ))}
+                    </>
                   )}
                 </>
               ) : (
@@ -371,6 +527,9 @@ export default function PatientSessionsPage() {
                           <p className="mt-1 text-sm text-muted-foreground">
                             {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
                           </p>
+                          <p className="text-sm text-muted-foreground">
+                            {getProfessionalName(s)}
+                          </p>
                         </button>
                       ))
                   )}
@@ -405,6 +564,9 @@ export default function PatientSessionsPage() {
                         </h4>
                         <p className="text-sm text-muted-foreground">
                           {s.scheduled_at ? formatTime(s.scheduled_at) : s.time} · {sessionStatusLabel(s.status)}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          {getProfessionalName(s)}
                         </p>
                       </div>
                     </div>

@@ -8,6 +8,8 @@ export type OnboardingMissionId =
   | "session-note"
   | "finish-onboarding";
 
+export type OnboardingRole = "professional" | "patient";
+
 export interface MissionState {
   id: OnboardingMissionId;
   title: string;
@@ -33,7 +35,7 @@ export interface OnboardingState {
 
 const STORAGE_PREFIX = "ethos:onboarding:v1";
 
-const defaultMissions = (): MissionState[] => [
+const professionalMissions = (): MissionState[] => [
   {
     id: "register-client",
     title: "Cadastrar cliente",
@@ -78,13 +80,82 @@ const defaultMissions = (): MissionState[] => [
   },
 ];
 
+const patientMissions = (): MissionState[] => [
+  {
+    id: "register-client",
+    title: "Confirmar presença",
+    description: "Confirme sua presença na próxima sessão agendada.",
+    page: "agenda",
+    completedAt: null,
+  },
+  {
+    id: "schedule-session",
+    title: "Preencher diário",
+    description: "Registre como você está se sentindo no diário terapêutico.",
+    page: "home",
+    completedAt: null,
+  },
+  {
+    id: "register-attendance",
+    title: "Ver documentos",
+    description: "Acesse os documentos compartilhados pelo profissional.",
+    page: "session",
+    completedAt: null,
+  },
+  {
+    id: "register-payment",
+    title: "Acompanhar pagamento",
+    description: "Confira o status de cobranças e pagamentos pendentes.",
+    page: "finance",
+    completedAt: null,
+  },
+  {
+    id: "session-note",
+    title: "Revisar orientações",
+    description: "Leia os combinados e orientações da última sessão.",
+    page: "session",
+    completedAt: null,
+  },
+  {
+    id: "finish-onboarding",
+    title: "Concluir primeiros passos",
+    description: "Finalize as missões iniciais para concluir sua ativação.",
+    page: "home",
+    completedAt: null,
+  },
+];
+
+function getRoleMissions(role: OnboardingRole): MissionState[] {
+  return role === "patient" ? patientMissions() : professionalMissions();
+}
+
+
+const LEGACY_MISSION_ID_MAP: Record<string, OnboardingMissionId> = {
+  "register-client": "register-client",
+  "add-client": "register-client",
+  "schedule-session": "schedule-session",
+  "book-session": "schedule-session",
+  "register-attendance": "register-attendance",
+  "confirm-attendance": "register-attendance",
+  "register-payment": "register-payment",
+  "add-payment": "register-payment",
+  "session-note": "session-note",
+  "add-session-note": "session-note",
+  "finish-onboarding": "finish-onboarding",
+  "complete-onboarding": "finish-onboarding",
+};
+
+function normalizeMissionId(id: string): OnboardingMissionId | null {
+  return LEGACY_MISSION_ID_MAP[id] ?? null;
+}
+
 const now = () => new Date().toISOString();
 
 function keyFor(userId: string) {
   return `${STORAGE_PREFIX}:${userId}`;
 }
 
-export function createInitialOnboardingState(userId: string): OnboardingState {
+export function createInitialOnboardingState(userId: string, role: OnboardingRole): OnboardingState {
   const startedAt = now();
   return {
     version: 1,
@@ -93,24 +164,40 @@ export function createInitialOnboardingState(userId: string): OnboardingState {
     updatedAt: startedAt,
     paused: false,
     disabled: false,
-    missions: defaultMissions(),
+    missions: getRoleMissions(role),
     events: [{ missionId: "register-client", type: "started", at: startedAt }],
   };
 }
 
-export function loadOnboardingState(userId: string): OnboardingState {
+export function loadOnboardingState(userId: string, role: OnboardingRole): OnboardingState {
   const raw = localStorage.getItem(keyFor(userId));
-  if (!raw) return createInitialOnboardingState(userId);
+  const roleMissions = getRoleMissions(role);
+  if (!raw) return createInitialOnboardingState(userId, role);
   try {
     const parsed = JSON.parse(raw) as OnboardingState;
-    if (parsed.userId !== userId) return createInitialOnboardingState(userId);
+    if (parsed.userId !== userId) return createInitialOnboardingState(userId, role);
+
+    const missionById = new Map(
+      (Array.isArray(parsed.missions) ? parsed.missions : []).flatMap((mission) => {
+        const normalizedId = normalizeMissionId(mission.id);
+        if (!normalizedId) return [];
+        return [[normalizedId, { ...mission, id: normalizedId } satisfies MissionState]];
+      }),
+    );
+
+    const normalizedEvents = (Array.isArray(parsed.events) ? parsed.events : []).flatMap((event) => {
+      const normalizedId = normalizeMissionId(event.missionId);
+      if (!normalizedId) return [];
+      return [{ ...event, missionId: normalizedId }];
+    });
+
     return {
       ...parsed,
-      missions: defaultMissions().map((mission) => parsed.missions.find((m) => m.id === mission.id) ?? mission),
-      events: Array.isArray(parsed.events) ? parsed.events : [],
+      missions: roleMissions.map((mission) => missionById.get(mission.id) ?? mission),
+      events: normalizedEvents,
     };
   } catch {
-    return createInitialOnboardingState(userId);
+    return createInitialOnboardingState(userId, role);
   }
 }
 

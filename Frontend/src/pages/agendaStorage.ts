@@ -24,6 +24,22 @@ export type AgendaDraftTask = {
 
 export type AgendaDraftPayload = AgendaDraftSession | AgendaDraftTask;
 
+export interface PatientTask {
+  id: string;
+  title: string;
+  date: string;
+  time?: string;
+  completed: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PatientTaskDraft {
+  title: string;
+  date: string;
+  time?: string;
+}
+
 export interface AgendaDraft<TPayload extends AgendaDraftPayload> {
   version: 1;
   updatedAt: string;
@@ -59,6 +75,7 @@ const SESSION_DRAFT_KEY = "ethos_agenda_draft_session_v1";
 const TASK_DRAFT_KEY = "ethos_agenda_draft_task_v1";
 const WEEK_CACHE_KEY = "ethos_agenda_week_cache_v1";
 const SETTINGS_DRAFT_KEY = "ethos_agenda_settings_draft_v1";
+const PATIENT_TASKS_KEY = "ethos_patient_tasks_v1";
 
 function canUseStorage() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -142,4 +159,38 @@ export function writeAgendaSettingsDraft(payload: AgendaSettingsDraft["payload"]
     source: "local",
     payload,
   });
+}
+
+
+export function readPatientTasks() {
+  const data = readJson<PatientTask[]>(PATIENT_TASKS_KEY);
+  if (!Array.isArray(data)) return [];
+  return data;
+}
+
+export function writePatientTasks(tasks: PatientTask[]) {
+  writeJson(PATIENT_TASKS_KEY, tasks);
+}
+
+export function upsertPatientTask(task: Omit<PatientTask, "createdAt" | "updatedAt"> & Partial<Pick<PatientTask, "createdAt">>) {
+  const now = new Date().toISOString();
+  const current = readPatientTasks();
+  const existing = current.find((item) => item.id === task.id);
+  const next: PatientTask = {
+    ...task,
+    createdAt: existing?.createdAt ?? task.createdAt ?? now,
+    updatedAt: now,
+  };
+  const merged = existing
+    ? current.map((item) => (item.id === task.id ? next : item))
+    : [...current, next];
+  writePatientTasks(merged);
+  return next;
+}
+
+export function deletePatientTask(taskId: string) {
+  const current = readPatientTasks();
+  const next = current.filter((item) => item.id !== taskId);
+  writePatientTasks(next);
+  return next;
 }
