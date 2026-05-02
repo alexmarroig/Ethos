@@ -10,10 +10,11 @@
     "test": "node --test -r ts-node/register/transpile-only test/*.test.ts",
     "openapi:lint": "node scripts/openapi-lint.mjs"
   },
-  "dependencies": {},
-  "devDependencies": {
+  "dependencies": {
     "@types/node": "^22.16.5",
-    "ts-node": "^10.9.2",
     "typescript": "^5.3.3"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2"
   }
 }
