@@ -1581,8 +1581,8 @@ export const createEthosBackend = () =>
         if (excludeBlocks) {
           items = items.filter((item) => item.event_type !== "block" && !item.patient_id.startsWith("block-"));
         }
-        if (fromParam) items = items.filter((item) => item.date >= fromParam);
-        if (toParam) items = items.filter((item) => item.date <= toParam);
+        if (fromParam) items = items.filter((item) => item.scheduled_at >= fromParam);
+        if (toParam) items = items.filter((item) => item.scheduled_at <= toParam);
         if (statusParam) items = items.filter((item) => item.status === statusParam);
         if (patientIdParam) items = items.filter((item) => item.patient_id === patientIdParam);
 
