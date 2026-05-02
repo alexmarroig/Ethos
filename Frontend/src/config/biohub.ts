@@ -12,3 +12,4 @@ export const biohubUrl = (path = "") => {
 
 export const BIOHUB_HOME_URL = BIOHUB_BASE_URL;
 export const BIOHUB_LOGIN_URL = biohubUrl("/auth/login");
+export const BIOHUB_REGISTER_URL = biohubUrl("/auth/register");

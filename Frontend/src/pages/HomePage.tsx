@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Ban, CalendarPlus, Clock3, ExternalLink, Gift, UserPlus } from "lucide-react";
+import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
-import { BIOHUB_LOGIN_URL } from "@/config/biohub";
+import { BioHubIntegrationCard } from "@/components/BioHubIntegrationCard";
 import { sessionService, type Session } from "@/services/sessionService";
 import { useAppStore } from "@/stores/appStore";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
@@ -711,20 +711,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
 
           <div className="space-y-6">
             <SectionCard title="Produto do ecossistema ETHOS: BioHub">
-              <div className="rounded-[1.25rem] border border-primary/15 bg-primary/[0.04] p-5">
-                <p className="text-sm leading-6 text-muted-foreground">
-                  BioHub e uma pagina profissional e mini-site para psicologas. Ele abre como
-                  app separado, com conta, planos e administracao feitos no proprio BioHub.
-                </p>
-                <div className="mt-4">
-                  <Button asChild className="gap-2">
-                    <a href={BIOHUB_LOGIN_URL} target="_blank" rel="noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                      Acessar BioHub
-                    </a>
-                  </Button>
-                </div>
-              </div>
+              <BioHubIntegrationCard />
             </SectionCard>
 
             <SectionCard title="Próximos pagamentos" actionLabel="Financeiro" onAction={() => onNavigate("finance")}>

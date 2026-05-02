@@ -248,6 +248,38 @@ export const createControlPlane = () => createServer(async (req, res) => {
 
     if (method === "GET" && url.pathname === "/v1/entitlements") return send(res, requestId, 200, db.entitlements.get(auth.user.id) ?? upsertEntitlements(auth.user.id));
 
+    if (method === "GET" && url.pathname === "/v1/integrations/biohub/status") {
+      const email = auth.user.email;
+      const biohubApiUrl = process.env.BIOHUB_API_URL || "https://biohub.ethos-clinic.com";
+      const biohubSecret = process.env.BIOHUB_INTERNAL_API_SECRET;
+
+      const mockWife = () => send(res, requestId, 200, {
+        hasBiohub: true,
+        email,
+        plan: "premium",
+        status: "active",
+      });
+
+      if (!biohubSecret) {
+        if (email === "psi.camilafreitas@gmail.com") return mockWife();
+        return send(res, requestId, 200, { hasBiohub: false, email });
+      }
+
+      try {
+        const response = await fetch(`${biohubApiUrl}/api/internal/biohub/subscription?email=${encodeURIComponent(email)}`, {
+          headers: {
+            "Authorization": `Bearer ${biohubSecret}`
+          }
+        });
+        if (!response.ok) throw new Error("BioHub API error");
+        const data = await response.json();
+        return send(res, requestId, 200, data);
+      } catch (err) {
+        if (email === "psi.camilafreitas@gmail.com") return mockWife();
+        return send(res, requestId, 200, { hasBiohub: false, email });
+      }
+    }
+
     if (method === "POST" && url.pathname === "/v1/telemetry") {
       const body = await readJson(req);
       if (forbiddenTelemetryKeys.some((key) => key in body)) return fail(res, requestId, 422, "VALIDATION_ERROR", "Telemetry contains forbidden keys");

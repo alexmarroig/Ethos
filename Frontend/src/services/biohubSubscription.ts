@@ -1,14 +1,20 @@
-export interface BioHubSubscriptionStatus {
-  product: "biohub";
-  status: "active" | "trialing" | "past_due" | "canceled" | "none";
-  planCode: string | null;
-  currentPeriodEndsAt: string | null;
+import { api, type ApiResult } from "./apiClient";
+
+export interface BioHubAccessPayload {
+  hasBiohub: boolean;
+  email: string;
+  profileId?: string;
+  slug?: string | null;
+  plan?: "free" | "professional" | "premium";
+  status?: "active" | "trialing" | "past_due" | "canceled" | "none" | "pending" | "paused" | "expired";
+  provider?: string;
+  currentPeriodEndsAt?: string;
 }
 
-export const BIOHUB_SUBSCRIPTION_STATUS_ENDPOINT =
-  "/api/internal/biohub/subscription?email=user@example.com";
+export const biohubSubscriptionService = {
+  getBiohubAccess: (): Promise<ApiResult<BioHubAccessPayload>> => {
+    // Calls the safe Ethos endpoint which then proxies to BioHub with the secret
+    return api.get<BioHubAccessPayload>("/integrations/biohub/status");
+  }
+};
 
-export const BIOHUB_INTERNAL_AUTH_HEADER = "Authorization: Bearer <INTERNAL_API_SECRET>";
-
-export const BIOHUB_SUBSCRIPTION_SOURCE_OF_TRUTH =
-  "BioHub subscriptions table, updated by BioHub Mercado Pago checkout/webhook";
