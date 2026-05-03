@@ -1,6 +1,6 @@
 import Header from "@/components/landing/Header";
 import Footer from "@/components/landing/Footer";
-import { CONTACT_EMAIL } from "@/config/site";
+import { SUPPORT_EMAIL } from "@/config/site";
 import { useSeo } from "@/lib/seo";
 import { breadcrumbSchema, organizationSchema } from "@/lib/schemas";
 
@@ -34,7 +34,7 @@ const content: Record<"privacy" | "terms" | "cookies", LegalContent> = {
       {
         heading: "Contato e direitos",
         body: [
-          `Para solicitar acesso, correcao ou exclusao de dados de contato enviados pelo site, escreva para ${CONTACT_EMAIL}.`,
+          `Para solicitar acesso, correcao ou exclusao de dados de contato enviados pelo site, escreva para ${SUPPORT_EMAIL}.`,
           "Esta politica deve ser revisada por assessoria juridica antes de uso amplo em campanhas pagas e AdSense.",
         ],
       },
@@ -91,7 +91,7 @@ const content: Record<"privacy" | "terms" | "cookies", LegalContent> = {
         heading: "Como mudar sua escolha",
         body: [
           "Voce pode limpar os dados do site no navegador para redefinir sua escolha de consentimento.",
-          `Duvidas sobre privacidade podem ser enviadas para ${CONTACT_EMAIL}.`,
+          `Duvidas sobre privacidade podem ser enviadas para ${SUPPORT_EMAIL}.`,
         ],
       },
     ],
