@@ -1,9 +1,9 @@
 export const SITE_URL = "https://ethos-clinic.com";
 export const APP_URL = import.meta.env.VITE_APP_URL || "https://app.ethos-clinic.com";
 export const SITE_NAME = "ETHOS";
-export const SITE_TITLE = "ETHOS - Plataforma clinica para psicologos";
+export const SITE_TITLE = "ETHOS | Software para psicologos com prontuario, agenda e IA";
 export const SITE_DESCRIPTION =
-  "Sistema para psicologos com prontuario inteligente, agenda, pacientes, financeiro, documentos e automacoes com foco em sigilo clinico.";
+  "Software para psicologas e psicologos organizarem prontuario psicologico, agenda, documentos, financeiro e leads com privacidade, seguranca e apoio de IA.";
 export const CONTACT_EMAIL = "contato@ethos-clinic.com";
 export const SUPPORT_EMAIL = "suporte@ethos-clinic.com";
 

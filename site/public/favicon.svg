@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="ETHOS">
+  <rect width="64" height="64" rx="14" fill="#060F1E"/>
+  <path d="M15 45V19h34v8H25v5h19v7H25v6h25v8H15z" fill="#EDF2F7"/>
+  <path d="M15 45V19h10v26H15zM24 32h20v7H24z" fill="#4ECDC4" opacity=".88"/>
+</svg>

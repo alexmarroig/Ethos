@@ -194,6 +194,12 @@ const Hero = () => {
                 src={dashboardImg}
                 alt="Painel do ETHOS — Início"
                 className="w-full h-auto block"
+                width={1569}
+                height={726}
+                sizes="(min-width: 1024px) 50vw, 100vw"
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
               />
             </div>
           </motion.div>

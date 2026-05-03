@@ -59,7 +59,13 @@ const ArticlePage = () => {
 
           {article.image && (
             <figure className="mb-10 overflow-hidden rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/70">
-              <img src={article.image} alt={article.imageAlt ?? article.title} className="h-auto w-full object-cover" />
+              <img
+                src={article.image}
+                alt={article.imageAlt ?? article.title}
+                className="h-auto w-full object-cover"
+                loading="eager"
+                decoding="async"
+              />
               {article.imageAlt && <figcaption className="px-5 py-3 text-xs text-[#6B8FA8]">{article.imageAlt}</figcaption>}
             </figure>
           )}
@@ -70,7 +76,13 @@ const ArticlePage = () => {
                 <h2 className="text-3xl font-bold text-[#EDF2F7]">{section.heading}</h2>
                 {section.image && (
                   <figure className="mt-5 overflow-hidden rounded-xl border border-[#1A2D42] bg-[#0D1B2E]/70">
-                    <img src={section.image} alt={section.imageAlt ?? section.heading} className="h-auto w-full object-cover" />
+                    <img
+                      src={section.image}
+                      alt={section.imageAlt ?? section.heading}
+                      className="h-auto w-full object-cover"
+                      loading="lazy"
+                      decoding="async"
+                    />
                   </figure>
                 )}
                 <div className="mt-4 space-y-4">

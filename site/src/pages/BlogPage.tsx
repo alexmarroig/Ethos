@@ -42,7 +42,13 @@ const BlogPage = () => {
               className="overflow-hidden rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/65 transition-all hover:-translate-y-1 hover:border-[#2F6F73]"
             >
               {article.image && (
-                <img src={article.image} alt={article.imageAlt ?? article.title} className="aspect-[16/9] w-full object-cover" loading="lazy" />
+                <img
+                  src={article.image}
+                  alt={article.imageAlt ?? article.title}
+                  className="aspect-[16/9] w-full object-cover"
+                  loading="lazy"
+                  decoding="async"
+                />
               )}
               <div className="p-6">
                 <span className="text-xs font-semibold uppercase tracking-widest text-[#4ECDC4]">{article.category}</span>
