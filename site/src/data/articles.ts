@@ -13,7 +13,10 @@ export type Article = {
   }>;
 };
 
-export const articles: Article[] = [
+const cmsArticleModules = import.meta.glob("../content/articles/*.json", { eager: true, import: "default" });
+const cmsArticles = Object.values(cmsArticleModules) as Article[];
+
+const staticArticles: Article[] = [
   {
     slug: "prontuario-psicologico-como-organizar-com-seguranca",
     title: "Prontuario psicologico: como organizar com seguranca",
@@ -345,5 +348,9 @@ export const articles: Article[] = [
     ],
   },
 ];
+
+export const articles: Article[] = [...staticArticles, ...cmsArticles].sort((a, b) =>
+  b.publishedAt.localeCompare(a.publishedAt),
+);
 
 export const featuredArticles = articles.slice(0, 3);

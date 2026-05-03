@@ -1,0 +1,32 @@
+{
+  "slug": "checklist-seo-para-psicologos",
+  "title": "Checklist de SEO para psicologos: como melhorar presenca no Google",
+  "description": "Um checklist pratico de SEO para psicologos e clinicas melhorarem paginas, artigos, autoridade e conversao sem capturar dados sensiveis.",
+  "category": "Marketing etico",
+  "publishedAt": "2026-05-03",
+  "readingTime": "6 min",
+  "keywords": ["SEO para psicologos", "marketing para psicologos", "site para psicologos"],
+  "sections": [
+    {
+      "heading": "SEO comeca por clareza de servico",
+      "body": [
+        "Antes de pensar em volume de conteudo, a psicologa precisa deixar claro o que oferece, para quem atende e quais paginas respondem cada busca importante.",
+        "Paginas comerciais, artigos educativos e perguntas frequentes devem se conectar por links internos, sempre respeitando limites eticos e evitando promessas de resultado clinico."
+      ]
+    },
+    {
+      "heading": "O que revisar em cada pagina",
+      "body": [
+        "Cada pagina deve ter titulo unico, descricao SEO, URL clara, H1 objetivo, subtitulos coerentes, conteudo util e CTA profissional.",
+        "Tambem vale incluir FAQ, schema quando fizer sentido, links para artigos relacionados e uma forma simples de contato sem pedir informacoes clinicas sensiveis."
+      ]
+    },
+    {
+      "heading": "Como medir evolucao",
+      "body": [
+        "Use Search Console para acompanhar impressoes, cliques, CTR e posicao media. Use GA4 para entender quais paginas geram engajamento e leads.",
+        "O SEO forte nasce de revisao constante: melhorar paginas existentes costuma ser tao importante quanto publicar textos novos."
+      ]
+    }
+  ]
+}
