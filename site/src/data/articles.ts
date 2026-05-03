@@ -347,6 +347,138 @@ const staticArticles: Article[] = [
       },
     ],
   },
+  {
+    slug: "software-para-psicologos-autonomos",
+    title: "Software para psicologos autonomos: como escolher uma ferramenta leve",
+    description:
+      "Veja como psicologas e psicologos autonomos podem escolher um software para organizar agenda, prontuario, financeiro e tarefas sem complicar a rotina.",
+    category: "Gestao clinica",
+    publishedAt: "2026-05-03",
+    readingTime: "7 min",
+    keywords: ["software para psicologos autonomos", "sistema para psicologo autonomo", "consultorio psicologico"],
+    sections: [
+      {
+        heading: "A rotina autonoma precisa de simplicidade",
+        body: [
+          "Quem atende de forma autonoma normalmente acumula atendimento, agenda, financeiro, documentos, estudo e comunicacao com pacientes. Por isso, o software precisa reduzir passos, nao criar mais uma camada de trabalho.",
+          "Uma boa ferramenta para psicologos autonomos deve ser clara, rapida e conectada ao fluxo real do consultorio.",
+        ],
+      },
+      {
+        heading: "O que nao pode faltar",
+        body: [
+          "Agenda, prontuario, ficha do paciente, controle financeiro e organizacao de tarefas sao os pilares mais importantes para comecar.",
+          "Tambem vale observar exportacao de dados, privacidade, suporte e facilidade de revisao antes de cada sessao.",
+        ],
+      },
+      {
+        heading: "Como o ETHOS ajuda",
+        body: [
+          "O ETHOS foi pensado para a psicologa que precisa organizar o consultorio sem depender de varias ferramentas soltas.",
+          "A proposta e concentrar rotina clinica e administrativa em um fluxo mais previsivel, com menos retrabalho e mais contexto.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "como-captar-pacientes-sendo-psicologa",
+    title: "Como captar pacientes sendo psicologa sem abrir mao da etica",
+    description:
+      "Estrategias eticas para psicologas fortalecerem presenca digital, conteudo, indicacoes e organizacao comercial sem promessas indevidas.",
+    category: "Marketing etico",
+    publishedAt: "2026-05-03",
+    readingTime: "8 min",
+    keywords: ["como captar pacientes psicologa", "marketing para psicologas", "captacao etica psicologia"],
+    sections: [
+      {
+        heading: "Captacao comeca por clareza",
+        body: [
+          "Captar pacientes nao significa fazer promessa de resultado. Significa comunicar com clareza sua abordagem, publico, formato de atendimento e canais de contato.",
+          "Um site bem organizado, uma pagina profissional e conteudos educativos ajudam a pessoa certa a entender se aquele atendimento faz sentido para ela.",
+        ],
+      },
+      {
+        heading: "Conteudo educativo gera confianca",
+        body: [
+          "Artigos, posts e paginas informativas podem responder duvidas comuns sem transformar sofrimento em chamada apelativa.",
+          "A linha etica e importante: evite garantias, diagnosticos publicos, exposicao de casos e qualquer comunicacao que prometa cura ou resultado individual.",
+        ],
+      },
+      {
+        heading: "Organizacao comercial tambem importa",
+        body: [
+          "Quando um contato chega, registre origem, interesse, data e proximo passo. Isso evita perda de oportunidades e melhora a leitura do que esta funcionando.",
+          "O ETHOS apoia essa mentalidade ao conectar site, leads, agenda e rotina profissional de forma mais organizada.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "marketing-etico-para-psicologos",
+    title: "Marketing etico para psicologos: como comunicar sem prometer demais",
+    description:
+      "Um guia pratico sobre marketing etico para psicologos: conteudo, site, SEO, anuncios e limites na comunicacao profissional.",
+    category: "Marketing etico",
+    publishedAt: "2026-05-03",
+    readingTime: "7 min",
+    keywords: ["marketing etico para psicologos", "marketing psicologia", "divulgacao psicologo"],
+    sections: [
+      {
+        heading: "Marketing etico e comunicacao responsavel",
+        body: [
+          "Marketing para psicologos deve informar, orientar e facilitar acesso, sem explorar vulnerabilidades ou prometer resultados.",
+          "A comunicacao precisa respeitar sigilo, dignidade, limites tecnicos e normas profissionais.",
+        ],
+      },
+      {
+        heading: "O que funciona sem exagero",
+        body: [
+          "Paginas claras sobre servicos, artigos educativos, presenca local, SEO, conteudo de valor e respostas a duvidas frequentes ajudam a construir autoridade com sobriedade.",
+          "Tambem e importante medir quais canais geram contatos qualificados, nao apenas curtidas ou visitas.",
+        ],
+      },
+      {
+        heading: "Como organizar a captacao",
+        body: [
+          "Use formularios simples, sem pedir dados clinicos sensiveis, e registre origem do contato para entender o que traz resultado.",
+          "Com ETHOS, BioHub, GA4, Search Console e dashboard de leads, a psicologa consegue acompanhar presenca digital sem perder o foco clinico.",
+        ],
+      },
+    ],
+  },
+  {
+    slug: "site-profissional-para-psicologos",
+    title: "Site profissional para psicologos: o que uma boa pagina precisa ter",
+    description:
+      "Veja elementos essenciais de um site profissional para psicologos: clareza, SEO, contato, privacidade, conteudo e conversao etica.",
+    category: "Presenca digital",
+    publishedAt: "2026-05-03",
+    readingTime: "6 min",
+    keywords: ["site profissional para psicologos", "site para psicologa", "pagina para psicologos"],
+    sections: [
+      {
+        heading: "Um bom site precisa orientar",
+        body: [
+          "O site profissional de uma psicologa deve responder rapidamente quem e a profissional, como atende, quais temas trabalha, onde atende e como entrar em contato.",
+          "Design bonito ajuda, mas clareza, confianca e facilidade de contato sao mais importantes para converter visitas em conversas.",
+        ],
+      },
+      {
+        heading: "SEO e privacidade devem caminhar juntos",
+        body: [
+          "Paginas indexaveis, sitemap, robots, metatags e artigos ajudam o Google a entender o site. Ao mesmo tempo, formularios publicos nao devem pedir dados clinicos sensiveis.",
+          "A captacao deve ser profissional: nome, email, WhatsApp, perfil e interesse ja bastam para iniciar uma conversa.",
+        ],
+      },
+      {
+        heading: "BioHub como pagina profissional",
+        body: [
+          "Para psicologas que querem uma presenca simples, BioHub funciona como pagina profissional com links, WhatsApp, formulario, leads, analytics e personalizacao visual.",
+          "Ele faz parte do ecossistema ETHOS, mas funciona como app separado para administrar a pagina profissional.",
+        ],
+      },
+    ],
+  },
 ];
 
 export const articles: Article[] = [...staticArticles, ...cmsArticles].sort((a, b) =>
