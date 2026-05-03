@@ -1,6 +1,7 @@
 import { APP_URL, CONTACT_EMAIL, SITE_DESCRIPTION, SITE_NAME, SITE_URL, absoluteUrl } from "@/config/site";
 import { BIOHUB_HOME_URL } from "@/config/biohub";
 import { articles } from "@/data/articles";
+import type { CommercialPage } from "@/data/commercialPages";
 
 export const organizationSchema = {
   "@context": "https://schema.org",
@@ -81,3 +82,21 @@ export const articleSchema = (slug: string) => {
     articleSection: article.category,
   };
 };
+
+export const serviceSchema = (page: CommercialPage) => ({
+  "@context": "https://schema.org",
+  "@type": "Service",
+  name: page.title,
+  serviceType: page.title,
+  provider: {
+    "@type": "Organization",
+    name: SITE_NAME,
+    url: SITE_URL,
+  },
+  areaServed: {
+    "@type": "Country",
+    name: "Brasil",
+  },
+  description: page.description,
+  url: absoluteUrl(`/${page.slug}`),
+});
