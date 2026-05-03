@@ -163,3 +163,58 @@ Produto:
 - leads por interesse;
 - visitas em paginas comerciais;
 - conversao da landing `/psicologos`.
+
+## 8. Automacao editorial com n8n
+
+Fluxo recomendado:
+
+1. Cron semanal no n8n.
+2. Buscar assuntos em fontes:
+   - Google Search Console;
+   - Google Trends;
+   - termos de busca do Google Ads;
+   - perguntas frequentes de leads;
+   - concorrentes e SERP manual revisada.
+3. Gerar pauta com:
+   - palavra-chave principal;
+   - intencao de busca;
+   - titulo;
+   - meta description;
+   - H2s;
+   - links internos;
+   - CTA;
+   - pagina comercial relacionada.
+4. Salvar pauta em uma base editorial.
+5. Revisao humana obrigatoria.
+6. Publicar no site.
+
+Nunca automatizar publicacao sem revisao em temas clinicos, eticos ou regulados.
+
+## 9. Painel para editar conteudo
+
+Opcoes:
+
+1. Simples agora: editar `site/src/data/articles.ts` e abrir PR.
+2. Painel leve: Decap CMS/Netlify CMS com arquivos no Git.
+3. CMS externo: Sanity, Strapi ou Contentful.
+4. Painel proprio ETHOS Admin: criar CRUD de artigos, categorias, drafts e publicacao.
+
+Recomendacao:
+
+- curto prazo: manter artigos versionados em Git;
+- medio prazo: Decap CMS ou Sanity;
+- longo prazo: painel proprio no admin ETHOS se o marketing virar rotina diaria.
+
+Campos minimos de um painel:
+
+- titulo;
+- slug;
+- description;
+- categoria;
+- palavras-chave;
+- data;
+- tempo de leitura;
+- secoes;
+- FAQ;
+- status: draft/revisao/publicado;
+- pagina comercial relacionada.

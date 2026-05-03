@@ -6,6 +6,18 @@ import { trackEvent, trackGoogleAdsConversion } from "@/lib/tracking";
 
 const LEAD_ENDPOINT = import.meta.env.VITE_LEAD_ENDPOINT;
 
+const readAttribution = () => {
+  const params = new URLSearchParams(window.location.search);
+  return {
+    utm_source: params.get("utm_source") || "",
+    utm_medium: params.get("utm_medium") || "",
+    utm_campaign: params.get("utm_campaign") || "",
+    utm_term: params.get("utm_term") || "",
+    utm_content: params.get("utm_content") || "",
+    user_agent: window.navigator.userAgent,
+  };
+};
+
 const LeadCapture = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -32,7 +44,7 @@ const LeadCapture = () => {
         await fetch(LEAD_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, source: "ethos_site" }),
+          body: JSON.stringify({ ...form, ...readAttribution(), source: "ethos_site" }),
         });
       } else {
         const body = encodeURIComponent(
