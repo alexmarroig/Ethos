@@ -7,9 +7,9 @@ import screenInicio from "@/assets/screen-inicio.png";
 import screenFormularios from "@/assets/screen-formularios.png";
 import screenPacientes from "@/assets/screen-pacientes.png";
 import screenAgenda from "@/assets/screen-agenda.png";
+import { APP_URL } from "@/config/site";
 
 // 👉 centraliza URL do app
-const APP_URL = "https://app.ethos-clinic.com";
 
 const SCREENS = [
   {

@@ -18,14 +18,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Building2, Monitor, Repeat2, ChevronRight, ChevronLeft, CalendarCheck } from "lucide-react";
+import { Building2, Monitor, Repeat2, ChevronRight, ChevronLeft, CalendarCheck, Palette, Tags } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sessionService, type RecurrenceRule } from "@/services/sessionService";
 import {
   clearAgendaDraft,
+  agendaCategories,
+  agendaColors,
+  createDefaultAgendaMeta,
+  getAgendaCategory,
+  normalizeAgendaTags,
   readAgendaDraft,
+  upsertAgendaEventMeta,
   writeAgendaDraft,
   writeAgendaTaskDraft,
+  type AgendaCategoryId,
+  type AgendaColorId,
+  type AgendaPriority,
 } from "@/pages/agendaStorage";
 import { AnimatePresence, motion } from "framer-motion";
 import { useBeforeUnload } from "@/hooks/useBeforeUnload";
@@ -99,6 +108,14 @@ export function SessionDialog({
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("weekly");
   const [selectedDays, setSelectedDays] = useState<DayName[]>(["monday"]);
   const [taskTitle, setTaskTitle] = useState("");
+  const [colorId, setColorId] = useState<AgendaColorId>(
+    createDefaultAgendaMeta(resolvedEventType === "task" ? "task" : "session").colorId,
+  );
+  const [categoryId, setCategoryId] = useState<AgendaCategoryId>(
+    createDefaultAgendaMeta(resolvedEventType === "task" ? "task" : "session").categoryId,
+  );
+  const [tagsInput, setTagsInput] = useState("");
+  const [priority, setPriority] = useState<AgendaPriority>("normal");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draftRecoveredAt, setDraftRecoveredAt] = useState<string | null>(null);
@@ -111,8 +128,8 @@ export function SessionDialog({
   const currentMode = eventType === "task" ? "task" : "session";
 
   const isDirty = useMemo(() => {
-    return patientId !== "" || taskTitle !== "" || date !== defaultDate || time !== defaultTime;
-  }, [patientId, taskTitle, date, time, defaultDate, defaultTime]);
+    return patientId !== "" || taskTitle !== "" || date !== defaultDate || time !== defaultTime || tagsInput !== "";
+  }, [patientId, taskTitle, date, time, defaultDate, defaultTime, tagsInput]);
 
   useBeforeUnload(open && isDirty, "Você tem dados preenchidos no formulário. Tem certeza que deseja descartar?");
 
@@ -133,6 +150,7 @@ export function SessionDialog({
     setError(null);
 
     if (sessionDraft?.payload && nextMode === "session") {
+      const defaultMeta = createDefaultAgendaMeta("session");
       setPatientId(sessionDraft.payload.patientId);
       setDate(sessionDraft.payload.date || defaultDate || "");
       setTime(sessionDraft.payload.time || defaultTime || "");
@@ -141,6 +159,10 @@ export function SessionDialog({
       setRecurring(sessionDraft.payload.recurring);
       setRecurrenceType(sessionDraft.payload.recurrenceType || "weekly");
       setSelectedDays(sessionDraft.payload.selectedDays?.length ? sessionDraft.payload.selectedDays : ["monday"]);
+      setColorId(sessionDraft.payload.colorId ?? defaultMeta.colorId);
+      setCategoryId(sessionDraft.payload.categoryId ?? defaultMeta.categoryId);
+      setTagsInput(normalizeAgendaTags(sessionDraft.payload.tags ?? defaultMeta.tags).join(", "));
+      setPriority(sessionDraft.payload.priority ?? defaultMeta.priority);
       setTaskTitle("");
       setDraftRecoveredAt(sessionDraft.updatedAt);
       queueMicrotask(() => {
@@ -150,10 +172,15 @@ export function SessionDialog({
     }
 
     if (taskDraft?.payload && nextMode === "task") {
+      const defaultMeta = createDefaultAgendaMeta("task");
       setTaskTitle(taskDraft.payload.taskTitle);
       setDate(taskDraft.payload.date || defaultDate || "");
       setTime(taskDraft.payload.time || defaultTime || "");
       setDuration(taskDraft.payload.duration || 50);
+      setColorId(taskDraft.payload.colorId ?? defaultMeta.colorId);
+      setCategoryId(taskDraft.payload.categoryId ?? defaultMeta.categoryId);
+      setTagsInput(normalizeAgendaTags(taskDraft.payload.tags ?? defaultMeta.tags).join(", "));
+      setPriority(taskDraft.payload.priority ?? defaultMeta.priority);
       setPatientId("");
       setLocationType("remote");
       setRecurring(false);
@@ -166,10 +193,15 @@ export function SessionDialog({
       return;
     }
 
+    const defaultMeta = createDefaultAgendaMeta(nextMode === "task" ? "task" : "session");
     setPatientId("");
     setDate(defaultDate ?? "");
     setTime(defaultTime ?? "");
     setDuration(50);
+    setColorId(defaultMeta.colorId);
+    setCategoryId(defaultMeta.categoryId);
+    setTagsInput(defaultMeta.tags.join(", "));
+    setPriority(defaultMeta.priority);
     setLocationType("remote");
     setRecurring(false);
     setRecurrenceType("weekly");
@@ -195,6 +227,10 @@ export function SessionDialog({
         recurring,
         recurrenceType,
         selectedDays,
+        colorId,
+        categoryId,
+        tags: normalizeAgendaTags(tagsInput),
+        priority,
       });
       return;
     }
@@ -204,6 +240,10 @@ export function SessionDialog({
       date,
       time,
       duration,
+      colorId,
+      categoryId,
+      tags: normalizeAgendaTags(tagsInput),
+      priority,
     });
   }, [
     open,
@@ -217,7 +257,16 @@ export function SessionDialog({
     recurrenceType,
     selectedDays,
     taskTitle,
+    colorId,
+    categoryId,
+    tagsInput,
+    priority,
   ]);
+
+  const handleCategoryChange = (value: AgendaCategoryId) => {
+    setCategoryId(value);
+    setColorId(getAgendaCategory(value).defaultColorId);
+  };
 
   const toggleDay = (day: DayName) => {
     setSelectedDays((prev) => {
@@ -307,6 +356,13 @@ export function SessionDialog({
         return;
       }
 
+      upsertAgendaEventMeta(result.data.id, {
+        colorId,
+        categoryId,
+        tags: normalizeAgendaTags(tagsInput),
+        priority,
+      });
+
       clearAgendaDraft(currentMode);
       setDraftRecoveredAt(null);
       onCreated();
@@ -330,6 +386,11 @@ export function SessionDialog({
       setRecurring(false);
       setRecurrenceType("weekly");
       setSelectedDays(["monday"]);
+      const defaultMeta = createDefaultAgendaMeta("session");
+      setColorId(defaultMeta.colorId);
+      setCategoryId(defaultMeta.categoryId);
+      setTagsInput(defaultMeta.tags.join(", "));
+      setPriority(defaultMeta.priority);
       return;
     }
 
@@ -337,6 +398,11 @@ export function SessionDialog({
     setDate(defaultDate ?? "");
     setTime(defaultTime ?? "");
     setDuration(50);
+    const defaultMeta = createDefaultAgendaMeta("task");
+    setColorId(defaultMeta.colorId);
+    setCategoryId(defaultMeta.categoryId);
+    setTagsInput(defaultMeta.tags.join(", "));
+    setPriority(defaultMeta.priority);
   };
 
   // Motion variants for wizard slide
@@ -369,6 +435,84 @@ export function SessionDialog({
       return [step, dir];
     });
   }, [step]);
+
+  const classificationFields = (
+    <section className="space-y-4 rounded-2xl border border-border bg-card/70 p-4">
+      <div className="flex items-center gap-2">
+        <Palette className="h-4 w-4 text-primary" />
+        <h3 className="text-sm font-semibold text-foreground">Organizacao visual</h3>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Cor da agenda</Label>
+        <div className="grid grid-cols-4 gap-2 sm:grid-cols-7">
+          {agendaColors.map((color) => (
+            <button
+              key={color.id}
+              type="button"
+              onClick={() => setColorId(color.id)}
+              className={cn(
+                "flex h-10 items-center justify-center rounded-xl border transition-all",
+                colorId === color.id ? "border-primary ring-2 ring-primary/20" : "border-border hover:border-primary/40",
+              )}
+              aria-label={`Usar cor ${color.label}`}
+              title={color.label}
+            >
+              <span className={cn("h-4 w-4 rounded-full", color.dotClass)} />
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Categoria</Label>
+          <Select value={categoryId} onValueChange={(value) => handleCategoryChange(value as AgendaCategoryId)}>
+            <SelectTrigger className="bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {agendaCategories.map((category) => (
+                <SelectItem key={category.id} value={category.id}>
+                  {category.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">{getAgendaCategory(categoryId).description}</p>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Prioridade</Label>
+          <Select value={priority} onValueChange={(value) => setPriority(value as AgendaPriority)}>
+            <SelectTrigger className="bg-background">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="low">Baixa</SelectItem>
+              <SelectItem value="normal">Normal</SelectItem>
+              <SelectItem value="high">Alta</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="agenda-tags" className="inline-flex items-center gap-2">
+          <Tags className="h-4 w-4" />
+          Tags
+        </Label>
+        <Input
+          id="agenda-tags"
+          value={tagsInput}
+          onChange={(event) => setTagsInput(event.target.value)}
+          placeholder="Ex.: online, supervisao, urgencia"
+          className="bg-background"
+        />
+        <p className="text-xs text-muted-foreground">Separe por virgulas. As tags aparecem no cartao e ajudam a filtrar a semana.</p>
+      </div>
+    </section>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -513,6 +657,8 @@ export function SessionDialog({
                       </div>
                     </div>
                   </section>
+
+                  {classificationFields}
                 </div>
               )}
 
@@ -664,6 +810,18 @@ export function SessionDialog({
                         </span>
                       </div>
                     )}
+                    <div className="p-4 flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Categoria</span>
+                      <span className="text-sm font-medium">{getAgendaCategory(categoryId).label}</span>
+                    </div>
+                    <div className="p-4 flex justify-between items-center">
+                      <span className="text-sm text-muted-foreground">Tags</span>
+                      <span className="text-sm font-medium text-right">
+                        {normalizeAgendaTags(tagsInput).length > 0
+                          ? normalizeAgendaTags(tagsInput).map((tag) => `#${tag}`).join(" ")
+                          : "Sem tags"}
+                      </span>
+                    </div>
                   </div>
                   {error && <p className="text-sm font-medium text-destructive text-center">{error}</p>}
                 </div>

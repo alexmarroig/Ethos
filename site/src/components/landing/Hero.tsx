@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ArrowRight, Shield, Lock, Cpu } from "lucide-react";
 import dashboardImg from "@/assets/screen-inicio.png";
+import { APP_URL } from "@/config/site";
+import { trackEvent } from "@/lib/tracking";
 
 const badges = [
   { icon: Shield, label: "Dados 100% locais" },
@@ -112,7 +114,8 @@ const Hero = () => {
               className="flex flex-col sm:flex-row gap-3 mb-12"
             >
               <a
-                href="https://app.ethos-clinic.com"
+                href={APP_URL}
+                onClick={() => trackEvent("cta_app_click", { location: "hero" })}
                 className="inline-flex items-center justify-center gap-2 px-8 py-4 rounded-xl font-semibold text-white text-sm transition-all duration-200 hover:opacity-90 hover:scale-[1.02] hover:shadow-[0_0_40px_rgba(47,111,115,0.5)]"
                 style={{ background: "#2F6F73", fontFamily: "'DM Sans', sans-serif" }}
               >

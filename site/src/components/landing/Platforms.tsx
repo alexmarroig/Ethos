@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { Lock, HardDrive, ShieldCheck, Eye, Server, KeyRound } from "lucide-react";
+import { APP_URL } from "@/config/site";
+import { trackEvent } from "@/lib/tracking";
 
 const privacyPoints = [
   { icon: HardDrive, title: "Armazenamento local", desc: "Todos os dados ficam no seu computador. Nunca sobem para nenhum servidor." },
@@ -58,7 +60,8 @@ const Platforms = () => {
             </motion.p>
 
             <motion.a
-              href="https://app.ethos-clinic.com"
+              href={APP_URL}
+              onClick={() => trackEvent("cta_app_click", { location: "privacy_section" })}
               whileHover={{ scale: 1.04 }}
               whileTap={{ scale: 0.97 }}
               initial={{ opacity: 0 }}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, GripVertical, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, UserRound, X } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -26,8 +26,15 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  agendaCategories,
+  createDefaultAgendaMeta,
+  getAgendaCategory,
+  getAgendaColor,
+  readAgendaEventMetaMap,
   readAgendaWeekCache,
   writeAgendaWeekCache,
+  type AgendaCategoryId,
+  type AgendaEventMeta,
 } from "@/pages/agendaStorage";
 
 interface AgendaPageProps {
@@ -127,6 +134,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
   const [currentWeek, setCurrentWeek] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
+  const [agendaMetaByEventId, setAgendaMetaByEventId] = useState<Record<string, AgendaEventMeta>>(() => readAgendaEventMetaMap());
+  const [categoryFilter, setCategoryFilter] = useState<AgendaCategoryId | "all">("all");
+  const [tagFilter, setTagFilter] = useState("all");
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsDraft, setSettingsDraft] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -259,6 +269,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
     if (hasUsableCache) {
       setSessions(cachedWeek.sessions);
+      setAgendaMetaByEventId(readAgendaEventMetaMap());
       setSessionCache(cachedWeek.sessions);
       setCacheStatus("cached");
       setCacheFetchedAt(cachedWeek.fetchedAt);
@@ -277,6 +288,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           return;
         }
         setSessions(result.data);
+        setAgendaMetaByEventId(readAgendaEventMetaMap());
         setSessionCache(result.data); // sync global store
         setError(null);
         const fetchedAt = new Date().toISOString();
@@ -423,6 +435,28 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     toast({ title: "Agenda atualizada", description: "Dias e horários de atendimento foram salvos neste navegador." });
   };
 
+  const getAgendaMetaForSession = (session: Session) =>
+    agendaMetaByEventId[session.id] ?? createDefaultAgendaMeta(session.event_type === "block" ? "task" : "session");
+
+  const availableTags = useMemo(() => {
+    const tags = new Set<string>();
+    for (const session of sessions) {
+      getAgendaMetaForSession(session).tags.forEach((tag) => tags.add(tag));
+    }
+    return [...tags].sort((a, b) => a.localeCompare(b));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaMetaByEventId, sessions]);
+
+  const filteredSessions = useMemo(() => {
+    return sessions.filter((session) => {
+      const meta = getAgendaMetaForSession(session);
+      const matchesCategory = categoryFilter === "all" || meta.categoryId === categoryFilter;
+      const matchesTag = tagFilter === "all" || meta.tags.includes(tagFilter);
+      return matchesCategory && matchesTag;
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaMetaByEventId, categoryFilter, sessions, tagFilter]);
+
   const sessionsByCell = useMemo(() => {
     const map = new Map<string, Session[]>();
     for (const day of visibleWeekDays) {
@@ -431,7 +465,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       }
     }
 
-    for (const session of sessions) {
+    for (const session of filteredSessions) {
       const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
       const [hour] = (session.time || "00:00").split(":");
       const normalizedTimeKey = `${hour}:00`;
@@ -442,14 +476,17 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     }
 
     return map;
-  }, [sessions, visibleWeekDays, timeSlots]);
+  }, [filteredSessions, visibleWeekDays, timeSlots]);
 
   const agendaSummary = useMemo(() => {
-    const total = sessions.length;
-    const pending = sessions.filter((session) => session.status === "pending").length;
+    const total = sessions.filter((session) => session.event_type !== "block").length;
+    const tasks = sessions.filter((session) => session.event_type === "block").length;
+    const pending = sessions.filter((session) => session.event_type !== "block" && session.status === "pending").length;
     const newPatients = sessions.filter((session) => (session.patient_total_sessions ?? 0) <= 1).length;
-    return { total, pending, newPatients };
-  }, [sessions]);
+    const highPriority = sessions.filter((session) => getAgendaMetaForSession(session).priority === "high").length;
+    return { total, tasks, pending, newPatients, highPriority };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaMetaByEventId, sessions]);
 
   const getWeekLabel = () => {
     if (currentWeek === 0) return "Esta semana";
@@ -552,7 +589,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
       if (finalDuration !== originalDuration) {
         await sessionService.update(id, { duration_minutes: finalDuration });
         const result = await sessionService.list(weekWindow);
-        if (result.success) setSessions(result.data);
+        if (result.success) {
+          setSessions(result.data);
+          setAgendaMetaByEventId(readAgendaEventMetaMap());
+        }
       }
       setResizingSession(null);
     };
@@ -725,9 +765,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
             <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.pending}</p>
           </div>
           <div className="session-card">
-            <p className="text-sm text-muted-foreground">Agenda ativa</p>
-            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSettings.enabledWeekdays.length} dias</p>
-            <p className="mt-1 text-sm text-muted-foreground">{String(agendaSettings.startHour).padStart(2, "0")}:00 às {String(agendaSettings.endHour).padStart(2, "0")}:00</p>
+            <p className="text-sm text-muted-foreground">Tarefas e foco</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.tasks}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{agendaSummary.highPriority} prioridade alta</p>
           </div>
         </motion.div>
 
@@ -767,13 +807,85 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
           </div>
         </motion.div>
 
+        <motion.section
+          className="mb-6 rounded-[1.5rem] border border-border bg-card p-4 shadow-subtle"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.14 }}
+        >
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <Filter className="h-4 w-4 text-primary" />
+              Visualizar por contexto
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setCategoryFilter("all")}
+                className={cn(
+                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                  categoryFilter === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
+                )}
+              >
+                Todos
+              </button>
+              {agendaCategories.map((category) => (
+                <button
+                  key={category.id}
+                  type="button"
+                  onClick={() => setCategoryFilter(category.id)}
+                  className={cn(
+                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    categoryFilter === category.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
+                  )}
+                >
+                  <span className={cn("h-2.5 w-2.5 rounded-full", getAgendaColor(category.defaultColorId).dotClass)} />
+                  {category.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-center lg:justify-between">
+            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
+              <Tags className="h-4 w-4" />
+              Filtrar tag
+              <select
+                value={tagFilter}
+                onChange={(event) => setTagFilter(event.target.value)}
+                className="h-9 rounded-xl border border-input bg-background px-3 text-xs text-foreground"
+              >
+                <option value="all">Todas</option>
+                {availableTags.map((tag) => (
+                  <option key={tag} value={tag}>#{tag}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                <ListChecks className="h-4 w-4 text-primary" />
+                Blocos de foco primeiro
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                <Clock3 className="h-4 w-4 text-primary" />
+                Buffer entre atendimentos
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                <CalendarPlus className="h-4 w-4 text-primary" />
+                Admin em lote
+              </span>
+            </div>
+          </div>
+        </motion.section>
+
         {error ? <IntegrationUnavailable message={error.message} requestId={error.requestId} /> : null}
         {loading ? <AgendaGridSkeleton /> : null}
 
         {!loading && !error && isMobile ? (
           <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
             {visibleWeekDays.map((day) => {
-              const daySessions = sessions.filter((s) => (s.date || (s.scheduled_at ? formatDate(new Date(s.scheduled_at)) : "")) === day.key);
+              const daySessions = filteredSessions.filter((s) => (s.date || (s.scheduled_at ? formatDate(new Date(s.scheduled_at)) : "")) === day.key);
               return (
                 <div key={day.key} className="rounded-2xl border border-border bg-card overflow-hidden">
                   <div className={cn("flex items-center gap-3 px-4 py-3 border-b border-border", day.isToday && "bg-primary/5")}>
@@ -791,34 +903,51 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                     </button>
                   ) : (
                     <div className="divide-y divide-border/60">
-                      {daySessions.map((session) => (
-                        <button
-                          key={session.id}
-                          type="button"
-                          onClick={() => onSessionClick(session.id)}
-                          className={cn(
-                            "w-full px-4 py-3 text-left transition-colors hover:bg-muted/30",
-                            getStatusColor(session.status),
-                          )}
-                        >
-                          <div className="flex items-center justify-between gap-2">
-                            <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                              <Clock3 className="h-3.5 w-3.5" />{session.time}
-                            </span>
-                            <div className="flex items-center gap-1.5">
-                              {session.event_type === "session" && session.location_type && (
-                                <span className="text-muted-foreground">
-                                  {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
-                                </span>
-                              )}
-                              <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
-                                {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                      {daySessions.map((session) => {
+                        const meta = getAgendaMetaForSession(session);
+                        const color = getAgendaColor(meta.colorId);
+                        const category = getAgendaCategory(meta.categoryId);
+                        return (
+                          <button
+                            key={session.id}
+                            type="button"
+                            onClick={() => onSessionClick(session.id)}
+                            className={cn(
+                              "w-full px-4 py-3 text-left transition-colors hover:bg-muted/30",
+                              color.cardClass,
+                            )}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                                <Clock3 className="h-3.5 w-3.5" />{session.time}
                               </span>
+                              <div className="flex items-center gap-1.5">
+                                {session.event_type === "session" && session.location_type && (
+                                  <span className="text-muted-foreground">
+                                    {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
+                                  </span>
+                                )}
+                                <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-semibold", color.chipClass)}>
+                                  {category.label}
+                                </span>
+                                <span className="rounded-full bg-black/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
+                                  {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                </span>
+                              </div>
                             </div>
-                          </div>
-                          <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
-                        </button>
-                      ))}
+                            <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
+                            {meta.tags.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {meta.tags.slice(0, 3).map((tag) => (
+                                  <span key={tag} className="rounded-full bg-background/60 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                                    #{tag}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </button>
+                        );
+                      })}
                     </div>
                   )}
                 </div>
@@ -906,6 +1035,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                           <div className="space-y-2">
                             {daySessions.map((session) => {
                               const flags = getSessionFlags(session);
+                              const meta = getAgendaMetaForSession(session);
+                              const color = getAgendaColor(meta.colorId);
+                              const category = getAgendaCategory(meta.categoryId);
                               const isResizing = resizingSession?.id === session.id;
                               const displayDuration = isResizing ? resizingSession.currentDuration : session.duration;
                               return (
@@ -922,7 +1054,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     className={cn(
                                       "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
                                       desktopDensity.cardPadding,
-                                      getStatusColor(session.status),
+                                      color.cardClass,
                                       draggingSessionId === session.id && "opacity-60",
                                       session.event_type === "block" && "border-dashed opacity-80",
                                       isResizing && "select-none pb-4",
@@ -939,6 +1071,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                             {session.location_type === "remote" ? <Monitor className="h-3 w-3" /> : <Building2 className="h-3 w-3" />}
                                           </span>
                                         )}
+                                        <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold", color.chipClass)}>
+                                          {category.label}
+                                        </span>
                                         <span className="rounded-full bg-black/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground dark:bg-white/10">
                                           {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
                                         </span>
@@ -971,6 +1106,19 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                           )}
                                         >
                                           {flag}
+                                        </span>
+                                      ))}
+                                      {meta.priority === "high" ? (
+                                        <span className="rounded-full bg-destructive/15 px-2 py-1 text-[10px] font-semibold text-destructive">
+                                          Alta prioridade
+                                        </span>
+                                      ) : null}
+                                      {meta.tags.map((tag) => (
+                                        <span
+                                          key={tag}
+                                          className="rounded-full bg-background/70 px-2 py-1 text-[10px] font-semibold text-muted-foreground"
+                                        >
+                                          #{tag}
                                         </span>
                                       ))}
                                     </div>
@@ -1093,7 +1241,10 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                       });
                       setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]));
                       const result = await sessionService.list(weekWindow);
-                      if (result.success) setSessions(result.data);
+                      if (result.success) {
+                        setSessions(result.data);
+                        setAgendaMetaByEventId(readAgendaEventMetaMap());
+                      }
                     }}
                   >
                     Confirmar
@@ -1128,6 +1279,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         const result = await sessionService.list(weekWindow);
         if (result.success) {
           setSessions(result.data);
+          setAgendaMetaByEventId(readAgendaEventMetaMap());
           setSessionCache(result.data); // sync global store
         }
       }}
@@ -1142,6 +1294,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         const result = await sessionService.list(weekWindow);
         if (result.success) {
           setSessions(result.data);
+          setAgendaMetaByEventId(readAgendaEventMetaMap());
           setSessionCache(result.data);
         }
       }}

@@ -102,7 +102,7 @@ const Faq = () => {
               style={{ fontFamily: "'DM Sans', sans-serif" }}
             >
               Dúvida que não está aqui? Fale com a gente pelo chat ou pelo e-mail{" "}
-              <a href="mailto:suporte@ethos.local" style={{ color: "#2F6F73" }}>suporte@ethos.app</a>
+              <a href="mailto:contato@ethos-clinic.com" style={{ color: "#2F6F73" }}>contato@ethos-clinic.com</a>
             </motion.p>
           </div>
 

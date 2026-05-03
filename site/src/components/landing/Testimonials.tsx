@@ -1,8 +1,9 @@
 import { motion } from "framer-motion";
 import { MessageSquare } from "lucide-react";
+import { APP_URL } from "@/config/site";
+import { trackEvent } from "@/lib/tracking";
 
 // 👉 centraliza URL do app
-const APP_URL = "https://app.ethos-clinic.com";
 
 const Testimonials = () => {
   return (
@@ -106,6 +107,7 @@ const Testimonials = () => {
         >
           <a
             href={APP_URL}
+            onClick={() => trackEvent("cta_app_click", { location: "beta_section" })}
             className="inline-flex items-center gap-2 px-8 py-4 rounded-xl text-base font-semibold text-white transition-all duration-200 hover:opacity-90 hover:scale-[1.02]"
             style={{
               background: "#2F6F73",

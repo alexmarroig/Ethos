@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { CheckCircle2, ArrowRight } from "lucide-react";
+import { APP_URL } from "@/config/site";
+import { trackEvent } from "@/lib/tracking";
 
 const plans = [
   {
@@ -104,7 +106,8 @@ const Pricing = () => {
               </ul>
 
               <motion.a
-                href="https://app.ethos-clinic.com"
+                href={APP_URL}
+                onClick={() => trackEvent("pricing_click", { location: "pricing", plan: plan.name })}
                 whileHover={{ scale: 1.03 }}
                 whileTap={{ scale: 0.97 }}
                 className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl font-semibold text-sm transition-all"

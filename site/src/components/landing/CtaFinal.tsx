@@ -1,5 +1,7 @@
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { APP_URL } from "@/config/site";
+import { trackEvent } from "@/lib/tracking";
 
 const CtaFinal = () => {
   return (
@@ -51,7 +53,8 @@ const CtaFinal = () => {
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <motion.a
-              href="https://app.ethos-clinic.com"
+              href={APP_URL}
+              onClick={() => trackEvent("cta_app_click", { location: "final_cta" })}
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.97 }}
               className="inline-flex items-center gap-2 px-10 py-4 rounded-xl font-semibold text-white text-base"

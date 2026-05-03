@@ -4,9 +4,11 @@ import { motion } from "framer-motion";
 import {
   Sparkles,
   ArrowLeft,
+  Bell,
   CalendarPlus,
   ChevronDown,
   ChevronUp,
+  ClipboardList,
   FileText,
   History,
   KeyRound,
@@ -21,6 +23,8 @@ import {
   Trash,
   Trash2,
   User,
+  Pin,
+  PinOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -53,6 +57,19 @@ import type { Contract } from "@/api/types";
 import { reportService } from "@/services/reportService";
 import { financeService, type FinancialPackage, type FinancialPackageConsumption } from "@/services/financeService";
 import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
+import {
+  buildPreSessionBriefingText,
+  deleteSupervisionNote,
+  listSupervisionNotes,
+  normalizeSupervisionTags,
+  readPreSessionBriefingSettings,
+  savePreSessionBriefingSettings,
+  saveSupervisionNote,
+  toggleSupervisionNotePinned,
+  type PreSessionBriefingSettings,
+  type SupervisionNote,
+  type SupervisionPriority,
+} from "@/services/supervisionNotesService";
 import { ClinicalSynthesisCard } from "@/components/ClinicalSynthesisCard";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
@@ -87,6 +104,15 @@ type PatientDetailPageProps = {
 };
 
 type DocumentFormValues = Record<string, string>;
+
+type SupervisionDraftState = {
+  title: string;
+  content: string;
+  focus: string;
+  nextSessionPrompt: string;
+  tags: string;
+  priority: SupervisionPriority;
+};
 
 type PatientFormState = {
   name: string;
@@ -180,6 +206,15 @@ const emptyForm: PatientFormState = {
   preferred_payment_day: "",
   billing_reminder_days: 0,
   billing_auto_charge: true,
+};
+
+const emptySupervisionDraft: SupervisionDraftState = {
+  title: "",
+  content: "",
+  focus: "",
+  nextSessionPrompt: "",
+  tags: "",
+  priority: "normal",
 };
 
 const CollapsibleSection = ({
@@ -319,6 +354,28 @@ const sessionStatusLabel = (status?: string) => {
   }
 };
 
+function extractClinicalEvolutionFromNotes(notes: unknown[]) {
+  const normalized = notes
+    .map((note) => note as {
+      created_at?: string;
+      updated_at?: string;
+      content?: { evolucao?: string; evolution?: string };
+      evolucao?: string;
+      evolution?: string;
+      text?: string;
+    })
+    .sort((a, b) =>
+      Date.parse(b.updated_at ?? b.created_at ?? "") - Date.parse(a.updated_at ?? a.created_at ?? ""),
+    );
+
+  for (const note of normalized) {
+    const value = note.content?.evolucao ?? note.content?.evolution ?? note.evolucao ?? note.evolution ?? note.text;
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+
+  return "";
+}
+
 const documentTemplateLabel = (templateId?: string) => {
   switch (templateId) {
     case "payment-receipt":
@@ -414,6 +471,12 @@ export default function PatientDetailPage({
   const [sessionReminderOpen, setSessionReminderOpen] = useState(false);
   const [sessionReminderMessage, setSessionReminderMessage] = useState("");
   const [sessionReminderEnabled, setSessionReminderEnabled] = useState(false);
+  const [supervisionNotes, setSupervisionNotes] = useState<SupervisionNote[]>(() => listSupervisionNotes(patientId));
+  const [supervisionDraft, setSupervisionDraft] = useState<SupervisionDraftState>(emptySupervisionDraft);
+  const [editingSupervisionId, setEditingSupervisionId] = useState<string | null>(null);
+  const [preSessionBriefingOpen, setPreSessionBriefingOpen] = useState(false);
+  const [preSessionSettings, setPreSessionSettings] = useState<PreSessionBriefingSettings>(() => readPreSessionBriefingSettings(patientId));
+  const preSessionTimerRef = useRef<number | null>(null);
   const [contracts, setContracts] = useState<Contract[]>([]);
   const [formAssignments, setFormAssignments] = useState<FormAssignment[]>([]);
   const [allFormEntries, setAllFormEntries] = useState<FormEntry[]>([]);
@@ -433,6 +496,13 @@ export default function PatientDetailPage({
     setPatientApproach(patientId, approach);
   };
 
+  useEffect(() => {
+    setSupervisionNotes(listSupervisionNotes(patientId));
+    setPreSessionSettings(readPreSessionBriefingSettings(patientId));
+    setSupervisionDraft(emptySupervisionDraft);
+    setEditingSupervisionId(null);
+  }, [patientId]);
+
   const [sectionVisibility, setSectionVisibility] = useState<Record<string, boolean>>({
     observacoes: true,
     sessoes: true,
@@ -443,6 +513,7 @@ export default function PatientDetailPage({
     sonhos: false,
     progresso: true,
     evolucao: true,
+    supervisao: true,
     objetivos: true,
     homework: true,
   });
@@ -759,6 +830,146 @@ export default function PatientDetailPage({
       { label: "Formulários ativos", value: String(activeAssignments.length) },
     ];
   }, [detail, sharedDocuments.length, activeAssignments.length]);
+
+  const clinicalEvolutionForBriefing = useMemo(() => {
+    const synthesisContent = synthesis?.content?.trim();
+    if (synthesisContent) return synthesisContent;
+    const noteEvolution = extractClinicalEvolutionFromNotes(detail?.clinical_notes ?? []);
+    if (noteEvolution) return noteEvolution;
+    return form.notes.trim();
+  }, [detail?.clinical_notes, form.notes, synthesis?.content]);
+
+  const preSessionBriefingText = useMemo(() => {
+    if (!detail) return "";
+    return buildPreSessionBriefingText({
+      patientName: detail.patient.name,
+      nextSessionLabel: formatDateTime(detail.summary.next_session?.scheduled_at),
+      mainComplaint: form.main_complaint,
+      clinicalEvolution: clinicalEvolutionForBriefing,
+      supervisionNotes,
+    });
+  }, [clinicalEvolutionForBriefing, detail, form.main_complaint, supervisionNotes]);
+
+  const updatePreSessionSettings = (next: PreSessionBriefingSettings) => {
+    setPreSessionSettings(next);
+    savePreSessionBriefingSettings(patientId, next);
+  };
+
+  const refreshSupervisionNotes = () => {
+    setSupervisionNotes(listSupervisionNotes(patientId));
+  };
+
+  const handleSaveSupervisionNote = () => {
+    if (!supervisionDraft.content.trim() && !supervisionDraft.nextSessionPrompt.trim()) {
+      toast({
+        title: "Anotacao vazia",
+        description: "Inclua uma dica de supervisao ou um foco para a proxima sessao.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    saveSupervisionNote(patientId, supervisionDraft, editingSupervisionId ?? undefined);
+    refreshSupervisionNotes();
+    setSupervisionDraft(emptySupervisionDraft);
+    setEditingSupervisionId(null);
+    toast({ title: editingSupervisionId ? "Anotacao atualizada" : "Anotacao de supervisao salva" });
+  };
+
+  const handleEditSupervisionNote = (note: SupervisionNote) => {
+    setEditingSupervisionId(note.id);
+    setSupervisionDraft({
+      title: note.title,
+      content: note.content,
+      focus: note.focus,
+      nextSessionPrompt: note.nextSessionPrompt,
+      tags: note.tags.join(", "),
+      priority: note.priority,
+    });
+  };
+
+  const handleDeleteSupervisionNote = (noteId: string) => {
+    deleteSupervisionNote(noteId);
+    refreshSupervisionNotes();
+    if (editingSupervisionId === noteId) {
+      setEditingSupervisionId(null);
+      setSupervisionDraft(emptySupervisionDraft);
+    }
+    toast({ title: "Anotacao removida" });
+  };
+
+  const handleToggleSupervisionPin = (noteId: string) => {
+    toggleSupervisionNotePinned(noteId);
+    refreshSupervisionNotes();
+  };
+
+  const copyPreSessionBriefing = async () => {
+    if (!preSessionBriefingText) return;
+    await navigator.clipboard.writeText(preSessionBriefingText);
+    toast({ title: "Briefing copiado", description: "Resumo pre-sessao copiado para a area de transferencia." });
+  };
+
+  const sendPreSessionNotification = useCallback(async (manual = false) => {
+    if (!detail || !preSessionBriefingText) return;
+    if (!("Notification" in window)) {
+      toast({ title: "Notificacao indisponivel", description: "Este navegador nao suporta notificacoes locais.", variant: "destructive" });
+      return;
+    }
+
+    let permission = Notification.permission;
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
+
+    if (permission !== "granted") {
+      toast({ title: "Permissao necessaria", description: "Autorize notificacoes do navegador para receber o briefing.", variant: "destructive" });
+      return;
+    }
+
+    const notesSummary = supervisionNotes
+      .filter((note) => note.pinned || note.priority === "high")
+      .slice(0, 2)
+      .map((note) => note.nextSessionPrompt || note.content)
+      .filter(Boolean)
+      .join(" | ");
+
+    new Notification(`Preparar sessao - ${detail.patient.name}`, {
+      body: [
+        form.main_complaint ? `Queixa: ${form.main_complaint}` : "",
+        clinicalEvolutionForBriefing ? `Evolucao: ${clinicalEvolutionForBriefing}` : "",
+        notesSummary ? `Supervisao: ${notesSummary}` : "",
+      ].filter(Boolean).join("\n").slice(0, 260),
+      tag: `ethos-pre-session-${patientId}-${detail.summary.next_session?.id ?? "manual"}`,
+      requireInteraction: manual,
+    });
+
+    if (manual) toast({ title: "Notificacao enviada", description: "O briefing interno foi exibido no navegador." });
+  }, [clinicalEvolutionForBriefing, detail, form.main_complaint, patientId, preSessionBriefingText, supervisionNotes, toast]);
+
+  useEffect(() => {
+    if (preSessionTimerRef.current) {
+      window.clearTimeout(preSessionTimerRef.current);
+      preSessionTimerRef.current = null;
+    }
+
+    const nextSessionAt = detail?.summary.next_session?.scheduled_at;
+    if (!detail || !preSessionSettings.enabled || !nextSessionAt) return;
+
+    const targetMs = new Date(nextSessionAt).getTime() - preSessionSettings.minutesBeforeSession * 60_000;
+    const delay = targetMs - Date.now();
+    if (!Number.isFinite(delay) || delay <= 0 || delay > 2_147_483_647) return;
+
+    preSessionTimerRef.current = window.setTimeout(() => {
+      void sendPreSessionNotification(false);
+    }, delay);
+
+    return () => {
+      if (preSessionTimerRef.current) {
+        window.clearTimeout(preSessionTimerRef.current);
+        preSessionTimerRef.current = null;
+      }
+    };
+  }, [detail, preSessionSettings, sendPreSessionNotification]);
 
   const updateForm = <K extends keyof PatientFormState>(key: K, value: PatientFormState[K]) => {
     if (["phone", "whatsapp", "psychiatrist_contact", "emergency_contact_phone"].includes(key as string)) {
@@ -1653,6 +1864,227 @@ export default function PatientDetailPage({
             <Textarea value={form.notes} onChange={(event) => updateForm("notes", event.target.value)} className="min-h-[120px]" />
           </div>
         </motion.section>
+
+        <CollapsibleSection
+          title="Supervisao clinica"
+          subtitle="Dicas de supervisao, hipoteses e lembretes internos associados a este paciente."
+          isOpen={sectionVisibility.supervisao}
+          onToggle={() => toggleSection("supervisao")}
+          icon={ClipboardList}
+        >
+          <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+            <div className="space-y-4 rounded-xl border border-border bg-background/50 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Titulo</Label>
+                  <Input
+                    value={supervisionDraft.title}
+                    onChange={(event) => setSupervisionDraft((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="Ex.: manejo de esquiva"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Prioridade</Label>
+                  <Select
+                    value={supervisionDraft.priority}
+                    onValueChange={(value) => setSupervisionDraft((current) => ({ ...current, priority: value as SupervisionPriority }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Baixa</SelectItem>
+                      <SelectItem value="normal">Normal</SelectItem>
+                      <SelectItem value="high">Alta</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Foco clinico</Label>
+                <Input
+                  value={supervisionDraft.focus}
+                  onChange={(event) => setSupervisionDraft((current) => ({ ...current, focus: event.target.value }))}
+                  placeholder="Ex.: vinculo, regulacao emocional, exposicao gradual"
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Comentario ou dica da supervisao</Label>
+                <Textarea
+                  value={supervisionDraft.content}
+                  onChange={(event) => setSupervisionDraft((current) => ({ ...current, content: event.target.value }))}
+                  className="min-h-[120px]"
+                  placeholder="Registre a orientacao, pergunta clinica ou cuidado discutido em supervisao."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Levar para a proxima sessao</Label>
+                <Textarea
+                  value={supervisionDraft.nextSessionPrompt}
+                  onChange={(event) => setSupervisionDraft((current) => ({ ...current, nextSessionPrompt: event.target.value }))}
+                  className="min-h-[90px]"
+                  placeholder="Ex.: retomar combinados, observar evitacao, validar progresso antes de desafiar."
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tags</Label>
+                <Input
+                  value={supervisionDraft.tags}
+                  onChange={(event) => setSupervisionDraft((current) => ({ ...current, tags: event.target.value }))}
+                  placeholder="Ex.: ansiedade, vinculo, tarefa"
+                />
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleSaveSupervisionNote} className="gap-2">
+                  <Save className="h-4 w-4" />
+                  {editingSupervisionId ? "Atualizar anotacao" : "Salvar anotacao"}
+                </Button>
+                {editingSupervisionId ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setEditingSupervisionId(null);
+                      setSupervisionDraft(emptySupervisionDraft);
+                    }}
+                  >
+                    Cancelar edicao
+                  </Button>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h3 className="font-serif text-xl text-foreground">Briefing pre-sessao</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      Queixa principal, evolucao clinica e notas de supervisao para revisar antes do atendimento.
+                    </p>
+                  </div>
+                  <Bell className="h-5 w-5 text-primary" />
+                </div>
+
+                <div className="mt-4 space-y-3 text-sm">
+                  <div className="rounded-lg bg-background/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proxima sessao</p>
+                    <p className="mt-1 text-foreground">{formatDateTime(detail.summary.next_session?.scheduled_at)}</p>
+                  </div>
+                  <div className="rounded-lg bg-background/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Queixa principal</p>
+                    <p className="mt-1 line-clamp-3 text-foreground">{form.main_complaint || "Nao registrada."}</p>
+                  </div>
+                  <div className="rounded-lg bg-background/70 p-3">
+                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evolucao clinica</p>
+                    <p className="mt-1 line-clamp-4 text-foreground">{clinicalEvolutionForBriefing || "Sem sintese registrada."}</p>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Button variant="secondary" size="sm" onClick={() => setPreSessionBriefingOpen(true)}>
+                    Ver briefing
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={copyPreSessionBriefing}>
+                    Copiar
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => void sendPreSessionNotification(true)}>
+                    Notificar agora
+                  </Button>
+                </div>
+
+                <div className="mt-4 rounded-lg border border-border/70 bg-background/60 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-foreground">Notificacao interna antes da sessao</p>
+                      <p className="text-xs text-muted-foreground">
+                        Funciona enquanto o ETHOS estiver aberto neste navegador.
+                      </p>
+                    </div>
+                    <Switch
+                      checked={preSessionSettings.enabled}
+                      onCheckedChange={(checked) => updatePreSessionSettings({ ...preSessionSettings, enabled: checked })}
+                    />
+                  </div>
+                  <div className="mt-3">
+                    <Select
+                      value={String(preSessionSettings.minutesBeforeSession)}
+                      onValueChange={(value) => updatePreSessionSettings({ ...preSessionSettings, minutesBeforeSession: Number(value) })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="15">15 min antes</SelectItem>
+                        <SelectItem value="30">30 min antes</SelectItem>
+                        <SelectItem value="60">1 hora antes</SelectItem>
+                        <SelectItem value="180">3 horas antes</SelectItem>
+                        <SelectItem value="1440">1 dia antes</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {supervisionNotes.length === 0 ? (
+                  <div className="rounded-xl border border-dashed border-border p-5 text-sm text-muted-foreground">
+                    Nenhuma anotacao de supervisao ainda. Salve uma dica para ela aparecer no briefing.
+                  </div>
+                ) : (
+                  supervisionNotes.map((note) => (
+                    <div key={note.id} className="rounded-xl border border-border bg-background/60 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="font-semibold text-foreground">{note.title}</h3>
+                            {note.priority === "high" ? (
+                              <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-semibold text-destructive">Alta</span>
+                            ) : null}
+                            {note.pinned ? (
+                              <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">Fixada</span>
+                            ) : null}
+                          </div>
+                          {note.focus ? <p className="mt-1 text-xs text-muted-foreground">Foco: {note.focus}</p> : null}
+                        </div>
+                        <div className="flex gap-1">
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleToggleSupervisionPin(note.id)}>
+                            {note.pinned ? <PinOff className="h-4 w-4" /> : <Pin className="h-4 w-4" />}
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={() => handleEditSupervisionNote(note)}>
+                            Editar
+                          </Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => handleDeleteSupervisionNote(note.id)}>
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-foreground">{note.content}</p>
+                      {note.nextSessionPrompt ? (
+                        <p className="mt-3 rounded-lg bg-primary/5 p-3 text-sm text-foreground">
+                          <strong>Proxima sessao:</strong> {note.nextSessionPrompt}
+                        </p>
+                      ) : null}
+                      {note.tags.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-1.5">
+                          {note.tags.map((tag) => (
+                            <span key={tag} className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+                              #{tag}
+                            </span>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+        </CollapsibleSection>
 
         <CollapsibleSection
           title="Observações e faturamento"
@@ -2877,6 +3309,25 @@ export default function PatientDetailPage({
             <DialogFooter>
               <Button variant="secondary" onClick={() => setPaymentReminderOpen(false)}>Fechar</Button>
               <Button onClick={handleSendPaymentReminder}>Enviar no WhatsApp</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={preSessionBriefingOpen} onOpenChange={setPreSessionBriefingOpen}>
+          <DialogContent className="max-w-3xl">
+            <DialogHeader>
+              <DialogTitle className="font-serif text-xl">Briefing pre-sessao</DialogTitle>
+              <DialogDescription>
+                Resumo interno para o psicologo revisar antes do atendimento. Nao enviar ao paciente.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <Textarea value={preSessionBriefingText} readOnly className="min-h-[360px] font-mono text-sm" />
+            </div>
+            <DialogFooter>
+              <Button variant="secondary" onClick={() => setPreSessionBriefingOpen(false)}>Fechar</Button>
+              <Button variant="outline" onClick={copyPreSessionBriefing}>Copiar</Button>
+              <Button onClick={() => void sendPreSessionNotification(true)}>Notificar agora</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

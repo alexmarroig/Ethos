@@ -1,11 +1,19 @@
 import EthosLogo from "./EthosLogo";
 
 const productLinks = [
-  { label: "Funcionalidades", href: "#funcionalidades" },
-  { label: "BioHub", href: "#biohub" },
-  { label: "Preços", href: "#preco" },
-  { label: "Privacidade", href: "#privacidade" },
-  { label: "Roadmap", href: "#" },
+  { label: "Funcionalidades", href: "/#funcionalidades" },
+  { label: "BioHub", href: "/#biohub" },
+  { label: "Preços", href: "/#preco" },
+  { label: "Privacidade", href: "/#privacidade" },
+  { label: "Blog", href: "/blog" },
+];
+
+const supportLinks = [
+  { label: "Contato", href: "/contato" },
+  { label: "FAQ", href: "/#faq" },
+  { label: "Politica de privacidade", href: "/privacidade" },
+  { label: "Termos", href: "/termos" },
+  { label: "Cookies", href: "/cookies" },
 ];
 
 const Footer = () => {
@@ -64,14 +72,14 @@ const Footer = () => {
               Suporte
             </h4>
             <ul className="space-y-3">
-              {["Documentação", "FAQ", "Contato", "Status"].map((item) => (
-                <li key={item}>
+              {supportLinks.map((item) => (
+                <li key={item.label}>
                   <a
-                    href="#"
+                    href={item.href}
                     className="text-sm text-[#6B8FA8] hover:text-[#EDF2F7] transition-colors"
                     style={{ fontFamily: "'DM Sans', sans-serif" }}
                   >
-                    {item}
+                    {item.label}
                   </a>
                 </li>
               ))}
@@ -90,14 +98,17 @@ const Footer = () => {
             © {year} <span style={{ color: "#2F6F73" }}>E</span>THOS. Todos os direitos reservados.
           </p>
           <div className="flex gap-6">
-            {["Privacidade", "Termos"].map((link) => (
+            {[
+              { label: "Privacidade", href: "/privacidade" },
+              { label: "Termos", href: "/termos" },
+            ].map((link) => (
               <a
-                key={link}
-                href="#"
+                key={link.label}
+                href={link.href}
                 className="text-xs text-[#6B8FA8] hover:text-[#EDF2F7] transition-colors"
                 style={{ fontFamily: "'DM Sans', sans-serif" }}
               >
-                {link}
+                {link.label}
               </a>
             ))}
           </div>

@@ -1,0 +1,3 @@
+# AdSense placeholder for ETHOS.
+# Replace the publisher ID below after Google AdSense approval, then uncomment it.
+# google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0
