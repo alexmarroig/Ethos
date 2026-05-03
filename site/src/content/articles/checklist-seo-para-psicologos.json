@@ -5,7 +5,33 @@
   "category": "Marketing etico",
   "publishedAt": "2026-05-03",
   "readingTime": "6 min",
+  "image": "/uploads/artigos/seo-psicologos.svg",
+  "imageAlt": "Painel editorial com metricas, busca organica e artigos para psicologos.",
+  "author": {
+    "name": "Equipe ETHOS",
+    "role": "Tecnologia para rotina clinica"
+  },
   "keywords": ["SEO para psicologos", "marketing para psicologos", "site para psicologos"],
+  "relatedLinks": [
+    {
+      "label": "Software para psicologos",
+      "href": "/software-para-psicologos"
+    },
+    {
+      "label": "Site profissional para psicologos",
+      "href": "/blog/site-profissional-para-psicologos"
+    }
+  ],
+  "faq": [
+    {
+      "q": "SEO para psicologos pode usar anuncios e blog juntos?",
+      "a": "Sim. O blog ajuda a criar autoridade organica e os anuncios podem acelerar testes de mensagem, sempre com comunicacao etica e sem promessas clinicas."
+    },
+    {
+      "q": "O site deve pedir dados clinicos no formulario?",
+      "a": "Nao. O formulario publico deve captar apenas dados comerciais basicos, como nome, email, WhatsApp, perfil e interesse."
+    }
+  ],
   "sections": [
     {
       "heading": "SEO comeca por clareza de servico",

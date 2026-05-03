@@ -26,10 +26,35 @@ collections:
       - { label: "Publicado em", name: "publishedAt", widget: "datetime", format: "YYYY-MM-DD", time_format: false }
       - { label: "Atualizado em", name: "updatedAt", widget: "datetime", format: "YYYY-MM-DD", time_format: false, required: false }
       - { label: "Tempo de leitura", name: "readingTime", widget: "string", default: "6 min" }
+      - { label: "Imagem de capa", name: "image", widget: "image", required: false }
+      - { label: "Texto alternativo da imagem", name: "imageAlt", widget: "string", required: false }
       - { label: "Palavras-chave", name: "keywords", widget: "list", field: { label: "Palavra", name: "keyword", widget: "string" } }
+      - label: "Autor"
+        name: "author"
+        widget: "object"
+        required: false
+        fields:
+          - { label: "Nome", name: "name", widget: "string", required: false }
+          - { label: "Cargo", name: "role", widget: "string", required: false }
+      - label: "FAQ"
+        name: "faq"
+        widget: "list"
+        required: false
+        fields:
+          - { label: "Pergunta", name: "q", widget: "string" }
+          - { label: "Resposta", name: "a", widget: "text" }
+      - label: "Links internos"
+        name: "relatedLinks"
+        widget: "list"
+        required: false
+        fields:
+          - { label: "Texto", name: "label", widget: "string" }
+          - { label: "URL", name: "href", widget: "string" }
       - label: "Secoes"
         name: "sections"
         widget: "list"
         fields:
           - { label: "Heading", name: "heading", widget: "string" }
+          - { label: "Imagem da secao", name: "image", widget: "image", required: false }
+          - { label: "Alt da imagem", name: "imageAlt", widget: "string", required: false }
           - { label: "Paragrafos", name: "body", widget: "list", field: { label: "Paragrafo", name: "paragraph", widget: "text" } }

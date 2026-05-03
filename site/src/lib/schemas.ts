@@ -80,6 +80,8 @@ export const articleSchema = (slug: string) => {
     dateModified: article.updatedAt ?? article.publishedAt,
     mainEntityOfPage: absoluteUrl(`/blog/${article.slug}`),
     articleSection: article.category,
+    image: article.image ? absoluteUrl(article.image) : absoluteUrl("/og-image.svg"),
+    keywords: article.keywords.join(", "),
   };
 };
 

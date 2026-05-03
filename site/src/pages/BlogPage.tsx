@@ -39,12 +39,19 @@ const BlogPage = () => {
             <Link
               key={article.slug}
               to={`/blog/${article.slug}`}
-              className="rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/65 p-6 transition-all hover:-translate-y-1 hover:border-[#2F6F73]"
+              className="overflow-hidden rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/65 transition-all hover:-translate-y-1 hover:border-[#2F6F73]"
             >
-              <span className="text-xs font-semibold uppercase tracking-widest text-[#4ECDC4]">{article.category}</span>
-              <h2 className="mt-4 text-2xl font-bold leading-tight text-[#EDF2F7]">{article.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-[#6B8FA8]">{article.description}</p>
-              <p className="mt-5 text-xs text-[#6B8FA8]">{article.readingTime} · {new Date(article.publishedAt).toLocaleDateString("pt-BR")}</p>
+              {article.image && (
+                <img src={article.image} alt={article.imageAlt ?? article.title} className="aspect-[16/9] w-full object-cover" loading="lazy" />
+              )}
+              <div className="p-6">
+                <span className="text-xs font-semibold uppercase tracking-widest text-[#4ECDC4]">{article.category}</span>
+                <h2 className="mt-4 text-2xl font-bold leading-tight text-[#EDF2F7]">{article.title}</h2>
+                <p className="mt-3 text-sm leading-6 text-[#6B8FA8]">{article.description}</p>
+                <p className="mt-5 text-xs text-[#6B8FA8]">
+                  {article.readingTime} · {new Date(article.publishedAt).toLocaleDateString("pt-BR")}
+                </p>
+              </div>
             </Link>
           ))}
         </div>

@@ -7,8 +7,29 @@ export type Article = {
   updatedAt?: string;
   readingTime: string;
   keywords: string[];
+  image?: string;
+  imageAlt?: string;
+  author?: {
+    name: string;
+    role?: string;
+  };
+  reviewedBy?: {
+    name: string;
+    role?: string;
+    crp?: string;
+  };
+  faq?: Array<{
+    q: string;
+    a: string;
+  }>;
+  relatedLinks?: Array<{
+    label: string;
+    href: string;
+  }>;
   sections: Array<{
     heading: string;
+    image?: string;
+    imageAlt?: string;
     body: string[];
   }>;
 };
