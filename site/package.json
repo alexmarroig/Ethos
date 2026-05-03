@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "prebuild": "npm --prefix .. run check:encoding",
-    "build": "vite build && node scripts/prerender.mjs",
+    "build": "vite build",
+    "build:prerender": "vite build && node scripts/prerender.mjs",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",

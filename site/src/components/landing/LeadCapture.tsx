@@ -18,6 +18,19 @@ const readAttribution = () => {
   };
 };
 
+const openMailFallback = (form: {
+  name: string;
+  email: string;
+  whatsapp: string;
+  profile: string;
+  interest: string;
+}) => {
+  const body = encodeURIComponent(
+    `Nome: ${form.name}\nEmail: ${form.email}\nWhatsApp: ${form.whatsapp}\nPerfil: ${form.profile}\nInteresse: ${form.interest}`,
+  );
+  window.open(`mailto:${CONTACT_EMAIL}?subject=Lead%20ETHOS&body=${body}`, "_blank", "noopener,noreferrer");
+};
+
 const LeadCapture = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
@@ -41,16 +54,18 @@ const LeadCapture = () => {
 
     try {
       if (LEAD_ENDPOINT) {
-        await fetch(LEAD_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ...form, ...readAttribution(), source: "ethos_site" }),
-        });
+        try {
+          await fetch(LEAD_ENDPOINT, {
+            method: "POST",
+            mode: "no-cors",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify({ ...form, ...readAttribution(), source: "ethos_site" }),
+          });
+        } catch {
+          openMailFallback(form);
+        }
       } else {
-        const body = encodeURIComponent(
-          `Nome: ${form.name}\nEmail: ${form.email}\nWhatsApp: ${form.whatsapp}\nPerfil: ${form.profile}\nInteresse: ${form.interest}`,
-        );
-        window.open(`mailto:${CONTACT_EMAIL}?subject=Lead%20ETHOS&body=${body}`, "_blank", "noopener,noreferrer");
+        openMailFallback(form);
       }
       navigate("/obrigado");
     } finally {
