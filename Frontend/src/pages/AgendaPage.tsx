@@ -1236,21 +1236,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               </select>
             </label>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:justify-end">
-              <span className="font-semibold text-foreground mr-1 flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> Sugestões de IA:</span>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
-                <ListChecks className="h-4 w-4 text-primary" />
-                Sugerir blocos de foco
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
-                <Clock3 className="h-4 w-4 text-primary" />
-                Inserir intervalos
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
-                <CalendarPlus className="h-4 w-4 text-primary" />
-                Agrupar gestão
-              </button>
-            </div>
+            {/* AI suggestions and automations were moved to the sidebar */}
           </div>
         </motion.section>
 
@@ -1999,11 +1985,26 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           {visibleSuggestions.length > 0 ? (
             /* Panel with suggestions — original structure preserved */
             <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
-              <div className="flex items-center gap-2 text-sm font-semibold">
+              <div className="flex items-center gap-2 text-sm font-semibold mb-4">
                 <Sparkles className="h-4 w-4 text-primary" />
                 <span>Sugestões de IA</span>
                 <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{visibleSuggestions.length}</span>
               </div>
+              <div className="flex flex-col gap-2 mb-6">
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <ListChecks className="h-4 w-4 text-primary/70" />
+                  Sugerir blocos de foco
+                </button>
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <Clock3 className="h-4 w-4 text-primary/70" />
+                  Inserir intervalos
+                </button>
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <CalendarPlus className="h-4 w-4 text-primary/70" />
+                  Agrupar gestão
+                </button>
+              </div>
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Oportunidades de retorno</div>
               {visibleSuggestions.map((s) => (
                 <div
                   key={`${s.patient_id}-${s.suggested_at}`}
@@ -2065,12 +2066,27 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
             </div>
           ) : (
             /* Empty state — desktop only, same flex item sizing */
-            <div className="hidden xl:block xl:shrink-0 xl:border-l xl:pl-4 xl:pt-2 space-y-3" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
-              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
+            <div className="hidden xl:block xl:shrink-0 xl:border-l xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
+              <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground mb-4">
                 <Sparkles className="h-4 w-4" />
-                <span>Próxima semana</span>
+                <span>Sugestões de IA</span>
               </div>
-              <p className="text-sm text-muted-foreground">Sem sessões agendadas para a próxima semana.</p>
+              <div className="flex flex-col gap-2 mb-6">
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <ListChecks className="h-4 w-4 text-primary/70" />
+                  Sugerir blocos de foco
+                </button>
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <Clock3 className="h-4 w-4 text-primary/70" />
+                  Inserir intervalos
+                </button>
+                <button className="inline-flex w-full items-center gap-2 rounded-xl border border-border/50 bg-secondary/30 px-3 py-2 text-xs text-muted-foreground transition-colors hover:bg-secondary/60">
+                  <CalendarPlus className="h-4 w-4 text-primary/70" />
+                  Agrupar gestão
+                </button>
+              </div>
+              <div className="mb-3 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Oportunidades de retorno</div>
+              <p className="text-sm text-muted-foreground">Sua agenda está bem organizada. Sem novas oportunidades no momento.</p>
             </div>
           )}
           </motion.div>
