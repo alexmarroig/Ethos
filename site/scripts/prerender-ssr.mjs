@@ -35,7 +35,7 @@ const upsertHead = (html, seo) => {
 
   if (seo.jsonLd?.length) {
     const jsonLd = seo.jsonLd
-      .map((schema) => `<script type="application/ld+json" data-ethos-static-json-ld="true">${escapeJson(schema)}</script>`)
+      .map((schema) => `<script type="application/ld+json" data-ethos-json-ld="true">${escapeJson(schema)}</script>`)
       .join("\n    ");
     output = output.replace("</head>", `    ${jsonLd}\n  </head>`);
   }

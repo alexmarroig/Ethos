@@ -83,7 +83,9 @@ export const useSeo = ({
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", imageUrl);
 
-    document.querySelectorAll('script[data-ethos-json-ld="true"]').forEach((node) => node.remove());
+    document
+      .querySelectorAll('script[data-ethos-json-ld="true"], script[data-ethos-static-json-ld="true"]')
+      .forEach((node) => node.remove());
     const existingStaticTypes = getExistingStaticSchemaTypes();
     jsonLd.forEach((schema) => {
       const schemaTypes = collectSchemaTypes(schema);
