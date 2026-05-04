@@ -11,6 +11,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { Audio } from 'expo-av';
+import * as FileSystem from 'expo-file-system';
 import Animated, {
   FadeIn,
   FadeInDown,
@@ -40,6 +41,7 @@ import {
   startTranscriptionJob,
   updateSessionStatus,
 } from '../services/api/sessions';
+import { clinicalApiClient } from '../services/api/clinicalClient';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 type HubState = 'IDLE' | 'GRAVANDO' | 'PAUSADO' | 'PROCESSANDO' | 'CONCLUIDO';
@@ -192,45 +194,67 @@ export default function SessionHubScreen({ navigation, route }: any) {
       setRecording(null);
       setHubState('PROCESSANDO');
 
-      if (!session?.id) {
-        Alert.alert('Gravacao salva', uri ? 'Gravacao concluida localmente.' : 'Gravacao encerrada.');
+      // Sem sessão vinculada: salva localmente e encerra
+      if (!session?.id || !uri) {
+        Alert.alert('Gravacao salva', 'Sessao concluida localmente (sem ID de sessao).');
         setHubState('IDLE');
         setDuration(0);
         return;
       }
 
+      // ── Passo 1: ler arquivo de audio como base64 ────────────────────
+      setProcessingStep('Preparando audio...');
+      const base64Audio = await FileSystem.readAsStringAsync(uri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
+
+      // ── Passo 2: enviar audio para o backend ─────────────────────────
       setProcessingStep('Enviando audio...');
-      const rawText = `Sessao registrada em ${sessionTime}. Duracao: ${formatTime(duration)}. Arquivo: ${uri ?? 'nao disponivel'}.`;
+      await clinicalApiClient.request(`/sessions/${session.id}/audio`, {
+        method: 'POST',
+        body: { audio_base64: base64Audio },
+      });
 
-      setProcessingStep('Transcrevendo audio...');
-      const transcription = await startTranscriptionJob(session.id, rawText);
+      // ── Passo 3: iniciar job de transcricao ──────────────────────────
+      setProcessingStep('Iniciando transcricao...');
+      const transcription = await startTranscriptionJob(session.id);
 
-      // Poll for job completion
+      // ── Passo 4: polling ate o job completar (max 40 × 5s = ~3min) ──
       let completedJob: any = null;
-      for (let i = 0; i < 20; i++) {
-        setProcessingStep(`Transcrevendo... (${i + 1}/20)`);
+      const MAX_POLLS = 40;
+      for (let i = 0; i < MAX_POLLS; i++) {
+        const pct = Math.round(((i + 1) / MAX_POLLS) * 100);
+        setProcessingStep(`Transcrevendo... ${pct}%`);
         const job = await fetchJob(transcription.job_id);
         if (job.status === 'completed') { completedJob = job; break; }
-        if (job.status === 'failed') throw new Error('A transcricao falhou.');
-        await wait(3000);
+        if (job.status === 'failed') throw new Error('A transcricao falhou no servidor.');
+        if (job.status === 'cancelled') throw new Error('A transcricao foi cancelada.');
+        await wait(5000);
       }
 
-      if (!completedJob) throw new Error('A transcricao demorou mais do esperado.');
+      if (!completedJob) throw new Error('A transcricao demorou mais do esperado. O rascunho sera gerado quando estiver pronto.');
 
+      // ── Passo 5: gerar rascunho de nota clinica ──────────────────────
       setProcessingStep('Gerando rascunho clinico...');
-      const draftContent = buildDraftContent({ patientName, sessionTime, rawText });
+      const transcriptText: string =
+        completedJob?.data?.transcript ??
+        completedJob?.transcript ??
+        completedJob?.data?.fullText ??
+        '';
+
+      const draftContent = buildDraftContent({ patientName, sessionTime, rawText: transcriptText });
       const note = completedJob.draft_note_id
         ? { id: completedJob.draft_note_id }
         : await saveClinicalNote(session.id, draftContent);
 
-      const transcriptText: string = completedJob?.data?.transcript ?? rawText;
       await updateSessionStatus(session.id, 'completed');
 
       setResult({ transcript: transcriptText, draftNoteId: note.id });
       setTranscriptPreview(transcriptText.slice(0, 220));
       setHubState('CONCLUIDO');
+
     } catch (error: any) {
-      Alert.alert('Erro', error?.message ?? 'Nao foi possivel processar a sessao.');
+      Alert.alert('Erro ao processar sessao', error?.message ?? 'Nao foi possivel processar a sessao.');
       setHubState('IDLE');
     } finally {
       try {
