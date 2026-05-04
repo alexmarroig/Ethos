@@ -133,6 +133,10 @@ function combineDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
+function getSessionDateKey(session: Session) {
+  return session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
+}
+
 const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
   const isMobile = useIsMobile();
@@ -148,6 +152,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const [categoryFilter, setCategoryFilter] = useState<AgendaCategoryId | "all">("all");
   const [tagFilter, setTagFilter] = useState("all");
   const [quickFilter, setQuickFilter] = useState<QuickAgendaFilter>("all");
+  const [selectedDayKey, setSelectedDayKey] = useState(() => formatDate(new Date()));
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsDraft, setSettingsDraft] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -502,7 +507,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
       const meta = getAgendaMetaForSession(session);
       const matchesCategory = categoryFilter === "all" || meta.categoryId === categoryFilter;
       const matchesTag = tagFilter === "all" || meta.tags.includes(tagFilter);
-      const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
+      const dateKey = getSessionDateKey(session);
       const hasSupervisionContext =
         meta.categoryId === "study" ||
         meta.tags.some((tag) => /supervis|supervisao|supervisão/i.test(tag)) ||
@@ -528,7 +533,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     }
 
     for (const session of filteredSessions) {
-      const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
+      const dateKey = getSessionDateKey(session);
       const [hour] = (session.time || "00:00").split(":");
       const normalizedTimeKey = `${hour}:00`;
       const slotKey = `${dateKey}-${normalizedTimeKey}`;
@@ -549,6 +554,57 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     return { total, tasks, pending, newPatients, highPriority };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [agendaMetaByEventId, sessions]);
+
+  const dayInsights = useMemo(() => {
+    return visibleWeekDays.map((day) => {
+      const daySessions = filteredSessions.filter((session) => getSessionDateKey(session) === day.key);
+      const clinicalSessions = daySessions.filter((session) => session.event_type !== "block");
+      const tasks = daySessions.length - clinicalSessions.length;
+      const supervision = clinicalSessions.filter((session) => {
+        const meta = getAgendaMetaForSession(session);
+        return (
+          meta.categoryId === "study" ||
+          meta.tags.some((tag) => /supervis|supervisao/i.test(tag)) ||
+          listSupervisionNotes(session.patient_id).some((note) => note.pinned || note.priority === "high")
+        );
+      }).length;
+      const pending = daySessions.filter((session) => {
+        const meta = getAgendaMetaForSession(session);
+        return session.status === "pending" || session.status === "missed" || meta.priority === "high";
+      }).length;
+
+      return {
+        day,
+        sessions: daySessions,
+        total: daySessions.length,
+        clinical: clinicalSessions.length,
+        tasks,
+        supervision,
+        pending,
+        nextClinicalSession: clinicalSessions[0],
+      };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaMetaByEventId, filteredSessions, visibleWeekDays]);
+
+  const selectedDayInsight = useMemo(
+    () => dayInsights.find((item) => item.day.key === selectedDayKey) ?? dayInsights.find((item) => item.day.isToday) ?? dayInsights[0] ?? null,
+    [dayInsights, selectedDayKey],
+  );
+
+  const copySelectedDayBriefings = async () => {
+    const clinicalSessions = selectedDayInsight?.sessions.filter((session) => session.event_type !== "block") ?? [];
+    if (clinicalSessions.length === 0) {
+      toast({ title: "Nada para copiar", description: "Esse dia ainda nao tem sessoes clinicas filtradas." });
+      return;
+    }
+
+    const text = clinicalSessions
+      .map((session) => formatPreSessionBriefingText(buildBriefingForSession(session)))
+      .join("\n\n---\n\n");
+    await navigator.clipboard.writeText(text);
+    toast({ title: "Briefings copiados", description: `${clinicalSessions.length} briefing(s) do dia foram copiados.` });
+  };
 
   const getWeekLabel = () => {
     if (currentWeek === 0) return "Esta semana";
@@ -981,20 +1037,195 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           </div>
         </motion.section>
 
+        {!loading && !error && selectedDayInsight ? (
+          <motion.section
+            className="mb-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.16 }}
+          >
+            <div className="rounded-[1.5rem] border border-border bg-card p-4 shadow-subtle">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Hoje na clinica</p>
+                  <h2 className="mt-1 font-serif text-2xl text-foreground">
+                    {selectedDayInsight.day.long}, {formatDayNumber(selectedDayInsight.day.date)}
+                  </h2>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    Um resumo operacional do dia selecionado, com foco em sessao, supervisao e pendencias.
+                  </p>
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setCurrentWeek(0);
+                      setSelectedDayKey(formatDate(new Date()));
+                      setQuickFilter("today");
+                    }}
+                  >
+                    Hoje
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!selectedDayInsight.nextClinicalSession}
+                    onClick={() => selectedDayInsight.nextClinicalSession && openBriefingForSession(selectedDayInsight.nextClinicalSession)}
+                  >
+                    <Bell className="mr-1 h-3.5 w-3.5" />
+                    Preparar primeira
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="secondary"
+                    disabled={selectedDayInsight.clinical === 0}
+                    onClick={copySelectedDayBriefings}
+                  >
+                    Copiar briefings
+                  </Button>
+                </div>
+              </div>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                {[
+                  ["Total", selectedDayInsight.total],
+                  ["Sessoes", selectedDayInsight.clinical],
+                  ["Supervisao", selectedDayInsight.supervision],
+                  ["Pendencias", selectedDayInsight.pending],
+                ].map(([label, value]) => (
+                  <div key={label} className="rounded-2xl border border-border bg-background/60 p-3">
+                    <p className="text-xs text-muted-foreground">{label}</p>
+                    <p className="mt-1 text-xl font-semibold text-foreground">{value}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 space-y-2">
+                {selectedDayInsight.sessions.length === 0 ? (
+                  <button
+                    type="button"
+                    className="w-full rounded-2xl border border-dashed border-border px-4 py-5 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    onClick={() => {
+                      setSessionDialogDefaults({ date: selectedDayInsight.day.key });
+                      setSessionDialogOpen(true);
+                    }}
+                  >
+                    Dia livre no filtro atual. Clique para criar uma sessao ou tarefa nesse dia.
+                  </button>
+                ) : (
+                  selectedDayInsight.sessions.slice(0, 4).map((session) => {
+                    const meta = getAgendaMetaForSession(session);
+                    const color = getAgendaColor(meta.colorId);
+                    const context = getSessionClinicalContext(session).slice(0, 2);
+                    return (
+                      <div key={session.id} className={cn("rounded-2xl border p-3", color.cardClass)}>
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-medium text-muted-foreground">{session.time} · {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}</p>
+                            <p className="mt-1 truncate text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
+                            {context.length > 0 ? (
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                {context.map((item) => (
+                                  <span key={item} className="max-w-full truncate rounded-full bg-background/70 px-2 py-1 text-[11px] text-muted-foreground">
+                                    {item}
+                                  </span>
+                                ))}
+                              </div>
+                            ) : null}
+                          </div>
+                          {session.event_type !== "block" ? (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              className="shrink-0"
+                              onClick={() => openBriefingForSession(session)}
+                            >
+                              Preparar
+                            </Button>
+                          ) : null}
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-[1.5rem] border border-border bg-card p-4 shadow-subtle">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-primary" />
+                <p className="text-sm font-semibold text-foreground">Acoes rapidas</p>
+              </div>
+              <div className="mt-4 grid gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setSessionDialogDefaults({ date: selectedDayInsight.day.key });
+                    setSessionDialogOpen(true);
+                  }}
+                >
+                  <CalendarPlus className="mr-2 h-4 w-4" />
+                  Nova sessao nesse dia
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => {
+                    setSessionDialogDefaults({ date: selectedDayInsight.day.key, eventType: "task" });
+                    setTaskDialogOpen(true);
+                  }}
+                >
+                  <ListChecks className="mr-2 h-4 w-4" />
+                  Nova tarefa de agenda
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  onClick={() => setQuickFilter("pending")}
+                >
+                  <Filter className="mr-2 h-4 w-4" />
+                  Ver pendencias
+                </Button>
+              </div>
+              <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
+                A ideia e abrir a agenda e saber, em poucos segundos, o que precisa ser preparado antes dos atendimentos.
+              </p>
+            </div>
+          </motion.section>
+        ) : null}
+
         {error ? <IntegrationUnavailable message={error.message} requestId={error.requestId} /> : null}
         {loading ? <AgendaGridSkeleton /> : null}
 
         {!loading && !error && isMobile ? (
           <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
             {visibleWeekDays.map((day) => {
-              const daySessions = filteredSessions.filter((s) => (s.date || (s.scheduled_at ? formatDate(new Date(s.scheduled_at)) : "")) === day.key);
+              const daySessions = filteredSessions.filter((s) => getSessionDateKey(s) === day.key);
               return (
                 <div key={day.key} className="rounded-2xl border border-border bg-card overflow-hidden">
-                  <div className={cn("flex items-center gap-3 px-4 py-3 border-b border-border", day.isToday && "bg-primary/5")}>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedDayKey(day.key)}
+                    className={cn(
+                      "flex w-full items-center gap-3 border-b border-border px-4 py-3 text-left transition-colors hover:bg-primary/5",
+                      day.isToday && "bg-primary/5",
+                      selectedDayKey === day.key && "ring-1 ring-inset ring-primary/30",
+                    )}
+                  >
                     <span className={cn("text-xs uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>{day.long}</span>
                     <span className={cn("font-serif text-xl text-foreground", day.isToday && "text-primary")}>{formatDayNumber(day.date)}</span>
                     {day.isToday ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
-                  </div>
+                    <span className="ml-auto rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold text-muted-foreground">{daySessions.length}</span>
+                  </button>
                   {daySessions.length === 0 ? (
                     <button
                       type="button"
@@ -1098,7 +1329,17 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
             <div className="grid w-full min-w-0" style={{ gridTemplateColumns: desktopCalendarGrid }}>
               <div className="border-b border-r border-border bg-muted/30 p-3" />
               {visibleWeekDays.map((day) => (
-                <div key={day.key} className={cn("min-w-0 border-b border-border", desktopDensity.dayHeaderPadding, day.isToday && "bg-primary/5")}>
+                <button
+                  key={day.key}
+                  type="button"
+                  onClick={() => setSelectedDayKey(day.key)}
+                  className={cn(
+                    "min-w-0 border-b border-border text-left transition-colors hover:bg-primary/5",
+                    desktopDensity.dayHeaderPadding,
+                    day.isToday && "bg-primary/5",
+                    selectedDayKey === day.key && "ring-1 ring-inset ring-primary/30",
+                  )}
+                >
                   <p className={cn("truncate text-[11px] uppercase tracking-[0.18em] text-muted-foreground", day.isToday && "text-primary")}>
                     {day.long}
                   </p>
@@ -1106,7 +1347,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                     <span className="font-serif text-2xl text-foreground">{formatDayNumber(day.date)}</span>
                     {day.isToday ? <span className="rounded-full bg-primary px-2 py-1 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
                   </div>
-                </div>
+                </button>
               ))}
 
               {timeSlots.map((slot) => (
