@@ -28,6 +28,30 @@ const upsertMeta = (key: "name" | "property", name: string, content: string) => 
   element.content = content;
 };
 
+const collectSchemaTypes = (schema: unknown): string[] => {
+  if (!schema || typeof schema !== "object") return [];
+  const value = schema as Record<string, unknown>;
+  const type = value["@type"];
+  const graph = value["@graph"];
+
+  return [
+    ...(typeof type === "string" ? [type] : []),
+    ...(Array.isArray(graph) ? graph.flatMap(collectSchemaTypes) : []),
+  ];
+};
+
+const getExistingStaticSchemaTypes = () => {
+  const types = new Set<string>();
+  document.querySelectorAll('script[type="application/ld+json"]:not([data-ethos-json-ld="true"])').forEach((node) => {
+    try {
+      collectSchemaTypes(JSON.parse(node.textContent ?? "")).forEach((type) => types.add(type));
+    } catch {
+      // Ignore invalid third-party JSON-LD; ETHOS only de-dupes valid schema blocks.
+    }
+  });
+  return types;
+};
+
 export const useSeo = ({
   title = SITE_TITLE,
   description = SITE_DESCRIPTION,
@@ -59,8 +83,12 @@ export const useSeo = ({
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", imageUrl);
 
-    document.querySelectorAll('script[type="application/ld+json"]').forEach((node) => node.remove());
+    document.querySelectorAll('script[data-ethos-json-ld="true"]').forEach((node) => node.remove());
+    const existingStaticTypes = getExistingStaticSchemaTypes();
     jsonLd.forEach((schema) => {
+      const schemaTypes = collectSchemaTypes(schema);
+      if (schemaTypes.some((schemaType) => existingStaticTypes.has(schemaType))) return;
+
       const script = document.createElement("script");
       script.type = "application/ld+json";
       script.dataset.ethosJsonLd = "true";
