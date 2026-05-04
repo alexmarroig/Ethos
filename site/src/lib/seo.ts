@@ -59,7 +59,7 @@ export const useSeo = ({
     upsertMeta("name", "twitter:description", description);
     upsertMeta("name", "twitter:image", imageUrl);
 
-    document.querySelectorAll('script[data-ethos-json-ld="true"]').forEach((node) => node.remove());
+    document.querySelectorAll('script[type="application/ld+json"]').forEach((node) => node.remove());
     jsonLd.forEach((schema) => {
       const script = document.createElement("script");
       script.type = "application/ld+json";
