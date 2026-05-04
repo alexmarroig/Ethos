@@ -63,6 +63,7 @@ type StoredAgendaSettings = AgendaSettings & {
 
 type CacheStatus = "idle" | "cached" | "synced";
 type QuickAgendaFilter = "all" | "today" | "sessions" | "tasks" | "supervision" | "pending";
+type AgendaView = "day" | "week" | "month";
 
 const AGENDA_SETTINGS_KEY = "ethos_web_agenda_settings_v1";
 const defaultAgendaSettings: AgendaSettings = {
@@ -146,6 +147,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const upsertSession = useAppStore((s) => s.upsertSession);
   const removeSessionFromStore = useAppStore((s) => s.removeSession);
   const [currentWeek, setCurrentWeek] = useState(0);
+  const [monthOffset, setMonthOffset] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
   const [patients, setPatients] = useState<Patient[]>([]);
   const [agendaMetaByEventId, setAgendaMetaByEventId] = useState<Record<string, AgendaEventMeta>>(() => readAgendaEventMetaMap());
@@ -153,6 +155,8 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const [tagFilter, setTagFilter] = useState("all");
   const [quickFilter, setQuickFilter] = useState<QuickAgendaFilter>("all");
   const [selectedDayKey, setSelectedDayKey] = useState(() => formatDate(new Date()));
+  const [agendaView, setAgendaView] = useState<AgendaView>("week");
+  const [prepareDayOpen, setPrepareDayOpen] = useState(false);
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsDraft, setSettingsDraft] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -206,6 +210,21 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     return { from: formatDate(weekStart), to: formatDate(end) };
   }, [weekStart]);
 
+  const monthStart = useMemo(() => {
+    const value = new Date();
+    value.setMonth(value.getMonth() + monthOffset, 1);
+    value.setHours(0, 0, 0, 0);
+    return value;
+  }, [monthOffset]);
+
+  const monthWindow = useMemo(() => {
+    const end = new Date(monthStart);
+    end.setMonth(end.getMonth() + 1, 0);
+    return { from: formatDate(monthStart), to: formatDate(end) };
+  }, [monthStart]);
+
+  const activeWindow = agendaView === "month" ? monthWindow : weekWindow;
+
   const weekDaysWithDate = useMemo(
     () =>
       weekDays.map((day, index) => {
@@ -225,6 +244,30 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     () => weekDaysWithDate.filter((day) => agendaSettings.enabledWeekdays.includes(day.id)),
     [weekDaysWithDate, agendaSettings.enabledWeekdays],
   );
+
+  const monthDaysWithDate = useMemo(() => {
+    const end = new Date(monthStart);
+    end.setMonth(end.getMonth() + 1, 0);
+    return Array.from({ length: end.getDate() }, (_, index) => {
+      const value = new Date(monthStart);
+      value.setDate(index + 1);
+      const day = weekDays.find((item) => item.id === value.getDay()) ?? weekDays[0];
+      return {
+        ...day,
+        date: value,
+        key: formatDate(value),
+        isToday: formatDate(value) === formatDate(new Date()),
+      };
+    });
+  }, [monthStart]);
+
+  const calendarDays = useMemo(() => {
+    if (agendaView === "day") {
+      const selected = visibleWeekDays.filter((day) => day.key === selectedDayKey);
+      return selected.length > 0 ? selected : visibleWeekDays.slice(0, 1);
+    }
+    return visibleWeekDays;
+  }, [agendaView, selectedDayKey, visibleWeekDays]);
 
   useEffect(() => {
     try {
@@ -282,7 +325,8 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
   useEffect(() => {
     const cachedWeek = readAgendaWeekCache();
-    const hasUsableCache = cachedWeek?.weekWindow.from === weekWindow.from && cachedWeek.weekWindow.to === weekWindow.to;
+    const canUseWeekCache = agendaView !== "month";
+    const hasUsableCache = canUseWeekCache && cachedWeek?.weekWindow.from === activeWindow.from && cachedWeek.weekWindow.to === activeWindow.to;
 
     if (hasUsableCache) {
       setSessions(cachedWeek.sessions);
@@ -296,7 +340,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     const loadSessions = async () => {
       setLoading(!hasUsableCache);
       try {
-        const result = await sessionService.list(weekWindow, undefined, {
+        const result = await sessionService.list(activeWindow, undefined, {
           timeout: AGENDA_SESSIONS_TIMEOUT_MS,
           retry: true,
         });
@@ -309,12 +353,14 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         setSessionCache(result.data); // sync global store
         setError(null);
         const fetchedAt = new Date().toISOString();
-        writeAgendaWeekCache({
-          version: 1,
-          fetchedAt,
-          weekWindow,
-          sessions: result.data,
-        });
+        if (canUseWeekCache) {
+          writeAgendaWeekCache({
+            version: 1,
+            fetchedAt,
+            weekWindow: activeWindow,
+            sessions: result.data,
+          });
+        }
         setCacheStatus("synced");
         setCacheFetchedAt(fetchedAt);
       } finally {
@@ -331,7 +377,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     }).catch(() => {});
 
     void loadSessions();
-  }, [setSessionCache, weekWindow]);
+  }, [activeWindow, agendaView, setSessionCache]);
 
   const handleCreateSession = async () => {
     if (!newPatientId || !newDate || !newTime) return;
@@ -372,7 +418,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     }
 
     // After a move, re-fetch the week so clinical note indicators are fresh.
-    const refreshResult = await sessionService.list(weekWindow);
+    const refreshResult = await sessionService.list(activeWindow);
     if (refreshResult.success) {
       setSessions(refreshResult.data);
       setSessionCache(refreshResult.data); // sync global store
@@ -526,7 +572,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
   const sessionsByCell = useMemo(() => {
     const map = new Map<string, Session[]>();
-    for (const day of visibleWeekDays) {
+    for (const day of calendarDays) {
       for (const slot of timeSlots) {
         map.set(`${day.key}-${slot}`, []);
       }
@@ -543,7 +589,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     }
 
     return map;
-  }, [filteredSessions, visibleWeekDays, timeSlots]);
+  }, [calendarDays, filteredSessions, timeSlots]);
 
   const agendaSummary = useMemo(() => {
     const total = sessions.filter((session) => session.event_type !== "block").length;
@@ -592,8 +638,51 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     [dayInsights, selectedDayKey],
   );
 
+  const selectedDayClinicalSessions = useMemo(
+    () => selectedDayInsight?.sessions.filter((session) => session.event_type !== "block") ?? [],
+    [selectedDayInsight],
+  );
+
+  const monthInsights = useMemo(() => {
+    return monthDaysWithDate.map((day) => {
+      const daySessions = filteredSessions.filter((session) => getSessionDateKey(session) === day.key);
+      const clinical = daySessions.filter((session) => session.event_type !== "block").length;
+      const pending = daySessions.filter((session) => {
+        const meta = getAgendaMetaForSession(session);
+        return session.status === "pending" || session.status === "missed" || meta.priority === "high";
+      }).length;
+      return { day, sessions: daySessions, total: daySessions.length, clinical, pending };
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaMetaByEventId, filteredSessions, monthDaysWithDate]);
+
+  const openPrepareDay = () => {
+    if (selectedDayClinicalSessions.length === 0) {
+      toast({ title: "Sem sessoes clinicas", description: "Esse dia ainda nao tem sessoes clinicas no filtro atual." });
+      return;
+    }
+    setPrepareDayOpen(true);
+  };
+
+  const copyConfirmationMessage = async (session: Session) => {
+    const message = `Ola, ${session.patient_name}. Passando para confirmar nossa sessao de ${session.date} as ${session.time}. Se precisar remarcar, me avise com antecedencia.`;
+    await navigator.clipboard.writeText(message);
+    toast({ title: "Mensagem copiada", description: "Cole no WhatsApp para confirmar a sessao." });
+  };
+
+  const markSessionStatus = async (session: Session, status: Session["status"], title: string) => {
+    const result = await sessionService.updateStatus(session.id, status);
+    if (!result.success) {
+      toast({ title: "Nao foi possivel atualizar", description: result.error.message, variant: "destructive" });
+      return;
+    }
+    setSessions((current) => current.map((item) => (item.id === session.id ? result.data : item)));
+    upsertSession(result.data);
+    toast({ title });
+  };
+
   const copySelectedDayBriefings = async () => {
-    const clinicalSessions = selectedDayInsight?.sessions.filter((session) => session.event_type !== "block") ?? [];
+    const clinicalSessions = selectedDayClinicalSessions;
     if (clinicalSessions.length === 0) {
       toast({ title: "Nada para copiar", description: "Esse dia ainda nao tem sessoes clinicas filtradas." });
       return;
@@ -605,6 +694,33 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     await navigator.clipboard.writeText(text);
     toast({ title: "Briefings copiados", description: `${clinicalSessions.length} briefing(s) do dia foram copiados.` });
   };
+
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable='true']")) return;
+      if (event.key.toLowerCase() === "n") {
+        setSessionDialogDefaults({ date: selectedDayKey, eventType: "session" });
+        setSessionDialogOpen(true);
+      }
+      if (event.key.toLowerCase() === "t") {
+        setSessionDialogDefaults({ date: selectedDayKey, eventType: "task" });
+        setTaskDialogOpen(true);
+      }
+      if (event.key.toLowerCase() === "p") {
+        openPrepareDay();
+      }
+      if (event.key === "ArrowLeft") {
+        agendaView === "month" ? setMonthOffset((value) => value - 1) : setCurrentWeek((value) => value - 1);
+      }
+      if (event.key === "ArrowRight") {
+        agendaView === "month" ? setMonthOffset((value) => value + 1) : setCurrentWeek((value) => value + 1);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agendaView, selectedDayClinicalSessions, selectedDayKey]);
 
   const getWeekLabel = () => {
     if (currentWeek === 0) return "Esta semana";
@@ -689,8 +805,8 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
   const desktopCalendarGrid = useMemo(() => {
     const dayWidth = `minmax(${desktopDensity.dayColumnMin}px, 1fr)`;
-    return `72px repeat(${visibleWeekDays.length}, ${dayWidth})`;
-  }, [desktopDensity.dayColumnMin, visibleWeekDays.length]);
+    return `72px repeat(${calendarDays.length}, ${dayWidth})`;
+  }, [calendarDays.length, desktopDensity.dayColumnMin]);
 
   useEffect(() => {
     if (!dragCreate) return;
@@ -720,7 +836,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
       const finalDuration = resizeDurationRef.current;
       if (finalDuration !== originalDuration) {
         await sessionService.update(id, { duration_minutes: finalDuration });
-        const result = await sessionService.list(weekWindow);
+        const result = await sessionService.list(activeWindow);
         if (result.success) {
           setSessions(result.data);
           setAgendaMetaByEventId(readAgendaEventMetaMap());
@@ -905,19 +1021,48 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
         <motion.div className="mb-6 flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.12 }}>
           <div className="inline-flex items-center gap-3 rounded-2xl border border-border bg-card px-3 py-2 shadow-subtle">
-            <button onClick={() => setCurrentWeek((value) => value - 1)} className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary">
+            <button
+              onClick={() => agendaView === "month" ? setMonthOffset((value) => value - 1) : setCurrentWeek((value) => value - 1)}
+              className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary"
+            >
               <ChevronLeft className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             </button>
             <div className="min-w-[140px] sm:min-w-[220px] text-center">
-              <p className="text-sm font-medium text-foreground">{getWeekLabel()}</p>
-              <p className="text-xs text-muted-foreground">{formatWeekRange(weekStart)}</p>
+              <p className="text-sm font-medium text-foreground">{agendaView === "month" ? "Mapa mensal" : getWeekLabel()}</p>
+              <p className="text-xs text-muted-foreground">
+                {agendaView === "month"
+                  ? new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(monthStart)
+                  : formatWeekRange(weekStart)}
+              </p>
             </div>
-            <button onClick={() => setCurrentWeek((value) => value + 1)} className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary">
+            <button
+              onClick={() => agendaView === "month" ? setMonthOffset((value) => value + 1) : setCurrentWeek((value) => value + 1)}
+              className="rounded-xl p-2 transition-colors duration-200 hover:bg-secondary"
+            >
               <ChevronRight className="w-5 h-5 text-muted-foreground" strokeWidth={1.5} />
             </button>
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <div className="inline-flex rounded-2xl border border-border bg-card p-1 shadow-subtle">
+              {[
+                ["day", "Dia"],
+                ["week", "Semana"],
+                ["month", "Mes"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setAgendaView(key as AgendaView)}
+                  className={cn(
+                    "rounded-xl px-3 py-1.5 text-xs font-semibold transition-colors",
+                    agendaView === key ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-secondary",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
             <div className="inline-flex items-center gap-2 rounded-2xl border border-border bg-card px-3 py-2 text-xs text-muted-foreground shadow-subtle">
               <span className={cn("h-2.5 w-2.5 rounded-full", cacheStatus === "synced" ? "bg-status-validated" : cacheStatus === "cached" ? "bg-orange-400" : "bg-border")} />
               <span>
@@ -1081,8 +1226,17 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                   <Button
                     type="button"
                     size="sm"
+                    variant="outline"
+                    disabled={selectedDayClinicalSessions.length === 0}
+                    onClick={openPrepareDay}
+                  >
+                    Preparar meu dia
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
                     variant="secondary"
-                    disabled={selectedDayInsight.clinical === 0}
+                    disabled={selectedDayClinicalSessions.length === 0}
                     onClick={copySelectedDayBriefings}
                   >
                     Copiar briefings
@@ -1195,9 +1349,19 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                   <Filter className="mr-2 h-4 w-4" />
                   Ver pendencias
                 </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="justify-start"
+                  disabled={selectedDayClinicalSessions.length === 0}
+                  onClick={openPrepareDay}
+                >
+                  <Bell className="mr-2 h-4 w-4" />
+                  Ritual pre-sessao
+                </Button>
               </div>
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
-                A ideia e abrir a agenda e saber, em poucos segundos, o que precisa ser preparado antes dos atendimentos.
+                Atalhos: N nova sessao, T nova tarefa, P preparar o dia, setas mudam periodo.
               </p>
             </div>
           </motion.section>
@@ -1206,9 +1370,69 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         {error ? <IntegrationUnavailable message={error.message} requestId={error.requestId} /> : null}
         {loading ? <AgendaGridSkeleton /> : null}
 
-        {!loading && !error && isMobile ? (
+        {!loading && !error && agendaView === "month" ? (
+          <motion.div
+            className="rounded-[2rem] border border-border bg-card p-4 shadow-subtle"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.18 }}
+          >
+            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Mapa mensal</p>
+                <h2 className="font-serif text-2xl text-foreground">
+                  {new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(monthStart)}
+                </h2>
+              </div>
+              <p className="text-sm text-muted-foreground">Clique em um dia para abrir a visao diaria e preparar a rotina.</p>
+            </div>
+
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+              {monthInsights.map((item) => (
+                <button
+                  key={item.day.key}
+                  type="button"
+                  onClick={() => {
+                    setSelectedDayKey(item.day.key);
+                    const baseWeek = getStartOfWeek(new Date(), 0).getTime();
+                    const targetWeek = getStartOfWeek(item.day.date, 0).getTime();
+                    setCurrentWeek(Math.round((targetWeek - baseWeek) / (7 * 24 * 60 * 60 * 1000)));
+                    setAgendaView("day");
+                  }}
+                  className={cn(
+                    "min-h-[128px] rounded-2xl border border-border bg-background/70 p-3 text-left transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-soft",
+                    item.day.isToday && "border-primary/50 bg-primary/5",
+                    item.pending > 0 && "border-status-pending/40",
+                  )}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div>
+                      <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-muted-foreground">{item.day.short}</p>
+                      <p className="mt-1 font-serif text-2xl text-foreground">{formatDayNumber(item.day.date)}</p>
+                    </div>
+                    {item.day.isToday ? <span className="rounded-full bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground">Hoje</span> : null}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-1.5">
+                    <span className="rounded-full bg-secondary px-2 py-1 text-[10px] font-semibold text-muted-foreground">{item.clinical} sessoes</span>
+                    {item.pending > 0 ? <span className="rounded-full bg-status-pending/15 px-2 py-1 text-[10px] font-semibold text-status-pending">{item.pending} pend.</span> : null}
+                  </div>
+                  <div className="mt-3 space-y-1">
+                    {item.sessions.slice(0, 2).map((session) => (
+                      <p key={session.id} className="truncate rounded-lg bg-card px-2 py-1 text-[11px] text-muted-foreground">
+                        {session.time} · {session.block_title ?? maskName(session.patient_name)}
+                      </p>
+                    ))}
+                    {item.sessions.length > 2 ? <p className="text-[11px] text-muted-foreground">+{item.sessions.length - 2} itens</p> : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        ) : null}
+
+        {!loading && !error && agendaView !== "month" && isMobile ? (
           <motion.div className="space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.18 }}>
-            {visibleWeekDays.map((day) => {
+            {calendarDays.map((day) => {
               const daySessions = filteredSessions.filter((s) => getSessionDateKey(s) === day.key);
               return (
                 <div key={day.key} className="rounded-2xl border border-border bg-card overflow-hidden">
@@ -1283,19 +1507,33 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                               </div>
                             ) : null}
                             {session.event_type !== "block" ? (
-                              <Button
-                                type="button"
-                                variant="default"
-                                size="sm"
-                                className="mt-3 h-8 w-full gap-1"
-                                onClick={(event) => {
-                                  event.stopPropagation();
-                                  openBriefingForSession(session);
-                                }}
-                              >
-                                <Bell className="h-3.5 w-3.5" />
-                                Preparar sessao
-                              </Button>
+                              <div className="mt-3 grid grid-cols-2 gap-2">
+                                <Button
+                                  type="button"
+                                  variant="default"
+                                  size="sm"
+                                  className="h-8 gap-1"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    openBriefingForSession(session);
+                                  }}
+                                >
+                                  <Bell className="h-3.5 w-3.5" />
+                                  Preparar
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="h-8"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    void copyConfirmationMessage(session);
+                                  }}
+                                >
+                                  WhatsApp
+                                </Button>
+                              </div>
                             ) : null}
                             {meta.tags.length > 0 ? (
                               <div className="mt-2 flex flex-wrap gap-1">
@@ -1317,7 +1555,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           </motion.div>
         ) : null}
 
-        {!loading && !error && !isMobile ? (
+        {!loading && !error && agendaView !== "month" && !isMobile ? (
           <motion.div
             ref={desktopAgendaRef}
             className={cn("flex flex-col gap-4 xl:flex-row xl:items-start", isResizingPanels && "select-none")}
@@ -1328,7 +1566,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           <div className="min-w-0 flex-1 rounded-[2rem] border border-border bg-card shadow-[0_24px_52px_-34px_rgba(15,23,42,0.28)]">
             <div className="grid w-full min-w-0" style={{ gridTemplateColumns: desktopCalendarGrid }}>
               <div className="border-b border-r border-border bg-muted/30 p-3" />
-              {visibleWeekDays.map((day) => (
+              {calendarDays.map((day) => (
                 <button
                   key={day.key}
                   type="button"
@@ -1355,7 +1593,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                   <div className="border-r border-border bg-muted/20 px-3 py-4 text-right">
                     <span className="text-xs font-medium text-muted-foreground">{slot}</span>
                   </div>
-                  {visibleWeekDays.map((day) => {
+                  {calendarDays.map((day) => {
                     const cellKey = `${day.key}-${slot}`;
                     const daySessions = sessionsByCell.get(cellKey) ?? [];
                     return (
@@ -1521,19 +1759,33 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                                       )}
                                     </div>
                                     {session.event_type !== "block" ? (
-                                      <Button
-                                        type="button"
-                                        variant="default"
-                                        size="sm"
-                                        className="mt-3 h-8 w-full gap-1"
-                                        onClick={(event) => {
-                                          event.stopPropagation();
-                                          openBriefingForSession(session);
-                                        }}
-                                      >
-                                        <Bell className="h-3.5 w-3.5" />
-                                        Preparar sessao
-                                      </Button>
+                                      <div className="mt-3 grid grid-cols-2 gap-2">
+                                        <Button
+                                          type="button"
+                                          variant="default"
+                                          size="sm"
+                                          className="h-8 gap-1"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            openBriefingForSession(session);
+                                          }}
+                                        >
+                                          <Bell className="h-3.5 w-3.5" />
+                                          Preparar
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-8"
+                                          onClick={(event) => {
+                                            event.stopPropagation();
+                                            void copyConfirmationMessage(session);
+                                          }}
+                                        >
+                                          Confirmar
+                                        </Button>
+                                      </div>
                                     ) : null}
                                   </div>
 
@@ -1639,7 +1891,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                         duration_minutes: s.duration_minutes,
                       });
                       setDismissedSuggestions((prev) => new Set([...prev, `${s.patient_id}-${s.suggested_at}`]));
-                      const result = await sessionService.list(weekWindow);
+                      const result = await sessionService.list(activeWindow);
                       if (result.success) {
                         setSessions(result.data);
                         setAgendaMetaByEventId(readAgendaEventMetaMap());
@@ -1675,7 +1927,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
       defaultTime={sessionDialogDefaults.time}
       defaultEventType={sessionDialogDefaults.eventType as 'session' | 'task' | undefined}
       onCreated={async () => {
-        const result = await sessionService.list(weekWindow);
+        const result = await sessionService.list(activeWindow);
         if (result.success) {
           setSessions(result.data);
           setAgendaMetaByEventId(readAgendaEventMetaMap());
@@ -1686,11 +1938,14 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
     <SessionDialog
       open={taskDialogOpen}
-      onOpenChange={setTaskDialogOpen}
+      onOpenChange={(v) => { setTaskDialogOpen(v); if (!v) setSessionDialogDefaults({}); }}
       patients={patients}
       mode="task"
+      defaultDate={sessionDialogDefaults.date}
+      defaultTime={sessionDialogDefaults.time}
+      defaultEventType={sessionDialogDefaults.eventType as 'session' | 'task' | undefined}
       onCreated={async () => {
-        const result = await sessionService.list(weekWindow);
+        const result = await sessionService.list(activeWindow);
         if (result.success) {
           setSessions(result.data);
           setAgendaMetaByEventId(readAgendaEventMetaMap());
@@ -1698,6 +1953,63 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         }
       }}
     />
+
+    <Dialog open={prepareDayOpen} onOpenChange={setPrepareDayOpen}>
+      <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl">Preparar meu dia</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div className="rounded-2xl border border-border bg-secondary/40 p-4">
+            <p className="text-sm font-semibold text-foreground">
+              {selectedDayInsight ? `${selectedDayInsight.day.long}, ${formatDayNumber(selectedDayInsight.day.date)}` : "Dia selecionado"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Revise cada atendimento, copie mensagens de confirmacao e abra o briefing quando precisar.
+            </p>
+          </div>
+
+          {selectedDayClinicalSessions.map((session, index) => {
+            const briefing = buildBriefingForSession(session);
+            return (
+              <div key={session.id} className="rounded-2xl border border-border bg-card p-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Sessao {index + 1}</p>
+                    <h3 className="mt-1 text-lg font-semibold text-foreground">{session.time} · {maskName(session.patient_name)}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{briefing.mainComplaint || "Sem queixa principal registrada."}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button size="sm" onClick={() => openBriefingForSession(session)}>Abrir briefing</Button>
+                    <Button size="sm" variant="outline" onClick={() => void copyConfirmationMessage(session)}>Copiar WhatsApp</Button>
+                    <Button size="sm" variant="outline" onClick={() => void markSessionStatus(session, "confirmed", "Sessao confirmada")}>Confirmada</Button>
+                    <Button size="sm" variant="secondary" onClick={() => void handleCompleteSession(session)}>Concluir</Button>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-3">
+                  <div className="rounded-xl bg-background/70 p-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Evolucao</p>
+                    <p className="mt-1 line-clamp-3 text-sm text-foreground">{briefing.clinicalEvolution || "Sem sintese recente."}</p>
+                  </div>
+                  <div className="rounded-xl bg-background/70 p-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Supervisao</p>
+                    <p className="mt-1 line-clamp-3 text-sm text-foreground">
+                      {briefing.supervisionHighlights[0]?.nextSessionPrompt || briefing.supervisionHighlights[0]?.title || "Sem anotacao fixada."}
+                    </p>
+                  </div>
+                  <div className="rounded-xl bg-background/70 p-3">
+                    <p className="text-xs font-semibold text-muted-foreground">Pendencias</p>
+                    <p className="mt-1 line-clamp-3 text-sm text-foreground">
+                      {[...briefing.tasks.map((task) => task.title), ...briefing.adminAlerts].slice(0, 2).join(" · ") || "Nada critico para antes da sessao."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={!!selectedBriefing} onOpenChange={(open) => !open && setSelectedBriefing(null)}>
       <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
