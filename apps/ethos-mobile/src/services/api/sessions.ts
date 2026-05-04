@@ -8,9 +8,17 @@ import type {
 import { unwrapPaginatedResponse } from './types';
 
 // 🔹 Fetch all sessions (paginated → normalized)
-export const fetchSessions = async () => {
+export const fetchSessions = async (params?: { from?: string; to?: string }) => {
+  let path = '/sessions';
+  if (params?.from || params?.to) {
+    const qs = new URLSearchParams();
+    if (params.from) qs.append('from', params.from);
+    if (params.to) qs.append('to', params.to);
+    path = `/sessions?${qs.toString()}`;
+  }
+
   const response = await clinicalApiClient.request<PaginatedResponse<SessionRecord>>(
-    '/sessions',
+    path,
     {
       method: 'GET',
     }

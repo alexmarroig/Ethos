@@ -9,7 +9,13 @@ import React, {
   useMemo,
   useRef,
 } from 'react';
+import * as Notifications from 'expo-notifications';
 import { fetchNotifications } from '../services/api/notifications';
+import {
+  registerForPushNotificationsAsync,
+  getDeepLinkForNotification,
+  type PushNotificationData,
+} from '../services/pushNotifications';
 
 // ==========================
 // TYPES
@@ -25,7 +31,7 @@ export type DocumentItem = {
 
 export type AppNotification = {
   id: string;
-  type: 'prontuario_gerado' | 'sessao_pendente' | 'pagamento';
+  type: 'prontuario_gerado' | 'sessao_pendente' | 'pagamento' | 'transcricao_pronta';
   title: string;
   body: string;
   message?: string;
@@ -44,6 +50,7 @@ type PendingJob = {
 type NotificationsContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
+  pushToken: string | null;
   addNotification: (n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => void;
   addPendingJob: (job: PendingJob) => void;
   refreshNotifications: () => Promise<AppNotification[]>;
@@ -97,14 +104,30 @@ export const setNotificationsAuthToken = (token: string | null) => {
 };
 
 // ==========================
+// NAVIGATION REF (for deep-links from push)
+// ==========================
+type NavigationRef = {
+  navigate: (screen: string, params?: Record<string, unknown>) => void;
+} | null;
+
+let navigationRef: NavigationRef = null;
+export const setNotificationsNavigationRef = (ref: NavigationRef) => {
+  navigationRef = ref;
+};
+
+// ==========================
 // PROVIDER
 // ==========================
 export function NotificationsProvider({ children }: { children: React.ReactNode }) {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
+  const [pushToken, setPushToken] = useState<string | null>(null);
 
   const pendingJobsRef = useRef<PendingJob[]>([]);
   pendingJobsRef.current = pendingJobs;
+
+  const notificationListener = useRef<ReturnType<typeof Notifications.addNotificationReceivedListener>>();
+  const responseListener = useRef<ReturnType<typeof Notifications.addNotificationResponseReceivedListener>>();
 
   const unreadCount = useMemo(
     () => notifications.filter((n) => !n.read).length,
@@ -139,7 +162,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       if (!job.jobId) {
         addNotification({
           type: 'sessao_pendente',
-          title: 'Transcrição indisponível',
+          title: 'Transcricao indisponivel',
           body: job.patientName,
         });
         return;
@@ -176,7 +199,52 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   }, [notifications]);
 
   // ==========================
-  // POLLING ENGINE
+  // PUSH NOTIFICATION SETUP
+  // ==========================
+  useEffect(() => {
+    // Register device for push
+    registerForPushNotificationsAsync().then((token) => {
+      if (token) setPushToken(token);
+    });
+
+    // Handle notification received while app is in foreground
+    notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
+      const data = notification.request.content.data as PushNotificationData;
+      addNotification({
+        type: 'sessao_pendente',
+        title: notification.request.content.title ?? 'Notificacao',
+        body: notification.request.content.body ?? '',
+      });
+
+      // Show badge update
+      Notifications.setBadgeCountAsync(unreadCount + 1).catch(() => {});
+    });
+
+    // Handle tap on notification (foreground or background)
+    responseListener.current = Notifications.addNotificationResponseReceivedListener((response) => {
+      const data = response.notification.request.content.data as PushNotificationData;
+      const route = getDeepLinkForNotification(data);
+      if (route && navigationRef) {
+        try {
+          navigationRef.navigate(route.screen, route.params);
+        } catch {
+          // Navigation not ready yet — ignore
+        }
+      }
+    });
+
+    return () => {
+      if (notificationListener.current) {
+        Notifications.removeNotificationSubscription(notificationListener.current);
+      }
+      if (responseListener.current) {
+        Notifications.removeNotificationSubscription(responseListener.current);
+      }
+    };
+  }, [addNotification, unreadCount]);
+
+  // ==========================
+  // POLLING ENGINE (for transcription jobs)
   // ==========================
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -197,19 +265,19 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
 
           if (status === 'completed') {
             addNotification({
-              type: 'prontuario_gerado',
-              title: 'Prontuário gerado',
-              body: job.patientName,
+              type: 'transcricao_pronta',
+              title: 'Transcricao pronta',
+              body: `Sessao de ${job.patientName} — toque para abrir o prontuario`,
               document:
                 data?.data?.document ?? {
                   id: `doc-${Date.now()}`,
-                  title: `Sessão — ${job.patientName}`,
+                  title: `Sessao — ${job.patientName}`,
                   patient: job.patientName,
                   status: 'rascunho',
                   date: new Date().toLocaleDateString('pt-BR'),
                   content:
                     data?.data?.transcript ??
-                    'Transcrição concluída. Revise o prontuário.',
+                    'Transcricao concluida. Revise o prontuario.',
                 },
             });
 
@@ -219,7 +287,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
           if (status === 'failed') {
             addNotification({
               type: 'sessao_pendente',
-              title: 'Transcrição falhou',
+              title: 'Transcricao falhou',
               body: job.patientName,
             });
 
@@ -250,12 +318,13 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     () => ({
       notifications,
       unreadCount,
+      pushToken,
       addNotification,
       addPendingJob,
       refreshNotifications,
       markAllRead,
     }),
-    [notifications, unreadCount, addNotification, addPendingJob, refreshNotifications, markAllRead]
+    [notifications, unreadCount, pushToken, addNotification, addPendingJob, refreshNotifications, markAllRead]
   );
 
   return (

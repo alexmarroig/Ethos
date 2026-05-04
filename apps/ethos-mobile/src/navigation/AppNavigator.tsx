@@ -8,32 +8,58 @@ import { Banknote, Calendar, FileText, Home, Settings, Users } from 'lucide-reac
 import { colors } from '../theme/colors';
 import { useAuth } from '../contexts/AuthContext';
 
-import DashboardScreen from '../screens/DashboardScreen';
-import ScheduleScreen from '../screens/ScheduleScreen';
-import PatientsScreen from '../screens/PatientsScreen';
-import SettingsScreen from '../screens/SettingsScreen';
-import SessionHubScreen from '../screens/SessionHubScreen';
-import DocumentsScreen from '../screens/DocumentsScreen';
+// ── Auth ──────────────────────────────────────────────────────────────────────
 import LoginScreen from '../screens/LoginScreen';
 import RecoverPasswordScreen from '../screens/RecoverPasswordScreen';
 import EmailSentScreen from '../screens/EmailSentScreen';
 import RegisterStep1Screen from '../screens/RegisterStep1Screen';
 import RegisterStep2Screen from '../screens/RegisterStep2Screen';
 import WelcomeOnboardingScreen from '../screens/WelcomeOnboardingScreen';
+
+// ── Clinician tabs ────────────────────────────────────────────────────────────
+import DashboardScreen from '../screens/DashboardScreen';
+import CalendarScreen from '../screens/CalendarScreen';
+import PatientsScreen from '../screens/PatientsScreen';
+import DocumentsScreen from '../screens/DocumentsScreen';
 import FinanceScreen from '../screens/FinanceScreen';
+import SettingsScreen from '../screens/SettingsScreen';
+
+// ── Clinician stack ───────────────────────────────────────────────────────────
+import SessionHubScreen from '../screens/SessionHubScreen';
 import PatientDetailScreen from '../screens/PatientDetailScreen';
 import CreatePatientScreen from '../screens/CreatePatientScreen';
 import CreateSessionScreen from '../screens/CreateSessionScreen';
 import ClinicalNoteEditorScreen from '../screens/ClinicalNoteEditorScreen';
+import ProntuarioScreen from '../screens/ProntuarioScreen';
 import DocumentDetailScreen from '../screens/DocumentDetailScreen';
+import DocumentViewerScreen from '../screens/DocumentViewerScreen';
+import DocumentBuilderScreen from '../screens/DocumentBuilderScreen';
+import ContractScreen from '../screens/ContractScreen';
+import AvailabilityScreen from '../screens/AvailabilityScreen';
+import ScalesScreen from '../screens/ScalesScreen';
+import ScaleHistoryScreen from '../screens/ScaleHistoryScreen';
+import FormsScreen from '../screens/FormsScreen';
+import FormBuilderScreen from '../screens/FormBuilderScreen';
+import FormResponsesScreen from '../screens/FormResponsesScreen';
+import AnamnesisScreen from '../screens/AnamnesisScreen';
+import ReportWizardScreen from '../screens/ReportWizardScreen';
+import SupervisionNotesScreen from '../screens/SupervisionNotesScreen';
+import NotificationsScreen from '../screens/NotificationsScreen';
+import SearchScreen from '../screens/SearchScreen';
+
+// ── Patient tabs ──────────────────────────────────────────────────────────────
 import PatientDashboardScreen from '../screens/PatientDashboardScreen';
 import PatientSessionsScreen from '../screens/PatientSessionsScreen';
 import PatientDocumentsScreen from '../screens/PatientDocumentsScreen';
 import PatientSettingsScreen from '../screens/PatientSettingsScreen';
-import PatientDocumentDetailScreen from '../screens/PatientDocumentDetailScreen';
+
+// ── Patient stack ─────────────────────────────────────────────────────────────
 import EmotionalDiaryScreen from '../screens/EmotionalDiaryScreen';
-import NotificationsScreen from '../screens/NotificationsScreen';
-import SearchScreen from '../screens/SearchScreen';
+import PatientDocumentDetailScreen from '../screens/PatientDocumentDetailScreen';
+import PatientPaymentsScreen from '../screens/PatientPaymentsScreen';
+import PatientBookingScreen from '../screens/PatientBookingScreen';
+import PatientDreamDiaryScreen from '../screens/PatientDreamDiaryScreen';
+import PatientScalesScreen from '../screens/PatientScalesScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -41,10 +67,12 @@ const Stack = createNativeStackNavigator();
 const useNavigatorTheme = () => {
   const scheme = useColorScheme();
   const themeColors = scheme === 'dark' ? colors.dark : colors.light;
-
   return { scheme, themeColors };
 };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Clinician Tabs
+// ─────────────────────────────────────────────────────────────────────────────
 function ClinicianTabs() {
   const { themeColors } = useNavigatorTheme();
 
@@ -86,10 +114,11 @@ function ClinicianTabs() {
         }}
       />
       <Tab.Screen
-        name="Schedule"
-        component={ScheduleScreen}
+        name="Calendar"
+        component={CalendarScreen}
         options={{
           title: 'Agenda',
+          headerShown: false,
           tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
         }}
       />
@@ -131,6 +160,9 @@ function ClinicianTabs() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Patient Tabs
+// ─────────────────────────────────────────────────────────────────────────────
 function PatientTabs() {
   const { themeColors } = useNavigatorTheme();
 
@@ -166,7 +198,7 @@ function PatientTabs() {
         name="PatientDashboard"
         component={PatientDashboardScreen}
         options={{
-          title: 'Inicio',
+          title: 'Início',
           tabBarIcon: ({ color, size }) => <Home color={color} size={size} />,
         }}
       />
@@ -174,7 +206,7 @@ function PatientTabs() {
         name="PatientSessions"
         component={PatientSessionsScreen}
         options={{
-          title: 'Sessoes',
+          title: 'Sessões',
           tabBarIcon: ({ color, size }) => <Calendar color={color} size={size} />,
         }}
       />
@@ -198,6 +230,9 @@ function PatientTabs() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Auth Stack
+// ─────────────────────────────────────────────────────────────────────────────
 function AuthStackNavigator() {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -211,68 +246,109 @@ function AuthStackNavigator() {
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Clinician Stack
+// ─────────────────────────────────────────────────────────────────────────────
 function ClinicianStackNavigator() {
   const { themeColors } = useNavigatorTheme();
 
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: themeColors.background,
-        },
+        headerStyle: { backgroundColor: themeColors.background },
         headerTintColor: themeColors.foreground,
         headerShadowVisible: false,
-        headerTitleStyle: {
-          fontFamily: 'Lora',
-          fontWeight: '600',
-        },
+        headerTitleStyle: { fontFamily: 'Lora', fontWeight: '600' },
       }}
     >
+      {/* Root tabs */}
       <Stack.Screen name="MainTabs" component={ClinicianTabs} options={{ headerShown: false }} />
+
+      {/* Session */}
       <Stack.Screen name="SessionHub" component={SessionHubScreen} options={{ headerShown: false }} />
+
+      {/* Clinical notes */}
+      <Stack.Screen name="ClinicalNoteEditor" component={ClinicalNoteEditorScreen} options={{ title: 'Nota Clínica' }} />
+      <Stack.Screen name="Prontuario" component={ProntuarioScreen} options={{ title: 'Prontuário' }} />
+
+      {/* Patient management */}
       <Stack.Screen name="PatientDetail" component={PatientDetailScreen} options={{ title: 'Paciente' }} />
       <Stack.Screen name="CreatePatient" component={CreatePatientScreen} options={{ title: 'Novo Paciente' }} />
-      <Stack.Screen name="CreateSession" component={CreateSessionScreen} options={{ title: 'Nova Sessao' }} />
-      <Stack.Screen name="ClinicalNoteEditor" component={ClinicalNoteEditorScreen} options={{ title: 'Nota Clinica' }} />
+      <Stack.Screen name="CreateSession" component={CreateSessionScreen} options={{ title: 'Nova Sessão' }} />
+      <Stack.Screen name="Anamnesis" component={AnamnesisScreen} options={{ title: 'Anamnese' }} />
+      <Stack.Screen name="SupervisionNotes" component={SupervisionNotesScreen} options={{ title: 'Notas de Supervisão' }} />
+
+      {/* Scales */}
+      <Stack.Screen name="Scales" component={ScalesScreen} options={{ title: 'Escalas Clínicas' }} />
+      <Stack.Screen name="ScaleHistory" component={ScaleHistoryScreen} options={{ title: 'Histórico da Escala' }} />
+
+      {/* Forms */}
+      <Stack.Screen name="Forms" component={FormsScreen} options={{ title: 'Formulários' }} />
+      <Stack.Screen name="FormBuilder" component={FormBuilderScreen} options={{ title: 'Criar Formulário' }} />
+      <Stack.Screen name="FormResponses" component={FormResponsesScreen} options={{ title: 'Respostas' }} />
+
+      {/* Documents */}
       <Stack.Screen name="DocumentDetail" component={DocumentDetailScreen} options={{ title: 'Documento' }} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificacoes' }} />
+      <Stack.Screen name="DocumentViewer" component={DocumentViewerScreen} options={{ title: 'Visualizador' }} />
+      <Stack.Screen name="DocumentBuilder" component={DocumentBuilderScreen} options={{ title: 'Criar Documento' }} />
+
+      {/* Contracts & Reports */}
+      <Stack.Screen name="Contracts" component={ContractScreen} options={{ title: 'Contratos Terapêuticos' }} />
+      <Stack.Screen name="ReportWizard" component={ReportWizardScreen} options={{ headerShown: false }} />
+
+      {/* Availability */}
+      <Stack.Screen name="Availability" component={AvailabilityScreen} options={{ title: 'Minha Disponibilidade' }} />
+
+      {/* Shared */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificações' }} />
       <Stack.Screen name="Search" component={SearchScreen} options={{ title: 'Busca' }} />
     </Stack.Navigator>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Patient Stack
+// ─────────────────────────────────────────────────────────────────────────────
 function PatientStackNavigator() {
   const { themeColors } = useNavigatorTheme();
 
   return (
     <Stack.Navigator
       screenOptions={{
-        headerStyle: {
-          backgroundColor: themeColors.background,
-        },
+        headerStyle: { backgroundColor: themeColors.background },
         headerTintColor: themeColors.foreground,
         headerShadowVisible: false,
-        headerTitleStyle: {
-          fontFamily: 'Lora',
-          fontWeight: '600',
-        },
+        headerTitleStyle: { fontFamily: 'Lora', fontWeight: '600' },
       }}
     >
+      {/* Root tabs */}
       <Stack.Screen name="PatientTabs" component={PatientTabs} options={{ headerShown: false }} />
-      <Stack.Screen name="EmotionalDiary" component={EmotionalDiaryScreen} options={{ title: 'Diario emocional' }} />
+
+      {/* Diary & wellness */}
+      <Stack.Screen name="EmotionalDiary" component={EmotionalDiaryScreen} options={{ title: 'Diário Emocional' }} />
+      <Stack.Screen name="DreamDiary" component={PatientDreamDiaryScreen} options={{ title: 'Diário de Sonhos' }} />
+
+      {/* Documents */}
       <Stack.Screen name="PatientDocumentDetail" component={PatientDocumentDetailScreen} options={{ title: 'Documento' }} />
-      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificacoes' }} />
+      <Stack.Screen name="DocumentViewer" component={DocumentViewerScreen} options={{ title: 'Visualizador' }} />
+
+      {/* Portal features */}
+      <Stack.Screen name="PatientPayments" component={PatientPaymentsScreen} options={{ title: 'Cobranças' }} />
+      <Stack.Screen name="PatientBooking" component={PatientBookingScreen} options={{ title: 'Agendar Sessão' }} />
+      <Stack.Screen name="PatientScales" component={PatientScalesScreen} options={{ title: 'Minhas Escalas' }} />
+
+      {/* Shared */}
+      <Stack.Screen name="Notifications" component={NotificationsScreen} options={{ title: 'Notificações' }} />
     </Stack.Navigator>
   );
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Root
+// ─────────────────────────────────────────────────────────────────────────────
 function AuthenticatedNavigator() {
   const { user } = useAuth();
-
-  if (user?.role === 'patient') {
-    return <PatientStackNavigator />;
-  }
-
+  if (user?.role === 'patient') return <PatientStackNavigator />;
   return <ClinicianStackNavigator />;
 }
 
