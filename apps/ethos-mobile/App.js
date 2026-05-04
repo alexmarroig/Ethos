@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import * as Sentry from '@sentry/react-native';
 import { useFonts } from 'expo-font';
@@ -15,12 +15,13 @@ import {
   Lora_700Bold,
 } from '@expo-google-fonts/lora';
 
-import AppNavigator from './src/navigation/AppNavigator';
+import AppNavigator, { appNavigationRef } from './src/navigation/AppNavigator';
 import SplashLoading from './src/components/SplashLoading';
 import { ErrorBoundary } from './src/components/ErrorBoundary';
 import { AuthProvider, useAuth } from './src/contexts/AuthContext';
-import { NotificationsProvider } from './src/contexts/NotificationsContext';
+import { NotificationsProvider, useNotifications } from './src/contexts/NotificationsContext';
 import { useAppLock } from './src/hooks/useAppLock';
+import { InAppNotificationBanner } from './src/components/InAppNotificationBanner';
 
 if (!__DEV__) {
   Sentry.init({
@@ -29,9 +30,47 @@ if (!__DEV__) {
   });
 }
 
+// Navigate from banner tap to the correct screen based on notification type
+function navigateFromNotification(notif) {
+  if (!appNavigationRef.isReady()) return;
+  switch (notif.type) {
+    case 'sessao_pendente':
+    case 'sessao_amanha':
+      appNavigationRef.navigate('Calendar');
+      break;
+    case 'pagamento':
+    case 'pagamento_vencido':
+    case 'cobranca_pendente':
+      appNavigationRef.navigate('Finance');
+      break;
+    case 'novo_agendamento':
+      appNavigationRef.navigate('Availability');
+      break;
+    case 'formulario_atribuido':
+      appNavigationRef.navigate('Forms');
+      break;
+    case 'prontuario_gerado':
+    case 'transcricao_pronta':
+    case 'prontuario_pendente':
+    case 'documento_disponivel':
+    default:
+      appNavigationRef.navigate('Notifications');
+      break;
+  }
+}
+
 function AppShell({ fontsLoaded }) {
   const { isAuthenticated, isHydrating, logout } = useAuth();
   const { isLocked, unlock } = useAppLock(isAuthenticated);
+  const { foregroundNotification, clearForegroundNotification } = useNotifications();
+
+  const handleBannerPress = useCallback(
+    (notif) => {
+      clearForegroundNotification();
+      navigateFromNotification(notif);
+    },
+    [clearForegroundNotification]
+  );
 
   if (!fontsLoaded || isHydrating) {
     return <SplashLoading />;
@@ -56,7 +95,16 @@ function AppShell({ fontsLoaded }) {
     );
   }
 
-  return <AppNavigator />;
+  return (
+    <View style={styles.root}>
+      <AppNavigator />
+      <InAppNotificationBanner
+        notification={foregroundNotification}
+        onDismiss={clearForegroundNotification}
+        onPress={handleBannerPress}
+      />
+    </View>
+  );
 }
 
 export default function App() {
@@ -83,6 +131,7 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  root: { flex: 1 },
   lockContainer: {
     flex: 1,
     backgroundColor: '#0F172A',

@@ -31,7 +31,18 @@ export type DocumentItem = {
 
 export type AppNotification = {
   id: string;
-  type: 'prontuario_gerado' | 'sessao_pendente' | 'pagamento' | 'transcricao_pronta';
+  type:
+    | 'prontuario_gerado'
+    | 'sessao_pendente'
+    | 'sessao_amanha'
+    | 'pagamento'
+    | 'pagamento_vencido'
+    | 'prontuario_pendente'
+    | 'transcricao_pronta'
+    | 'novo_agendamento'
+    | 'formulario_atribuido'
+    | 'documento_disponivel'
+    | 'cobranca_pendente';
   title: string;
   body: string;
   message?: string;
@@ -39,6 +50,7 @@ export type AppNotification = {
   created_at?: string;
   read: boolean;
   document?: DocumentItem;
+  noteId?: string;
 };
 
 type PendingJob = {
@@ -51,10 +63,13 @@ type NotificationsContextValue = {
   notifications: AppNotification[];
   unreadCount: number;
   pushToken: string | null;
+  foregroundNotification: AppNotification | null;
   addNotification: (n: Omit<AppNotification, 'id' | 'read' | 'timestamp'>) => void;
   addPendingJob: (job: PendingJob) => void;
   refreshNotifications: () => Promise<AppNotification[]>;
   markAllRead: () => void;
+  dismissNotification: (id: string) => void;
+  clearForegroundNotification: () => void;
 };
 
 // ==========================
@@ -122,6 +137,7 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [pendingJobs, setPendingJobs] = useState<PendingJob[]>([]);
   const [pushToken, setPushToken] = useState<string | null>(null);
+  const [foregroundNotification, setForegroundNotification] = useState<AppNotification | null>(null);
 
   const pendingJobsRef = useRef<PendingJob[]>([]);
   pendingJobsRef.current = pendingJobs;
@@ -184,6 +200,14 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   }, []);
 
+  const dismissNotification = useCallback((id: string) => {
+    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  }, []);
+
+  const clearForegroundNotification = useCallback(() => {
+    setForegroundNotification(null);
+  }, []);
+
   const refreshNotifications = useCallback(async () => {
     try {
       const remoteNotifications = await fetchNotifications();
@@ -210,11 +234,17 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
     // Handle notification received while app is in foreground
     notificationListener.current = Notifications.addNotificationReceivedListener((notification) => {
       const data = notification.request.content.data as PushNotificationData;
-      addNotification({
-        type: 'sessao_pendente',
+      const notifType = (data?.type as AppNotification['type']) ?? 'sessao_pendente';
+      const newNotif: AppNotification = {
+        id: `push-${Date.now()}`,
+        type: notifType,
         title: notification.request.content.title ?? 'Notificacao',
         body: notification.request.content.body ?? '',
-      });
+        timestamp: new Date(),
+        read: false,
+      };
+      setNotifications((prev) => [newNotif, ...prev]);
+      setForegroundNotification(newNotif);
 
       // Show badge update
       Notifications.setBadgeCountAsync(unreadCount + 1).catch(() => {});
@@ -319,12 +349,26 @@ export function NotificationsProvider({ children }: { children: React.ReactNode 
       notifications,
       unreadCount,
       pushToken,
+      foregroundNotification,
       addNotification,
       addPendingJob,
       refreshNotifications,
       markAllRead,
+      dismissNotification,
+      clearForegroundNotification,
     }),
-    [notifications, unreadCount, pushToken, addNotification, addPendingJob, refreshNotifications, markAllRead]
+    [
+      notifications,
+      unreadCount,
+      pushToken,
+      foregroundNotification,
+      addNotification,
+      addPendingJob,
+      refreshNotifications,
+      markAllRead,
+      dismissNotification,
+      clearForegroundNotification,
+    ]
   );
 
   return (

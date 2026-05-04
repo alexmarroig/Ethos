@@ -1,9 +1,10 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme, DarkTheme, createNavigationContainerRef } from '@react-navigation/native';
 import { useColorScheme } from 'react-native';
 import { Banknote, Calendar, FileText, Home, Settings, Users } from 'lucide-react-native';
+import * as SecureStore from 'expo-secure-store';
 
 import { colors } from '../theme/colors';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +16,7 @@ import EmailSentScreen from '../screens/EmailSentScreen';
 import RegisterStep1Screen from '../screens/RegisterStep1Screen';
 import RegisterStep2Screen from '../screens/RegisterStep2Screen';
 import WelcomeOnboardingScreen from '../screens/WelcomeOnboardingScreen';
+import OnboardingScreen, { ONBOARDING_KEY } from '../screens/OnboardingScreen';
 
 // ── Clinician tabs ────────────────────────────────────────────────────────────
 import DashboardScreen from '../screens/DashboardScreen';
@@ -63,6 +65,9 @@ import PatientScalesScreen from '../screens/PatientScalesScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
+
+// Global navigation ref — allows navigating from outside NavigationContainer (e.g. InAppNotificationBanner)
+export const appNavigationRef = createNavigationContainerRef<any>();
 
 const useNavigatorTheme = () => {
   const scheme = useColorScheme();
@@ -231,11 +236,22 @@ function PatientTabs() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Auth Stack
+// Auth Stack — shows Onboarding on first launch, Login thereafter
 // ─────────────────────────────────────────────────────────────────────────────
 function AuthStackNavigator() {
+  const [initialRoute, setInitialRoute] = React.useState<'Onboarding' | 'Login' | null>(null);
+
+  React.useEffect(() => {
+    SecureStore.getItemAsync(ONBOARDING_KEY)
+      .then((val) => setInitialRoute(val ? 'Login' : 'Onboarding'))
+      .catch(() => setInitialRoute('Login'));
+  }, []);
+
+  if (!initialRoute) return null;
+
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName={initialRoute}>
+      <Stack.Screen name="Onboarding" component={OnboardingScreen} />
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="RecoverPassword" component={RecoverPasswordScreen} />
       <Stack.Screen name="EmailSent" component={EmailSentScreen} />
@@ -369,7 +385,7 @@ export default function AppNavigator() {
   };
 
   return (
-    <NavigationContainer theme={navigationTheme}>
+    <NavigationContainer ref={appNavigationRef} theme={navigationTheme}>
       {isAuthenticated ? <AuthenticatedNavigator /> : <AuthStackNavigator />}
     </NavigationContainer>
   );
