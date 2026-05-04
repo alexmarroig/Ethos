@@ -110,7 +110,10 @@ Regras:
 - Escreva em portugues do Brasil.
 - Use tom profissional, claro e etico.
 - Nao prometa cura, resultado clinico ou captacao garantida.
-- Nao invente normas do CFP/CRP. Quando citar cuidado etico, fale de forma geral.
+- Nao invente normas do CFP/CRP/FENAPSI. Quando o tema envolver etica, publicidade, prontuario, documentos, sigilo, honorarios ou atendimento online, use como base fontes oficiais e cite no campo `relatedLinks` quando fizer sentido.
+- Para honorarios, trate a Tabela de Honorarios CFP/FENAPSI como referencia nacional, nunca como piso, teto ou preco obrigatorio.
+- Para LGPD, use ANPD como referencia legal oficial e leia junto ao Codigo de Etica e orientacoes CFP/CRP.
+- Se a pauta pedir dados de mercado por cidade/UF e nao houver fonte confiavel, escreva que o valor local precisa ser validado por pesquisa propria. Nao invente medias.
 - Nao colete nem sugira expor dados clinicos sensiveis.
 - Inclua naturalmente a keyword principal no title, description, primeiro paragrafo e em ao menos um heading.
 - Inclua links internos relevantes para ETHOS e BioHub quando fizer sentido.
@@ -126,6 +129,12 @@ Publico: {{$json["Publico"]}}
 Briefing: {{$json["Briefing"]}}
 Links internos: {{$json["Links internos"]}}
 Data sugerida: {{$json["Data sugerida"]}}
+
+Fontes oficiais de apoio:
+- Codigo de Etica CFP: https://site.cfp.org.br/publicacao/codigo-de-etica-profissional-dao-psicologao/
+- Tabela de Honorarios CFP/FENAPSI: https://site.cfp.org.br/servicos/tabela-de-honorarios/
+- Registro documental/prontuario CRP/CFP: https://transparencia.cfp.org.br/crp12/pergunta-frequente/registro-documental/
+- ANPD/LGPD: https://www.gov.br/anpd/pt-br
 ```
 
 ## Validacao no node Code do n8n

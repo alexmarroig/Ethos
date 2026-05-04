@@ -20,7 +20,36 @@ export type FreeTool = {
     | "weekly-planner"
     | "bio-generator";
   highlights: string[];
+  references?: Array<{
+    label: string;
+    url: string;
+    note: string;
+  }>;
   faq: Array<{ q: string; a: string }>;
+};
+
+const ETHICS_REFERENCE = {
+  label: "Codigo de Etica Profissional da(o) Psicologa(o) - CFP",
+  url: "https://site.cfp.org.br/publicacao/codigo-de-etica-profissional-dao-psicologao/",
+  note: "Base para comunicacao profissional, sigilo, combinados e responsabilidade tecnica.",
+};
+
+const HONORARIOS_REFERENCE = {
+  label: "Tabela de Honorarios CFP/FENAPSI",
+  url: "https://site.cfp.org.br/servicos/tabela-de-honorarios/",
+  note: "Referencia nacional de honorarios, elaborada por CFP/FENAPSI com apoio do DIEESE. Nao e piso nem teto obrigatorio.",
+};
+
+const REGISTRO_REFERENCE = {
+  label: "Registro documental e prontuario psicologico - CRP/CFP",
+  url: "https://transparencia.cfp.org.br/crp12/pergunta-frequente/registro-documental/",
+  note: "Orientacao sobre registro documental, prontuario psicologico e acesso as informacoes registradas.",
+};
+
+const LGPD_REFERENCE = {
+  label: "ANPD - Autoridade Nacional de Protecao de Dados",
+  url: "https://www.gov.br/anpd/pt-br",
+  note: "Referencia publica oficial para LGPD. Para psicologia, deve ser lida junto ao Codigo de Etica e normas CFP/CRP.",
 };
 
 export const freeTools: FreeTool[] = [
@@ -39,6 +68,7 @@ export const freeTools: FreeTool[] = [
     ctaLabel: "Gerar rascunho",
     highlights: ["Contrato terapeutico", "Combinados claros", "Rascunho revisavel"],
     toolType: "contract",
+    references: [ETHICS_REFERENCE, HONORARIOS_REFERENCE],
     faq: [
       {
         q: "O contrato gerado substitui orientacao juridica?",
@@ -65,6 +95,7 @@ export const freeTools: FreeTool[] = [
     ctaLabel: "Marcar checklist",
     highlights: ["Dados sensiveis", "Rotina do consultorio", "Revisao pratica"],
     toolType: "lgpd",
+    references: [LGPD_REFERENCE, ETHICS_REFERENCE, REGISTRO_REFERENCE],
     faq: [
       {
         q: "Esse checklist e consultoria juridica?",
@@ -87,14 +118,15 @@ export const freeTools: FreeTool[] = [
     eyebrow: "Financeiro",
     heroTitle: "Calculadora de preco de sessao para psicologas",
     heroText:
-      "Simule meta mensal, custos, quantidade de sessoes e margem de faltas para chegar a uma referencia mais consciente de preco.",
+      "Simule meta mensal, custos, quantidade de sessoes e margem de faltas junto da referencia nacional CFP/FENAPSI para chegar a uma decisao mais consciente.",
     ctaLabel: "Calcular referencia",
-    highlights: ["Preco por sessao", "Receita mensal", "Custos e faltas"],
+    highlights: ["CFP/FENAPSI", "Preco por sessao", "Custos e faltas"],
     toolType: "pricing",
+    references: [HONORARIOS_REFERENCE, ETHICS_REFERENCE],
     faq: [
       {
         q: "A calculadora define quanto devo cobrar?",
-        a: "Nao. Ela oferece uma referencia financeira para apoiar sua decisao profissional e comercial.",
+        a: "Nao. A tabela CFP/FENAPSI e referencial nacional, nao piso nem teto obrigatorio. A ferramenta combina essa base com seus custos, agenda, cidade e realidade profissional.",
       },
       {
         q: "O ETHOS faz controle financeiro?",
@@ -113,10 +145,11 @@ export const freeTools: FreeTool[] = [
     eyebrow: "Combinados",
     heroTitle: "Modelo de politica de faltas e remarcacoes",
     heroText:
-      "Crie uma base de texto para alinhar cancelamentos, atrasos, remarcacoes e cobranças com linguagem profissional.",
+      "Crie uma base de texto para alinhar cancelamentos, atrasos, remarcacoes e cobrancas com linguagem profissional.",
     ctaLabel: "Gerar politica",
     highlights: ["Faltas", "Remarcacoes", "Comunicacao clara"],
     toolType: "absence-policy",
+    references: [ETHICS_REFERENCE, HONORARIOS_REFERENCE],
     faq: [
       {
         q: "Posso enviar esse texto diretamente ao paciente?",
@@ -143,6 +176,7 @@ export const freeTools: FreeTool[] = [
     ctaLabel: "Revisar checklist",
     highlights: ["Ficha do paciente", "Evolucoes", "Supervisao"],
     toolType: "record-checklist",
+    references: [REGISTRO_REFERENCE, ETHICS_REFERENCE],
     faq: [
       {
         q: "O checklist guarda informacoes do paciente?",
@@ -169,6 +203,7 @@ export const freeTools: FreeTool[] = [
     ctaLabel: "Montar semana",
     highlights: ["Sessoes", "Tarefas", "Supervisao e estudo"],
     toolType: "weekly-planner",
+    references: [ETHICS_REFERENCE, REGISTRO_REFERENCE],
     faq: [
       {
         q: "Isso substitui uma agenda completa?",
@@ -197,6 +232,7 @@ export const freeTools: FreeTool[] = [
     secondaryCtaHref: "https://biohub.ethos-clinic.com/auth/register",
     highlights: ["Presenca digital", "WhatsApp", "BioHub"],
     toolType: "bio-generator",
+    references: [ETHICS_REFERENCE],
     faq: [
       {
         q: "A bio pode prometer resultado clinico?",

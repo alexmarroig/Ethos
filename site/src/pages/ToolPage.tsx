@@ -12,6 +12,27 @@ import { trackEvent, trackGoogleAdsConversion } from "@/lib/tracking";
 
 const LEAD_ENDPOINT = import.meta.env.VITE_LEAD_ENDPOINT;
 
+const honorariosRows = [
+  {
+    item: "Consulta psicologica",
+    fonte: "CFP/FENAPSI",
+    referencia: "R$ 225,58 / R$ 337,17 / R$ 386,72",
+    observacao: "Faixas inferior, media e superior da tabela nacional atualizada ate junho/2025.",
+  },
+  {
+    item: "Psicoterapia individual",
+    fonte: "CFP/FENAPSI",
+    referencia: "Consultar tabela oficial",
+    observacao: "O PDF oficial tem item proprio para psicoterapia individual. Confira antes de usar em proposta comercial.",
+  },
+  {
+    item: "Valor praticado por cidade/UF",
+    fonte: "Pesquisa local",
+    referencia: "Nao oficial",
+    observacao: "Informe um valor de mercado local apenas se voce tiver uma fonte propria confiavel.",
+  },
+];
+
 const readAttribution = () => {
   const params = new URLSearchParams(window.location.search);
   return {
@@ -54,6 +75,59 @@ const ResultBox = ({ title, text, tool }: { title: string; text: string; tool: F
     <pre className="mt-5 whitespace-pre-wrap rounded-xl bg-[#0D1B2E] p-4 text-sm leading-7 text-[#B8C7D9]">{text}</pre>
   </div>
 );
+
+const ReferencePanel = ({ tool }: { tool: FreeTool }) => {
+  if (!tool.references?.length && tool.toolType !== "pricing") return null;
+
+  return (
+    <div className="rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/55 p-6">
+      <p className="text-xs font-semibold uppercase tracking-widest text-[#4ECDC4]">Base oficial</p>
+      <h2 className="mt-2 text-2xl font-bold text-[#EDF2F7]">Referencias usadas nesta ferramenta</h2>
+      <div className="mt-5 space-y-3">
+        {tool.references?.map((reference) => (
+          <a
+            key={reference.url}
+            href={reference.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="block rounded-xl border border-[#1A2D42] bg-[#060F1E] p-4 transition hover:border-[#4ECDC4]"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold text-[#EDF2F7]">
+              {reference.label}
+              <ExternalLink className="h-4 w-4 text-[#4ECDC4]" />
+            </span>
+            <span className="mt-2 block text-sm leading-6 text-[#8EA9BD]">{reference.note}</span>
+          </a>
+        ))}
+      </div>
+
+      {tool.toolType === "pricing" ? (
+        <div className="mt-6 overflow-hidden rounded-xl border border-[#1A2D42]">
+          <table className="w-full text-left text-sm">
+            <thead className="bg-[#07111F] text-xs uppercase tracking-widest text-[#8EA9BD]">
+              <tr>
+                <th className="px-4 py-3">Referencia</th>
+                <th className="px-4 py-3">Fonte</th>
+                <th className="px-4 py-3">Valor/base</th>
+                <th className="px-4 py-3">Uso correto</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1A2D42] text-[#B8C7D9]">
+              {honorariosRows.map((row) => (
+                <tr key={row.item}>
+                  <td className="px-4 py-3 font-semibold text-[#EDF2F7]">{row.item}</td>
+                  <td className="px-4 py-3">{row.fonte}</td>
+                  <td className="px-4 py-3">{row.referencia}</td>
+                  <td className="px-4 py-3">{row.observacao}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : null}
+    </div>
+  );
+};
 
 const ToolLeadForm = ({ tool }: { tool: FreeTool }) => {
   const [loading, setLoading] = useState(false);
@@ -179,18 +253,23 @@ const ToolExperience = ({ tool }: { tool: FreeTool }) => {
       {tool.toolType === "pricing" ? (
         <div className="grid gap-3 md:grid-cols-2">
           {[
+            ["cidade", "Cidade", "Sao Paulo"],
+            ["uf", "UF", "SP"],
             ["meta", "Meta mensal desejada", 8000],
             ["custos", "Custos mensais", 1200],
             ["sessoes", "Sessoes por mes", 80],
             ["faltas", "Margem de faltas (%)", 10],
+            ["valorLocal", "Valor medio local opcional", 180],
           ].map(([key, label, placeholder]) => (
             <label key={key} className="space-y-2 text-sm text-[#EDF2F7]">
               {label}
               <input
-                type="number"
-                min="0"
+                type={["cidade", "uf"].includes(String(key)) ? "text" : "number"}
+                min={["cidade", "uf"].includes(String(key)) ? undefined : "0"}
                 value={String(values[key] ?? "")}
-                onChange={(event) => setValue(String(key), Number(event.target.value))}
+                onChange={(event) =>
+                  setValue(String(key), ["cidade", "uf"].includes(String(key)) ? event.target.value : Number(event.target.value))
+                }
                 className="h-11 w-full rounded-xl border border-[#1A2D42] bg-[#060F1E] px-4 text-sm outline-none focus:border-[#4ECDC4]"
                 placeholder={String(placeholder)}
               />
@@ -296,13 +375,21 @@ const getChecklistItems = (type: FreeTool["toolType"]) =>
 
 const buildToolResult = (tool: FreeTool, values: Record<string, string | number | boolean>, checked: Record<string, boolean>) => {
   if (tool.toolType === "pricing") {
+    const cidade = String(values.cidade || "").trim();
+    const uf = String(values.uf || "").trim().toUpperCase();
     const meta = Number(values.meta || 0);
     const custos = Number(values.custos || 0);
     const sessoes = Number(values.sessoes || 0);
     const faltas = Number(values.faltas || 0);
+    const valorLocal = Number(values.valorLocal || 0);
     const sessoesPagas = Math.max(1, sessoes * (1 - faltas / 100));
     const preco = (meta + custos) / sessoesPagas;
-    return `Referencia financeira\n\nMeta mensal: R$ ${meta.toFixed(2)}\nCustos mensais: R$ ${custos.toFixed(2)}\nSessoes estimadas: ${sessoes || 0}\nMargem de faltas: ${faltas || 0}%\n\nPreco de referencia por sessao: R$ ${preco.toFixed(2)}\n\nUse este numero como ponto de partida. Considere realidade local, experiencia, publico, impostos, supervisao, estudo e sustentabilidade da pratica.`;
+    const comparison =
+      valorLocal > 0
+        ? `\nComparacao com valor local informado: R$ ${valorLocal.toFixed(2)}\nDiferenca frente ao seu calculo: R$ ${(preco - valorLocal).toFixed(2)}`
+        : "\nComparacao local: informe um valor medio praticado na sua cidade/UF se voce tiver uma fonte propria confiavel.";
+
+    return `Referencia financeira com base CFP/FENAPSI\n\nLocal de analise: ${cidade || "[cidade]"}${uf ? `/${uf}` : ""}\nMeta mensal: R$ ${meta.toFixed(2)}\nCustos mensais: R$ ${custos.toFixed(2)}\nSessoes estimadas: ${sessoes || 0}\nMargem de faltas: ${faltas || 0}%\n\nPreco calculado por sessao: R$ ${preco.toFixed(2)}${comparison}\n\nBase oficial: consulte a Tabela de Honorarios CFP/FENAPSI. Ela e uma referencia nacional, nao estabelece piso nem teto obrigatorio. A decisao final deve considerar Codigo de Etica, realidade local, experiencia, publico, impostos, supervisao, estudo e sustentabilidade da pratica.`;
   }
 
   if (tool.toolType === "lgpd" || tool.toolType === "record-checklist") {
@@ -399,12 +486,15 @@ const ToolPage = () => {
         </section>
 
         <section className="mt-12 grid gap-6 lg:grid-cols-[1fr_0.7fr]">
-          <div className="rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/55 p-6">
-            <h2 className="text-2xl font-bold text-[#EDF2F7]">Cuidados de uso</h2>
-            <p className="mt-4 text-sm leading-7 text-[#B8C7D9]">
-              Esta ferramenta e educativa e administrativa. Ela nao substitui julgamento profissional, supervisao,
-              orientacao juridica ou revisao de documentos. Nao insira nomes, queixas ou dados clinicos de pacientes.
-            </p>
+          <div className="space-y-6">
+            <ReferencePanel tool={tool} />
+            <div className="rounded-2xl border border-[#1A2D42] bg-[#0D1B2E]/55 p-6">
+              <h2 className="text-2xl font-bold text-[#EDF2F7]">Cuidados de uso</h2>
+              <p className="mt-4 text-sm leading-7 text-[#B8C7D9]">
+                Esta ferramenta e educativa e administrativa. Ela nao substitui julgamento profissional, supervisao,
+                orientacao juridica ou revisao de documentos. Nao insira nomes, queixas ou dados clinicos de pacientes.
+              </p>
+            </div>
           </div>
           <ToolLeadForm tool={tool} />
         </section>
