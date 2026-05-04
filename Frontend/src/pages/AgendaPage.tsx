@@ -62,6 +62,7 @@ type StoredAgendaSettings = AgendaSettings & {
 };
 
 type CacheStatus = "idle" | "cached" | "synced";
+type QuickAgendaFilter = "all" | "today" | "sessions" | "tasks" | "supervision" | "pending";
 
 const AGENDA_SETTINGS_KEY = "ethos_web_agenda_settings_v1";
 const defaultAgendaSettings: AgendaSettings = {
@@ -146,6 +147,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const [agendaMetaByEventId, setAgendaMetaByEventId] = useState<Record<string, AgendaEventMeta>>(() => readAgendaEventMetaMap());
   const [categoryFilter, setCategoryFilter] = useState<AgendaCategoryId | "all">("all");
   const [tagFilter, setTagFilter] = useState("all");
+  const [quickFilter, setQuickFilter] = useState<QuickAgendaFilter>("all");
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsDraft, setSettingsDraft] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -495,14 +497,27 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   }, [agendaMetaByEventId, sessions]);
 
   const filteredSessions = useMemo(() => {
+    const todayKey = formatDate(new Date());
     return sessions.filter((session) => {
       const meta = getAgendaMetaForSession(session);
       const matchesCategory = categoryFilter === "all" || meta.categoryId === categoryFilter;
       const matchesTag = tagFilter === "all" || meta.tags.includes(tagFilter);
-      return matchesCategory && matchesTag;
+      const dateKey = session.date || (session.scheduled_at ? formatDate(new Date(session.scheduled_at)) : "");
+      const hasSupervisionContext =
+        meta.categoryId === "study" ||
+        meta.tags.some((tag) => /supervis|supervisao|supervisão/i.test(tag)) ||
+        (session.event_type !== "block" && listSupervisionNotes(session.patient_id).some((note) => note.pinned || note.priority === "high"));
+      const matchesQuick =
+        quickFilter === "all" ||
+        (quickFilter === "today" && dateKey === todayKey) ||
+        (quickFilter === "sessions" && session.event_type !== "block") ||
+        (quickFilter === "tasks" && (session.event_type === "block" || ["admin", "personal", "buffer"].includes(meta.categoryId))) ||
+        (quickFilter === "supervision" && hasSupervisionContext) ||
+        (quickFilter === "pending" && (session.status === "pending" || session.status === "missed" || meta.priority === "high"));
+      return matchesCategory && matchesTag && matchesQuick;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agendaMetaByEventId, categoryFilter, sessions, tagFilter]);
+  }, [agendaMetaByEventId, categoryFilter, quickFilter, sessions, tagFilter]);
 
   const sessionsByCell = useMemo(() => {
     const map = new Map<string, Session[]>();
@@ -583,6 +598,20 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     else flags.push("Retorno");
     if (session.status === "pending") flags.push("Pendente");
     return flags;
+  };
+
+  const getSessionClinicalContext = (session: Session) => {
+    if (session.event_type === "block") return [];
+    const meta = getAgendaMetaForSession(session);
+    const briefing = buildBriefingForSession(session);
+    const items: string[] = [];
+    if (briefing.mainComplaint) items.push(`Queixa: ${briefing.mainComplaint}`);
+    const supervision = briefing.supervisionHighlights[0];
+    if (supervision) items.push(`Supervisão: ${supervision.nextSessionPrompt || supervision.title}`);
+    if (briefing.tasks[0]) items.push(`Tarefa: ${briefing.tasks[0].title}`);
+    if (briefing.adminAlerts[0]) items.push(`Pendência: ${briefing.adminAlerts[0]}`);
+    if (meta.priority === "high") items.push("Prioridade alta");
+    return items.slice(0, 3);
   };
 
   const visibleSuggestions = useMemo(
@@ -866,6 +895,32 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               Visualizar por contexto
             </div>
             <div className="flex flex-wrap gap-2">
+              {[
+                ["all", "Todos"],
+                ["today", "Hoje"],
+                ["sessions", "Sessões"],
+                ["tasks", "Tarefas"],
+                ["supervision", "Supervisão"],
+                ["pending", "Pendências"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setQuickFilter(key as QuickAgendaFilter)}
+                  className={cn(
+                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
+                    quickFilter === key ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-col gap-4 border-t border-border/70 pt-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tipo e cor</div>
+            <div className="flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={() => setCategoryFilter("all")}
@@ -988,11 +1043,20 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                             </div>
                             <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
                             {session.event_type !== "block" ? (
+                              <div className="mt-2 space-y-1">
+                                {getSessionClinicalContext(session).map((item) => (
+                                  <p key={item} className="line-clamp-1 rounded-lg bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
+                                    {item}
+                                  </p>
+                                ))}
+                              </div>
+                            ) : null}
+                            {session.event_type !== "block" ? (
                               <Button
                                 type="button"
-                                variant="secondary"
+                                variant="default"
                                 size="sm"
-                                className="mt-3 h-8 gap-1"
+                                className="mt-3 h-8 w-full gap-1"
                                 onClick={(event) => {
                                   event.stopPropagation();
                                   openBriefingForSession(session);
@@ -1151,6 +1215,15 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                                     </div>
 
                                     <p className={cn(desktopDensity.cardTitleClamp, "break-words text-sm font-semibold leading-5 text-foreground")}>{session.block_title ?? maskName(session.patient_name)}</p>
+                                    {session.event_type !== "block" ? (
+                                      <div className="mt-2 space-y-1">
+                                        {getSessionClinicalContext(session).map((item) => (
+                                          <p key={item} className="line-clamp-1 rounded-lg bg-background/60 px-2 py-1 text-[11px] text-muted-foreground">
+                                            {item}
+                                          </p>
+                                        ))}
+                                      </div>
+                                    ) : null}
                                     {session.series_id && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
                                         <Repeat2 className="h-3 w-3" />
@@ -1209,9 +1282,9 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                                     {session.event_type !== "block" ? (
                                       <Button
                                         type="button"
-                                        variant="secondary"
+                                        variant="default"
                                         size="sm"
-                                        className="mt-3 h-8 gap-1"
+                                        className="mt-3 h-8 w-full gap-1"
                                         onClick={(event) => {
                                           event.stopPropagation();
                                           openBriefingForSession(session);

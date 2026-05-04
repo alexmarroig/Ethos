@@ -526,6 +526,9 @@ export default function PatientDetailPage({
     supervisao: true,
     objetivos: true,
     homework: true,
+    psiquiatria: false,
+    documentos_relatorios: false,
+    centro_clinico: true,
   });
   const [selectedDocument, setSelectedDocument] = useState<any | null>(null);
   const [selectedDocumentHtml, setSelectedDocumentHtml] = useState<string>("");
@@ -861,6 +864,22 @@ export default function PatientDetailPage({
       { label: "Formulários ativos", value: String(activeAssignments.length) },
     ];
   }, [detail, sharedDocuments.length, activeAssignments.length]);
+
+  const patientPendingCount = useMemo(() => {
+    if (!detail) return 0;
+    return [
+      !form.main_complaint.trim(),
+      !detail.summary.next_session,
+      detail.documents.length === 0,
+      supervisionNotes.length === 0,
+      homeworkTasks.some((task) => !task.completed),
+    ].filter(Boolean).length;
+  }, [detail, form.main_complaint, homeworkTasks, supervisionNotes.length]);
+
+  const clinicalPinnedNotes = useMemo(
+    () => supervisionNotes.filter((note) => note.pinned || note.priority === "high").slice(0, 3),
+    [supervisionNotes],
+  );
 
   const clinicalEvolutionForBriefing = useMemo(() => {
     const synthesisContent = synthesis?.content?.trim();
@@ -1751,6 +1770,58 @@ export default function PatientDetailPage({
           </div>
         </motion.div>
 
+        <motion.section
+          className="sticky top-3 z-20 rounded-[1.5rem] border border-border bg-card/95 p-4 shadow-subtle backdrop-blur md:p-5"
+          initial={{ opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.04 }}
+        >
+          <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+              <div className="rounded-xl border border-border bg-background/50 p-3 sm:col-span-2 xl:col-span-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Queixa principal</p>
+                <p className="mt-1 line-clamp-2 text-sm font-medium text-foreground">
+                  {form.main_complaint || "Ainda não registrada"}
+                </p>
+              </div>
+              <div className="rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Próxima sessão</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{formatDateTime(detail.summary.next_session?.scheduled_at)}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Status</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{form.care_status}</p>
+              </div>
+              <div className="rounded-xl border border-border bg-background/50 p-3">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Pendências</p>
+                <p className="mt-1 text-sm font-medium text-foreground">{patientPendingCount}</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+              <Button size="sm" className="gap-2" onClick={() => setPreSessionBriefingOpen(true)}>
+                <Bell className="h-4 w-4" />
+                Preparar sessão
+              </Button>
+              <Button
+                size="sm"
+                variant="secondary"
+                onClick={() => {
+                  setSectionVisibility((current) => ({ ...current, evolucao: true }));
+                  window.setTimeout(() => evolucaoRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 50);
+                }}
+              >
+                Nova evolução
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setSectionVisibility((current) => ({ ...current, documentos: true }))}>
+                Documento
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setAccessOpen(true)}>
+                Portal
+              </Button>
+            </div>
+          </div>
+        </motion.section>
+
         <motion.div className="grid gap-4 md:grid-cols-3" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.05 }}>
           {summaryCards.map((card) => (
             <div key={card.label} className="session-card">
@@ -1759,6 +1830,83 @@ export default function PatientDetailPage({
             </div>
           ))}
         </motion.div>
+
+        <motion.section className="session-card space-y-5" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.07 }}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h2 className="font-serif text-2xl text-foreground">Centro clínico do paciente</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Briefing, evolução, supervisão, tarefas, escalas e linha do tempo em um só ponto de partida.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {[
+                ["centro_clinico", "Centro"],
+                ["supervisao", "Supervisão"],
+                ["evolucao", "Evolução"],
+                ["sessoes", "Sessões"],
+                ["documentos", "Docs"],
+                ["progresso", "Progresso"],
+              ].map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setSectionVisibility((current) => ({ ...current, [key]: !current[key] }))}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    sectionVisibility[key] ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {sectionVisibility.centro_clinico ? (
+            <div className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+              <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                {preSessionBriefing ? (
+                  <PreSessionBriefingPanel
+                    briefing={preSessionBriefing}
+                    compact
+                    onCopy={copyPreSessionBriefing}
+                    onNotify={() => void sendPreSessionNotification(true)}
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Sem briefing disponível ainda. Registre queixa principal, próxima sessão ou supervisão.</p>
+                )}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Evolução</p>
+                  <p className="mt-2 line-clamp-4 text-sm leading-6 text-foreground">
+                    {clinicalEvolutionForBriefing || "Nenhuma síntese/evolução registrada ainda."}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Supervisões fixadas</p>
+                  {clinicalPinnedNotes.length ? (
+                    <div className="mt-2 space-y-2">
+                      {clinicalPinnedNotes.map((note) => (
+                        <p key={note.id} className="line-clamp-2 text-sm leading-6 text-foreground">{note.nextSessionPrompt || note.title}</p>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-muted-foreground">Nenhuma supervisão fixada.</p>
+                  )}
+                </div>
+                <div className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Tarefas abertas</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{homeworkTasks.filter((task) => !task.completed).length}</p>
+                </div>
+                <div className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Escalas recentes</p>
+                  <p className="mt-2 text-2xl font-semibold text-foreground">{scaleRecords.length}</p>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </motion.section>
 
         <motion.section className="session-card space-y-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }}>
           <div>
@@ -2287,8 +2435,8 @@ export default function PatientDetailPage({
         <CollapsibleSection
           title="Psiquiatria e emergência"
           subtitle="Rede de cuidado e segurança do caso."
-          isOpen={sectionVisibility.progresso}
-          onToggle={() => toggleSection("progresso")}
+          isOpen={sectionVisibility.psiquiatria}
+          onToggle={() => toggleSection("psiquiatria")}
           icon={User}
         >
           <label className="flex items-center gap-3 text-sm text-foreground cursor-pointer">
@@ -2329,8 +2477,8 @@ export default function PatientDetailPage({
         <CollapsibleSection
           title="Dados para documentos e relatórios"
           subtitle="Informações de apoio para relatórios, declarações e documentos clínicos."
-          isOpen={sectionVisibility.progresso}
-          onToggle={() => toggleSection("progresso")}
+          isOpen={sectionVisibility.documentos_relatorios}
+          onToggle={() => toggleSection("documentos_relatorios")}
           icon={FileText}
         >
           <div className="grid gap-4 md:grid-cols-2">

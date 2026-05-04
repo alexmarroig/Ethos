@@ -37,6 +37,7 @@ const HOME_DASHBOARD_CACHE_KEY = "ethos_home_dashboard_cache_v1";
 const HOME_DASHBOARD_CACHE_TTL_MS = 5 * 60_000;
 const SLOW_LOAD_NOTICE_MS = 4_500;
 const ETHOS_TOOLS_URL = "https://ethos-clinic.com/ferramentas";
+const BIOHUB_LOGIN_URL = "https://biohub.ethos-clinic.com/auth/login";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -494,6 +495,79 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
       });
   }, [patientsIndex, pendingPayments, todaySessions, upcomingSessions]);
 
+  const nextActions = useMemo(() => {
+    const actions: Array<{
+      id: string;
+      title: string;
+      description: string;
+      meta: string;
+      tone?: "default" | "warning";
+      icon: React.ReactNode;
+      onClick: () => void;
+    }> = [];
+
+    const nextBriefing = preSessionBriefings[0];
+    if (nextBriefing) {
+      actions.push({
+        id: "prepare-session",
+        title: "Preparar próxima sessão",
+        description: `${maskName(nextBriefing.patientName)} · ${nextBriefing.mainComplaint || "queixa principal não registrada"}`,
+        meta: nextBriefing.sessionAt ? formatDateLabel(nextBriefing.sessionAt) : "Próxima",
+        icon: <Bell className="h-4 w-4" />,
+        onClick: () => setSelectedBriefing(nextBriefing),
+      });
+    }
+
+    const nextPendingPayment = pendingPayments[0];
+    if (nextPendingPayment) {
+      actions.push({
+        id: "pending-payment",
+        title: "Revisar pagamento pendente",
+        description: `${maskName(nextPendingPayment.patient_name) || "Paciente"} · ${formatCurrency(nextPendingPayment.amount)}`,
+        meta: "Financeiro",
+        tone: "warning",
+        icon: <AlertCircle className="h-4 w-4" />,
+        onClick: () => onNavigate("finance"),
+      });
+    }
+
+    const incompletePatient = patientsIndex.find((patient) => {
+      const maybePatient = patient as Patient & { main_complaint?: string };
+      return !maybePatient.main_complaint && (!patient.email || !patient.phone);
+    });
+    if (incompletePatient) {
+      actions.push({
+        id: "complete-patient",
+        title: "Completar ficha incompleta",
+        description: `${maskName(incompletePatient.name)} ainda tem campos importantes vazios.`,
+        meta: "Ficha",
+        icon: <UserPlus className="h-4 w-4" />,
+        onClick: () => onPatientClick?.(incompletePatient.id),
+      });
+    }
+
+    actions.push(
+      {
+        id: "tools",
+        title: "Abrir ferramentas gratuitas",
+        description: "Checklists, calculadoras e modelos para organizar a rotina clínica.",
+        meta: "Site ETHOS",
+        icon: <Wrench className="h-4 w-4" />,
+        onClick: () => window.open(ETHOS_TOOLS_URL, "_blank", "noopener,noreferrer"),
+      },
+      {
+        id: "biohub",
+        title: "Ver BioHub",
+        description: "BioHub atrai contatos. ETHOS organiza o cuidado.",
+        meta: "Ecossistema",
+        icon: <ExternalLink className="h-4 w-4" />,
+        onClick: () => window.open(BIOHUB_LOGIN_URL, "_blank", "noopener,noreferrer"),
+      },
+    );
+
+    return actions.slice(0, 5);
+  }, [maskName, onNavigate, onPatientClick, patientsIndex, pendingPayments, preSessionBriefings]);
+
   useEffect(() => {
     const timers = schedulePreSessionNotifications({
       briefings: preSessionBriefings,
@@ -690,6 +764,37 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
                   ))}
                 </div>
               )}
+            </SectionCard>
+            <SectionCard title="Próximas ações" actionLabel="Ver agenda" onAction={() => onNavigate("agenda")}>
+              <div className="space-y-3">
+                {nextActions.map((action) => (
+                  <button
+                    key={action.id}
+                    type="button"
+                    onClick={action.onClick}
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-soft ${
+                      action.tone === "warning"
+                        ? "border-amber-500/30 bg-amber-500/10"
+                        : "border-border bg-background/60 hover:border-primary/30"
+                    }`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+                        {action.icon}
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="font-semibold text-foreground">{action.title}</span>
+                          <span className="rounded-full bg-secondary px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+                            {action.meta}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-sm leading-6 text-muted-foreground">{action.description}</span>
+                      </span>
+                    </div>
+                  </button>
+                ))}
+              </div>
             </SectionCard>
             <SectionCard
               title="Sessões de hoje"
