@@ -55,7 +55,7 @@ export const agendaColors: AgendaColorOption[] = [
   },
   {
     id: "amber",
-    label: "Admin",
+    label: "Gestão",
     dotClass: "bg-amber-500",
     cardClass: "border-amber-500/40 bg-amber-500/10 text-foreground shadow-[inset_4px_0_0_rgb(245_158_11)]",
     chipClass: "bg-amber-500/15 text-amber-700 dark:text-amber-300",
@@ -76,7 +76,7 @@ export const agendaColors: AgendaColorOption[] = [
   },
   {
     id: "slate",
-    label: "Buffer",
+    label: "Intervalo",
     dotClass: "bg-slate-500",
     cardClass: "border-slate-500/40 bg-slate-500/10 text-foreground shadow-[inset_4px_0_0_rgb(100_116_139)]",
     chipClass: "bg-slate-500/15 text-slate-700 dark:text-slate-300",
@@ -85,12 +85,12 @@ export const agendaColors: AgendaColorOption[] = [
 
 export const agendaCategories: AgendaCategoryOption[] = [
   { id: "clinical", label: "Clínica", description: "Sessões, evoluções e atendimentos.", defaultColorId: "teal" },
-  { id: "admin", label: "Admin", description: "Documentos, contato e organização interna.", defaultColorId: "amber" },
+  { id: "admin", label: "Gestão", description: "Documentos, contato e organização interna.", defaultColorId: "amber" },
   { id: "finance", label: "Financeiro", description: "Cobranças, repasses e fechamento.", defaultColorId: "emerald" },
   { id: "study", label: "Estudo", description: "Supervisão, leitura e aprimoramento.", defaultColorId: "violet" },
   { id: "personal", label: "Pessoal", description: "Pausas, saúde e compromissos pessoais.", defaultColorId: "rose" },
-  { id: "marketing", label: "Captação", description: "BioHub, conteúdo e relacionamento.", defaultColorId: "sky" },
-  { id: "buffer", label: "Buffer", description: "Deslocamento, respiro e margem entre blocos.", defaultColorId: "slate" },
+  { id: "marketing", label: "Marketing", description: "BioHub, conteúdo e relacionamento.", defaultColorId: "sky" },
+  { id: "buffer", label: "Intervalo", description: "Deslocamento, respiro e margem entre blocos.", defaultColorId: "slate" },
 ];
 
 export type AgendaDraftSession = {
