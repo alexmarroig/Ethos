@@ -146,11 +146,6 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const setSessionCache = useAppStore((s) => s.setSessionCache);
   const upsertSession = useAppStore((s) => s.upsertSession);
   const removeSessionFromStore = useAppStore((s) => s.removeSession);
-  const [now, setNow] = useState(() => new Date());
-  useEffect(() => {
-    const interval = setInterval(() => setNow(new Date()), 60000);
-    return () => clearInterval(interval);
-  }, []);
   const [currentWeek, setCurrentWeek] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -1055,198 +1050,6 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         </motion.header>
 
         <motion.div className="mb-8 grid gap-4 md:grid-cols-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
-
-  useEffect(() => {
-    if (!dragCreate) return;
-    const { dayKey, startSlot, endSlot } = dragCreate;
-    const handlePointerUp = () => {
-      const startIdx = timeSlots.indexOf(startSlot);
-      const endIdx = timeSlots.indexOf(endSlot);
-      const orderedStart = timeSlots[Math.min(startIdx, endIdx)];
-      setSessionDialogDefaults({ date: dayKey, time: orderedStart });
-      setDragCreate(null);
-      setSessionDialogOpen(true);
-    };
-    window.addEventListener("pointerup", handlePointerUp);
-    return () => window.removeEventListener("pointerup", handlePointerUp);
-  }, [dragCreate, timeSlots]);
-
-  useEffect(() => {
-    if (!resizingSession) return;
-    const { id, startY, originalDuration } = resizingSession;
-    const handlePointerMove = (e: PointerEvent) => {
-      const delta = e.clientY - startY;
-      const newDuration = Math.max(30, originalDuration + Math.round((delta / CELL_HEIGHT_PX) * 60 / 30) * 30);
-      resizeDurationRef.current = newDuration;
-      setResizingSession((prev) => (prev ? { ...prev, currentDuration: newDuration } : null));
-    };
-    const handlePointerUp = async () => {
-      const finalDuration = resizeDurationRef.current;
-      if (finalDuration !== originalDuration) {
-        await sessionService.update(id, { duration_minutes: finalDuration });
-        const result = await sessionService.list(activeWindow);
-        if (result.success) {
-          setSessions(result.data);
-          setAgendaMetaByEventId(readAgendaEventMetaMap());
-        }
-      }
-      setResizingSession(null);
-    };
-    window.addEventListener("pointermove", handlePointerMove);
-    window.addEventListener("pointerup", handlePointerUp);
-    return () => {
-      window.removeEventListener("pointermove", handlePointerMove);
-      window.removeEventListener("pointerup", handlePointerUp);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [resizingSession?.id, resizingSession?.startY]);
-
-  const startSuggestionsResize = (clientX: number) => {
-    if (!desktopAgendaRef.current) return;
-    setIsResizingPanels(true);
-
-    const containerBounds = desktopAgendaRef.current.getBoundingClientRect();
-    const handlePointerMove = (nextClientX: number) => {
-      const nextWidth = containerBounds.right - nextClientX;
-      const clamped = Math.max(
-        SUGGESTIONS_PANEL_MIN_WIDTH,
-        Math.min(SUGGESTIONS_PANEL_MAX_WIDTH, nextWidth),
-      );
-      setSuggestionsPanelWidth(clamped);
-    };
-
-    handlePointerMove(clientX);
-
-    const onPointerMove = (event: PointerEvent) => handlePointerMove(event.clientX);
-    const stopResize = () => {
-      setIsResizingPanels(false);
-      window.removeEventListener("pointermove", onPointerMove);
-      window.removeEventListener("pointerup", stopResize);
-    };
-
-    window.addEventListener("pointermove", onPointerMove);
-    window.addEventListener("pointerup", stopResize);
-  };
-
-  return (
-    <>
-    <div className="min-h-screen">
-      <div className="content-container py-8 md:py-12">
-        {shouldShowCoachmarks && !dismissCoachmark && currentMissionId === "schedule-session" ? (
-          <OnboardingCoachmark
-            title="Missão 2: agende uma sessão"
-            description="Crie uma nova sessão na agenda para organizar seu atendimento inicial."
-            onDismiss={() => setDismissCoachmark(true)}
-          />
-        ) : null}
-        <motion.header className="mb-10 rounded-[2rem] border border-border/80 bg-card px-4 py-5 shadow-[0_18px_44px_-28px_rgba(15,23,42,0.22)] md:px-7 md:py-8" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5 }}>
-          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.22em] text-primary/80">ETHOS Web</p>
-              <h1 className="text-2xl font-semibold tracking-[-0.05em] text-foreground md:text-[2.35rem] xl:text-[3.2rem]">Agenda clínica</h1>
-              <p className="mt-4 max-w-2xl text-sm leading-7 text-muted-foreground md:text-[1.02rem]">Configure sua semana e visualize apenas os dias e horários reais de atendimento.</p>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Dialog
-                open={settingsOpen}
-                onOpenChange={(nextOpen) => {
-                  setSettingsOpen(nextOpen);
-                  if (nextOpen) setSettingsDraft(agendaSettings);
-                }}
-              >
-                <DialogTrigger asChild>
-                  <Button variant="outline" className="gap-2">
-                    <Settings2 className="w-4 h-4" strokeWidth={1.5} />
-                    Configurar agenda
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="w-[96vw] max-w-[680px] overflow-x-hidden p-0">
-                  <div className="max-h-[90vh] overflow-y-auto">
-                  <DialogHeader className="space-y-2 border-b border-border/70 px-4 pb-4 pt-6 sm:px-6">
-                    <DialogTitle className="font-serif text-xl sm:text-2xl">Configurar agenda</DialogTitle>
-                    <p className="max-w-[56ch] text-sm leading-6 text-muted-foreground">
-                      Ajuste dias e faixa de atendimento com a mesma estrutura estável usada nos outros diálogos da agenda.
-                    </p>
-                  </DialogHeader>
-                  <div className="space-y-6 px-4 py-5 sm:px-6">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="min-w-0 space-y-2">
-                        <label className="text-sm font-medium text-foreground">Início do expediente</label>
-                        <select
-                          value={settingsDraft.startHour}
-                          onChange={(event) => setSettingsDraft((current) => ({ ...current, startHour: Number(event.target.value) }))}
-                          className="flex h-11 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          {Array.from({ length: 24 }, (_, hour) => (
-                            <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div className="min-w-0 space-y-2">
-                        <label className="text-sm font-medium text-foreground">Fim do expediente</label>
-                        <select
-                          value={settingsDraft.endHour}
-                          onChange={(event) => setSettingsDraft((current) => ({ ...current, endHour: Number(event.target.value) }))}
-                          className="flex h-11 w-full rounded-2xl border border-input bg-background px-3 py-2 text-sm"
-                        >
-                          {Array.from({ length: 24 }, (_, hour) => (
-                            <option key={hour} value={hour}>{String(hour).padStart(2, "0")}:00</option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="space-y-3">
-                      <label className="text-sm font-medium text-foreground">Dias de atendimento</label>
-                      <div className="flex flex-wrap gap-2">
-                        {weekDays.map((day) => {
-                          const selected = settingsDraft.enabledWeekdays.includes(day.id);
-                          return (
-                            <button
-                              key={day.id}
-                              type="button"
-                              onClick={() => toggleWeekday(day.id)}
-                              className={cn(
-                                "rounded-full border px-3 py-2 text-sm transition-colors",
-                                selected
-                                  ? "border-primary bg-primary text-primary-foreground"
-                                  : "border-border bg-background text-foreground hover:border-primary/30",
-                              )}
-                            >
-                              {day.long}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                  <DialogFooter className="border-t border-border/70 px-4 py-4 sm:px-6 sm:py-5">
-                    <Button variant="outline" onClick={() => setSettingsOpen(false)} className="w-full sm:w-auto">Cancelar</Button>
-                    <Button onClick={handleSaveAgendaSettings} className="w-full sm:w-auto">Salvar configuração</Button>
-                  </DialogFooter>
-                  </div>
-                </DialogContent>
-              </Dialog>
-
-              <div className="flex flex-wrap justify-end gap-2">
-                <Button variant="secondary" className="gap-2" onClick={() => {
-                  setSessionDialogDefaults({ eventType: 'session' });
-                  setSessionDialogOpen(true);
-                }}>
-                  <Plus className="w-4 h-4" strokeWidth={1.5} />
-                  Agendar sessão
-                </Button>
-                <Button variant="outline" className="gap-2" onClick={() => setTaskDialogOpen(true)}>
-                  <CalendarPlus className="w-4 h-4" strokeWidth={1.5} />
-                  Agendar tarefa
-                </Button>
-              </div>
-            </div>
-          </div>
-        </motion.header>
-
-        <motion.div className="mb-8 grid gap-4 md:grid-cols-4" initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.08 }}>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Semana</p>
             <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{getWeekLabel()}</p>
@@ -1258,7 +1061,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Pendentes</p>
-            <p className={cn("mt-2 text-[1.75rem] font-semibold tracking-[-0.03em]", agendaSummary.pending > 0 ? "text-orange-500" : "text-foreground")}>{agendaSummary.pending}</p>
+            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.pending}</p>
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Tarefas e foco</p>
@@ -1428,20 +1231,19 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               </select>
             </label>
 
-            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:justify-end">
-              <span className="font-semibold text-foreground mr-1 flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> Sugestões de IA:</span>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
+            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
                 <ListChecks className="h-4 w-4 text-primary" />
-                Sugerir blocos de foco
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
+                Blocos de foco primeiro
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
                 <Clock3 className="h-4 w-4 text-primary" />
-                Inserir intervalos
-              </button>
-              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
+                Buffer entre atendimentos
+              </span>
+              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
                 <CalendarPlus className="h-4 w-4 text-primary" />
-                Agrupar gestão
-              </button>
+                Admin em lote
+              </span>
             </div>
           </div>
         </motion.section>
@@ -1942,7 +1744,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                     return (
                       <div
                         key={cellKey}
-                        className={cn("relative", desktopDensity.cellPadding, "min-w-0 border-t border-border/70", day.isToday && "bg-primary/5")}
+                        className={cn(desktopDensity.cellPadding, "min-w-0 border-t border-border/70", day.isToday && "bg-primary/5")}
                         style={{ minHeight: `${desktopDensity.cellMinHeight}px` }}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={async (event) => {
@@ -1953,20 +1755,11 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                           await moveSession(sessionId, day.key, slot);
                         }}
                       >
-                        {day.isToday && slot === `${String(now.getHours()).padStart(2, "0")}:00` && (
-                          <div 
-                            className="absolute left-0 right-0 z-40 pointer-events-none"
-                            style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
-                          >
-                            <div className="absolute left-0 right-0 h-[2px] bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                            <div className="absolute -left-1.5 -top-[5px] h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
-                          </div>
-                        )}
                         {daySessions.length === 0 ? (
                           <button
                             type="button"
                             className={cn(
-                              "group flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
+                              "flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
                               (() => {
                                 if (!dragCreate || dragCreate.dayKey !== day.key) return "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
                                 const si = timeSlots.indexOf(dragCreate.startSlot);
@@ -1990,12 +1783,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                               const ei = timeSlots.indexOf(dragCreate.endSlot);
                               const ci = timeSlots.indexOf(slot);
                               return ci === Math.min(si, ei) && si !== ei;
-                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : (
-                              <>
-                                <span className="group-hover:hidden">Livre</span>
-                                <span className="hidden group-hover:inline">+ Agendar aqui</span>
-                              </>
-                            )}
+                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : "Livre"}
                           </button>
                         ) : (
                           <div className="space-y-2">
@@ -2198,7 +1986,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
             <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span>Sugestões de IA</span>
+                <span>Próxima semana</span>
                 <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{visibleSuggestions.length}</span>
               </div>
               {visibleSuggestions.map((s) => (
