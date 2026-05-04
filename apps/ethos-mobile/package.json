@@ -52,6 +52,7 @@
     "expo-build-properties": "~0.14.7",
     "expo-web-browser": "~14.1.6",
     "react-native-calendars": "^1.1303.0",
+    "react-native-blob-util": "^0.21.3",
     "react-native-pdf": "^6.7.6",
 
     "lucide-react-native": "^0.530.0",
