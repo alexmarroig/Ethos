@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Ban, CalendarPlus, Clock3, Gift, UserPlus } from "lucide-react";
+import { AlertCircle, Ban, CalendarPlus, Clock3, ExternalLink, Gift, UserPlus, Wrench } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
 import { BioHubIntegrationCard } from "@/components/BioHubIntegrationCard";
@@ -25,6 +25,7 @@ const SESSION_CACHE_TTL_MS = 60_000;
 const HOME_DASHBOARD_CACHE_KEY = "ethos_home_dashboard_cache_v1";
 const HOME_DASHBOARD_CACHE_TTL_MS = 5 * 60_000;
 const SLOW_LOAD_NOTICE_MS = 4_500;
+const ETHOS_TOOLS_URL = "https://ethos-clinic.com/ferramentas";
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
@@ -710,6 +711,23 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
           </div>
 
           <div className="space-y-6">
+            <SectionCard title="Ferramentas gratuitas ETHOS">
+              <div className="rounded-[1.25rem] border border-primary/15 bg-[linear-gradient(180deg,rgba(var(--primary-rgb),0.02),rgba(var(--primary-rgb),0.06))] p-5">
+                <div className="mb-2 flex items-center gap-2">
+                  <Wrench className="h-5 w-5 text-primary" />
+                  <h3 className="font-medium text-foreground">Recursos para organizar sua pratica</h3>
+                </div>
+                <p className="mb-4 text-sm leading-6 text-muted-foreground">
+                  Checklists, calculadoras e geradores gratuitos para contrato, LGPD, agenda, prontuario e presenca digital.
+                </p>
+                <Button asChild className="gap-2">
+                  <a href={ETHOS_TOOLS_URL} target="_blank" rel="noreferrer">
+                    Abrir ferramentas <ExternalLink className="h-4 w-4" />
+                  </a>
+                </Button>
+              </div>
+            </SectionCard>
+
             <SectionCard title="Produto do ecossistema ETHOS: BioHub">
               <BioHubIntegrationCard />
             </SectionCard>

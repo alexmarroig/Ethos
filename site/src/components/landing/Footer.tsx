@@ -3,6 +3,7 @@ import EthosLogo from "./EthosLogo";
 const productLinks = [
   { label: "Funcionalidades", href: "/#funcionalidades" },
   { label: "BioHub", href: "/#biohub" },
+  { label: "Ferramentas", href: "/ferramentas" },
   { label: "Preços", href: "/#preco" },
   { label: "Privacidade", href: "/#privacidade" },
   { label: "Blog", href: "/blog" },

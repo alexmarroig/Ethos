@@ -49,6 +49,16 @@ publicado
 descartado
 ```
 
+Categorias editoriais recomendadas:
+
+```txt
+Ferramentas para psicologos
+Gestao de consultorio
+LGPD e privacidade
+Marketing etico
+Prontuario e documentos
+```
+
 ## Workflow n8n
 
 Fluxo barato:
@@ -172,4 +182,3 @@ No PR, revise:
 - Se o slug entrou no sitemap e no `prerender-routes.json`.
 
 Depois de aprovar e fazer merge, o Vercel publica e o Search Console pode receber a nova URL.
-

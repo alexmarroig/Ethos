@@ -61,6 +61,54 @@
     <priority>0.8</priority>
   </url>
   <url>
+    <loc>https://ethos-clinic.com/ferramentas</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/modelo-contrato-psicologico</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/checklist-lgpd-psicologos</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/calculadora-preco-sessao-psicologia</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/politica-faltas-remarcacoes</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/checklist-prontuario-psicologico</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/planejador-agenda-psicologos</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.85</priority>
+  </url>
+  <url>
+    <loc>https://ethos-clinic.com/ferramentas/gerador-bio-psicologos</loc>
+    <lastmod>2026-05-04</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <url>
     <loc>https://ethos-clinic.com/blog/prontuario-psicologico-como-organizar-com-seguranca</loc>
     <lastmod>2026-05-02</lastmod>
     <changefreq>monthly</changefreq>

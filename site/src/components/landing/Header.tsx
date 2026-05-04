@@ -8,6 +8,7 @@ const NAV = [
   { label: "Solução", href: "/#solucao" },
   { label: "Funcionalidades", href: "/#funcionalidades" },
   { label: "BioHub", href: "/#biohub" },
+  { label: "Ferramentas", href: "/ferramentas" },
   { label: "Privacidade", href: "/#privacidade" },
   { label: "Preço", href: "/#preco" },
   { label: "Blog", href: "/blog" },

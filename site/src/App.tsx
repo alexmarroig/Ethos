@@ -16,6 +16,8 @@ import LegalPage from "./pages/LegalPage.tsx";
 import Login from "./pages/Login.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import ThankYouPage from "./pages/ThankYouPage.tsx";
+import ToolPage from "./pages/ToolPage.tsx";
+import ToolsPage from "./pages/ToolsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -36,6 +38,8 @@ export const AppRoutes = () => (
       <Route path="/login" element={<Login />} />
       <Route path="/blog" element={<BlogPage />} />
       <Route path="/blog/:slug" element={<ArticlePage />} />
+      <Route path="/ferramentas" element={<ToolsPage />} />
+      <Route path="/ferramentas/:slug" element={<ToolPage />} />
       <Route path="/psicologos" element={<AdsLandingPage />} />
       <Route path="/privacidade" element={<LegalPage type="privacy" />} />
       <Route path="/termos" element={<LegalPage type="terms" />} />

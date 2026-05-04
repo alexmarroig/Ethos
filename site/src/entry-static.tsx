@@ -5,6 +5,7 @@ import { BIOHUB_HOME_URL } from "./config/biohub";
 import { SITE_DESCRIPTION, SITE_NAME, SITE_TITLE, SITE_URL } from "./config/site";
 import { articles } from "./data/articles";
 import { findCommercialPage } from "./data/commercialPages";
+import { findFreeTool } from "./data/freeTools";
 import "./index.css";
 
 export const render = (url: string) =>
@@ -40,6 +41,41 @@ export const getStaticSeo = (url: string) => {
       title: "Blog ETHOS - Psicologia, prontuario e gestao clinica",
       description:
         "Artigos sobre prontuario psicologico, software para psicologos, agenda, IA clinica, sigilo e gestao de consultorio.",
+    };
+  }
+
+  if (path === "/ferramentas") {
+    return {
+      ...base,
+      title: "Ferramentas gratuitas para psicologos | ETHOS",
+      description:
+        "Ferramentas gratuitas para psicologas organizarem contrato terapeutico, LGPD, preco de sessao, prontuario, agenda e bio profissional.",
+    };
+  }
+
+  if (path.startsWith("/ferramentas/")) {
+    const slug = path.replace("/ferramentas/", "");
+    const tool = findFreeTool(slug);
+    if (!tool) return base;
+
+    return {
+      ...base,
+      title: tool.seoTitle,
+      description: tool.description,
+      jsonLd: [
+        {
+          "@context": "https://schema.org",
+          "@type": "FAQPage",
+          mainEntity: tool.faq.map((item) => ({
+            "@type": "Question",
+            name: item.q,
+            acceptedAnswer: {
+              "@type": "Answer",
+              text: item.a,
+            },
+          })),
+        },
+      ],
     };
   }
 
