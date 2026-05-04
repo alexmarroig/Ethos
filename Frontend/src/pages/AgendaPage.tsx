@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Bell, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Search, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -181,6 +181,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     sessionId: string;
   } | null>(null);
   const [selectedBriefing, setSelectedBriefing] = useState<PreSessionBriefing | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
 
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
@@ -1141,103 +1142,143 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         </motion.div>
 
         <motion.section
-          className="mb-6 rounded-[1.5rem] border border-border bg-card p-4 shadow-subtle"
+          className="mb-6 overflow-hidden rounded-[2rem] border border-border bg-card shadow-subtle"
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.14 }}
         >
-          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <Filter className="h-4 w-4 text-primary" />
-              Visualizar por contexto
+          {/* Barra Superior Compacta */}
+          <div className="flex flex-col items-center gap-3 p-4 lg:flex-row">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/60" />
+              <Input
+                value={agendaSearch}
+                onChange={(event) => setAgendaSearch(event.target.value)}
+                placeholder="Buscar paciente, tarefa ou tag..."
+                className="h-11 rounded-full border-border/60 bg-background/50 pl-11 text-sm focus:bg-background"
+              />
             </div>
-            <div className="flex flex-1 flex-col gap-2 sm:flex-row xl:max-w-xl">
-              <label className="relative min-w-0 flex-1">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={agendaSearch}
-                  onChange={(event) => setAgendaSearch(event.target.value)}
-                  placeholder="Buscar paciente, tarefa, tag..."
-                  className="h-9 rounded-full pl-9 text-sm"
-                />
-              </label>
-              <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => setCommandOpen(true)}>
-                <Sparkles className="mr-1 h-3.5 w-3.5" />
-                Comando rapido
+
+            <div className="flex shrink-0 items-center gap-2">
+              <Button 
+                type="button" 
+                variant="outline" 
+                className="h-11 rounded-full border-primary/20 bg-primary/5 px-5 text-primary hover:bg-primary/10"
+                onClick={() => setCommandOpen(true)}
+              >
+                <Sparkles className="mr-2 h-4 w-4" />
+                Comando Rápido
+              </Button>
+
+              <Button
+                type="button"
+                variant={showFilters ? "secondary" : "outline"}
+                className={cn("h-11 rounded-full px-5", showFilters && "bg-secondary text-secondary-foreground")}
+                onClick={() => setShowFilters(!showFilters)}
+              >
+                <Filter className="mr-2 h-4 w-4" />
+                {showFilters ? "Ocultar Filtros" : "Filtros e Cores"}
               </Button>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {[
-                ["all", "Todos"],
-                ["today", "Hoje"],
-                ["sessions", "Sessões"],
-                ["tasks", "Tarefas"],
-                ["supervision", "Supervisão"],
-                ["pending", "Pendências"],
-              ].map(([key, label]) => (
-                <button
-                  key={key}
-                  type="button"
-                  onClick={() => setQuickFilter(key as QuickAgendaFilter)}
-                  className={cn(
-                    "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                    quickFilter === key ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
-                  )}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
           </div>
 
-          <div className="mt-4 flex flex-col gap-4 border-t border-border/70 pt-4 xl:flex-row xl:items-center xl:justify-between">
-            <div className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">Tipo e cor</div>
-            <div className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                onClick={() => setCategoryFilter("all")}
-                className={cn(
-                  "rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                  categoryFilter === "all" ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
-                )}
+          {/* Painel de Filtros Colapsável */}
+          <AnimatePresence>
+            {showFilters && (
+              <motion.div
+                initial={{ height: 0, opacity: 0 }}
+                animate={{ height: "auto", opacity: 1 }}
+                exit={{ height: 0, opacity: 0 }}
+                transition={{ duration: 0.3, ease: "easeInOut" }}
+                className="border-t border-border/50 bg-background/30"
               >
-                Todos
-              </button>
-              {agendaCategories.map((category) => (
-                <button
-                  key={category.id}
-                  type="button"
-                  onClick={() => setCategoryFilter(category.id)}
-                  className={cn(
-                    "inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors",
-                    categoryFilter === category.id ? "border-primary bg-primary text-primary-foreground" : "border-border text-muted-foreground hover:border-primary/40",
-                  )}
-                >
-                  <span className={cn("h-2.5 w-2.5 rounded-full", getAgendaColor(category.defaultColorId).dotClass)} />
-                  {category.label}
-                </button>
-              ))}
-            </div>
-          </div>
+                <div className="grid gap-6 p-6 lg:grid-cols-2">
+                  {/* Coluna 1: Contexto */}
+                  <div className="space-y-3">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">Contexto da Agenda</p>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        ["all", "Todos"],
+                        ["today", "Hoje"],
+                        ["sessions", "Sessões"],
+                        ["tasks", "Tarefas"],
+                        ["supervision", "Supervisão"],
+                        ["pending", "Pendências"],
+                      ].map(([key, label]) => (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setQuickFilter(key as QuickAgendaFilter)}
+                          className={cn(
+                            "rounded-full border px-4 py-2 text-xs font-medium transition-all",
+                            quickFilter === key 
+                              ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
+                              : "border-border/60 bg-background/50 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
-          <div className="mt-4 flex flex-col gap-3 border-t border-border/70 pt-4 lg:flex-row lg:items-center lg:justify-between">
-            <label className="flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <Tags className="h-4 w-4" />
-              Filtrar tag
-              <select
-                value={tagFilter}
-                onChange={(event) => setTagFilter(event.target.value)}
-                className="h-9 rounded-xl border border-input bg-background px-3 text-xs text-foreground"
-              >
-                <option value="all">Todas</option>
-                {availableTags.map((tag) => (
-                  <option key={tag} value={tag}>#{tag}</option>
-                ))}
-              </select>
-            </label>
+                  {/* Coluna 2: Categorias e Tags */}
+                  <div className="space-y-4">
+                    <div className="space-y-3">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70">Filtrar por Categoria</p>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setCategoryFilter("all")}
+                          className={cn(
+                            "rounded-full border px-4 py-2 text-xs font-medium transition-all",
+                            categoryFilter === "all" 
+                              ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
+                              : "border-border/60 bg-background/50 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                          )}
+                        >
+                          Todos
+                        </button>
+                        {agendaCategories.map((category) => (
+                          <button
+                            key={category.id}
+                            type="button"
+                            onClick={() => setCategoryFilter(category.id)}
+                            className={cn(
+                              "inline-flex items-center gap-2 rounded-full border px-4 py-2 text-xs font-medium transition-all",
+                              categoryFilter === category.id 
+                                ? "border-primary bg-primary text-primary-foreground shadow-sm shadow-primary/20" 
+                                : "border-border/60 bg-background/50 text-muted-foreground hover:border-primary/40 hover:text-foreground",
+                            )}
+                          >
+                            <span className={cn("h-2.5 w-2.5 rounded-full", getAgendaColor(category.defaultColorId).dotClass)} />
+                            {category.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
 
-            {/* AI suggestions and automations were moved to the sidebar */}
-          </div>
+                    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center">
+                      <label className="flex items-center gap-3 text-xs font-bold uppercase tracking-wider text-muted-foreground/70">
+                        <Tags className="h-4 w-4" />
+                        Filtro de Tag
+                      </label>
+                      <select
+                        value={tagFilter}
+                        onChange={(event) => setTagFilter(event.target.value)}
+                        className="h-10 rounded-full border border-border/60 bg-background/50 px-4 text-xs font-medium text-foreground focus:ring-2 focus:ring-primary/20"
+                      >
+                        <option value="all">Todas as tags</option>
+                        {availableTags.map((tag) => (
+                          <option key={tag} value={tag}>#{tag}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.section>
 
         {!loading && !error && selectedDayInsight ? (
