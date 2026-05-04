@@ -146,6 +146,11 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const setSessionCache = useAppStore((s) => s.setSessionCache);
   const upsertSession = useAppStore((s) => s.upsertSession);
   const removeSessionFromStore = useAppStore((s) => s.removeSession);
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
   const [currentWeek, setCurrentWeek] = useState(0);
   const [monthOffset, setMonthOffset] = useState(0);
   const [sessions, setSessions] = useState<Session[]>([]);
@@ -1061,7 +1066,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Pendentes</p>
-            <p className="mt-2 text-[1.75rem] font-semibold tracking-[-0.03em] text-foreground">{agendaSummary.pending}</p>
+            <p className={cn("mt-2 text-[1.75rem] font-semibold tracking-[-0.03em]", agendaSummary.pending > 0 ? "text-orange-500" : "text-foreground")}>{agendaSummary.pending}</p>
           </div>
           <div className="session-card">
             <p className="text-sm text-muted-foreground">Tarefas e foco</p>
@@ -1231,19 +1236,20 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               </select>
             </label>
 
-            <div className="grid gap-2 text-xs text-muted-foreground md:grid-cols-3">
-              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground md:justify-end">
+              <span className="font-semibold text-foreground mr-1 flex items-center gap-1.5"><Sparkles className="h-4 w-4 text-primary" /> Sugestões de IA:</span>
+              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
                 <ListChecks className="h-4 w-4 text-primary" />
-                Blocos de foco primeiro
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                Sugerir blocos de foco
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
                 <Clock3 className="h-4 w-4 text-primary" />
-                Buffer entre atendimentos
-              </span>
-              <span className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2">
+                Inserir intervalos
+              </button>
+              <button className="inline-flex items-center gap-2 rounded-xl bg-secondary/60 px-3 py-2 transition-colors hover:bg-secondary">
                 <CalendarPlus className="h-4 w-4 text-primary" />
-                Admin em lote
-              </span>
+                Agrupar gestão
+              </button>
             </div>
           </div>
         </motion.section>
@@ -1744,7 +1750,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                     return (
                       <div
                         key={cellKey}
-                        className={cn(desktopDensity.cellPadding, "min-w-0 border-t border-border/70", day.isToday && "bg-primary/5")}
+                        className={cn("relative", desktopDensity.cellPadding, "min-w-0 border-t border-border/70", day.isToday && "bg-primary/5")}
                         style={{ minHeight: `${desktopDensity.cellMinHeight}px` }}
                         onDragOver={(event) => event.preventDefault()}
                         onDrop={async (event) => {
@@ -1755,11 +1761,20 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                           await moveSession(sessionId, day.key, slot);
                         }}
                       >
+                        {day.isToday && slot === `${String(now.getHours()).padStart(2, "0")}:00` && (
+                          <div 
+                            className="absolute left-0 right-0 z-40 pointer-events-none"
+                            style={{ top: `${(now.getMinutes() / 60) * 100}%` }}
+                          >
+                            <div className="absolute left-0 right-0 h-[2px] bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                            <div className="absolute -left-1.5 -top-[5px] h-3 w-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]" />
+                          </div>
+                        )}
                         {daySessions.length === 0 ? (
                           <button
                             type="button"
                             className={cn(
-                              "flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
+                              "group flex h-full w-full items-center justify-center rounded-xl border border-dashed px-3 text-center text-[11px] transition-colors",
                               (() => {
                                 if (!dragCreate || dragCreate.dayKey !== day.key) return "border-border/70 text-muted-foreground/60 hover:border-primary/40 hover:bg-primary/5 hover:text-primary/60";
                                 const si = timeSlots.indexOf(dragCreate.startSlot);
@@ -1783,7 +1798,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                               const ei = timeSlots.indexOf(dragCreate.endSlot);
                               const ci = timeSlots.indexOf(slot);
                               return ci === Math.min(si, ei) && si !== ei;
-                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : "Livre"}
+                            })() ? `${(Math.abs(timeSlots.indexOf(dragCreate.endSlot) - timeSlots.indexOf(dragCreate.startSlot)) + 1) * 60} min` : <><span className="block group-hover:hidden">Livre</span><span className="hidden group-hover:block">+ Agendar aqui</span></>}
                           </button>
                         ) : (
                           <div className="space-y-2">
@@ -1986,7 +2001,7 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
             <div className="w-full space-y-3 border-t pt-4 xl:shrink-0 xl:border-l xl:border-t-0 xl:pl-4 xl:pt-2" style={{ flexBasis: `${suggestionsPanelWidth}px` }}>
               <div className="flex items-center gap-2 text-sm font-semibold">
                 <Sparkles className="h-4 w-4 text-primary" />
-                <span>Próxima semana</span>
+                <span>Sugestões de IA</span>
                 <span className="ml-auto rounded-full bg-primary/10 px-2 py-0.5 text-xs text-primary">{visibleSuggestions.length}</span>
               </div>
               {visibleSuggestions.map((s) => (
