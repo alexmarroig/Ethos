@@ -72,11 +72,11 @@
     ],
     "extra": {
       "eas": {
-        "projectId": "SEU_PROJECT_ID_AQUI"
+        "projectId": "acf7b22f-889c-4233-8f82-f1ddc71984a7"
       }
     },
     "updates": {
-      "url": "https://u.expo.dev/SEU_PROJECT_ID_AQUI",
+      "url": "https://u.expo.dev/acf7b22f-889c-4233-8f82-f1ddc71984a7",
       "enabled": true,
       "fallbackToCacheTimeout": 0,
       "checkAutomatically": "ON_LOAD"
