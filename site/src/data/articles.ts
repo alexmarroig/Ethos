@@ -26,6 +26,7 @@ export type Article = {
     label: string;
     href: string;
   }>;
+  draft?: boolean;
   sections: Array<{
     heading: string;
     image?: string;
@@ -35,7 +36,30 @@ export type Article = {
 };
 
 const cmsArticleModules = import.meta.glob("../content/articles/*.json", { eager: true, import: "default" });
-const cmsArticles = Object.values(cmsArticleModules) as Article[];
+
+const normalizeForValidation = (value?: string) =>
+  (value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isPublishableArticle = (article: Article) => {
+  const title = normalizeForValidation(article.title);
+  const description = normalizeForValidation(article.description);
+  const firstSection = normalizeForValidation(article.sections?.[0]?.heading);
+  const firstParagraph = normalizeForValidation(article.sections?.[0]?.body?.[0]);
+
+  if (article.draft) return false;
+  if (!article.slug || !title || !description || !article.sections?.length) return false;
+  if (["novo-artigo", "rascunho", "teste"].includes(article.slug)) return false;
+  if (title.includes("titulo do artigo") || description.includes("descricao seo")) return false;
+  if (firstSection.includes("titulo da secao") || firstParagraph.includes("paragrafo 1")) return false;
+
+  return true;
+};
+
+const cmsArticles = (Object.values(cmsArticleModules) as Article[]).filter(isPublishableArticle);
 
 const staticArticles: Article[] = [
   {

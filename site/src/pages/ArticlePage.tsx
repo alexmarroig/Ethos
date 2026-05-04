@@ -96,6 +96,30 @@ const ArticlePage = () => {
             ))}
           </div>
 
+          <section className="mt-12 rounded-2xl border border-[#1A2D42] bg-[#07111F] p-6">
+            <span className="text-xs font-semibold uppercase tracking-widest text-[#4ECDC4]">Ecossistema ETHOS</span>
+            <h2 className="mt-3 text-2xl font-bold text-[#EDF2F7]">Rotina clinica no ETHOS, presenca profissional no BioHub</h2>
+            <p className="mt-3 text-sm leading-7 text-[#8EA9BD]">
+              O ETHOS organiza agenda, prontuario, documentos e financeiro. O BioHub complementa essa jornada como uma pagina profissional separada, com links, WhatsApp, formulario de interesse, leads, analytics e personalizacao visual.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <a
+                href={BIOHUB_HOME_URL}
+                onClick={() => trackEvent("biohub_click", { location: "article_biohub_context", slug: article.slug })}
+                className="rounded-xl bg-[#2F6F73] px-5 py-3 text-sm font-semibold text-white"
+              >
+                Conhecer BioHub
+              </a>
+              <a
+                href={`${BIOHUB_HOME_URL}/auth/register`}
+                onClick={() => trackEvent("biohub_click", { location: "article_biohub_register", slug: article.slug })}
+                className="rounded-xl border border-[#1A2D42] px-5 py-3 text-sm font-semibold text-[#EDF2F7]"
+              >
+                Criar meu BioHub
+              </a>
+            </div>
+          </section>
+
           {article.relatedLinks?.length ? (
             <section className="mt-12 rounded-2xl border border-[#1A2D42] bg-[#07111F] p-6">
               <h2 className="text-2xl font-bold text-[#EDF2F7]">Continue explorando</h2>

@@ -26,6 +26,7 @@ collections:
       - { label: "Publicado em", name: "publishedAt", widget: "datetime", format: "YYYY-MM-DD", time_format: false }
       - { label: "Atualizado em", name: "updatedAt", widget: "datetime", format: "YYYY-MM-DD", time_format: false, required: false }
       - { label: "Tempo de leitura", name: "readingTime", widget: "string", default: "6 min" }
+      - { label: "Rascunho", name: "draft", widget: "boolean", default: true, hint: "Desmarque somente quando o artigo estiver revisado e pronto para publicar." }
       - { label: "Imagem de capa", name: "image", widget: "image", required: false }
       - { label: "Texto alternativo da imagem", name: "imageAlt", widget: "string", required: false }
       - { label: "Palavras-chave", name: "keywords", widget: "list", field: { label: "Palavra", name: "keyword", widget: "string" } }
