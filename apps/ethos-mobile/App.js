@@ -14,6 +14,7 @@ import {
   Lora_600SemiBold,
   Lora_700Bold,
 } from '@expo-google-fonts/lora';
+import { SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 
 import AppNavigator, { appNavigationRef } from './src/navigation/AppNavigator';
 import SplashLoading from './src/components/SplashLoading';
@@ -120,13 +121,15 @@ export default function App() {
   });
 
   return (
-    <ErrorBoundary>
-      <AuthProvider>
-        <NotificationsProvider>
-          <AppShell fontsLoaded={fontsLoaded} />
-        </NotificationsProvider>
-      </AuthProvider>
-    </ErrorBoundary>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <ErrorBoundary>
+        <AuthProvider>
+          <NotificationsProvider>
+            <AppShell fontsLoaded={fontsLoaded} />
+          </NotificationsProvider>
+        </AuthProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }
 
