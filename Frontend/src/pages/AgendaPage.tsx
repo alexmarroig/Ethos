@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
+import { Bell, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { sessionService, type Session, type CalendarSuggestion } from "@/services/sessionService";
 import { SessionDialog } from "@/components/SessionDialog";
+import { PreSessionBriefingPanel } from "@/components/PreSessionBriefingPanel";
 import { BillingConfirmDialog } from "@/components/BillingConfirmDialog";
 import { financeService } from "@/services/financeService";
 import { usePrivacy } from "@/hooks/usePrivacy";
@@ -26,6 +27,13 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import {
+  buildPreSessionBriefing,
+  formatPreSessionBriefingText,
+  notifyPreSessionBriefing,
+  type PreSessionBriefing,
+} from "@/services/preSessionBriefingService";
+import { listSupervisionNotes } from "@/services/supervisionNotesService";
+import {
   agendaCategories,
   createDefaultAgendaMeta,
   getAgendaCategory,
@@ -39,6 +47,7 @@ import {
 
 interface AgendaPageProps {
   onSessionClick: (sessionId: string) => void;
+  onPatientClick?: (patientId: string) => void;
 }
 
 type AgendaSettings = {
@@ -123,7 +132,7 @@ function combineDateTime(date: string, time: string) {
   return new Date(`${date}T${time}:00`).toISOString();
 }
 
-const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
+const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const { currentMissionId, shouldShowCoachmarks, markMissionCompleted } = useOnboarding();
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -152,6 +161,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
     patientId: string;
     sessionId: string;
   } | null>(null);
+  const [selectedBriefing, setSelectedBriefing] = useState<PreSessionBriefing | null>(null);
 
   const [suggestions, setSuggestions] = useState<CalendarSuggestion[]>([]);
   const [dismissedSuggestions, setDismissedSuggestions] = useState<Set<string>>(new Set());
@@ -437,6 +447,43 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
 
   const getAgendaMetaForSession = (session: Session) =>
     agendaMetaByEventId[session.id] ?? createDefaultAgendaMeta(session.event_type === "block" ? "task" : "session");
+
+  const buildBriefingForSession = (session: Session) => {
+    const patient =
+      patients.find((item) => item.id === session.patient_id || item.external_id === session.patient_id) ??
+      ({ id: session.patient_id, name: session.patient_name } as Patient);
+    return buildPreSessionBriefing({
+      patient,
+      session,
+      supervisionNotes: listSupervisionNotes(patient.id),
+    });
+  };
+
+  const openBriefingForSession = (session: Session) => {
+    if (session.event_type === "block") return;
+    setSelectedBriefing(buildBriefingForSession(session));
+  };
+
+  const copyBriefing = async (briefing: PreSessionBriefing) => {
+    await navigator.clipboard.writeText(formatPreSessionBriefingText(briefing));
+    toast({ title: "Briefing copiado", description: "Resumo pre-sessao copiado para a area de transferencia." });
+  };
+
+  const notifyBriefing = async (briefing: PreSessionBriefing) => {
+    const result = await notifyPreSessionBriefing(briefing, {
+      requireInteraction: true,
+      onClick: () => onPatientClick?.(briefing.patientId),
+    });
+    if (result.ok) {
+      toast({ title: "Notificacao enviada", description: "O briefing interno foi exibido no navegador." });
+      return;
+    }
+    toast({
+      title: result.reason === "unsupported" ? "Notificacao indisponivel" : "Permissao necessaria",
+      description: "Autorize notificacoes do navegador para receber o briefing.",
+      variant: "destructive",
+    });
+  };
 
   const availableTags = useMemo(() => {
     const tags = new Set<string>();
@@ -908,10 +955,14 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                         const color = getAgendaColor(meta.colorId);
                         const category = getAgendaCategory(meta.categoryId);
                         return (
-                          <button
+                          <div
                             key={session.id}
-                            type="button"
+                            role="button"
+                            tabIndex={0}
                             onClick={() => onSessionClick(session.id)}
+                            onKeyDown={(event) => {
+                              if (event.key === "Enter" || event.key === " ") onSessionClick(session.id);
+                            }}
                             className={cn(
                               "w-full px-4 py-3 text-left transition-colors hover:bg-muted/30",
                               color.cardClass,
@@ -936,6 +987,21 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                               </div>
                             </div>
                             <p className="mt-1 text-sm font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
+                            {session.event_type !== "block" ? (
+                              <Button
+                                type="button"
+                                variant="secondary"
+                                size="sm"
+                                className="mt-3 h-8 gap-1"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openBriefingForSession(session);
+                                }}
+                              >
+                                <Bell className="h-3.5 w-3.5" />
+                                Preparar sessao
+                              </Button>
+                            ) : null}
                             {meta.tags.length > 0 ? (
                               <div className="mt-2 flex flex-wrap gap-1">
                                 {meta.tags.slice(0, 3).map((tag) => (
@@ -945,7 +1011,7 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                 ))}
                               </div>
                             ) : null}
-                          </button>
+                          </div>
                         );
                       })}
                     </div>
@@ -1042,8 +1108,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                               const displayDuration = isResizing ? resizingSession.currentDuration : session.duration;
                               return (
                                 <div key={session.id} className="relative">
-                                  <button
-                                    type="button"
+                                  <div
+                                    role="button"
+                                    tabIndex={0}
                                     draggable={!isResizing}
                                     onDragStart={(event) => {
                                       event.dataTransfer.setData("text/plain", session.id);
@@ -1051,6 +1118,9 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                     }}
                                     onDragEnd={() => setDraggingSessionId(null)}
                                     onClick={() => onSessionClick(session.id)}
+                                    onKeyDown={(event) => {
+                                      if (event.key === "Enter" || event.key === " ") onSessionClick(session.id);
+                                    }}
                                     className={cn(
                                       "w-full min-w-0 rounded-2xl border text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-soft",
                                       desktopDensity.cardPadding,
@@ -1136,7 +1206,22 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
                                         </span>
                                       )}
                                     </div>
-                                  </button>
+                                    {session.event_type !== "block" ? (
+                                      <Button
+                                        type="button"
+                                        variant="secondary"
+                                        size="sm"
+                                        className="mt-3 h-8 gap-1"
+                                        onClick={(event) => {
+                                          event.stopPropagation();
+                                          openBriefingForSession(session);
+                                        }}
+                                      >
+                                        <Bell className="h-3.5 w-3.5" />
+                                        Preparar sessao
+                                      </Button>
+                                    ) : null}
+                                  </div>
 
                                   {/* Resize grip */}
                                   <div
@@ -1299,6 +1384,22 @@ const AgendaPage = ({ onSessionClick }: AgendaPageProps) => {
         }
       }}
     />
+
+    <Dialog open={!!selectedBriefing} onOpenChange={(open) => !open && setSelectedBriefing(null)}>
+      <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl">Briefing pre-sessao</DialogTitle>
+        </DialogHeader>
+        {selectedBriefing ? (
+          <PreSessionBriefingPanel
+            briefing={selectedBriefing}
+            onCopy={() => void copyBriefing(selectedBriefing)}
+            onNotify={() => void notifyBriefing(selectedBriefing)}
+            onOpenPatient={onPatientClick ? () => onPatientClick(selectedBriefing.patientId) : undefined}
+          />
+        ) : null}
+      </DialogContent>
+    </Dialog>
 
     {billingDialog && (
       <BillingConfirmDialog

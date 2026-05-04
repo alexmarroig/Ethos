@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { AlertCircle, Ban, CalendarPlus, Clock3, ExternalLink, Gift, UserPlus, Wrench } from "lucide-react";
+import { AlertCircle, Ban, Bell, CalendarPlus, Clock3, ExternalLink, Gift, UserPlus, Wrench } from "lucide-react";
 import SessionCard, { SessionStatus } from "@/components/SessionCard";
 import FloatingActionButton, { SessionState } from "@/components/FloatingActionButton";
 import { BioHubIntegrationCard } from "@/components/BioHubIntegrationCard";
+import { PreSessionBriefingPanel } from "@/components/PreSessionBriefingPanel";
 import { sessionService, type Session } from "@/services/sessionService";
 import { useAppStore } from "@/stores/appStore";
 import { financeService, type FinancialEntry, type FinancialSummary } from "@/services/financeService";
@@ -14,6 +15,16 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SessionCardSkeleton } from "@/components/SkeletonCards";
 import { Button } from "@/components/ui/button";
 import { usePrivacy } from "@/hooks/usePrivacy";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  buildPreSessionBriefing,
+  formatPreSessionBriefingText,
+  notifyPreSessionBriefing,
+  schedulePreSessionNotifications,
+  type PreSessionBriefing,
+} from "@/services/preSessionBriefingService";
+import { listSupervisionNotes } from "@/services/supervisionNotesService";
 
 interface HomePageProps {
   onSessionClick: (sessionId: string) => void;
@@ -145,6 +156,7 @@ function writeHomeDashboardCache(cache: Omit<HomeDashboardCache, "version" | "sa
 
 const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps) => {
   const { maskName } = usePrivacy();
+  const { toast } = useToast();
   const setSessionCache = useAppStore((s) => s.setSessionCache);
   const [todaySessions, setTodaySessions] = useState<Session[]>([]);
   const [upcomingSessions, setUpcomingSessions] = useState<Session[]>([]);
@@ -152,7 +164,9 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
   const [pendingPayments, setPendingPayments] = useState<FinancialEntry[]>([]);
   const [upcomingPayments, setUpcomingPayments] = useState<FinancialEntry[]>([]);
   const [birthdayPatients, setBirthdayPatients] = useState<Patient[]>([]);
+  const [patientsIndex, setPatientsIndex] = useState<Patient[]>([]);
   const [financialSummary, setFinancialSummary] = useState<FinancialSummary | null>(null);
+  const [selectedBriefing, setSelectedBriefing] = useState<PreSessionBriefing | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<{ message: string; requestId: string } | null>(null);
   const [loadNotice, setLoadNotice] = useState<string | null>(null);
@@ -238,6 +252,7 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
         void patientsPromise
           .then((patients) => {
             if (cancelled) return;
+            setPatientsIndex(patients);
             const birthdays = patients
               .filter((patient) => {
                 if (!patient.birth_date) return false;
@@ -454,6 +469,62 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
     [todaySessions, upcomingSessions, pendingSessions, pendingPayments, upcomingPayments],
   );
 
+  const preSessionBriefings = useMemo(() => {
+    const now = new Date();
+    const windowEnd = new Date(now);
+    windowEnd.setHours(windowEnd.getHours() + 48);
+
+    return [...todaySessions, ...upcomingSessions]
+      .filter((session) => session.event_type !== "block")
+      .filter((session) => {
+        const parsed = new Date(session.scheduled_at || `${session.date}T${session.time}:00`);
+        return !Number.isNaN(parsed.getTime()) && parsed >= now && parsed <= windowEnd;
+      })
+      .slice(0, 6)
+      .map((session) => {
+        const patient =
+          patientsIndex.find((item) => item.id === session.patient_id || item.external_id === session.patient_id) ??
+          ({ id: session.patient_id, name: session.patient_name } as Patient);
+        return buildPreSessionBriefing({
+          patient,
+          session,
+          supervisionNotes: listSupervisionNotes(patient.id),
+          financialEntries: pendingPayments.filter((entry) => entry.patient_id === patient.id || entry.patient_id === patient.external_id),
+        });
+      });
+  }, [patientsIndex, pendingPayments, todaySessions, upcomingSessions]);
+
+  useEffect(() => {
+    const timers = schedulePreSessionNotifications({
+      briefings: preSessionBriefings,
+      enabled: true,
+      minutesBeforeSession: 60,
+      onClick: (briefing) => onPatientClick?.(briefing.patientId),
+    });
+    return () => timers.forEach((timer) => timer.clear());
+  }, [onPatientClick, preSessionBriefings]);
+
+  const copyBriefing = async (briefing: PreSessionBriefing) => {
+    await navigator.clipboard.writeText(formatPreSessionBriefingText(briefing));
+    toast({ title: "Briefing copiado", description: "Resumo pre-sessao copiado para a area de transferencia." });
+  };
+
+  const notifyBriefing = async (briefing: PreSessionBriefing) => {
+    const result = await notifyPreSessionBriefing(briefing, {
+      requireInteraction: true,
+      onClick: () => onPatientClick?.(briefing.patientId),
+    });
+    if (result.ok) {
+      toast({ title: "Notificacao enviada", description: "O briefing interno foi exibido no navegador." });
+      return;
+    }
+    toast({
+      title: result.reason === "unsupported" ? "Notificacao indisponivel" : "Permissao necessaria",
+      description: "Autorize notificacoes do navegador para receber o briefing.",
+      variant: "destructive",
+    });
+  };
+
   if (loading) {
     return (
       <div className="content-container py-8 md:py-12">
@@ -584,6 +655,42 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
 
         <div className="grid gap-6 xl:grid-cols-[1.35fr_1fr]">
           <div className="space-y-6">
+            <SectionCard
+              title="Sessoes para preparar"
+              actionLabel={preSessionBriefings.length ? "Ver agenda" : undefined}
+              onAction={preSessionBriefings.length ? () => onNavigate("agenda") : undefined}
+            >
+              {preSessionBriefings.length === 0 ? (
+                <p className="text-sm text-muted-foreground">Nenhuma sessao nas proximas 48h precisando de preparo agora.</p>
+              ) : (
+                <div className="space-y-3">
+                  {preSessionBriefings.map((briefing) => (
+                    <div key={`${briefing.patientId}-${briefing.sessionId}`} className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-foreground">{maskName(briefing.patientName)}</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {briefing.sessionAt ? formatDateLabel(briefing.sessionAt) : "Sem data"} · {briefing.mainComplaint || "Queixa nao registrada"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="secondary" size="sm" onClick={() => setSelectedBriefing(briefing)}>
+                            Abrir briefing
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => void copyBriefing(briefing)}>
+                            Copiar
+                          </Button>
+                          <Button variant="outline" size="sm" className="gap-1" onClick={() => void notifyBriefing(briefing)}>
+                            <Bell className="h-3.5 w-3.5" />
+                            Notificar antes
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </SectionCard>
             <SectionCard
               title="Sessões de hoje"
               actionLabel={todaySessions.length ? "Abrir agenda" : undefined}
@@ -804,6 +911,21 @@ const HomePage = ({ onSessionClick, onNavigate, onPatientClick }: HomePageProps)
         state={getFabState()}
         onClick={() => onNavigate(isFirstRun ? "patients" : "agenda")}
       />
+      <Dialog open={!!selectedBriefing} onOpenChange={(open) => !open && setSelectedBriefing(null)}>
+        <DialogContent className="max-h-[90vh] max-w-4xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="font-serif text-xl">Briefing pre-sessao</DialogTitle>
+          </DialogHeader>
+          {selectedBriefing ? (
+            <PreSessionBriefingPanel
+              briefing={selectedBriefing}
+              onCopy={() => void copyBriefing(selectedBriefing)}
+              onNotify={() => void notifyBriefing(selectedBriefing)}
+              onOpenPatient={onPatientClick ? () => onPatientClick(selectedBriefing.patientId) : undefined}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

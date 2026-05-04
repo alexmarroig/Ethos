@@ -58,7 +58,6 @@ import { reportService } from "@/services/reportService";
 import { financeService, type FinancialPackage, type FinancialPackageConsumption } from "@/services/financeService";
 import { clinicalSynthesisService, type ClinicalSynthesis } from "@/services/clinicalSynthesisService";
 import {
-  buildPreSessionBriefingText,
   deleteSupervisionNote,
   listSupervisionNotes,
   normalizeSupervisionTags,
@@ -70,6 +69,15 @@ import {
   type SupervisionNote,
   type SupervisionPriority,
 } from "@/services/supervisionNotesService";
+import { homeworkService, type HomeworkTask } from "@/services/homeworkService";
+import { scaleService, type ScaleRecord } from "@/services/scaleService";
+import { PreSessionBriefingPanel } from "@/components/PreSessionBriefingPanel";
+import {
+  buildPreSessionBriefing,
+  formatPreSessionBriefingText,
+  notifyPreSessionBriefing,
+  type PreSessionBriefing,
+} from "@/services/preSessionBriefingService";
 import { ClinicalSynthesisCard } from "@/components/ClinicalSynthesisCard";
 import { buildClinicalDocumentHtml } from "@/lib/documentBuilders";
 import {
@@ -485,6 +493,8 @@ export default function PatientDetailPage({
   const [dreamDiaryEntries, setDreamDiaryEntries] = useState<DreamDiaryEntry[]>([]);
   const [financialPackages, setFinancialPackages] = useState<FinancialPackage[]>([]);
   const [packageConsumptions, setPackageConsumptions] = useState<FinancialPackageConsumption[]>([]);
+  const [homeworkTasks, setHomeworkTasks] = useState<HomeworkTask[]>([]);
+  const [scaleRecords, setScaleRecords] = useState<ScaleRecord[]>([]);
   const [dreamDiaryLoading, setDreamDiaryLoading] = useState(false);
   const [dreamDiaryLoaded, setDreamDiaryLoaded] = useState(false);
   const [patientApproach, setPatientApproachState] = useState<Approach | null>(
@@ -543,6 +553,27 @@ export default function PatientDetailPage({
       if (consumptionsResult.success) setPackageConsumptions(consumptionsResult.data);
     };
     void loadPackages();
+  }, [patientId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadBriefingContext = async () => {
+      const [homeworkResult, scalesResult] = await Promise.all([
+        homeworkService.list(patientId),
+        scaleService.listRecords(patientId),
+      ]);
+
+      if (cancelled) return;
+      setHomeworkTasks(homeworkResult.success ? homeworkResult.data : []);
+      setScaleRecords(scalesResult.success ? scalesResult.data : []);
+    };
+
+    void loadBriefingContext();
+
+    return () => {
+      cancelled = true;
+    };
   }, [patientId]);
 
   const handleRefreshSynthesis = async () => {
@@ -839,16 +870,22 @@ export default function PatientDetailPage({
     return form.notes.trim();
   }, [detail?.clinical_notes, form.notes, synthesis?.content]);
 
-  const preSessionBriefingText = useMemo(() => {
-    if (!detail) return "";
-    return buildPreSessionBriefingText({
-      patientName: detail.patient.name,
-      nextSessionLabel: formatDateTime(detail.summary.next_session?.scheduled_at),
+  const preSessionBriefing = useMemo<PreSessionBriefing | null>(() => {
+    if (!detail) return null;
+    return buildPreSessionBriefing({
+      patient: detail.patient,
+      session: detail.summary.next_session,
       mainComplaint: form.main_complaint,
       clinicalEvolution: clinicalEvolutionForBriefing,
       supervisionNotes,
+      tasks: homeworkTasks,
+      scaleRecords,
     });
-  }, [clinicalEvolutionForBriefing, detail, form.main_complaint, supervisionNotes]);
+  }, [clinicalEvolutionForBriefing, detail, form.main_complaint, homeworkTasks, scaleRecords, supervisionNotes]);
+
+  const preSessionBriefingText = useMemo(() => (
+    preSessionBriefing ? formatPreSessionBriefingText(preSessionBriefing) : ""
+  ), [preSessionBriefing]);
 
   const updatePreSessionSettings = (next: PreSessionBriefingSettings) => {
     setPreSessionSettings(next);
@@ -910,41 +947,23 @@ export default function PatientDetailPage({
   };
 
   const sendPreSessionNotification = useCallback(async (manual = false) => {
-    if (!detail || !preSessionBriefingText) return;
-    if (!("Notification" in window)) {
+    if (!preSessionBriefing) return;
+
+    const result = await notifyPreSessionBriefing(preSessionBriefing, {
+      requireInteraction: manual,
+      onClick: () => setPreSessionBriefingOpen(true),
+    });
+
+    if (result.ok) {
+      if (manual) toast({ title: "Notificacao enviada", description: "O briefing interno foi exibido no navegador." });
+      return;
+    }
+    if (result.reason === "unsupported") {
       toast({ title: "Notificacao indisponivel", description: "Este navegador nao suporta notificacoes locais.", variant: "destructive" });
       return;
     }
-
-    let permission = Notification.permission;
-    if (permission === "default") {
-      permission = await Notification.requestPermission();
-    }
-
-    if (permission !== "granted") {
-      toast({ title: "Permissao necessaria", description: "Autorize notificacoes do navegador para receber o briefing.", variant: "destructive" });
-      return;
-    }
-
-    const notesSummary = supervisionNotes
-      .filter((note) => note.pinned || note.priority === "high")
-      .slice(0, 2)
-      .map((note) => note.nextSessionPrompt || note.content)
-      .filter(Boolean)
-      .join(" | ");
-
-    new Notification(`Preparar sessao - ${detail.patient.name}`, {
-      body: [
-        form.main_complaint ? `Queixa: ${form.main_complaint}` : "",
-        clinicalEvolutionForBriefing ? `Evolucao: ${clinicalEvolutionForBriefing}` : "",
-        notesSummary ? `Supervisao: ${notesSummary}` : "",
-      ].filter(Boolean).join("\n").slice(0, 260),
-      tag: `ethos-pre-session-${patientId}-${detail.summary.next_session?.id ?? "manual"}`,
-      requireInteraction: manual,
-    });
-
-    if (manual) toast({ title: "Notificacao enviada", description: "O briefing interno foi exibido no navegador." });
-  }, [clinicalEvolutionForBriefing, detail, form.main_complaint, patientId, preSessionBriefingText, supervisionNotes, toast]);
+    toast({ title: "Permissao necessaria", description: "Autorize notificacoes do navegador para receber o briefing.", variant: "destructive" });
+  }, [preSessionBriefing, toast]);
 
   useEffect(() => {
     if (preSessionTimerRef.current) {
@@ -1970,30 +1989,20 @@ export default function PatientDetailPage({
                   <Bell className="h-5 w-5 text-primary" />
                 </div>
 
-                <div className="mt-4 space-y-3 text-sm">
-                  <div className="rounded-lg bg-background/70 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Proxima sessao</p>
-                    <p className="mt-1 text-foreground">{formatDateTime(detail.summary.next_session?.scheduled_at)}</p>
+                {preSessionBriefing ? (
+                  <div className="mt-4">
+                    <PreSessionBriefingPanel
+                      briefing={preSessionBriefing}
+                      compact
+                      onCopy={copyPreSessionBriefing}
+                      onNotify={() => void sendPreSessionNotification(true)}
+                    />
                   </div>
-                  <div className="rounded-lg bg-background/70 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Queixa principal</p>
-                    <p className="mt-1 line-clamp-3 text-foreground">{form.main_complaint || "Nao registrada."}</p>
-                  </div>
-                  <div className="rounded-lg bg-background/70 p-3">
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Evolucao clinica</p>
-                    <p className="mt-1 line-clamp-4 text-foreground">{clinicalEvolutionForBriefing || "Sem sintese registrada."}</p>
-                  </div>
-                </div>
+                ) : null}
 
                 <div className="mt-4 flex flex-wrap gap-2">
                   <Button variant="secondary" size="sm" onClick={() => setPreSessionBriefingOpen(true)}>
                     Ver briefing
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={copyPreSessionBriefing}>
-                    Copiar
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => void sendPreSessionNotification(true)}>
-                    Notificar agora
                   </Button>
                 </div>
 
@@ -3321,13 +3330,15 @@ export default function PatientDetailPage({
                 Resumo interno para o psicologo revisar antes do atendimento. Nao enviar ao paciente.
               </DialogDescription>
             </DialogHeader>
-            <div className="space-y-3">
-              <Textarea value={preSessionBriefingText} readOnly className="min-h-[360px] font-mono text-sm" />
-            </div>
+            {preSessionBriefing ? (
+              <PreSessionBriefingPanel
+                briefing={preSessionBriefing}
+                onCopy={copyPreSessionBriefing}
+                onNotify={() => void sendPreSessionNotification(true)}
+              />
+            ) : null}
             <DialogFooter>
               <Button variant="secondary" onClick={() => setPreSessionBriefingOpen(false)}>Fechar</Button>
-              <Button variant="outline" onClick={copyPreSessionBriefing}>Copiar</Button>
-              <Button onClick={() => void sendPreSessionNotification(true)}>Notificar agora</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

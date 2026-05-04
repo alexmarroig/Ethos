@@ -152,7 +152,7 @@ const Index = () => {
       case "prontuario":
         return <ProntuarioPage sessionId={selectedSessionId!} onBack={handleBackFromProntuario} />;
       case "agenda":
-        return <AgendaPage onSessionClick={handleSessionClick} />;
+        return <AgendaPage onSessionClick={handleSessionClick} onPatientClick={handleOpenPatient} />;
       case "patients":
         return <PatientsPage onOpenPatient={handleOpenPatient} />;
       case "patient-detail":
