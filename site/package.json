@@ -6,8 +6,9 @@
   "scripts": {
     "dev": "vite",
     "prebuild": "npm --prefix .. run check:encoding",
-    "build": "vite build",
-    "build:prerender": "vite build && node scripts/prerender.mjs",
+    "build": "vite build && vite build --ssr src/entry-static.tsx --outDir dist-ssr && node scripts/prerender-ssr.mjs",
+    "build:client": "vite build",
+    "build:prerender": "npm run build",
     "build:dev": "vite build --mode development",
     "lint": "eslint .",
     "preview": "vite preview",
