@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { motion } from "framer-motion";
-import { Bell, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
+import { Bell, CalendarPlus, ChevronLeft, ChevronRight, Clock3, Filter, GripVertical, ListChecks, Monitor, Building2, Plus, Repeat2, Search, Settings2, Sparkles, Tags, UserRound, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
@@ -157,6 +157,9 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
   const [selectedDayKey, setSelectedDayKey] = useState(() => formatDate(new Date()));
   const [agendaView, setAgendaView] = useState<AgendaView>("week");
   const [prepareDayOpen, setPrepareDayOpen] = useState(false);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [agendaSearch, setAgendaSearch] = useState("");
+  const [prepChecklist, setPrepChecklist] = useState<Record<string, string[]>>({});
   const [agendaSettings, setAgendaSettings] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsDraft, setSettingsDraft] = useState<AgendaSettings>(defaultAgendaSettings);
   const [settingsHydrated, setSettingsHydrated] = useState(false);
@@ -549,10 +552,24 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
 
   const filteredSessions = useMemo(() => {
     const todayKey = formatDate(new Date());
+    const search = agendaSearch.trim().toLowerCase();
     return sessions.filter((session) => {
       const meta = getAgendaMetaForSession(session);
       const matchesCategory = categoryFilter === "all" || meta.categoryId === categoryFilter;
       const matchesTag = tagFilter === "all" || meta.tags.includes(tagFilter);
+      const matchesSearch =
+        !search ||
+        [
+          session.patient_name,
+          session.block_title,
+          session.time,
+          session.date,
+          session.status,
+          getAgendaCategory(meta.categoryId).label,
+          ...meta.tags,
+        ]
+          .filter(Boolean)
+          .some((value) => String(value).toLowerCase().includes(search));
       const dateKey = getSessionDateKey(session);
       const hasSupervisionContext =
         meta.categoryId === "study" ||
@@ -565,10 +582,10 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
         (quickFilter === "tasks" && (session.event_type === "block" || ["admin", "personal", "buffer"].includes(meta.categoryId))) ||
         (quickFilter === "supervision" && hasSupervisionContext) ||
         (quickFilter === "pending" && (session.status === "pending" || session.status === "missed" || meta.priority === "high"));
-      return matchesCategory && matchesTag && matchesQuick;
+      return matchesCategory && matchesTag && matchesQuick && matchesSearch;
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [agendaMetaByEventId, categoryFilter, quickFilter, sessions, tagFilter]);
+  }, [agendaMetaByEventId, agendaSearch, categoryFilter, quickFilter, sessions, tagFilter]);
 
   const sessionsByCell = useMemo(() => {
     const map = new Map<string, Session[]>();
@@ -681,6 +698,37 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
     toast({ title });
   };
 
+  const togglePrepChecklistItem = (sessionId: string, item: string) => {
+    setPrepChecklist((current) => {
+      const checked = new Set(current[sessionId] ?? []);
+      if (checked.has(item)) checked.delete(item);
+      else checked.add(item);
+      return { ...current, [sessionId]: [...checked] };
+    });
+  };
+
+  const runAgendaCommand = (command: "session" | "task" | "prepare" | "copy" | "today" | "pending") => {
+    setCommandOpen(false);
+    if (command === "session") {
+      setSessionDialogDefaults({ date: selectedDayKey, eventType: "session" });
+      setSessionDialogOpen(true);
+    }
+    if (command === "task") {
+      setSessionDialogDefaults({ date: selectedDayKey, eventType: "task" });
+      setTaskDialogOpen(true);
+    }
+    if (command === "prepare") openPrepareDay();
+    if (command === "copy") void copySelectedDayBriefings();
+    if (command === "today") {
+      setCurrentWeek(0);
+      setMonthOffset(0);
+      setSelectedDayKey(formatDate(new Date()));
+      setAgendaView("day");
+      setQuickFilter("today");
+    }
+    if (command === "pending") setQuickFilter("pending");
+  };
+
   const copySelectedDayBriefings = async () => {
     const clinicalSessions = selectedDayClinicalSessions;
     if (clinicalSessions.length === 0) {
@@ -709,6 +757,9 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
       }
       if (event.key.toLowerCase() === "p") {
         openPrepareDay();
+      }
+      if (event.key.toLowerCase() === "k") {
+        setCommandOpen(true);
       }
       if (event.key === "ArrowLeft") {
         agendaView === "month" ? setMonthOffset((value) => value - 1) : setCurrentWeek((value) => value - 1);
@@ -1095,6 +1146,21 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               <Filter className="h-4 w-4 text-primary" />
               Visualizar por contexto
             </div>
+            <div className="flex flex-1 flex-col gap-2 sm:flex-row xl:max-w-xl">
+              <label className="relative min-w-0 flex-1">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={agendaSearch}
+                  onChange={(event) => setAgendaSearch(event.target.value)}
+                  placeholder="Buscar paciente, tarefa, tag..."
+                  className="h-9 rounded-full pl-9 text-sm"
+                />
+              </label>
+              <Button type="button" variant="outline" size="sm" className="rounded-full" onClick={() => setCommandOpen(true)}>
+                <Sparkles className="mr-1 h-3.5 w-3.5" />
+                Comando rapido
+              </Button>
+            </div>
             <div className="flex flex-wrap gap-2">
               {[
                 ["all", "Todos"],
@@ -1363,6 +1429,85 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
               <p className="mt-4 text-xs leading-relaxed text-muted-foreground">
                 Atalhos: N nova sessao, T nova tarefa, P preparar o dia, setas mudam periodo.
               </p>
+            </div>
+          </motion.section>
+        ) : null}
+
+        {!loading && !error && agendaView === "day" && selectedDayInsight ? (
+          <motion.section
+            className="mb-6 rounded-[1.5rem] border border-border bg-card p-4 shadow-subtle"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.17 }}
+          >
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary">Linha do tempo do dia</p>
+                <h2 className="font-serif text-2xl text-foreground">Rotina em ordem de atendimento</h2>
+              </div>
+              <Button type="button" size="sm" variant="outline" onClick={openPrepareDay} disabled={selectedDayClinicalSessions.length === 0}>
+                Preparar meu dia
+              </Button>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {selectedDayInsight.sessions.length === 0 ? (
+                <button
+                  type="button"
+                  className="w-full rounded-2xl border border-dashed border-border px-4 py-5 text-left text-sm text-muted-foreground transition-colors hover:border-primary/40 hover:bg-primary/5"
+                  onClick={() => {
+                    setSessionDialogDefaults({ date: selectedDayInsight.day.key });
+                    setSessionDialogOpen(true);
+                  }}
+                >
+                  Sem itens nesse dia. Clique para começar a montar a rotina.
+                </button>
+              ) : (
+                selectedDayInsight.sessions
+                  .slice()
+                  .sort((a, b) => a.time.localeCompare(b.time))
+                  .map((session) => {
+                    const meta = getAgendaMetaForSession(session);
+                    const color = getAgendaColor(meta.colorId);
+                    const clinicalContext = getSessionClinicalContext(session).slice(0, 2);
+                    return (
+                      <div key={session.id} className="grid gap-3 sm:grid-cols-[76px_1fr]">
+                        <div className="pt-3 text-sm font-semibold text-muted-foreground">{session.time}</div>
+                        <div className={cn("rounded-2xl border p-4", color.cardClass)}>
+                          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="min-w-0">
+                              <p className="truncate text-base font-semibold text-foreground">{session.block_title ?? maskName(session.patient_name)}</p>
+                              <div className="mt-2 flex flex-wrap gap-1.5">
+                                <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold", color.chipClass)}>
+                                  {getAgendaCategory(meta.categoryId).label}
+                                </span>
+                                <span className={cn("rounded-full px-2 py-1 text-[10px] font-semibold", getStatusColor(session.status))}>
+                                  {session.event_type === "block" ? "Tarefa" : getStatusLabel(session.status)}
+                                </span>
+                                {meta.priority === "high" ? <span className="rounded-full bg-destructive/15 px-2 py-1 text-[10px] font-semibold text-destructive">Alta prioridade</span> : null}
+                              </div>
+                              {clinicalContext.length > 0 ? (
+                                <div className="mt-3 space-y-1">
+                                  {clinicalContext.map((item) => (
+                                    <p key={item} className="rounded-xl bg-background/70 px-3 py-2 text-xs text-muted-foreground">{item}</p>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </div>
+                            {session.event_type !== "block" ? (
+                              <div className="grid shrink-0 grid-cols-2 gap-2 lg:w-56">
+                                <Button size="sm" onClick={() => openBriefingForSession(session)}>Preparar</Button>
+                                <Button size="sm" variant="outline" onClick={() => void copyConfirmationMessage(session)}>WhatsApp</Button>
+                                <Button size="sm" variant="outline" onClick={() => void markSessionStatus(session, "confirmed", "Sessao confirmada")}>Confirmar</Button>
+                                <Button size="sm" variant="secondary" onClick={() => void handleCompleteSession(session)}>Concluir</Button>
+                              </div>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </motion.section>
         ) : null}
@@ -1918,6 +2063,35 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
       </div>
     </div>
 
+    <Dialog open={commandOpen} onOpenChange={setCommandOpen}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle className="font-serif text-xl">Comando rapido da agenda</DialogTitle>
+        </DialogHeader>
+        <div className="grid gap-2">
+          {[
+            ["session", "Nova sessao", "Agenda uma sessao no dia selecionado."],
+            ["task", "Nova tarefa", "Cria um bloco administrativo, pessoal ou de supervisao."],
+            ["prepare", "Preparar meu dia", "Abre o ritual pre-sessao do dia selecionado."],
+            ["copy", "Copiar briefings", "Copia todos os briefings clinicos do dia."],
+            ["today", "Ir para hoje", "Volta para hoje na visao diaria."],
+            ["pending", "Ver pendencias", "Filtra sessoes pendentes, faltas e alta prioridade."],
+          ].map(([key, label, description]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => runAgendaCommand(key as "session" | "task" | "prepare" | "copy" | "today" | "pending")}
+              className="rounded-2xl border border-border bg-card p-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+            >
+              <p className="text-sm font-semibold text-foreground">{label}</p>
+              <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground">Atalho: K abre este menu.</p>
+      </DialogContent>
+    </Dialog>
+
     <SessionDialog
       open={sessionDialogOpen}
       onOpenChange={(v) => { setSessionDialogOpen(v); if (!v) setSessionDialogDefaults({}); }}
@@ -2002,6 +2176,37 @@ const AgendaPage = ({ onSessionClick, onPatientClick }: AgendaPageProps) => {
                     <p className="mt-1 line-clamp-3 text-sm text-foreground">
                       {[...briefing.tasks.map((task) => task.title), ...briefing.adminAlerts].slice(0, 2).join(" · ") || "Nada critico para antes da sessao."}
                     </p>
+                  </div>
+                </div>
+                <div className="mt-3 rounded-2xl border border-border/70 bg-background/60 p-3">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">Checklist pre-sessao</p>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+                    {[
+                      "Queixa revisada",
+                      "Evolucao revisada",
+                      "Supervisao revisada",
+                      "Tarefa/homework conferida",
+                      "Ficha pronta",
+                    ].map((item) => {
+                      const checked = prepChecklist[session.id]?.includes(item) ?? false;
+                      return (
+                        <label
+                          key={item}
+                          className={cn(
+                            "flex cursor-pointer items-center gap-2 rounded-xl border px-3 py-2 text-xs transition-colors",
+                            checked ? "border-primary bg-primary/10 text-primary" : "border-border bg-card text-muted-foreground hover:border-primary/40",
+                          )}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => togglePrepChecklistItem(session.id, item)}
+                            className="h-3.5 w-3.5"
+                          />
+                          {item}
+                        </label>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
