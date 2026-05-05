@@ -43,7 +43,7 @@ type WizardState = {
 
 // ─── HTML builder ─────────────────────────────────────────────────────────────
 function buildReportHtml(state: WizardState, notes: ClinicalNote[], patientName: string, clinicianName: string, crp: string): string {
-  const today = new Date().toLocaleDateString('pt-BR', { day: 'long', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   const selectedNotes = notes.filter((n) => state.selectedNoteIds.has(n.id));
 
   const finalidadeText: Record<Finalidade, string> = {

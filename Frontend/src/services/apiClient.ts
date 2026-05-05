@@ -1,5 +1,6 @@
 import {
   CLINICAL_BASE_URL,
+  CONTROL_BASE_URL,
   DEFAULT_TIMEOUT,
   LONG_TIMEOUT,
   LONG_TIMEOUT_PATTERNS,
@@ -377,4 +378,21 @@ export const api = {
 
   delete: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
     apiRequest<T>(path, { ...opts, method: "DELETE" }),
+};
+
+export const apiControl = {
+  get: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "GET", baseUrl: CONTROL_BASE_URL }),
+
+  post: <T = unknown>(path: string, body?: unknown, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "POST", body: body as any, baseUrl: CONTROL_BASE_URL }),
+
+  patch: <T = unknown>(path: string, body?: unknown, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "PATCH", body: body as any, baseUrl: CONTROL_BASE_URL }),
+
+  put: <T = unknown>(path: string, body?: unknown, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "PUT", body: body as any, baseUrl: CONTROL_BASE_URL }),
+
+  delete: <T = unknown>(path: string, opts?: ApiRequestOptions) =>
+    apiRequest<T>(path, { ...opts, method: "DELETE", baseUrl: CONTROL_BASE_URL }),
 };

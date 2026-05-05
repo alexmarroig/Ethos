@@ -163,7 +163,7 @@ export default function PatientBookingScreen() {
         <>
           <Calendar
             onDayPress={handleDayPress}
-            markingType="simple"
+            markingType="custom"
             markedDates={markedDates}
             theme={{
               backgroundColor: theme.background,

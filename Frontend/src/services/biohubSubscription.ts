@@ -1,4 +1,4 @@
-import { api, type ApiResult } from "./apiClient";
+import { apiControl as api, type ApiResult } from "./apiClient";
 
 export interface BioHubAccessPayload {
   hasBiohub: boolean;

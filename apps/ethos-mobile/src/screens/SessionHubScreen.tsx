@@ -88,7 +88,7 @@ const buildDraftContent = ({
 
 // ─── WaveBar ─────────────────────────────────────────────────────────────────
 const WaveBar = ({ animatedValue }: { animatedValue: ReturnType<typeof makeMutable> }) => {
-  const style = useAnimatedStyle(() => ({ height: animatedValue.value }));
+  const style = useAnimatedStyle(() => ({ height: Number(animatedValue.value) }));
   return <Animated.View style={[styles.waveBar, style]} />;
 };
 
@@ -228,7 +228,7 @@ export default function SessionHubScreen({ navigation, route }: any) {
         const job = await fetchJob(transcription.job_id);
         if (job.status === 'completed') { completedJob = job; break; }
         if (job.status === 'failed') throw new Error('A transcricao falhou no servidor.');
-        if (job.status === 'cancelled') throw new Error('A transcricao foi cancelada.');
+        if (String(job.status) === 'cancelled') throw new Error('A transcricao foi cancelada.');
         await wait(5000);
       }
 

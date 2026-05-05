@@ -44,7 +44,16 @@ export default function PatientPaymentsScreen() {
     setLoading(true);
     try {
       const data = await fetchFinancialEntries();
-      setPayments(Array.isArray(data) ? data : []);
+      setPayments(
+        (Array.isArray(data) ? data : []).map((entry) => ({
+          id: entry.id,
+          description: entry.description,
+          amount: entry.amount,
+          due_date: entry.due_date,
+          paid_at: entry.status === 'paid' ? entry.lastReminderAt : undefined,
+          status: entry.status === 'paid' ? 'paid' : new Date(entry.due_date) < new Date() ? 'overdue' : 'pending',
+        })),
+      );
     } catch {
       setPayments([]);
     } finally {

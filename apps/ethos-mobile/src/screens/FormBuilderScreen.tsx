@@ -16,9 +16,10 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { GripVertical, Plus, Trash2 } from 'lucide-react-native';
+import { Plus, Trash2 } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { clinicalApiClient } from '../services/api/clinicalClient';
+import { GripVertical } from '../lib/lucideCompat';
 
 type FieldType = 'text_short' | 'text_long' | 'select' | 'scale';
 

@@ -24,17 +24,9 @@ import Animated, {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import {
-  Brain,
-  Calendar,
-  FileText,
-  Mic,
-  Shield,
-  Sparkles,
-  Lock,
-  Heart,
-} from 'lucide-react-native';
+import { Calendar, FileText, Mic, Shield, Sparkles, Lock } from 'lucide-react-native';
 import * as SecureStore from 'expo-secure-store';
+import { Brain, Heart } from '../lib/lucideCompat';
 
 const { width: W, height: H } = Dimensions.get('window');
 

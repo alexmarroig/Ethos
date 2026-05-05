@@ -50,7 +50,7 @@ const STATUS_COLOR: Record<ContractStatus, string> = {
 };
 
 function buildContractHtml(contract: Contract, clinicianName: string, crp: string): string {
-  const today = new Date().toLocaleDateString('pt-BR', { day: 'long', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
   return `<!DOCTYPE html><html><body style="font-family: Georgia, serif; max-width: 700px; margin: 40px auto; line-height: 1.8; color: #222;">
   <div style="text-align:center; border-bottom: 2px solid #234e5c; padding-bottom: 16px; margin-bottom: 32px;">
     <h1 style="font-size: 22px; color: #234e5c;">CONTRATO TERAPEUTICO</h1>

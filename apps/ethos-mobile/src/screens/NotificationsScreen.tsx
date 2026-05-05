@@ -17,7 +17,6 @@ import {
 import {
   AlertCircle,
   Bell,
-  BellOff,
   BookOpen,
   Calendar,
   CheckCircle,
@@ -27,13 +26,13 @@ import {
   CreditCard,
   FileText,
   Mic,
-  UserCheck,
   X,
 } from 'lucide-react-native';
 import Animated, { FadeInDown, SlideInRight } from 'react-native-reanimated';
 
 import { colors } from '../theme/colors';
 import { AppNotification, useNotifications } from '../contexts/NotificationsContext';
+import { BellOff, UserCheck } from '../lib/lucideCompat';
 
 // ─── Notification config per type ─────────────────────────────────────────────
 type NotifType = AppNotification['type'];

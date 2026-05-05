@@ -17,9 +17,10 @@ import {
 } from 'react-native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { FileText, Printer, Share2 } from 'lucide-react-native';
+import { FileText, Share2 } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { useAuth } from '../contexts/AuthContext';
+import { Printer } from '../lib/lucideCompat';
 
 type DocType = 'declaracao' | 'atestado' | 'recibo' | 'relatorio_sessao';
 
@@ -49,7 +50,7 @@ type DocFields = {
 };
 
 function buildHtml(type: DocType, fields: DocFields, clinicianName: string, crp: string): string {
-  const today = new Date().toLocaleDateString('pt-BR', { day: 'long', month: 'long', year: 'numeric' });
+  const today = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' });
 
   const shared = `
     <style>

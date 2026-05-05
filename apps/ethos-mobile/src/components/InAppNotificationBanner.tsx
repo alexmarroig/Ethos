@@ -29,13 +29,13 @@ import {
   CreditCard,
   FileText,
   Mic,
-  UserCheck,
   X,
 } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { colors } from '../theme/colors';
 import { AppNotification } from '../contexts/NotificationsContext';
+import { UserCheck } from '../lib/lucideCompat';
 
 const { width: W } = Dimensions.get('window');
 const BANNER_W = W - 32;

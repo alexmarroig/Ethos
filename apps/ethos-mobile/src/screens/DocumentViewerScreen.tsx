@@ -11,10 +11,11 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { Download, Printer, Share2, ZoomIn } from 'lucide-react-native';
+import { Download, Share2 } from 'lucide-react-native';
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { colors } from '../theme/colors';
+import { Printer, ZoomIn } from '../lib/lucideCompat';
 
 // react-native-pdf is a native module. We try to import it but gracefully
 // degrade when running in Expo Go / web environments.

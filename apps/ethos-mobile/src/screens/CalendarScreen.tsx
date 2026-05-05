@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -24,9 +24,21 @@ import {
   Search,
   Sparkles,
   X,
+  Zap,
+  TrendingUp,
 } from 'lucide-react-native';
+import { ChevronRight, Target } from '../lib/lucideCompat';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import Animated, {
+  FadeIn,
+  FadeInDown,
+  Layout,
+  SlideInRight,
+  useAnimatedStyle,
+  withSpring
+} from 'react-native-reanimated';
+import { BlurView } from 'expo-blur';
 import { colors } from '../theme/colors';
 import { fetchPatients } from '../services/api/patients';
 import { fetchSessions, updateSessionStatus } from '../services/api/sessions';
@@ -37,6 +49,7 @@ import {
   loadWhatsAppMessageSettings,
   openWhatsAppLink,
 } from '../services/whatsapp';
+import { CalendarHeader } from '../components/CalendarHeader';
 
 LocaleConfig.locales.pt = {
   monthNames: [
@@ -338,76 +351,73 @@ export default function CalendarScreen() {
   const renderSessionCard = (session: SessionRecord, compact = false) => {
     const patient = resolvePatient(session);
     const statusColor = STATUS_COLOR[session.status] ?? '#9ba1b0';
-    const complaint = patient?.main_complaint || 'Queixa principal nao registrada.';
+    const complaint = patient?.main_complaint || 'Queixa principal nÃ£o registrada.';
+
     return (
-      <TouchableOpacity
+      <Animated.View
+        layout={Layout.springify()}
+        entering={FadeInDown.duration(400)}
         key={session.id}
-        style={[styles.sessionCard, { backgroundColor: theme.card, borderColor: theme.border }]}
-        onPress={() => goToSession(session)}
-        activeOpacity={0.88}
       >
-        <View style={[styles.statusBar, { backgroundColor: statusColor }]} />
-        <View style={styles.sessionBody}>
-          <View style={styles.sessionTopRow}>
-            <View style={styles.timePill}>
-              <Clock size={13} color={accentTeal} />
-              <Text style={styles.timePillText}>{formatTimeRange(session)}</Text>
+        <TouchableOpacity
+          style={[styles.sessionCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+          onPress={() => goToSession(session)}
+          activeOpacity={0.88}
+        >
+          <View style={[styles.statusBar, { backgroundColor: statusColor }]} />
+          <View style={styles.sessionBody}>
+            <View style={styles.sessionTopRow}>
+              <View style={styles.timePill}>
+                <Clock size={13} color={accentTeal} />
+                <Text style={styles.timePillText}>{formatTimeRange(session)}</Text>
+              </View>
+              <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
+                <Text style={[styles.statusBadgeText, { color: statusColor }]}>{STATUS_LABEL[session.status]}</Text>
+              </View>
             </View>
-            <View style={[styles.statusBadge, { backgroundColor: `${statusColor}22` }]}>
-              <Text style={[styles.statusBadgeText, { color: statusColor }]}>{STATUS_LABEL[session.status]}</Text>
-            </View>
-          </View>
-          <Text style={[styles.patientName, { color: theme.foreground }]} numberOfLines={1}>
-            {resolvePatientName(session)}
-          </Text>
-          {!compact ? (
-            <Text style={[styles.complaintText, { color: theme.mutedForeground }]} numberOfLines={2}>
-              {complaint}
+            <Text style={[styles.patientName, { color: theme.foreground }]} numberOfLines={1}>
+              {resolvePatientName(session)}
             </Text>
-          ) : null}
-          <View style={styles.cardActions}>
-            <TouchableOpacity style={styles.primaryAction} onPress={() => goToSession(session)}>
-              <Bell size={14} color="#fff" />
-              <Text style={styles.primaryActionText}>Preparar</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => void openWhatsAppReminder(session)}>
-              <MessageCircle size={14} color={accentTeal} />
-              <Text style={styles.secondaryActionText}>WhatsApp</Text>
-            </TouchableOpacity>
-            {session.status !== 'confirmed' ? (
-              <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => void setSessionStatus(session, 'confirmed')}>
-                <CheckCircle2 size={14} color={accentTeal} />
-                <Text style={styles.secondaryActionText}>Confirmar</Text>
-              </TouchableOpacity>
+            {!compact ? (
+              <Text style={[styles.complaintText, { color: theme.mutedForeground }]} numberOfLines={2}>
+                {complaint}
+              </Text>
             ) : null}
+            <View style={styles.cardActions}>
+              <TouchableOpacity style={styles.primaryAction} onPress={() => goToSession(session)}>
+                <Bell size={14} color="#fff" />
+                <Text style={styles.primaryActionText}>Preparar</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => void openWhatsAppReminder(session)}>
+                <MessageCircle size={14} color={accentTeal} />
+                <Text style={styles.secondaryActionText}>WhatsApp</Text>
+              </TouchableOpacity>
+              {session.status !== 'confirmed' ? (
+                <TouchableOpacity style={[styles.secondaryAction, { borderColor: theme.border }]} onPress={() => void setSessionStatus(session, 'confirmed')}>
+                  <CheckCircle2 size={14} color={accentTeal} />
+                  <Text style={styles.secondaryActionText}>Confirmar</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
           </View>
-        </View>
-      </TouchableOpacity>
+        </TouchableOpacity>
+      </Animated.View>
     );
   };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background }]}>
-      <View style={[styles.header, { borderBottomColor: theme.border }]}>
-        <View>
-          <Text style={[styles.kicker, { color: theme.mutedForeground }]}>
-            {new Date(`${selectedDate}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
-          </Text>
-          <Text style={[styles.headerTitle, { color: theme.foreground }]}>Agenda clinica</Text>
-        </View>
-        <View style={styles.headerActions}>
-          {loading ? <ActivityIndicator size="small" color={theme.primary} /> : null}
-          <TouchableOpacity style={[styles.roundButton, { backgroundColor: theme.card }]} onPress={() => setCommandOpen(true)}>
-            <Sparkles size={19} color={theme.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.roundButton, { backgroundColor: theme.primary }]} onPress={() => navigation.navigate('CreateSession')}>
-            <Plus size={20} color={theme.primaryForeground} />
-          </TouchableOpacity>
-        </View>
-      </View>
+      <CalendarHeader
+        title="Agenda ClÃ­nica"
+        subtitle={new Date(`${selectedDate}T12:00:00`).toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' })}
+        loading={loading}
+        isDark={isDark}
+        onCommandPress={() => setCommandOpen(true)}
+        onPlusPress={() => navigation.navigate('CreateSession')}
+      />
 
       <ScrollView style={styles.content} contentContainerStyle={styles.contentInner} showsVerticalScrollIndicator={false}>
-        <View style={[styles.searchBox, { backgroundColor: theme.card, borderColor: theme.border }]}>
+        <View style={[styles.searchBox, { backgroundColor: isDark ? '#1e2228' : '#f1f0ed', borderColor: theme.border }]}>
           <Search size={17} color={theme.mutedForeground} />
           <TextInput
             value={search}
@@ -417,7 +427,7 @@ export default function CalendarScreen() {
             style={[styles.searchInput, { color: theme.foreground }]}
           />
           {search ? (
-            <TouchableOpacity onPress={() => setSearch('')}>
+            <TouchableOpacity onPress={() => setSearch('')} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
               <X size={16} color={theme.mutedForeground} />
             </TouchableOpacity>
           ) : null}
@@ -469,32 +479,66 @@ export default function CalendarScreen() {
         </View>
 
         <View style={styles.summaryGrid}>
-          <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Hoje</Text>
-            <Text style={[styles.summaryValue, { color: theme.foreground }]}>{selectedDaySessions.length}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Mes</Text>
-            <Text style={[styles.summaryValue, { color: theme.foreground }]}>{monthSummary.total}</Text>
-          </View>
-          <View style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-            <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Pend.</Text>
-            <Text style={[styles.summaryValue, { color: theme.foreground }]}>{monthSummary.pending}</Text>
-          </View>
+          <Animated.View
+            entering={FadeInDown.delay(100).duration(500)}
+            style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <View style={[styles.summaryIcon, { backgroundColor: `${theme.primary}15` }]}>
+              <Target size={16} color={theme.primary} />
+            </View>
+            <View>
+              <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Hoje</Text>
+              <Text style={[styles.summaryValue, { color: theme.foreground }]}>{selectedDaySessions.length}</Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View
+            entering={FadeInDown.delay(200).duration(500)}
+            style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <View style={[styles.summaryIcon, { backgroundColor: '#3a9b7315' }]}>
+              <TrendingUp size={16} color="#3a9b73" />
+            </View>
+            <View>
+              <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>MÃªs</Text>
+              <Text style={[styles.summaryValue, { color: theme.foreground }]}>{monthSummary.total}</Text>
+            </View>
+          </Animated.View>
+
+          <Animated.View
+            entering={FadeInDown.delay(300).duration(500)}
+            style={[styles.summaryCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+          >
+            <View style={[styles.summaryIcon, { backgroundColor: '#edbd2a15' }]}>
+              <Zap size={16} color="#edbd2a" />
+            </View>
+            <View>
+              <Text style={[styles.summaryLabel, { color: theme.mutedForeground }]}>Pend.</Text>
+              <Text style={[styles.summaryValue, { color: theme.foreground }]}>{monthSummary.pending}</Text>
+            </View>
+          </Animated.View>
         </View>
 
-        <View style={[styles.commandCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <View>
-            <Text style={[styles.commandTitle, { color: theme.foreground }]}>Preparacao rapida</Text>
-            <Text style={[styles.commandDescription, { color: theme.mutedForeground }]}>
-              Abra o ritual do dia, copie briefings ou envie confirmacao pelo WhatsApp.
-            </Text>
+        <Animated.View
+          entering={FadeInDown.delay(400).duration(500)}
+          style={[styles.commandCard, { backgroundColor: theme.card, borderColor: theme.border }]}
+        >
+          <View style={styles.commandContent}>
+            <View style={[styles.commandIcon, { backgroundColor: `${theme.primary}15` }]}>
+              <Sparkles size={20} color={theme.primary} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.commandTitle, { color: theme.foreground }]}>PreparaÃ§Ã£o rÃ¡pida</Text>
+              <Text style={[styles.commandDescription, { color: theme.mutedForeground }]}>
+                Abra o ritual do dia, copie briefings ou envie confirmaÃ§Ã£o pelo WhatsApp.
+              </Text>
+            </View>
           </View>
           <TouchableOpacity style={styles.commandButton} onPress={() => setPrepareOpen(true)}>
             <Bell size={15} color="#fff" />
             <Text style={styles.commandButtonText}>Preparar</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
         {error ? (
           <View style={[styles.stateCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -604,41 +648,52 @@ export default function CalendarScreen() {
       </ScrollView>
 
       <Modal visible={commandOpen} transparent animationType="fade" onRequestClose={() => setCommandOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCommandOpen(false)} />
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setCommandOpen(false)}>
+          <BlurView intensity={isDark ? 30 : 50} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
+        </TouchableOpacity>
         <View style={[styles.sheet, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
-            <Text style={[styles.sheetTitle, { color: theme.foreground }]}>Comando rapido</Text>
-            <TouchableOpacity onPress={() => setCommandOpen(false)}><X size={20} color={theme.mutedForeground} /></TouchableOpacity>
+            <Text style={[styles.sheetTitle, { color: theme.foreground }]}>Comando rÃ¡pido</Text>
+            <TouchableOpacity onPress={() => setCommandOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={20} color={theme.mutedForeground} />
+            </TouchableOpacity>
           </View>
           {([
-            { key: 'session', title: 'Nova sessao', subtitle: 'Agenda um atendimento.' },
-            { key: 'prepare', title: 'Preparar meu dia', subtitle: 'Revisao pre-sessao em lista.' },
-            { key: 'share', title: 'Compartilhar briefings', subtitle: 'Exporta os resumos do dia.' },
-            { key: 'today', title: 'Ir para hoje', subtitle: 'Volta para a rotina atual.' },
-            { key: 'pending', title: 'Ver pendencias', subtitle: 'Filtra itens pendentes.' },
-          ] satisfies Array<{ key: CommandKey; title: string; subtitle: string }>).map(({ key, title, subtitle }) => (
+            { key: 'session', title: 'Nova sessÃ£o', subtitle: 'Agenda um atendimento clÃ­nico.', icon: Plus },
+            { key: 'prepare', title: 'Preparar meu dia', subtitle: 'RevisÃ£o prÃ©-sessÃ£o em lista.', icon: Bell },
+            { key: 'share', title: 'Compartilhar briefings', subtitle: 'Exporta os resumos do dia.', icon: Search },
+            { key: 'today', title: 'Ir para hoje', subtitle: 'Volta para a rotina atual.', icon: CalendarIcon },
+            { key: 'pending', title: 'Ver pendÃªncias', subtitle: 'Filtra itens pendentes.', icon: Filter },
+          ] satisfies Array<{ key: CommandKey; title: string; subtitle: string; icon: any }>).map(({ key, title, subtitle, icon: Icon }) => (
             <TouchableOpacity key={key} style={[styles.commandOption, { borderColor: theme.border }]} onPress={() => runCommand(key)}>
-              <Filter size={16} color={theme.primary} />
-              <View>
+              <View style={[styles.commandOptionIcon, { backgroundColor: `${theme.primary}10` }]}>
+                <Icon size={18} color={theme.primary} />
+              </View>
+              <View style={{ flex: 1 }}>
                 <Text style={[styles.commandOptionTitle, { color: theme.foreground }]}>{title}</Text>
                 <Text style={[styles.commandOptionSubtitle, { color: theme.mutedForeground }]}>{subtitle}</Text>
               </View>
+              <ChevronRight size={16} color={theme.mutedForeground} />
             </TouchableOpacity>
           ))}
         </View>
       </Modal>
 
       <Modal visible={prepareOpen} transparent animationType="slide" onRequestClose={() => setPrepareOpen(false)}>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPrepareOpen(false)} />
+        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setPrepareOpen(false)}>
+          <BlurView intensity={isDark ? 30 : 50} style={StyleSheet.absoluteFill} tint={isDark ? 'dark' : 'light'} />
+        </TouchableOpacity>
         <View style={[styles.sheetLarge, { backgroundColor: theme.card, borderColor: theme.border }]}>
           <View style={styles.sheetHandle} />
           <View style={styles.sheetHeader}>
             <View>
               <Text style={[styles.sheetTitle, { color: theme.foreground }]}>Preparar meu dia</Text>
-              <Text style={[styles.sheetSubtitle, { color: theme.mutedForeground }]}>{selectedDayClinicalSessions.length} sessao(oes)</Text>
+              <Text style={[styles.sheetSubtitle, { color: theme.mutedForeground }]}>{selectedDayClinicalSessions.length} sessÃ£o(Ãµes)</Text>
             </View>
-            <TouchableOpacity onPress={() => setPrepareOpen(false)}><X size={20} color={theme.mutedForeground} /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setPrepareOpen(false)} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <X size={20} color={theme.mutedForeground} />
+            </TouchableOpacity>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             {selectedDayClinicalSessions.length === 0 ? (
@@ -740,14 +795,17 @@ const styles = StyleSheet.create({
   dayChipNumber: { fontFamily: 'Inter', fontSize: 22, fontWeight: '800', marginTop: 4 },
   dayChipCount: { fontFamily: 'Inter', fontSize: 11, fontWeight: '700', marginTop: 4 },
   summaryGrid: { flexDirection: 'row', gap: 10 },
-  summaryCard: { flex: 1, borderWidth: 1, borderRadius: 18, padding: 14 },
-  summaryLabel: { fontFamily: 'Inter', fontSize: 12 },
-  summaryValue: { fontFamily: 'Inter', fontSize: 24, fontWeight: '800', marginTop: 2 },
-  commandCard: { borderWidth: 1, borderRadius: 22, padding: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  commandTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800' },
-  commandDescription: { fontFamily: 'Inter', fontSize: 12, lineHeight: 18, marginTop: 4, maxWidth: 210 },
-  commandButton: { minHeight: 42, borderRadius: 15, backgroundColor: primaryTeal, paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 7 },
-  commandButtonText: { color: '#fff', fontFamily: 'Inter', fontSize: 13, fontWeight: '800' },
+  summaryCard: { flex: 1, borderWidth: 1, borderRadius: 22, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  summaryIcon: { width: 32, height: 32, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  summaryLabel: { fontFamily: 'Inter', fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  summaryValue: { fontFamily: 'Inter', fontSize: 20, fontWeight: '800', marginTop: 1 },
+  commandCard: { borderWidth: 1, borderRadius: 24, padding: 16, gap: 16 },
+  commandContent: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  commandIcon: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  commandTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800' },
+  commandDescription: { fontFamily: 'Inter', fontSize: 12, lineHeight: 18, marginTop: 2 },
+  commandButton: { height: 44, borderRadius: 16, backgroundColor: primaryTeal, paddingHorizontal: 20, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 8, alignSelf: 'flex-start' },
+  commandButtonText: { color: '#fff', fontFamily: 'Inter', fontSize: 14, fontWeight: '800' },
   monthCard: { borderWidth: 1, borderRadius: 22, padding: 6, overflow: 'hidden' },
   weekList: { gap: 12 },
   weekDayBlock: { borderWidth: 1, borderRadius: 22, padding: 14, gap: 10 },
@@ -789,9 +847,10 @@ const styles = StyleSheet.create({
   sheetHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
   sheetTitle: { fontFamily: 'Lora', fontSize: 20, fontWeight: '700' },
   sheetSubtitle: { fontFamily: 'Inter', fontSize: 12, marginTop: 2 },
-  commandOption: { borderWidth: 1, borderRadius: 18, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 12 },
-  commandOptionTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800' },
-  commandOptionSubtitle: { fontFamily: 'Inter', fontSize: 12, marginTop: 2 },
+  commandOption: { borderWidth: 1, borderRadius: 20, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 8 },
+  commandOptionIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  commandOptionTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800' },
+  commandOptionSubtitle: { fontFamily: 'Inter', fontSize: 12, marginTop: 2, opacity: 0.8 },
   prepareCard: { borderWidth: 1, borderRadius: 22, padding: 14, marginBottom: 12 },
   prepareTime: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800' },
   prepareName: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', marginTop: 4 },

@@ -16,6 +16,8 @@
     "ios",
     "dist",
     ".expo",
-    "node_modules"
+    "node_modules",
+    "src/features",
+    "src/shared"
   ]
 }

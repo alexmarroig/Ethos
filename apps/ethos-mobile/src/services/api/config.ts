@@ -85,7 +85,7 @@ const buildBaseUrl = (envValue: string | undefined, port: number, envName: strin
 export const getApiBaseUrl = () =>
   buildBaseUrl(process.env.EXPO_PUBLIC_ETHOS_API_URL, API_PORT, 'EXPO_PUBLIC_ETHOS_API_URL');
 
-export const getControlPlaneBaseUrl = () =>
+export const getControlApiBaseUrl = () =>
   buildBaseUrl(
     process.env.EXPO_PUBLIC_ETHOS_CONTROL_API_URL,
     CONTROL_PORT,

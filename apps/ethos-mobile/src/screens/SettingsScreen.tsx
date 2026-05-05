@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,7 +18,6 @@ import * as FileSystem from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import * as WebBrowser from "expo-web-browser";
 import {
-  Archive,
   Bell,
   ChevronRight,
   CreditCard,
@@ -28,10 +27,12 @@ import {
   Smartphone,
   Trash2,
   User,
+  Zap,
 } from "lucide-react-native";
 
 import { colors } from "../theme/colors";
 import { useAuth } from "../contexts/AuthContext";
+import { Archive } from "../lib/lucideCompat";
 import { EMAIL_REGEX, CRP_REGEX } from "../constants/professionalOptions";
 import {
   defaultWhatsAppMessageSettings,
@@ -40,11 +41,12 @@ import {
 } from "../services/whatsapp";
 import { useBiometricPreference } from "../hooks/useAppLock";
 import { clinicalApiClient } from "../services/api/clinicalClient";
+import { fetchBioHubStatus, BioHubStatus } from "../services/biohubService";
 
-// ─── Clinical approaches ──────────────────────────────────────────────────────
+// â”€â”€â”€ Clinical approaches â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const CLINICAL_APPROACHES = [
-  "TCC", "TCC-C", "ACT", "DBT", "Psicanálise", "Psicodinâmica",
-  "Gestalt", "Humanista", "Sistêmica", "Cognitiva", "Comportamental",
+  "TCC", "TCC-C", "ACT", "DBT", "PsicanÃ¡lise", "PsicodinÃ¢mica",
+  "Gestalt", "Humanista", "SistÃªmica", "Cognitiva", "Comportamental",
   "EMDR", "Integrativa", "Junguiana", "Existencial", "Focada em Trauma",
 ];
 
@@ -55,7 +57,7 @@ const readAvatarDataUrl = async (uri: string, mimeType?: string | null) => {
   return `data:${mimeType || "image/jpeg"};base64,${base64}`;
 };
 
-// ─── Purge Confirm Modal ──────────────────────────────────────────────────────
+// â”€â”€â”€ Purge Confirm Modal â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function PurgeConfirmModal({
   visible,
   onClose,
@@ -76,7 +78,7 @@ function PurgeConfirmModal({
         <View style={[styles.purgeDialog, { backgroundColor: theme.card }]}>
           <Text style={[styles.purgeTitle, { color: theme.destructive }]}>Purgar todos os dados?</Text>
           <Text style={[styles.purgeBody, { color: theme.foreground }]}>
-            Esta ação remove permanentemente todos os dados locais e não pode ser desfeita. Para continuar, digite{" "}
+            Esta aÃ§Ã£o remove permanentemente todos os dados locais e nÃ£o pode ser desfeita. Para continuar, digite{" "}
             <Text style={{ fontWeight: "800" }}>CONFIRMAR</Text> abaixo.
           </Text>
           <TextInput
@@ -108,7 +110,7 @@ function PurgeConfirmModal({
   );
 }
 
-// ─── Main Screen ──────────────────────────────────────────────────────────────
+// â”€â”€â”€ Main Screen â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function SettingsScreen() {
   const isDark = useColorScheme() === "dark";
   const theme = isDark ? colors.dark : colors.light;
@@ -124,6 +126,8 @@ export default function SettingsScreen() {
   const [isGeneratingBackup, setIsGeneratingBackup] = React.useState(false);
   const [isPurging, setIsPurging] = React.useState(false);
   const [showPurgeModal, setShowPurgeModal] = React.useState(false);
+  const [biohubStatus, setBiohubStatus] = React.useState<BioHubStatus | null>(null);
+  const [isLoadingBiohub, setIsLoadingBiohub] = React.useState(false);
 
   // Notification toggles
   const [notifySessionReminder, setNotifySessionReminder] = React.useState(true);
@@ -168,7 +172,18 @@ export default function SettingsScreen() {
       setPaymentTemplate(stored.paymentReminderTemplate);
       setPixKey(stored.pixKey);
     };
+
+    const loadBiohub = async () => {
+      setIsLoadingBiohub(true);
+      const status = await fetchBioHubStatus();
+      if (active) {
+        setBiohubStatus(status);
+        setIsLoadingBiohub(false);
+      }
+    };
+
     void loadTemplates();
+    void loadBiohub();
     return () => { active = false; };
   }, []);
 
@@ -228,21 +243,21 @@ export default function SettingsScreen() {
       const avatarUrl = await readAvatarDataUrl(asset.uri, asset.mimeType);
       setProfile((current) => ({ ...current, avatar_url: avatarUrl }));
     } catch (error: any) {
-      Alert.alert("Foto indisponível", error?.message ?? "Não foi possível selecionar a foto.");
+      Alert.alert("Foto indisponÃ­vel", error?.message ?? "NÃ£o foi possÃ­vel selecionar a foto.");
     }
   };
 
   const handleSaveProfile = async () => {
     if (!profile.name.trim()) {
-      Alert.alert("Nome obrigatório", "Informe o nome profissional para continuar.");
+      Alert.alert("Nome obrigatÃ³rio", "Informe o nome profissional para continuar.");
       return;
     }
     if (!EMAIL_REGEX.test(profile.email.trim().toLowerCase())) {
-      Alert.alert("Email inválido", "Informe um email válido para salvar o perfil.");
+      Alert.alert("Email invÃ¡lido", "Informe um email vÃ¡lido para salvar o perfil.");
       return;
     }
     if (!CRP_REGEX.test(profile.crp.trim())) {
-      Alert.alert("CRP inválido", "Use o formato 00/0000 a 00/000000.");
+      Alert.alert("CRP invÃ¡lido", "Use o formato 00/0000 a 00/000000.");
       return;
     }
     try {
@@ -257,7 +272,7 @@ export default function SettingsScreen() {
       });
       Alert.alert("Perfil salvo", "Seu perfil profissional foi atualizado.");
     } catch (error: any) {
-      Alert.alert("Não foi possível salvar", error?.message ?? "Tente novamente em instantes.");
+      Alert.alert("NÃ£o foi possÃ­vel salvar", error?.message ?? "Tente novamente em instantes.");
     } finally {
       setIsSavingProfile(false);
     }
@@ -273,7 +288,7 @@ export default function SettingsScreen() {
       });
       Alert.alert("Mensagens salvas", "Os modelos do WhatsApp foram atualizados neste dispositivo.");
     } catch (saveError: any) {
-      Alert.alert("Não foi possível salvar", saveError?.message ?? "Tente novamente em instantes.");
+      Alert.alert("NÃ£o foi possÃ­vel salvar", saveError?.message ?? "Tente novamente em instantes.");
     } finally {
       setIsSavingTemplates(false);
     }
@@ -299,7 +314,7 @@ export default function SettingsScreen() {
         Alert.alert("Backup criado", `Arquivo salvo em: ${fileUri}`);
       }
     } catch (err: any) {
-      Alert.alert("Erro no backup", err?.message ?? "Não foi possível gerar o backup.");
+      Alert.alert("Erro no backup", err?.message ?? "NÃ£o foi possÃ­vel gerar o backup.");
     } finally {
       setIsGeneratingBackup(false);
     }
@@ -320,7 +335,7 @@ export default function SettingsScreen() {
       const data = JSON.parse(content);
       Alert.alert(
         "Restaurar backup?",
-        "Os dados atuais serão substituídos pelos dados do arquivo selecionado. Esta ação não pode ser desfeita.",
+        "Os dados atuais serÃ£o substituÃ­dos pelos dados do arquivo selecionado. Esta aÃ§Ã£o nÃ£o pode ser desfeita.",
         [
           { text: "Cancelar", style: "cancel" },
           {
@@ -334,14 +349,14 @@ export default function SettingsScreen() {
                 });
                 Alert.alert("Backup restaurado", "Seus dados foram restaurados com sucesso.");
               } catch (err: any) {
-                Alert.alert("Erro ao restaurar", err?.message ?? "Não foi possível restaurar o backup.");
+                Alert.alert("Erro ao restaurar", err?.message ?? "NÃ£o foi possÃ­vel restaurar o backup.");
               }
             },
           },
         ]
       );
     } catch (err: any) {
-      Alert.alert("Erro", err?.message ?? "Não foi possível abrir o arquivo.");
+      Alert.alert("Erro", err?.message ?? "NÃ£o foi possÃ­vel abrir o arquivo.");
     }
   };
 
@@ -349,11 +364,11 @@ export default function SettingsScreen() {
     setIsPurging(true);
     try {
       await clinicalApiClient.request("/purge", { method: "POST" });
-      Alert.alert("Dados removidos", "Todos os dados locais foram apagados. Você será desconectado.", [
+      Alert.alert("Dados removidos", "Todos os dados locais foram apagados. VocÃª serÃ¡ desconectado.", [
         { text: "OK", onPress: logout },
       ]);
     } catch (err: any) {
-      Alert.alert("Erro", err?.message ?? "Não foi possível purgar os dados.");
+      Alert.alert("Erro", err?.message ?? "NÃ£o foi possÃ­vel purgar os dados.");
     } finally {
       setIsPurging(false);
     }
@@ -362,10 +377,10 @@ export default function SettingsScreen() {
   return (
     <ScrollView style={[styles.container, { backgroundColor: theme.background }]}>
       <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.foreground }]}>Configurações</Text>
+        <Text style={[styles.title, { color: theme.foreground }]}>ConfiguraÃ§Ãµes</Text>
       </View>
 
-      {/* ── Perfil ─────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Perfil â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>PERFIL PROFISSIONAL</Text>
         <View style={[styles.card, styles.profileCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -426,7 +441,7 @@ export default function SettingsScreen() {
           />
 
           {/* Clinical approach multi-select chips */}
-          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Abordagem clínica</Text>
+          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Abordagem clÃ­nica</Text>
           <View style={styles.approachGrid}>
             {CLINICAL_APPROACHES.map((approach) => {
               const active = selectedApproaches.has(approach);
@@ -451,7 +466,7 @@ export default function SettingsScreen() {
           </View>
           {selectedApproaches.size > 0 && (
             <Text style={[styles.approachSummary, { color: theme.mutedForeground }]}>
-              {Array.from(selectedApproaches).join(" · ")}
+              {Array.from(selectedApproaches).join(" Â· ")}
             </Text>
           )}
 
@@ -469,7 +484,7 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Assinatura ─────────────────────────────────────────────────── */}
+      {/* â”€â”€ Assinatura â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>ASSINATURA</Text>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -483,14 +498,70 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Notificações ───────────────────────────────────────────────── */}
+      {/* â”€â”€ IntegraÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>NOTIFICAÇÕES</Text>
+        <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>INTEGRAÃ‡Ã•ES</Text>
+        <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
+          <View style={styles.biohubCard}>
+            <View style={styles.biohubHeader}>
+              <View style={[styles.biohubIcon, { backgroundColor: '#7c3aed20' }]}>
+                <Zap size={20} color="#7c3aed" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.biohubTitle, { color: theme.foreground }]}>BioHub Network</Text>
+                <Text style={[styles.biohubSubtitle, { color: theme.mutedForeground }]}>Controle e visibilidade da sua plataforma</Text>
+              </View>
+              {isLoadingBiohub ? (
+                <ActivityIndicator size="small" color="#7c3aed" />
+              ) : (
+                <View style={[
+                  styles.statusBadge,
+                  { backgroundColor: biohubStatus?.hasBiohub ? '#eefbf7' : '#fef2f2' }
+                ]}>
+                  <Text style={[
+                    styles.statusBadgeText,
+                    { color: biohubStatus?.hasBiohub ? '#10b981' : '#ef4444' }
+                  ]}>
+                    {biohubStatus?.hasBiohub ? 'CONECTADO' : 'PENDENTE'}
+                  </Text>
+                </View>
+              )}
+            </View>
+
+            {!biohubStatus?.hasBiohub && !isLoadingBiohub && (
+              <TouchableOpacity
+                style={styles.biohubCTA}
+                onPress={() => WebBrowser.openBrowserAsync("https://biohub.ethos-clinic.com/auth/register")}
+              >
+                <Text style={styles.biohubCTAText}>Criar plataforma agora</Text>
+                <ChevronRight size={16} color="#fff" />
+              </TouchableOpacity>
+            )}
+
+            {biohubStatus?.hasBiohub && (
+              <View style={styles.biohubDetail}>
+                <View style={styles.biohubDetailRow}>
+                  <Text style={[styles.biohubDetailLabel, { color: theme.mutedForeground }]}>Plano:</Text>
+                  <Text style={[styles.biohubDetailValue, { color: theme.foreground }]}>{biohubStatus.plan || 'Base'}</Text>
+                </View>
+                <View style={styles.biohubDetailRow}>
+                  <Text style={[styles.biohubDetailLabel, { color: theme.mutedForeground }]}>Status:</Text>
+                  <Text style={[styles.biohubDetailValue, { color: '#10b981' }]}>Ativo</Text>
+                </View>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      {/* â”€â”€ NotificaÃ§Ãµes â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>NOTIFICAÃ‡Ã•ES</Text>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {renderSettingRow(
             <Bell size={20} color={theme.primary} />,
-            "Lembretes de sessão",
-            "Push 1h antes de cada sessão agendada",
+            "Lembretes de sessÃ£o",
+            "Push 1h antes de cada sessÃ£o agendada",
             <Switch
               value={notifySessionReminder}
               onValueChange={setNotifySessionReminder}
@@ -501,7 +572,7 @@ export default function SettingsScreen() {
           {renderSettingRow(
             <Bell size={20} color="#edbd2a" />,
             "Lembretes de pagamento",
-            "Alerta de cobranças vencidas ou a vencer",
+            "Alerta de cobranÃ§as vencidas ou a vencer",
             <Switch
               value={notifyPaymentReminder}
               onValueChange={setNotifyPaymentReminder}
@@ -511,8 +582,8 @@ export default function SettingsScreen() {
           )}
           {renderSettingRow(
             <Bell size={20} color="#3a9b73" />,
-            "Transcrição pronta",
-            "Notificar quando a transcrição de áudio concluir",
+            "TranscriÃ§Ã£o pronta",
+            "Notificar quando a transcriÃ§Ã£o de Ã¡udio concluir",
             <Switch
               value={notifyTranscription}
               onValueChange={setNotifyTranscription}
@@ -523,7 +594,7 @@ export default function SettingsScreen() {
           {renderSettingRow(
             <Bell size={20} color={theme.accent} />,
             "Novos agendamentos",
-            "Push quando paciente solicitar horário",
+            "Push quando paciente solicitar horÃ¡rio",
             <Switch
               value={notifyNewBooking}
               onValueChange={setNotifyNewBooking}
@@ -534,22 +605,22 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Dispositivo ────────────────────────────────────────────────── */}
+      {/* â”€â”€ Dispositivo â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>CONTA E DISPOSITIVO</Text>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
           {renderSettingRow(
             <Shield size={20} color={theme.statusValidated} />,
-            "Segurança e App Lock",
+            "SeguranÃ§a e App Lock",
             biometricsEnabled
-              ? "Biometria ativada — bloqueia após 30s em segundo plano"
+              ? "Biometria ativada â€” bloqueia apÃ³s 30s em segundo plano"
               : "Ative para bloquear com biometria",
             <Switch
               value={biometricsEnabled}
               onValueChange={async (val) => {
                 const ok = await setBiometricEnabled(val);
                 if (!ok && val) {
-                  Alert.alert("Biometria indisponível", "Não foi possível verificar a biometria neste dispositivo.");
+                  Alert.alert("Biometria indisponÃ­vel", "NÃ£o foi possÃ­vel verificar a biometria neste dispositivo.");
                 }
               }}
               trackColor={{ false: theme.muted, true: theme.statusValidated }}
@@ -558,7 +629,7 @@ export default function SettingsScreen() {
           )}
           {renderSettingRow(
             <Database size={20} color={theme.accent} />,
-            "Sincronização offline",
+            "SincronizaÃ§Ã£o offline",
             "Modo local para continuidade de uso",
             <Switch
               value={offlineMode}
@@ -567,16 +638,16 @@ export default function SettingsScreen() {
               thumbColor={theme.card}
             />
           )}
-          {renderSettingRow(<Moon size={20} color={theme.mutedForeground} />, "Aparência", "Automático (Sistema)")}
+          {renderSettingRow(<Moon size={20} color={theme.mutedForeground} />, "AparÃªncia", "AutomÃ¡tico (Sistema)")}
           {renderSettingRow(
             <User size={20} color={theme.primary} />,
             "Status da conta",
-            user ? "Conta clínica conectada" : "Sem sessão ativa"
+            user ? "Conta clÃ­nica conectada" : "Sem sessÃ£o ativa"
           )}
         </View>
       </View>
 
-      {/* ── Backup ─────────────────────────────────────────────────────── */}
+      {/* â”€â”€ Backup â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
         <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>BACKUP E DADOS</Text>
         <View style={[styles.card, { backgroundColor: theme.card, borderColor: theme.border }]}>
@@ -604,11 +675,11 @@ export default function SettingsScreen() {
         </View>
       </View>
 
-      {/* ── Mensagens padrão ───────────────────────────────────────────── */}
+      {/* â”€â”€ Mensagens padrÃ£o â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>MENSAGENS PADRÃO</Text>
+        <Text style={[styles.sectionTitle, { color: theme.mutedForeground }]}>MENSAGENS PADRÃƒO</Text>
         <View style={[styles.card, styles.templateCard, { backgroundColor: theme.card, borderColor: theme.border }]}>
-          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Template de lembrete de sessão</Text>
+          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Template de lembrete de sessÃ£o</Text>
           <TextInput
             style={[styles.templateInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.foreground }]}
             multiline
@@ -619,7 +690,7 @@ export default function SettingsScreen() {
             placeholderTextColor={theme.mutedForeground}
           />
 
-          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Template de cobrança</Text>
+          <Text style={[styles.inputLabel, { color: theme.foreground }]}>Template de cobranÃ§a</Text>
           <TextInput
             style={[styles.templateInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.foreground }]}
             multiline
@@ -641,7 +712,7 @@ export default function SettingsScreen() {
           />
 
           <Text style={[styles.templateHint, { color: theme.mutedForeground }]}>
-            Variáveis disponíveis: [NOME], [HORARIO], [VALOR], [CHAVE]
+            VariÃ¡veis disponÃ­veis: [NOME], [HORARIO], [VALOR], [CHAVE]
           </Text>
 
           <TouchableOpacity
@@ -663,7 +734,7 @@ export default function SettingsScreen() {
           style={[styles.logoutButton, { backgroundColor: `${theme.destructive}20` }]}
           onPress={logout}
         >
-          <Text style={[styles.logoutText, { color: theme.destructive }]}>Encerrar sessão segura</Text>
+          <Text style={[styles.logoutText, { color: theme.destructive }]}>Encerrar sessÃ£o segura</Text>
         </TouchableOpacity>
         <Text style={[styles.versionText, { color: theme.mutedForeground }]}>ETHOS v1.0.0</Text>
       </View>
@@ -766,4 +837,28 @@ const styles = StyleSheet.create({
   purgeCancelText: { fontFamily: "Inter", fontSize: 14, fontWeight: "600" },
   purgeConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
   purgeConfirmText: { color: "#fff", fontFamily: "Inter", fontSize: 14, fontWeight: "700" },
+
+  // BioHub Card
+  biohubCard: { padding: 16 },
+  biohubHeader: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  biohubIcon: { width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  biohubTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700' },
+  biohubSubtitle: { fontFamily: 'Inter', fontSize: 12, marginTop: 2 },
+  statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+  statusBadgeText: { fontSize: 10, fontWeight: '800' },
+  biohubCTA: {
+    backgroundColor: '#7c3aed',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingVertical: 12,
+    borderRadius: 12
+  },
+  biohubCTAText: { color: '#fff', fontWeight: '700', fontSize: 14 },
+  biohubDetail: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: 'rgba(0,0,0,0.05)', gap: 8 },
+  biohubDetailRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  biohubDetailLabel: { fontSize: 13 },
+  biohubDetailValue: { fontSize: 13, fontWeight: '600' },
 });

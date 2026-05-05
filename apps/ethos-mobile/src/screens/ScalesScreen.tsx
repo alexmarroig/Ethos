@@ -15,9 +15,10 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { ChevronRight, History, X } from 'lucide-react-native';
+import { ChevronRight, X } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { clinicalApiClient } from '../services/api/clinicalClient';
+import { History } from '../lib/lucideCompat';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type Scale = {

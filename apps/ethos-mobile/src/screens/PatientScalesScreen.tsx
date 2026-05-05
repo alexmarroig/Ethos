@@ -14,9 +14,10 @@ import {
   useColorScheme,
 } from 'react-native';
 import Svg, { Line, Polyline, Circle, Text as SvgText } from 'react-native-svg';
-import { TrendingDown, TrendingUp, Minus, ChevronDown, ChevronUp, X } from 'lucide-react-native';
+import { TrendingDown, TrendingUp, ChevronDown, ChevronUp, X } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { clinicalApiClient } from '../services/api/clinicalClient';
+import { Minus } from '../lib/lucideCompat';
 
 type ScaleRecord = {
   id: string;

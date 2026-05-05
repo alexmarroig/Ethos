@@ -15,9 +15,10 @@ import {
   View,
   useColorScheme,
 } from 'react-native';
-import { BookOpen, ChevronDown, ChevronUp, Edit3, Pin, Plus, Tag, Trash2, X } from 'lucide-react-native';
+import { BookOpen, ChevronDown, ChevronUp, Edit3, Plus, Trash2, X } from 'lucide-react-native';
 import { colors } from '../theme/colors';
 import { clinicalApiClient } from '../services/api/clinicalClient';
+import { Pin, Tag } from '../lib/lucideCompat';
 
 type Priority = 'low' | 'medium' | 'high';
 
